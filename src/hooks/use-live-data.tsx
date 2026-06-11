@@ -31,13 +31,16 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [refreshIntervalSec]);
 
-  const value = useMemo<Ctx>(() => ({
-    lastSync,
-    isStale: now - lastSync > 120_000,
-    refreshIntervalSec,
-    setRefreshIntervalSec,
-    forceSync: () => setLastSync(Date.now()),
-  }), [lastSync, now, refreshIntervalSec]);
+  const value = useMemo<Ctx>(
+    () => ({
+      lastSync,
+      isStale: now - lastSync > 120_000,
+      refreshIntervalSec,
+      setRefreshIntervalSec,
+      forceSync: () => setLastSync(Date.now()),
+    }),
+    [lastSync, now, refreshIntervalSec],
+  );
 
   return <LiveCtx.Provider value={value}>{children}</LiveCtx.Provider>;
 }

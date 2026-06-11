@@ -11,7 +11,7 @@ export function exportToCsv(filename: string, rows: Record<string, unknown>[]) {
   };
   const csv = [
     headers.join(";"),
-    ...rows.map(r => headers.map(h => escape(r[h])).join(";")),
+    ...rows.map((r) => headers.map((h) => escape(r[h])).join(";")),
   ].join("\n");
   // BOM for Excel UTF-8 detection
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });

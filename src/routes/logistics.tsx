@@ -1,8 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
-  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
-  Tooltip, XAxis, YAxis, Legend,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Legend,
 } from "recharts";
 import { AppShell } from "@/components/app-shell";
 import { BigNumberCard, Gauge, Panel, TrafficBadge } from "@/components/widgets";
@@ -10,37 +19,91 @@ import { logistics, statusFor } from "@/lib/mock";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { AlertCircle } from "lucide-react";
+import { auth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/logistics")({
+  beforeLoad: ({ location }) => {
+    if (!auth.session) {
+      throw redirect({ to: "/login", search: { redirect: location.href } });
+    }
+    if (!auth.hasAccess("/logistics")) {
+      throw redirect({ to: "/unauthorized" });
+    }
+  },
   head: () => ({ meta: [{ title: "Logistique & Planning — BACOVET" }] }),
   component: LogisticsPage,
 });
 
 const tt = { backgroundColor: "var(--card)", border: "1px solid var(--border)", fontSize: 12 };
-const PIE_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--success)", "var(--warning)", "var(--muted-foreground)"];
+const PIE_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--success)",
+  "var(--warning)",
+  "var(--muted-foreground)",
+];
 
 function LogisticsPage() {
   const l = logistics;
   const [q, setQ] = useState("");
-  const filtered = useMemo(() =>
-    l.stock.filter(s =>
-      [s.code, s.des, s.famille, s.couleur].join(" ").toLowerCase().includes(q.toLowerCase())
-    ), [q]);
-  const exportRows = l.stock.map(s => ({
-    code: s.code, designation: s.des, famille: s.famille,
-    couleur: s.couleur, qte: s.qte, reserve: s.res,
+  const filtered = useMemo(
+    () =>
+      l.stock.filter((s) =>
+        [s.code, s.des, s.famille, s.couleur].join(" ").toLowerCase().includes(q.toLowerCase()),
+      ),
+    [q, l.stock],
+  );
+  const exportRows = l.stock.map((s) => ({
+    code: s.code,
+    designation: s.des,
+    famille: s.famille,
+    couleur: s.couleur,
+    qte: s.qte,
+    reserve: s.res,
   }));
 
   return (
-    <AppShell page="/logistics" title="Logistique & Planning" subtitle="Série 300 · Supply Chain"
-      exportRows={exportRows} exportFilename="BACOVET_Stock_S300">
-
+    <AppShell
+      page="/logistics"
+      title="Logistique & Planning"
+      subtitle="Série 300 · Supply Chain"
+      exportRows={exportRows}
+      exportFilename="BACOVET_Stock_S300"
+    >
       {/* A — Delivery */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <BigNumberCard label="DOT · F-REQ-334" value={l.dot} target="≥ 95%" status={statusFor(l.dot, 95)} source="GPRO Planning" />
-        <BigNumberCard label="HOT · F-REQ-335" value={l.hot} target="≥ 95%" status={statusFor(l.hot, 95)} source="GPRO Planning" />
-        <BigNumberCard label="Respect Planification · F-REQ-336" value={l.respectPlan} target="≥ 95%" status={statusFor(l.respectPlan, 95)} source="q/qte_produite" />
-        <BigNumberCard label="Lead Time Global · F-REQ-337" value={l.leadTime} unit="j" target="32 j" status="green" source="STRH + LT Transport" />
+        <BigNumberCard
+          label="DOT · F-REQ-334"
+          value={l.dot}
+          target="≥ 95%"
+          status={statusFor(l.dot, 95)}
+          source="GPRO Planning"
+        />
+        <BigNumberCard
+          label="HOT · F-REQ-335"
+          value={l.hot}
+          target="≥ 95%"
+          status={statusFor(l.hot, 95)}
+          source="GPRO Planning"
+        />
+        <BigNumberCard
+          label="Respect Planification · F-REQ-336"
+          value={l.respectPlan}
+          target="≥ 95%"
+          status={statusFor(l.respectPlan, 95)}
+          source="q/qte_produite"
+        />
+        <BigNumberCard
+          label="Lead Time Global · F-REQ-337"
+          value={l.leadTime}
+          unit="j"
+          target="32 j"
+          status="green"
+          source="STRH + LT Transport"
+        />
       </div>
 
       <div className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 mb-4 flex items-center gap-3">
@@ -61,10 +124,15 @@ function LogisticsPage() {
         </Panel>
         <Panel title="Taux de Stock Mort · F-REQ-319/320/321">
           <div className="grid grid-cols-3 gap-2 pt-2">
-            {(["accessoires", "tissu", "fg"] as const).map(k => (
-              <div key={k} className="rounded-md border border-border bg-secondary/40 p-3 text-center">
+            {(["accessoires", "tissu", "fg"] as const).map((k) => (
+              <div
+                key={k}
+                className="rounded-md border border-border bg-secondary/40 p-3 text-center"
+              >
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">{k}</div>
-                <div className="text-2xl font-mono font-bold tabular-nums">{l.stockMort[k].toFixed(1)}%</div>
+                <div className="text-2xl font-mono font-bold tabular-nums">
+                  {l.stockMort[k].toFixed(1)}%
+                </div>
                 <TrafficBadge status={statusFor(l.stockMort[k], 5, "max")} />
               </div>
             ))}
@@ -85,12 +153,21 @@ function LogisticsPage() {
           { title: "Stock par Provenance · F-REQ-332", data: l.provenance },
           { title: "Stock par Marque · F-REQ-333", data: l.brand },
           { title: "Stock par Typologie · F-REQ-331", data: l.typologie },
-        ].map(p => (
+        ].map((p) => (
           <Panel key={p.title} title={p.title}>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={p.data} dataKey="value" nameKey="name" innerRadius={40} outerRadius={75} paddingAngle={2}>
-                  {p.data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                <Pie
+                  data={p.data}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={40}
+                  outerRadius={75}
+                  paddingAngle={2}
+                >
+                  {p.data.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
                 </Pie>
                 <Tooltip contentStyle={tt} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -104,8 +181,11 @@ function LogisticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
         <Panel title="Commandes Livrées à Temps · F-REQ-325/326/327">
           <div className="grid grid-cols-3 gap-2">
-            {(["accessoires", "tissu", "fg"] as const).map(k => (
-              <div key={k} className="rounded-md border border-border bg-secondary/40 p-3 text-center">
+            {(["accessoires", "tissu", "fg"] as const).map((k) => (
+              <div
+                key={k}
+                className="rounded-md border border-border bg-secondary/40 p-3 text-center"
+              >
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">{k}</div>
                 <div className="text-2xl font-mono font-bold tabular-nums">{l.livrees[k]}%</div>
                 <TrafficBadge status={statusFor(l.livrees[k], 80)} />
@@ -115,10 +195,15 @@ function LogisticsPage() {
         </Panel>
         <Panel title="Délai de Livraison Moyen · F-REQ-328/329/330">
           <div className="grid grid-cols-3 gap-2">
-            {(["accessoires", "tissu", "fg"] as const).map(k => (
-              <div key={k} className="rounded-md border border-border bg-secondary/40 p-3 text-center">
+            {(["accessoires", "tissu", "fg"] as const).map((k) => (
+              <div
+                key={k}
+                className="rounded-md border border-border bg-secondary/40 p-3 text-center"
+              >
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">{k}</div>
-                <div className="text-2xl font-mono font-bold tabular-nums">{l.delai[k].toFixed(1)} j</div>
+                <div className="text-2xl font-mono font-bold tabular-nums">
+                  {l.delai[k].toFixed(1)} j
+                </div>
                 <TrafficBadge status={statusFor(l.delai[k], 1, "max")} />
               </div>
             ))}
@@ -131,13 +216,16 @@ function LogisticsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
-              <th className="text-left py-2">OF</th><th className="text-left">Avancement</th>
-              <th className="text-right">Qté prévue</th><th className="text-right">Qté réalisée</th>
-              <th className="text-right">Engagement</th><th className="text-right">Statut</th>
+              <th className="text-left py-2">OF</th>
+              <th className="text-left">Avancement</th>
+              <th className="text-right">Qté prévue</th>
+              <th className="text-right">Qté réalisée</th>
+              <th className="text-right">Engagement</th>
+              <th className="text-right">Statut</th>
             </tr>
           </thead>
           <tbody className="font-mono">
-            {l.ofList.map(o => (
+            {l.ofList.map((o) => (
               <tr key={o.of} className="border-b border-border/50">
                 <td className="py-2 text-primary">{o.of}</td>
                 <td className="w-1/3 pr-4">
@@ -150,7 +238,9 @@ function LogisticsPage() {
                 <td className="text-right tabular-nums">{o.realisee}</td>
                 <td className="text-right tabular-nums">{o.engagement}</td>
                 <td className="text-right">
-                  <span className={`text-[10px] px-2 py-0.5 rounded uppercase tracking-wider ${o.statut === "terminé" ? "bg-success/15 text-success" : "bg-chart-4/20 text-foreground"}`}>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded uppercase tracking-wider ${o.statut === "terminé" ? "bg-success/15 text-success" : "bg-chart-4/20 text-foreground"}`}
+                  >
                     {o.statut}
                   </span>
                 </td>
@@ -166,7 +256,7 @@ function LogisticsPage() {
           { title: "Couverture Chaîne · F-REQ-310", data: l.couverture.chaine, target: 10 },
           { title: "Couverture Coupe · F-REQ-311", data: l.couverture.coupe, target: 7 },
           { title: "Couverture Sérigraphie · F-REQ-309", data: l.couverture.seri, target: 5 },
-        ].map(c => (
+        ].map((c) => (
           <Panel key={c.title} title={c.title}>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={c.data}>
@@ -176,7 +266,10 @@ function LogisticsPage() {
                 <Tooltip contentStyle={tt} />
                 <Bar dataKey="jours" radius={[4, 4, 0, 0]}>
                   {c.data.map((d, i) => (
-                    <Cell key={i} fill={d.jours >= c.target ? "var(--success)" : "var(--destructive)"} />
+                    <Cell
+                      key={i}
+                      fill={d.jours >= c.target ? "var(--success)" : "var(--destructive)"}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -186,20 +279,30 @@ function LogisticsPage() {
       </div>
 
       {/* G — Stock table */}
-      <Panel title="Stock Matières Premières" right={
-        <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher code, désignation…"
-          className="h-7 w-64 text-xs bg-secondary border-border" />
-      }>
+      <Panel
+        title="Stock Matières Premières"
+        right={
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Rechercher code, désignation…"
+            className="h-7 w-64 text-xs bg-secondary border-border"
+          />
+        }
+      >
         <table className="w-full text-sm">
           <thead>
             <tr className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
-              <th className="text-left py-2">Code MP</th><th className="text-left">Désignation</th>
-              <th className="text-left">Famille</th><th className="text-left">Couleur</th>
-              <th className="text-right">Qté stock</th><th className="text-right">Qté réservée</th>
+              <th className="text-left py-2">Code MP</th>
+              <th className="text-left">Désignation</th>
+              <th className="text-left">Famille</th>
+              <th className="text-left">Couleur</th>
+              <th className="text-right">Qté stock</th>
+              <th className="text-right">Qté réservée</th>
             </tr>
           </thead>
           <tbody className="font-mono">
-            {filtered.map(s => (
+            {filtered.map((s) => (
               <tr key={s.code} className="border-b border-border/50">
                 <td className="py-2 text-primary">{s.code}</td>
                 <td>{s.des}</td>
@@ -210,7 +313,11 @@ function LogisticsPage() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="py-6 text-center text-muted-foreground text-xs">Aucun résultat</td></tr>
+              <tr>
+                <td colSpan={6} className="py-6 text-center text-muted-foreground text-xs">
+                  Aucun résultat
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

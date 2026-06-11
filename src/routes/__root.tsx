@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, auth } from "@/hooks/use-auth";
 import { LiveDataProvider } from "@/hooks/use-live-data";
 
 function NotFoundComponent() {
@@ -75,7 +75,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+  auth: typeof auth;
+}>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },

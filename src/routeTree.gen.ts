@@ -9,14 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
 import { Route as QualityRouteImport } from './routes/quality'
 import { Route as ProductionRouteImport } from './routes/production'
+import { Route as MethodsRouteImport } from './routes/methods'
 import { Route as LogisticsRouteImport } from './routes/logistics'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DevelopmentRouteImport } from './routes/development'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
+const UnauthorizedRoute = UnauthorizedRouteImport.update({
+  id: '/unauthorized',
+  path: '/unauthorized',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QualityRoute = QualityRouteImport.update({
   id: '/quality',
   path: '/quality',
@@ -25,6 +32,11 @@ const QualityRoute = QualityRouteImport.update({
 const ProductionRoute = ProductionRouteImport.update({
   id: '/production',
   path: '/production',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MethodsRoute = MethodsRouteImport.update({
+  id: '/methods',
+  path: '/methods',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogisticsRoute = LogisticsRouteImport.update({
@@ -59,8 +71,10 @@ export interface FileRoutesByFullPath {
   '/development': typeof DevelopmentRoute
   '/login': typeof LoginRoute
   '/logistics': typeof LogisticsRoute
+  '/methods': typeof MethodsRoute
   '/production': typeof ProductionRoute
   '/quality': typeof QualityRoute
+  '/unauthorized': typeof UnauthorizedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -68,8 +82,10 @@ export interface FileRoutesByTo {
   '/development': typeof DevelopmentRoute
   '/login': typeof LoginRoute
   '/logistics': typeof LogisticsRoute
+  '/methods': typeof MethodsRoute
   '/production': typeof ProductionRoute
   '/quality': typeof QualityRoute
+  '/unauthorized': typeof UnauthorizedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,8 +94,10 @@ export interface FileRoutesById {
   '/development': typeof DevelopmentRoute
   '/login': typeof LoginRoute
   '/logistics': typeof LogisticsRoute
+  '/methods': typeof MethodsRoute
   '/production': typeof ProductionRoute
   '/quality': typeof QualityRoute
+  '/unauthorized': typeof UnauthorizedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -89,8 +107,10 @@ export interface FileRouteTypes {
     | '/development'
     | '/login'
     | '/logistics'
+    | '/methods'
     | '/production'
     | '/quality'
+    | '/unauthorized'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -98,8 +118,10 @@ export interface FileRouteTypes {
     | '/development'
     | '/login'
     | '/logistics'
+    | '/methods'
     | '/production'
     | '/quality'
+    | '/unauthorized'
   id:
     | '__root__'
     | '/'
@@ -107,8 +129,10 @@ export interface FileRouteTypes {
     | '/development'
     | '/login'
     | '/logistics'
+    | '/methods'
     | '/production'
     | '/quality'
+    | '/unauthorized'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,12 +141,21 @@ export interface RootRouteChildren {
   DevelopmentRoute: typeof DevelopmentRoute
   LoginRoute: typeof LoginRoute
   LogisticsRoute: typeof LogisticsRoute
+  MethodsRoute: typeof MethodsRoute
   ProductionRoute: typeof ProductionRoute
   QualityRoute: typeof QualityRoute
+  UnauthorizedRoute: typeof UnauthorizedRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unauthorized': {
+      id: '/unauthorized'
+      path: '/unauthorized'
+      fullPath: '/unauthorized'
+      preLoaderRoute: typeof UnauthorizedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/quality': {
       id: '/quality'
       path: '/quality'
@@ -135,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/production'
       fullPath: '/production'
       preLoaderRoute: typeof ProductionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/methods': {
+      id: '/methods'
+      path: '/methods'
+      fullPath: '/methods'
+      preLoaderRoute: typeof MethodsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/logistics': {
@@ -181,9 +221,21 @@ const rootRouteChildren: RootRouteChildren = {
   DevelopmentRoute: DevelopmentRoute,
   LoginRoute: LoginRoute,
   LogisticsRoute: LogisticsRoute,
+  MethodsRoute: MethodsRoute,
   ProductionRoute: ProductionRoute,
   QualityRoute: QualityRoute,
+  UnauthorizedRoute: UnauthorizedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

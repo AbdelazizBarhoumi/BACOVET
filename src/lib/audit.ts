@@ -7,7 +7,11 @@ const MAX = 200;
 
 export function getAudit(): AuditEntry[] {
   if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(KEY) || "[]");
+  } catch {
+    return [];
+  }
 }
 
 export function pushAudit(lvl: AuditLevel, msg: string) {

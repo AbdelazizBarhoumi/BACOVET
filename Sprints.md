@@ -2,30 +2,30 @@
 
 Before writing any UI code, the following must be resolved with the Novacity API team:
 
-| # | Blocker | Endpoints / Action required |
-|---|---|---|
-| B-01 | **4 BR Bundling query slugs are INACTIVE** in the current API | Request activation of: `rejets_suite_inspection_paquet_jour_en_cours`, `inspections_paquet_jour_en_cours`, `rejets_suite_inspection_paquet_annee_en_cours`, `inspections_paquet_annee_en_cours` |
-| B-02 | **No DIVA endpoint exists for BR GTD data** (F-REQ-101/102/103) | Request Novacity configure new endpoints exposing the DIVA reject/control counts per chain |
-| B-03 | **Auth endpoint not defined** in Novacity API doc | Confirm or build the `/api/auth/login` endpoint that accepts `{eid, password}` and returns a JWT |
-| B-04 | **GPRO Consulting data** (SAM, SOT, Effectifs, BPD, EPD, EHD, Objectifs, Cadences) has no API endpoint | Either Novacity adds these endpoints, or agree that these remain static placeholders displaying "—" until the data source is connected |
-| B-05 | **"Base suivi production"** data (F-REQ-216 Taux d'archivage) has no API endpoint | Confirm with Bacovet IT whether this data will be exposed via Novacity or manually entered |
-| B-06 | **`requete_unifiee_dashboard_tout-en-un`** (job 53) is also INACTIVE | Not blocking since individual queries are used, but activate for future optimisation |
+| #    | Blocker                                                                                                | Endpoints / Action required                                                                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B-01 | **4 BR Bundling query slugs are INACTIVE** in the current API                                          | Request activation of: `rejets_suite_inspection_paquet_jour_en_cours`, `inspections_paquet_jour_en_cours`, `rejets_suite_inspection_paquet_annee_en_cours`, `inspections_paquet_annee_en_cours` |
+| B-02 | **No DIVA endpoint exists for BR GTD data** (F-REQ-101/102/103)                                        | Request Novacity configure new endpoints exposing the DIVA reject/control counts per chain                                                                                                      |
+| B-03 | **Auth endpoint not defined** in Novacity API doc                                                      | Confirm or build the `/api/auth/login` endpoint that accepts `{eid, password}` and returns a JWT                                                                                                |
+| B-04 | **GPRO Consulting data** (SAM, SOT, Effectifs, BPD, EPD, EHD, Objectifs, Cadences) has no API endpoint | Either Novacity adds these endpoints, or agree that these remain static placeholders displaying "—" until the data source is connected                                                          |
+| B-05 | **"Base suivi production"** data (F-REQ-216 Taux d'archivage) has no API endpoint                      | Confirm with Bacovet IT whether this data will be exposed via Novacity or manually entered                                                                                                      |
+| B-06 | **`requete_unifiee_dashboard_tout-en-un`** (job 53) is also INACTIVE                                   | Not blocking since individual queries are used, but activate for future optimisation                                                                                                            |
 
 ---
 
 ## SPRINT OVERVIEW MAP
 
-| Sprint | Theme | Pages Covered | Duration |
-|---|---|---|---|
-| 0 | Foundation & Setup | None (infra) | Week 1 |
-| 1 | Auth + Navigation Shell | Login + Sidebar | Week 2 |
-| 2 | Admin Panel | Admin page | Week 3 |
-| 3 | Quality Dashboard | Série 100 | Week 4 |
-| 4 | Production Dashboard | Série 200 — Confection tab | Week 5 |
-| 5 | Production Dashboard | Série 200 — Coupe + Sérigraphie tabs | Week 6 |
-| 6 | Logistics Dashboard | Série 300 | Week 7 |
-| 7 | Development + Méthodes Dashboards + Global Features | Série 350 + F-REQ-404 + Filters + Export | Week 8 |
-| 8 | QA, Performance & UAT | All pages | Week 9 |
+| Sprint | Theme                                               | Pages Covered                            | Duration |
+| ------ | --------------------------------------------------- | ---------------------------------------- | -------- |
+| 0      | Foundation & Setup                                  | None (infra)                             | Week 1   |
+| 1      | Auth + Navigation Shell                             | Login + Sidebar                          | Week 2   |
+| 2      | Admin Panel                                         | Admin page                               | Week 3   |
+| 3      | Quality Dashboard                                   | Série 100                                | Week 4   |
+| 4      | Production Dashboard                                | Série 200 — Confection tab               | Week 5   |
+| 5      | Production Dashboard                                | Série 200 — Coupe + Sérigraphie tabs     | Week 6   |
+| 6      | Logistics Dashboard                                 | Série 300                                | Week 7   |
+| 7      | Development + Méthodes Dashboards + Global Features | Série 350 + F-REQ-404 + Filters + Export | Week 8   |
+| 8      | QA, Performance & UAT                               | All pages                                | Week 9   |
 
 ---
 
@@ -40,6 +40,7 @@ Before writing any UI code, the following must be resolved with the Novacity API
 ## What's Needed
 
 ### 0.1 — Project Bootstrap
+
 - Create the Lovable project with React + Tailwind
 - Set the default language to French in all placeholder text
 - Configure environment variables:
@@ -50,6 +51,7 @@ Before writing any UI code, the following must be resolved with the Novacity API
 ### 0.2 — API Service Layer (`/src/services/api.js`)
 
 Central API service that:
+
 - Adds `x-api-key` header to every request automatically
 - Has one function per endpoint (22 configured endpoints + 36 custom queries)
 - Handles pagination (`limit`, `offset`) as optional parameters (default: limit=100, offset=0)
@@ -58,6 +60,7 @@ Central API service that:
 - Has a 10-second request timeout
 
 **⚠ Type coercions required** — apply these transformations before returning data:
+
 - `capacite_de_stockage_en_nombre_de_conteneurs`: cast `Conteneurs_Actifs`, `Conteneurs_Consommes`, `Conteneurs_Supprimes` from string to `parseInt()`
 - `moyenne_date_de_transfert_date_de_reservation`: cast `MoyenneJours` from string to `parseFloat()`
 
@@ -65,65 +68,65 @@ Functions to create:
 
 ```js
 // Configured endpoints (22)
-fetchItemTrxEnq(limit, offset)
-fetchVwItemTrx(limit, offset)
-fetchLostType(limit, offset)
-fetchLostTimeTrx(limit, offset)
-fetchRoverEffectiveness(limit, offset)
-fetchProduction(limit, offset)
-fetchInlineVsEndlineComparison(limit, offset)
-fetchEmpDefectEff(limit, offset)
-fetchVwDefect(limit, offset)
-fetchRejectQte(limit, offset)
-fetchQcmDefectTrx(limit, offset)
-fetchCheckPassQte(limit, offset)
-fetchMpFamille(limit, offset)
-fetchMp(limit, offset)
-fetchOfabrication(limit, offset)
-fetchMouvement(limit, offset)
-fetchMpConteneur(limit, offset)
-fetchArticlesColis(limit, offset)
-fetchDetailColis(limit, offset)
-fetchExpeditions(limit, offset)
-fetchVueStock(limit, offset)
-fetchDivaStock(limit, offset)
+fetchItemTrxEnq(limit, offset);
+fetchVwItemTrx(limit, offset);
+fetchLostType(limit, offset);
+fetchLostTimeTrx(limit, offset);
+fetchRoverEffectiveness(limit, offset);
+fetchProduction(limit, offset);
+fetchInlineVsEndlineComparison(limit, offset);
+fetchEmpDefectEff(limit, offset);
+fetchVwDefect(limit, offset);
+fetchRejectQte(limit, offset);
+fetchQcmDefectTrx(limit, offset);
+fetchCheckPassQte(limit, offset);
+fetchMpFamille(limit, offset);
+fetchMp(limit, offset);
+fetchOfabrication(limit, offset);
+fetchMouvement(limit, offset);
+fetchMpConteneur(limit, offset);
+fetchArticlesColis(limit, offset);
+fetchDetailColis(limit, offset);
+fetchExpeditions(limit, offset);
+fetchVueStock(limit, offset);
+fetchDivaStock(limit, offset);
 
 // Custom SQL queries (36)
-fetchColisTotalVar(limit, offset)
-fetchPacketsRejetes(limit, offset)
-fetchWipChaine(limit, offset)
-fetchTagingReel(limit, offset)
-fetchEtatAvancement(limit, offset)
-fetchEfficienceChaine(limit, offset)
-fetchMinutesPresence(limit, offset)
-fetchMinutesProduites(limit, offset)
-fetchTempsOperation(limit, offset)
-fetchLostTime(limit, offset)
-fetchQteProduite(limit, offset)
-fetchQteEntreeSerigraphie(limit, offset)
-fetchQteDepartChaineArticleOf(limit, offset)
-fetchSortieSerigraphie(limit, offset)
-fetchQteEngagement(limit, offset)
-fetchSortieCoupe(limit, offset)
-fetchQteProduitIndivJour(limit, offset)
-fetchPiecesOkJourEnCours(limit, offset)
-fetchPiecesProduiteJourEnCours(limit, offset)
-fetchRejetsInspectionPaquetJour(limit, offset)      // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
-fetchInspectionsPaquetJour(limit, offset)           // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
-fetchPiecesOkAnneeEnCours(limit, offset)
-fetchPiecesProduiteAnneeEnCours(limit, offset)
-fetchRejetsInspectionPaquetAnnee(limit, offset)     // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
-fetchInspectionsPaquetAnnee(limit, offset)          // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
-fetchStockMoyen(limit, offset)
-fetchArticlesSansMouvement(limit, offset)
-fetchQuantiteTotaleStock(limit, offset)
-fetchCapaciteStockage(limit, offset)                // apply parseInt() on Conteneurs_* fields
-fetchNombreRouleaux(limit, offset)
-fetchNombreOFsLivres(limit, offset)
-fetchMoyenneDateTransfert(limit, offset)            // apply parseFloat() on MoyenneJours
-fetchQuantiteParProvenance(limit, offset)
-fetchQuantiteParFamille(limit, offset)
-fetchQuantiteParTypologie(limit, offset)
+fetchColisTotalVar(limit, offset);
+fetchPacketsRejetes(limit, offset);
+fetchWipChaine(limit, offset);
+fetchTagingReel(limit, offset);
+fetchEtatAvancement(limit, offset);
+fetchEfficienceChaine(limit, offset);
+fetchMinutesPresence(limit, offset);
+fetchMinutesProduites(limit, offset);
+fetchTempsOperation(limit, offset);
+fetchLostTime(limit, offset);
+fetchQteProduite(limit, offset);
+fetchQteEntreeSerigraphie(limit, offset);
+fetchQteDepartChaineArticleOf(limit, offset);
+fetchSortieSerigraphie(limit, offset);
+fetchQteEngagement(limit, offset);
+fetchSortieCoupe(limit, offset);
+fetchQteProduitIndivJour(limit, offset);
+fetchPiecesOkJourEnCours(limit, offset);
+fetchPiecesProduiteJourEnCours(limit, offset);
+fetchRejetsInspectionPaquetJour(limit, offset); // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
+fetchInspectionsPaquetJour(limit, offset); // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
+fetchPiecesOkAnneeEnCours(limit, offset);
+fetchPiecesProduiteAnneeEnCours(limit, offset);
+fetchRejetsInspectionPaquetAnnee(limit, offset); // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
+fetchInspectionsPaquetAnnee(limit, offset); // ⚠ CURRENTLY INACTIVE — activate before Sprint 3
+fetchStockMoyen(limit, offset);
+fetchArticlesSansMouvement(limit, offset);
+fetchQuantiteTotaleStock(limit, offset);
+fetchCapaciteStockage(limit, offset); // apply parseInt() on Conteneurs_* fields
+fetchNombreRouleaux(limit, offset);
+fetchNombreOFsLivres(limit, offset);
+fetchMoyenneDateTransfert(limit, offset); // apply parseFloat() on MoyenneJours
+fetchQuantiteParProvenance(limit, offset);
+fetchQuantiteParFamille(limit, offset);
+fetchQuantiteParTypologie(limit, offset);
 
 // Pending — to be configured by Novacity (Blocker B-02)
 // fetchBrGtdJourEnCours(limit, offset)    // F-REQ-102 — DIVA reject/control count by chain, today
@@ -132,10 +135,12 @@ fetchQuantiteParTypologie(limit, offset)
 ```
 
 ### 0.3 — Admin API Service (`/src/services/adminApi.js`)
+
 - `fetchAllJobs()` → `GET /api/admin/jobs` with Bearer JWT
 - `runJobManually(jobId)` → `GET /api/admin/jobs/:id/run` with Bearer JWT
 
 ### 0.4 — Auth Context (`/src/context/AuthContext.jsx`)
+
 - Stores: `{ user, role, token, isAuthenticated }`
 - `login(eid, password)` → calls backend `/api/auth/login` (Blocker B-03: confirm endpoint) → stores JWT in memory (not localStorage)
 - `logout()` → clears state, redirects to `/login`
@@ -160,22 +165,24 @@ Configure React Router with these routes:
 
 Role-based default redirect after login:
 
-| Role | Default redirect |
-|---|---|
-| IT / Administrateur | /admin |
-| Direction | /quality |
-| Responsable Production | /production |
-| Chef d'Atelier | /production |
-| Responsable Qualité | /quality |
-| Méthodes / Planning | /methods |
-| Coupe | /production |
+| Role                   | Default redirect |
+| ---------------------- | ---------------- |
+| IT / Administrateur    | /admin           |
+| Direction              | /quality         |
+| Responsable Production | /production      |
+| Chef d'Atelier         | /production      |
+| Responsable Qualité    | /quality         |
+| Méthodes / Planning    | /methods         |
+| Coupe                  | /production      |
 
 Create a `ProtectedRoute` wrapper component that:
+
 - Checks `isAuthenticated`
 - Checks that user's `role` is in the allowed roles list
 - Redirects to `/login` or `/unauthorized` accordingly
 
 ### 0.6 — Design Tokens (Tailwind Config)
+
 ```js
 colors: {
   brand: {
@@ -193,7 +200,9 @@ colors: {
 ```
 
 ### 0.7 — Shared Component Stubs
+
 Create empty stub files (each returns `<div>ComponentName</div>`):
+
 - `/src/components/BigNumberCard.jsx`
 - `/src/components/TrafficLightBadge.jsx`
 - `/src/components/LiveSyncPill.jsx`
@@ -212,11 +221,12 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 - `/src/components/TopBar.jsx`
 - `/src/components/LoadingSpinner.jsx`
 - `/src/components/ErrorBanner.jsx`
-- `/src/components/QpTeamPodium.jsx`    ← NEW — F-REQ-118/119
+- `/src/components/QpTeamPodium.jsx` ← NEW — F-REQ-118/119
 
 ---
 
 ## Deliverables — Sprint 0
+
 1. Lovable project running on `localhost:5173`
 2. All 58+ API functions exist in `/src/services/api.js`
 3. Router loads all 8 route paths without crashing
@@ -229,27 +239,29 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 ## Tests — Sprint 0
 
 ### Manual Tests
-| Test ID | What to test | How | Expected |
-|---|---|---|---|
-| S0-T01 | API key is sent | DevTools Network, call any API function | Header shows `x-api-key: <key>` |
-| S0-T02 | API error handling | Point `VITE_API_BASE_URL` to wrong URL | Typed error, no uncaught exception |
-| S0-T03 | Protected route blocks unauthenticated user | Navigate to `/quality` without login | Redirect to `/login` |
-| S0-T04 | Protected route blocks wrong role | Log in as Chef d'Atelier, navigate to `/admin` | Redirect to `/unauthorized` |
-| S0-T05 | Méthodes can access /quality | Log in as Méthodes, navigate to `/quality` | Page loads (no redirect to /unauthorized) |
-| S0-T06 | Session expiry | Set timeout to 10s for testing, wait | Auto-logout and redirect to `/login` |
-| S0-T07 | Router covers all 8 routes | Visit each route | No 404 or blank page |
-| S0-T08 | Brand colors render | Add test div `bg-brand-dark text-status-green` | Correct colors appear |
-| S0-T09 | Conteneurs_Actifs is integer | Call `fetchCapaciteStockage()`, inspect result | `typeof result[0].Conteneurs_Actifs === 'number'` |
-| S0-T10 | MoyenneJours is float | Call `fetchMoyenneDateTransfert()`, inspect result | `typeof result[0].MoyenneJours === 'number'` |
+
+| Test ID | What to test                                | How                                                | Expected                                          |
+| ------- | ------------------------------------------- | -------------------------------------------------- | ------------------------------------------------- |
+| S0-T01  | API key is sent                             | DevTools Network, call any API function            | Header shows `x-api-key: <key>`                   |
+| S0-T02  | API error handling                          | Point `VITE_API_BASE_URL` to wrong URL             | Typed error, no uncaught exception                |
+| S0-T03  | Protected route blocks unauthenticated user | Navigate to `/quality` without login               | Redirect to `/login`                              |
+| S0-T04  | Protected route blocks wrong role           | Log in as Chef d'Atelier, navigate to `/admin`     | Redirect to `/unauthorized`                       |
+| S0-T05  | Méthodes can access /quality                | Log in as Méthodes, navigate to `/quality`         | Page loads (no redirect to /unauthorized)         |
+| S0-T06  | Session expiry                              | Set timeout to 10s for testing, wait               | Auto-logout and redirect to `/login`              |
+| S0-T07  | Router covers all 8 routes                  | Visit each route                                   | No 404 or blank page                              |
+| S0-T08  | Brand colors render                         | Add test div `bg-brand-dark text-status-green`     | Correct colors appear                             |
+| S0-T09  | Conteneurs_Actifs is integer                | Call `fetchCapaciteStockage()`, inspect result     | `typeof result[0].Conteneurs_Actifs === 'number'` |
+| S0-T10  | MoyenneJours is float                       | Call `fetchMoyenneDateTransfert()`, inspect result | `typeof result[0].MoyenneJours === 'number'`      |
 
 ### API Smoke Tests
-| Test ID | Endpoint | Expected |
-|---|---|---|
-| S0-API-01 | `GET /api/data/itemtrxenq` | `success: true`, `data` is array |
-| S0-API-02 | `GET /api/data/q/wip_chaine` | `data[0]` has: chaine, en_cours, entree_jour, sortie_jour |
-| S0-API-03 | `GET /api/data/q/pieces_ok_de_premier_coup_jour_en_cours` | `data[0].FirstPassToday` is a number |
-| S0-API-04 | Wrong API key | HTTP 401 or `success: false` |
-| S0-API-05 | `GET /api/admin/jobs` with Bearer JWT | Returns array of 39 jobs |
+
+| Test ID   | Endpoint                                                       | Expected                                                     |
+| --------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| S0-API-01 | `GET /api/data/itemtrxenq`                                     | `success: true`, `data` is array                             |
+| S0-API-02 | `GET /api/data/q/wip_chaine`                                   | `data[0]` has: chaine, en_cours, entree_jour, sortie_jour    |
+| S0-API-03 | `GET /api/data/q/pieces_ok_de_premier_coup_jour_en_cours`      | `data[0].FirstPassToday` is a number                         |
+| S0-API-04 | Wrong API key                                                  | HTTP 401 or `success: false`                                 |
+| S0-API-05 | `GET /api/admin/jobs` with Bearer JWT                          | Returns array of 39 jobs                                     |
 | S0-API-06 | `GET /api/data/q/rejets_suite_inspection_paquet_jour_en_cours` | `success: true` and status is active (Blocker B-01 resolved) |
 
 ---
@@ -267,26 +279,31 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 ### 1.1 — Login Page (`/src/pages/LoginPage.jsx`)
 
 **Layout:**
+
 - Full-screen dark background (`bg-brand-dark`)
 - Centered white card (max-width 400px, rounded, shadow)
 - Top: BACOVET logo (text-based if no image) + subtitle "PILOTAGE OPÉRATIONNEL"
 - Section header: "ACCÈS PRIVÉ" + lock icon + "NF-REQ-502 : AUTHENTIFICATION UNIQUE"
 
 **Form:**
+
 - Input 1: person icon + placeholder "Identifiant Système" + label "MATRICULE / EID"
 - Input 2: lock icon + placeholder "Mot de passe" + type=password + eye toggle + label "CLÉ DE SÉCURITÉ"
 - Submit button: full-width dark, "VALIDATION IDENTITÉ →"
 - Error zone (hidden by default, red on failure)
 
 **Footer inside card:**
+
 - Left: green dot + "RÉSEAU LOCAL : CONNECTÉ"
 - Right: "RÉINITIALISER" link
 
 **Footer below card:**
+
 - "EXCELLENCE INDUSTRIELLE"
 - "PROPRIÉTÉ DE BACOVET GROUP © 2026"
 
 **Behavior:**
+
 - On submit: call `login(eid, password)` from AuthContext
 - Spinner in button while loading
 - On success: redirect to role-based default route
@@ -294,6 +311,7 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 - Enter in password field submits
 
 ### 1.2 — App Shell Layout (`/src/layouts/AppLayout.jsx`)
+
 - `<Sidebar />` left (fixed, 240px)
 - `<TopBar />` top (fixed, 60px)
 - Main content area (scrollable, remaining space)
@@ -301,6 +319,7 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 ### 1.3 — Sidebar (`/src/components/Sidebar.jsx`)
 
 **Navigation items:**
+
 - 📊 QUALITÉ (100) → `/quality`
 - 🏭 PRODUCTION (200) → `/production` (expandable)
   - └ Confection
@@ -308,23 +327,26 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
   - └ Sérigraphie
 - 📦 LOGISTIQUE & PLANNING (300) → `/logistics`
 - 🔬 DÉVELOPPEMENT & AMÉLIORATION (350) → `/development`
-- 📐 MÉTHODES → `/methods`    ← NEW (F-REQ-404)
+- 📐 MÉTHODES → `/methods` ← NEW (F-REQ-404)
 - ─── SYSTÈME ───
 - ⚙ ADMINISTRATION → `/admin`
 - Bottom: User avatar + name + role + "→ DÉCONNEXION"
 
 **Behavior:**
+
 - Active route highlighted (`bg-brand-primary` + left border)
 - Hide items user's role cannot access
 - Production sub-items expand when `/production` is active
 
 ### 1.4 — TopBar (`/src/components/TopBar.jsx`)
+
 - Dynamic page title based on route
 - Global Filter Bar (4 dropdowns: Marque, Atelier, Ligne, OF) — stubs for now
 - "IMPRIMER RAPPORT" button (stub)
 - LiveSyncPill component
 
 Page title map:
+
 ```
 /quality     → "SÉRIE 100 : QUALITÉ"
 /production  → "SÉRIE 200 : PRODUCTION"
@@ -335,6 +357,7 @@ Page title map:
 ```
 
 ### 1.5 — LiveSyncPill (`/src/components/LiveSyncPill.jsx`)
+
 - "● LIVE SYNC: OK" green — last fetch < 2 minutes
 - "● SYNC: ERREUR" red — last fetch failed or stale
 - Props: `lastFetchTime`, `hasError`
@@ -343,10 +366,11 @@ Page title map:
 ### 1.6 — Page Shell Stubs
 
 Create empty shells for all pages:
+
 - `QualityPage.jsx`
 - `ProductionPage.jsx`
 - `LogisticsPage.jsx`
-- `MethodesPage.jsx`     ← NEW
+- `MethodesPage.jsx` ← NEW
 - `DevelopmentPage.jsx`
 - `AdminPage.jsx`
 - `UnauthorizedPage.jsx`
@@ -354,6 +378,7 @@ Create empty shells for all pages:
 ### 1.7 — BigNumberCard (`/src/components/BigNumberCard.jsx`)
 
 Props:
+
 ```
 label: string
 value: number|string
@@ -366,6 +391,7 @@ error: string|null
 ```
 
 Design:
+
 - White card, rounded corners
 - Top: label small grey caps
 - Center: huge value (4xl–5xl) in status color
@@ -379,6 +405,7 @@ Design:
 Reusable podium component for F-REQ-118 and F-REQ-119:
 
 Props:
+
 ```
 title: string           — e.g. "🏆 BEST QP TEAM"
 teams: Array<{
@@ -396,24 +423,29 @@ error: string|null
 ```
 
 Design:
+
 - Three podium columns (1st tallest, 2nd medium, 3rd shortest)
 - `variant='best'` → gold/silver/bronze; `variant='worst'` → red/orange/grey
 - Each column shows: chain name, score, boolean indicator icons per KPI criterion
 - No data available state: "Données DIVA + DRIVE requises"
 
 Score formula (from CDC F-REQ-118/119):
+
 ```
 score = (rft_ok ? 1 : 0) + (br_in_ok ? 3 : 0) + (br_gtd_ok ? 3 : 0) + (br_ok ? 5 : 0)
 ```
+
 Maximum score = 12. Sort descending for Best QP Team, ascending for Low QP Team.
 
 ### 1.9 — ErrorBanner & LoadingSpinner
+
 **ErrorBanner:** Red banner, warning icon, message prop, dismiss (×)
 **LoadingSpinner:** Spinning circle, optional `size: 'sm'|'md'|'lg'`
 
 ---
 
 ## Deliverables — Sprint 1
+
 1. Login page renders and matches prototype design
 2. Login success redirects to correct role page
 3. Login failure shows French error message
@@ -429,25 +461,25 @@ Maximum score = 12. Sort descending for Best QP Team, ascending for Low QP Team.
 
 ## Tests — Sprint 1
 
-| Test ID | What to test | Steps | Expected |
-|---|---|---|---|
-| S1-T01 | Login success | Valid credentials | Redirect to role page |
-| S1-T02 | Login wrong password | Wrong password | Red error message |
-| S1-T03 | Login empty fields | Submit empty | Form validation blocks |
-| S1-T04 | Login Enter key | Press Enter in password | Submits |
-| S1-T05 | Show password toggle | Click eye icon | Password visible |
-| S1-T06 | Sidebar — Direction role | Log in as Direction | All 6 nav items |
-| S1-T07 | Sidebar — Chef Atelier | Log in as Chef Atelier | Only Production + no Admin + no Methods |
-| S1-T08 | Sidebar — Méthodes | Log in as Méthodes | Qualité + Production + Logistique + Méthodes + Développement |
-| S1-T09 | Sidebar active state | Navigate to each page | Correct item highlighted |
-| S1-T10 | Production sub-menu | Click Production | Expands Confection/Coupe/Sérigraphie |
-| S1-T11 | Logout | Click DÉCONNEXION | Redirect to Login |
-| S1-T12 | Back button after logout | Browser back | Stays on Login |
-| S1-T13 | LiveSyncPill fresh | Any page open | Green LIVE SYNC: OK |
-| S1-T14 | LiveSyncPill stale | Set lastFetchTime 5 min ago | Pill turns red |
-| S1-T15 | BigNumberCard all states | Render with each status | Correct border and text color |
-| S1-T16 | /methods route loads | Navigate to /methods as Méthodes | Shell renders |
-| S1-T17 | Unauthorized /methods | Log in as Chef Atelier, go to /methods | /unauthorized |
+| Test ID | What to test             | Steps                                  | Expected                                                     |
+| ------- | ------------------------ | -------------------------------------- | ------------------------------------------------------------ |
+| S1-T01  | Login success            | Valid credentials                      | Redirect to role page                                        |
+| S1-T02  | Login wrong password     | Wrong password                         | Red error message                                            |
+| S1-T03  | Login empty fields       | Submit empty                           | Form validation blocks                                       |
+| S1-T04  | Login Enter key          | Press Enter in password                | Submits                                                      |
+| S1-T05  | Show password toggle     | Click eye icon                         | Password visible                                             |
+| S1-T06  | Sidebar — Direction role | Log in as Direction                    | All 6 nav items                                              |
+| S1-T07  | Sidebar — Chef Atelier   | Log in as Chef Atelier                 | Only Production + no Admin + no Methods                      |
+| S1-T08  | Sidebar — Méthodes       | Log in as Méthodes                     | Qualité + Production + Logistique + Méthodes + Développement |
+| S1-T09  | Sidebar active state     | Navigate to each page                  | Correct item highlighted                                     |
+| S1-T10  | Production sub-menu      | Click Production                       | Expands Confection/Coupe/Sérigraphie                         |
+| S1-T11  | Logout                   | Click DÉCONNEXION                      | Redirect to Login                                            |
+| S1-T12  | Back button after logout | Browser back                           | Stays on Login                                               |
+| S1-T13  | LiveSyncPill fresh       | Any page open                          | Green LIVE SYNC: OK                                          |
+| S1-T14  | LiveSyncPill stale       | Set lastFetchTime 5 min ago            | Pill turns red                                               |
+| S1-T15  | BigNumberCard all states | Render with each status                | Correct border and text color                                |
+| S1-T16  | /methods route loads     | Navigate to /methods as Méthodes       | Shell renders                                                |
+| S1-T17  | Unauthorized /methods    | Log in as Chef Atelier, go to /methods | /unauthorized                                                |
 
 ---
 
@@ -462,7 +494,9 @@ Maximum score = 12. Sort descending for Best QP Team, ascending for Low QP Team.
 ## What's Needed
 
 ### 2.1 — Admin Page Layout (`/src/pages/AdminPage.jsx`)
+
 Three-column layout inside AppLayout:
+
 - Left: Sidebar
 - Center: API Supervision + User Management + Audit Log
 - Right: Screen Management
@@ -473,13 +507,14 @@ Three-column layout inside AppLayout:
 
 Table per data source:
 
-| Source | Status | Last sync | Response |
-|---|---|---|---|
-| ERP DIVA | 🟢 OK | "il y a 30s" | "245 lignes" |
-| GPRO-PROD | 🟢 OK | "il y a 45s" | "OK" |
-| Google Drive | 🔴 ERREUR | "il y a 5min" | "Timeout" |
+| Source       | Status    | Last sync     | Response     |
+| ------------ | --------- | ------------- | ------------ |
+| ERP DIVA     | 🟢 OK     | "il y a 30s"  | "245 lignes" |
+| GPRO-PROD    | 🟢 OK     | "il y a 45s"  | "OK"         |
+| Google Drive | 🔴 ERREUR | "il y a 5min" | "Timeout"    |
 
 Logic:
+
 - If any job for that source has `last_status !== "ok"` → 🔴
 - If latest `last_run` is > 2 minutes ago → 🟠
 - Otherwise → 🟢
@@ -499,6 +534,7 @@ Table columns: Avatar | Nom | Matricule/EID | Rôle | Email | Statut | Actions
 Actions: ✏️ Edit (modal) | 🔴/🟢 Désactiver/Activer
 
 **Rôles dropdown:**
+
 ```
 IT / Administrateur
 Direction
@@ -514,6 +550,7 @@ Coupe
 ### 2.4 — Screen Management Panel (right column)
 
 Grid of screen cards. Each card:
+
 - Screen name (e.g. "Atelier 1 — Confection")
 - Status dot: En ligne / Hors ligne
 - Dropdown: Qualité | Production Confection | Production Coupe | Production Sérigraphie | Logistique | Méthodes | Développement | Administration
@@ -536,6 +573,7 @@ Auto-scroll to bottom on new entries.
 ---
 
 ## Deliverables — Sprint 2
+
 1. Admin page renders with 3-column layout
 2. API Supervision shows live job statuses
 3. BR Bundling inactive banner shows when applicable
@@ -549,21 +587,21 @@ Auto-scroll to bottom on new entries.
 
 ## Tests — Sprint 2
 
-| Test ID | What to test | Steps | Expected |
-|---|---|---|---|
-| S2-T01 | Jobs API call | Network tab on Admin page | Request to `/api/admin/jobs` with JWT |
-| S2-T02 | Source OK | All jobs last_status: "ok" | All sources 🟢 |
-| S2-T03 | Source error | Set one job last_status: "error" | That source 🔴 |
-| S2-T04 | Source stale | Set last_run to 10 min ago | That source 🟠 |
-| S2-T05 | BR Bundling inactive banner | Jobs 60/61/54/55 inactive | Banner visible with Novacity contact info |
-| S2-T06 | Manual job run | Click EXÉCUTER MAINTENANT | Toast with result |
-| S2-T07 | Auto-refresh | Wait 60s | Status refreshes |
-| S2-T08 | Add user modal | Click + Ajouter | Modal opens with all fields |
-| S2-T09 | Password mismatch | Different passwords | "Les mots de passe ne correspondent pas" |
-| S2-T10 | Edit user | Click ✏️ | Modal prefilled |
-| S2-T11 | Screen Méthodes option | Open screen dropdown | "Méthodes" listed as option |
-| S2-T12 | Audit log colors | View log | INFO=grey, WARN=orange, ERROR=red |
-| S2-T13 | Access control | Log in as Qualité, go to /admin | /unauthorized |
+| Test ID | What to test                | Steps                            | Expected                                  |
+| ------- | --------------------------- | -------------------------------- | ----------------------------------------- |
+| S2-T01  | Jobs API call               | Network tab on Admin page        | Request to `/api/admin/jobs` with JWT     |
+| S2-T02  | Source OK                   | All jobs last_status: "ok"       | All sources 🟢                            |
+| S2-T03  | Source error                | Set one job last_status: "error" | That source 🔴                            |
+| S2-T04  | Source stale                | Set last_run to 10 min ago       | That source 🟠                            |
+| S2-T05  | BR Bundling inactive banner | Jobs 60/61/54/55 inactive        | Banner visible with Novacity contact info |
+| S2-T06  | Manual job run              | Click EXÉCUTER MAINTENANT        | Toast with result                         |
+| S2-T07  | Auto-refresh                | Wait 60s                         | Status refreshes                          |
+| S2-T08  | Add user modal              | Click + Ajouter                  | Modal opens with all fields               |
+| S2-T09  | Password mismatch           | Different passwords              | "Les mots de passe ne correspondent pas"  |
+| S2-T10  | Edit user                   | Click ✏️                         | Modal prefilled                           |
+| S2-T11  | Screen Méthodes option      | Open screen dropdown             | "Méthodes" listed as option               |
+| S2-T12  | Audit log colors            | View log                         | INFO=grey, WARN=orange, ERROR=red         |
+| S2-T13  | Access control              | Log in as Qualité, go to /admin  | /unauthorized                             |
 
 ---
 
@@ -584,15 +622,17 @@ Auto-scroll to bottom on new entries.
 Page title: "SÉRIE 100 : QUALITÉ"
 
 Sections:
+
 1. Top KPI row — 8 BigNumberCards (in two rows of 4)
 2. Middle row — BR bar chart + Alert list
-3. Best / Low QP Team podiums    ← NEW
+3. Best / Low QP Team podiums ← NEW
 4. Annual trend line chart
 5. Pareto tabs
 
 ### 3.2 — Row 1: KPI Cards (F-REQ-101 to F-REQ-107)
 
 **Card 1 — BR CGL (F-REQ-101)** ← NEW
+
 - Source: DIVA (Blocker B-02 — pending API endpoint)
 - Formula: `rejets_controle_annuel / nb_controles_annuel * 100`
 - Target: ≤5% → Green, 4–5% → Orange, >5% → Red
@@ -601,6 +641,7 @@ Sections:
 - Until B-02 is resolved: show `BigNumberCard` in `status='grey'` with value "En attente API DIVA" and no error banner
 
 **Card 2 — BR GTD Ce Jour (F-REQ-102)** ← NEW
+
 - Source: DIVA (Blocker B-02 — pending API endpoint)
 - Formula: `rejets_controle_chaine_jour / nb_controles_chaine_jour * 100`
 - Target: ≤5%
@@ -609,6 +650,7 @@ Sections:
 - Until B-02: grey placeholder as above
 
 **Card 3 — RFT Ce Jour (F-REQ-104)**
+
 - Call: `fetchPiecesOkJourEnCours()` → `data[0].FirstPassToday`
 - Call: `fetchPiecesProduiteJourEnCours()` → `data[0].ProducedToday`
 - Formula: `(FirstPassToday / ProducedToday * 100).toFixed(1) + "%"`
@@ -619,6 +661,7 @@ Sections:
 - Source: "Source: GPRO"
 
 **Card 4 — BR Bundling Ce Jour (F-REQ-106)**
+
 - Call: `fetchRejetsInspectionPaquetJour()` → `data[0].BundleRejectToday` ⚠ INACTIVE
 - Call: `fetchInspectionsPaquetJour()` → `data[0].BundleInspectedToday` ⚠ INACTIVE
 - Formula: `(BundleRejectToday / BundleInspectedToday * 100).toFixed(1) + "%"`
@@ -631,12 +674,14 @@ Sections:
 **Row 2:**
 
 **Card 5 — BR GTD DDA (F-REQ-103)** ← NEW
+
 - Source: DIVA (Blocker B-02)
 - Formula: annual version of F-REQ-102
 - Label: "BR GTD DDA (Année)"
 - Until B-02: grey placeholder
 
 **Card 6 — RFT Année (F-REQ-105)**
+
 - Call: `fetchPiecesOkAnneeEnCours()` → `data[0].FirstPassYear`
 - Call: `fetchPiecesProduiteAnneeEnCours()` → `data[0].ProducedYear`
 - Formula: `(FirstPassYear / ProducedYear * 100).toFixed(1) + "%"`
@@ -645,6 +690,7 @@ Sections:
 - Source: "Source: GPRO"
 
 **Card 7 — BR Bundling Année (F-REQ-107)**
+
 - Call: `fetchRejetsInspectionPaquetAnnee()` → `data[0].BundleRejectYear` ⚠ INACTIVE
 - Call: `fetchInspectionsPaquetAnnee()` → `data[0].BundleInspectedYear` ⚠ INACTIVE
 - Formula: same as Card 4
@@ -652,6 +698,7 @@ Sections:
 - Until B-01 resolved: grey placeholder
 
 **Card 8 — BR Print Ce Jour (F-REQ-108)**
+
 - Source: Google Drive
 - Show placeholder: "Source: Google Drive — Données mises à jour 4×/jour"
 - Mock value displayed (will be wired in Sprint 7)
@@ -675,6 +722,7 @@ Sections:
 **Data:** `fetchVwDefect()` → `{ LOGDATE, ShiftCode, ProdGroup, OpNo, Qty }`
 
 Filter to today. Group by `OpNo`, sum `Qty`. Top 8.
+
 - X-axis: OpNo; Y-axis: defect quantity
 - Brand-primary blue bars
 - Title: "DÉFAUTS PAR OPÉRATION (Ce jour)"
@@ -684,12 +732,14 @@ Filter to today. Group by `OpNo`, sum `Qty`. Top 8.
 **Component:** `QpTeamPodium` (built in Sprint 1)
 
 **Data sources required:**
+
 - RFT per chain → `fetchCheckPassQte()` (available)
 - BR CGL per chain → DIVA endpoint (Blocker B-02)
 - BR GTD per chain → DIVA endpoint (Blocker B-02)
 - BR Bundling → `fetchRejetsInspectionPaquetJour()` + `fetchInspectionsPaquetJour()` (Blocker B-01)
 
 **Score formula per chain:**
+
 ```
 score = (rft_ok ? 1 : 0) + (br_in_ok ? 3 : 0) + (br_gtd_ok ? 3 : 0) + (br_ok ? 5 : 0)
 ```
@@ -697,18 +747,21 @@ score = (rft_ok ? 1 : 0) + (br_in_ok ? 3 : 0) + (br_gtd_ok ? 3 : 0) + (br_ok ? 5
 Where `_ok` = boolean: KPI is within target threshold.
 
 Thresholds for boolean conversion:
+
 - `rft_ok`: RFT ≥ 98%
 - `br_in_ok`: BR Bundling ≤ 5%
 - `br_gtd_ok`: BR GTD ≤ 5%
 - `br_ok`: BR CGL ≤ 5%
 
 **Layout:**
+
 - Two side-by-side `QpTeamPodium` instances: Best QP (gold variant) + Low QP (red variant)
 - Until B-01 and B-02 are resolved: show partial scores using only available data (RFT from GPRO), with a footnote "Score partiel — données DIVA en attente"
 
 ### 3.6 — Alert List
 
 Auto-generated from KPI values:
+
 - RFT Ce Jour < 95% → "🔴 RFT CRITIQUE — En dessous de 95%"
 - RFT Ce Jour 95–98% → "🟠 RFT EN BAISSE — Sous la cible de 98%"
 - BR Bundling > 5% → "🔴 BR BUNDLING CRITIQUE — Dépassement du seuil"
@@ -720,6 +773,7 @@ Auto-generated from KPI values:
 **Data:** `fetchEfficienceChaine()` → `{ chaine, date, efficience_pct }`
 
 Group by month, average efficience_pct.
+
 - X-axis: months (Jan, Fév, Mar, …)
 - Y-axis: 0–100%
 - Two lines: RFT trend (blue) + BR trend (red)
@@ -738,12 +792,14 @@ Data: `fetchQcmDefectTrx()` group by `ITEMID`, count occurrences.
 Same structure. Title: "PARETO DÉFAUTS INSPECTION (Ce jour)"
 
 ### 3.9 — Auto-refresh
+
 All calls: fetch on mount + re-fetch every 60 seconds via `useAutoRefresh` hook.
 Update LiveSyncPill after every fetch. Set `hasError=true` if any fetch fails.
 
 ---
 
 ## Deliverables — Sprint 3
+
 1. 8 KPI cards in two rows (grey placeholders for DIVA/Drive-sourced ones)
 2. BR bar chart with color-coded bars and reference line
 3. Defect bar chart grouped by OpNo
@@ -759,24 +815,24 @@ Update LiveSyncPill after every fetch. Set `hasError=true` if any fetch fails.
 
 ## Tests — Sprint 3
 
-| Test ID | What to test | Steps | Expected |
-|---|---|---|---|
-| S3-T01 | RFT card live data | Load Quality page | FirstPassToday / ProducedToday × 100 shown correctly |
-| S3-T02 | RFT division by zero | Mock ProducedToday = 0 | "N/A" |
-| S3-T03 | RFT anomaly guard | Mock ProducedToday = 80, FirstPassToday = 2947 | "N/A" (result >100%) |
-| S3-T04 | RFT green | Mock RFT = 99% | Green |
-| S3-T05 | RFT orange | Mock RFT = 96% | Orange |
-| S3-T06 | RFT red | Mock RFT = 93% | Red |
-| S3-T07 | BR Bundling inactive placeholder | B-01 not resolved | Grey card "Activation requise (B-01)" |
-| S3-T08 | BR CGL/GTD inactive placeholder | B-02 not resolved | Grey card "En attente API DIVA" |
-| S3-T09 | BR bar chart reference line | Load page | Dashed line at y=5 |
-| S3-T10 | Alert critical RFT | Mock RFT < 95% | Red alert appears |
-| S3-T11 | No alerts | All KPIs within target | "✅ Aucune alerte" shown |
-| S3-T12 | QP Podium renders | Load page | Two podium components visible |
-| S3-T13 | Pareto tab switch | Click Tab 2 | Second Pareto renders |
-| S3-T14 | Auto-refresh | Wait 60s | Network request fires again |
-| S3-T15 | API failure | Disconnect network | LiveSyncPill red, ErrorBanner shown |
-| S3-T16 | Loading state | Throttle to slow 3G | Skeletons visible |
+| Test ID | What to test                     | Steps                                          | Expected                                             |
+| ------- | -------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
+| S3-T01  | RFT card live data               | Load Quality page                              | FirstPassToday / ProducedToday × 100 shown correctly |
+| S3-T02  | RFT division by zero             | Mock ProducedToday = 0                         | "N/A"                                                |
+| S3-T03  | RFT anomaly guard                | Mock ProducedToday = 80, FirstPassToday = 2947 | "N/A" (result >100%)                                 |
+| S3-T04  | RFT green                        | Mock RFT = 99%                                 | Green                                                |
+| S3-T05  | RFT orange                       | Mock RFT = 96%                                 | Orange                                               |
+| S3-T06  | RFT red                          | Mock RFT = 93%                                 | Red                                                  |
+| S3-T07  | BR Bundling inactive placeholder | B-01 not resolved                              | Grey card "Activation requise (B-01)"                |
+| S3-T08  | BR CGL/GTD inactive placeholder  | B-02 not resolved                              | Grey card "En attente API DIVA"                      |
+| S3-T09  | BR bar chart reference line      | Load page                                      | Dashed line at y=5                                   |
+| S3-T10  | Alert critical RFT               | Mock RFT < 95%                                 | Red alert appears                                    |
+| S3-T11  | No alerts                        | All KPIs within target                         | "✅ Aucune alerte" shown                             |
+| S3-T12  | QP Podium renders                | Load page                                      | Two podium components visible                        |
+| S3-T13  | Pareto tab switch                | Click Tab 2                                    | Second Pareto renders                                |
+| S3-T14  | Auto-refresh                     | Wait 60s                                       | Network request fires again                          |
+| S3-T15  | API failure                      | Disconnect network                             | LiveSyncPill red, ErrorBanner shown                  |
+| S3-T16  | Loading state                    | Throttle to slow 3G                            | Skeletons visible                                    |
 
 ---
 
@@ -820,11 +876,13 @@ BPD (Beginning Production Date), EPD (End Production Date), EHD (Export Handover
 ### 4.3 — KPI Cards Row (4 cards)
 
 **Card 1 — Efficience par Chaîne (F-REQ-202)**
+
 - Data: `fetchEfficienceChaine()` → today, average `efficience_pct`
 - Target: >85% → Green, 70–85% → Orange, <70% → Red
 - Label: "Efficience Globale"
 
 **Card 2 — OWE par Chaîne (F-REQ-204)** ← NEW
+
 - Formula: `[(Quantité déclarée par chaîne × SAM) / (Effectif × minutes_présence)] × 100`
 - SAM and Effectif come from GPRO Consulting (Blocker B-04)
 - Target: >70% → Green, 60–70% → Orange, <60% → Red
@@ -833,11 +891,13 @@ BPD (Beginning Production Date), EPD (End Production Date), EHD (Export Handover
 - Until B-04: grey placeholder "Données GPRO Consulting requises"
 
 **Card 3 — Quantité Produite Ce Jour**
+
 - Data: `fetchQteProduite()` → today, sum `quantite` across all chains/shifts
 - Label: "Qté Produite Ce Jour"
 - No hard threshold (neutral grey)
 
 **Card 4 — Arrêts Non Planifiés (F-REQ-207)**
+
 - Data: `fetchLostTime()` → today, sum `minutes_perdues`
 - Target: <10 min → Green, 10–30 → Orange, >30 → Red
 - Label: "Arrêts Ce Jour"
@@ -846,6 +906,7 @@ BPD (Beginning Production Date), EPD (End Production Date), EHD (Export Handover
 ### 4.4 — Gauge Charts Row: Efficience par Chaîne (F-REQ-202)
 
 **Component:** `GaugeChart` (Recharts RadialBarChart, semicircle 180°)
+
 - Three zones: red 0–70%, orange 70–85%, green 85–100%
 - Needle pointing to current value
 - Center: value% + chain name
@@ -858,6 +919,7 @@ Responsive grid: 2 per row small screens, 3–4 per row wide.
 **Data:** `fetchLostTime()` → `{ date, chaine, motif, minutes_perdues }`
 
 One row per chain. Blocks proportional to `minutes_perdues`:
+
 - MAINT → orange
 - MATIERE → blue
 - QUALITE → red
@@ -871,6 +933,7 @@ Below: legend table listing each stoppage.
 **Data:** `fetchEtatAvancement()` → `{ of, avancement_pct, quantite_prevue, quantite_realisee, statut }`
 
 One donut per OF (show only `statut = "en_cours"` + most recent `terminé`):
+
 - Filled arc: `avancement_pct` in green (terminé) or blue (en_cours)
 - Empty: grey remainder
 - Center: OF + %
@@ -890,6 +953,7 @@ One donut per OF (show only `statut = "en_cours"` + most recent `terminé`):
 **Data:** `fetchQteProduitIndivJour()` → today, sort by `minutes_produites` desc, top 10.
 
 Horizontal bar chart:
+
 - Y-axis: employee IDs; X-axis: minutes_produites
 - Green if `minutes_produites / minutes_presence > 0.9`
 - Target line at 90% efficiency
@@ -909,11 +973,13 @@ Horizontal bar chart:
 Display as static info fields on each chain card (from chain info banner, section 4.2). All sourced from GPRO Consulting (Blocker B-04). Show "—" placeholders.
 
 ### 4.11 — Auto-refresh
+
 All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 
 ---
 
 ## Deliverables — Sprint 4
+
 1. Production page with 3 tabs, Confection default
 2. Chain info banner: WIP per chain + OF + BPD/EPD/EHD placeholders
 3. 4 KPI cards (OWE as placeholder until B-04)
@@ -929,23 +995,23 @@ All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 
 ## Tests — Sprint 4
 
-| Test ID | What to test | Steps | Expected |
-|---|---|---|---|
-| S4-T01 | Efficience green | Mock efficience_pct = 90 | Green card |
-| S4-T02 | Efficience orange | Mock efficience_pct = 75 | Orange card |
-| S4-T03 | Efficience red | Mock efficience_pct = 60 | Red card |
-| S4-T04 | OWE placeholder | B-04 not resolved | Grey card "Données GPRO Consulting requises" |
-| S4-T05 | BPD/EPD/EHD on chain card | B-04 not resolved | "—" shown in grey |
-| S4-T06 | Lost time card | Mock sum = 45 min | "45 min" red |
-| S4-T07 | Gauge needle | Check needle position | Matches efficience_pct |
-| S4-T08 | Timeline 3 motifs | API returns MAINT/MATIERE/QUALITE | 3 colored blocks |
-| S4-T09 | Donut in progress | avancement_pct = 78 | 78% blue arc |
-| S4-T10 | Donut completed | statut = terminé | 100% green arc |
-| S4-T11 | Top operators sort | 5 employees in API | Sorted desc by minutes_produites |
-| S4-T12 | WIP area chart | Both API calls return data | Two overlapping areas |
-| S4-T13 | Tab switching | Click Coupe | Tab content changes |
-| S4-T14 | Auto-refresh | Wait 60s | Charts update |
-| S4-T15 | Error on one chart | Mock one endpoint fail | ErrorBanner on that chart only |
+| Test ID | What to test              | Steps                             | Expected                                     |
+| ------- | ------------------------- | --------------------------------- | -------------------------------------------- |
+| S4-T01  | Efficience green          | Mock efficience_pct = 90          | Green card                                   |
+| S4-T02  | Efficience orange         | Mock efficience_pct = 75          | Orange card                                  |
+| S4-T03  | Efficience red            | Mock efficience_pct = 60          | Red card                                     |
+| S4-T04  | OWE placeholder           | B-04 not resolved                 | Grey card "Données GPRO Consulting requises" |
+| S4-T05  | BPD/EPD/EHD on chain card | B-04 not resolved                 | "—" shown in grey                            |
+| S4-T06  | Lost time card            | Mock sum = 45 min                 | "45 min" red                                 |
+| S4-T07  | Gauge needle              | Check needle position             | Matches efficience_pct                       |
+| S4-T08  | Timeline 3 motifs         | API returns MAINT/MATIERE/QUALITE | 3 colored blocks                             |
+| S4-T09  | Donut in progress         | avancement_pct = 78               | 78% blue arc                                 |
+| S4-T10  | Donut completed           | statut = terminé                  | 100% green arc                               |
+| S4-T11  | Top operators sort        | 5 employees in API                | Sorted desc by minutes_produites             |
+| S4-T12  | WIP area chart            | Both API calls return data        | Two overlapping areas                        |
+| S4-T13  | Tab switching             | Click Coupe                       | Tab content changes                          |
+| S4-T14  | Auto-refresh              | Wait 60s                          | Charts update                                |
+| S4-T15  | Error on one chart        | Mock one endpoint fail            | ErrorBanner on that chart only               |
 
 ---
 
@@ -962,6 +1028,7 @@ All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 ### 5.1 — Coupe Tab
 
 **Couverture Coupe Bar Chart (F-REQ-311)**
+
 - Data: `fetchSortieCoupe()` → `quantite_coupee` per commande
 - Data: `fetchQteEngagement()` → `quantite_engagee` per commande
 - Formula: `(quantite_coupee - quantite_engagee) / cadence_hebdo_moyenne`
@@ -971,6 +1038,7 @@ All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 - Title: "COUVERTURE COUPE"
 
 **Couverture Chaîne Bar Chart (F-REQ-310)** ← NEW
+
 - Formula: `(Qté engagée - Qté planifiée) / cadence_moyenne` per chain
 - `Qté engagée`: `fetchQteEngagement()` → `quantite_engagee` aggregated by chain
 - `Qté planifiée`: GPRO Consulting (Blocker B-04) — show "—" until resolved
@@ -982,6 +1050,7 @@ All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 - Note: partial computation possible with `quantite_engagee` from API; `quantite_planifiee` is a placeholder until B-04
 
 **Taux de Fiabilité des Données — Tagging (F-REQ-217)**
+
 - Data: `fetchTagingReel()` → `{ chaine, shift, tag_theorique, tag_reel, ecart_pct }`
 - Table: Chaîne | Shift | Tag Théorique | Tag Réel | Écart %
 - Color-code Écart %: ≤2% green, 2–5% orange, >5% red
@@ -989,6 +1058,7 @@ All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 - Title: "TAUX DE FIABILITÉ — TAGGING RÉEL"
 
 **Taux d'Archivage Suivi Paquets (F-REQ-216)** ← NEW
+
 - Formula: `(Nbre OF soldés archivés / Nbre OF soldés) * 100`
 - Source: "Base suivi production" (Blocker B-05 — no API endpoint)
 - Target: 85%
@@ -997,16 +1067,19 @@ All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 - Frequency: journalière (daily refresh)
 
 **Quantité Départage Table (F-REQ-303)**
+
 - Data: `fetchQteDepartChaineArticleOf()` → `{ of, chaine, article, quantite }`
 - Table grouped by OF, with chaîne/article/quantité rows and total per OF
 
 **OF Coupe List (F-REQ-302)**
+
 - Data: `fetchOfabrication()` → show only `DtFin === null` (active OFs)
 - Table: OF Number | Date Début | Durée (today − DtDebut in days) | Statut badge
 
 ### 5.2 — Sérigraphie Tab
 
 **Couverture Sérigraphie Bar Chart (F-REQ-309)**
+
 - Data: `fetchQteEntreeSerigraphie()` + `fetchSortieSerigraphie()`
 - Match by `article` + `couleur`
 - Formula: `Couverture = qte_entree - qte_sortie` per article/couleur
@@ -1015,12 +1088,14 @@ All calls: 60-second interval via `useAutoRefresh`. Update LiveSyncPill.
 - Title: "COUVERTURE SÉRIGRAPHIE (Ce jour)"
 
 **Entrée vs Sortie Sérigraphie (dual bar chart)**
+
 - Side-by-side bars per article/couleur
 - Blue = entrée (`fetchQteEntreeSerigraphie()`); Orange = sortie (`fetchSortieSerigraphie()`)
 - Filter to today; group by `article + couleur`
 - Title: "FLUX SÉRIGRAPHIE — Entrée vs Sortie"
 
 **Rejected Packets Table**
+
 - Data: `fetchPacketsRejetes()` → `{ IDColis, reference, motif, qtte, date_rejet }`
 - Filter to today, sort by `date_rejet` desc
 - BigNumberCard: total rejected qty above table
@@ -1044,10 +1119,11 @@ Combo Bar/Line chart per operator: bars=minutes_produites, line=efficiency%, das
 ---
 
 ## Deliverables — Sprint 5
+
 1. Coupe tab: Couverture Coupe bar chart
-2. Coupe tab: Couverture Chaîne bar chart (partial values OK)    ← NEW
+2. Coupe tab: Couverture Chaîne bar chart (partial values OK) ← NEW
 3. Coupe tab: Tagging Fiabilité table + gauge
-4. Coupe tab: Taux d'archivage placeholder with grey card    ← NEW
+4. Coupe tab: Taux d'archivage placeholder with grey card ← NEW
 5. Coupe tab: OF Coupe list + Quantité Départage table
 6. Sérigraphie tab: Couverture Sérigraphie bar chart
 7. Sérigraphie tab: Entrée vs Sortie comparison
@@ -1059,18 +1135,18 @@ Combo Bar/Line chart per operator: bars=minutes_produites, line=efficiency%, das
 
 ## Tests — Sprint 5
 
-| Test ID | What to test | Steps | Expected |
-|---|---|---|---|
-| S5-T01 | Couverture Coupe calculation | API returns data | (Sortie − Engagement) / cadence correct |
-| S5-T02 | Couverture Chaîne — partial | B-04 unresolved | Chart shows coverage with available qte_engagee, "—" for planifié |
-| S5-T03 | Tagging table color | ecart_pct = 6% | Red |
-| S5-T04 | Taux d'archivage placeholder | B-05 unresolved | Grey card with B-05 message |
-| S5-T05 | OF Coupe active filter | Some OFs have DtFin not null | Only null-DtFin shown |
-| S5-T06 | Sérigraphie Couverture | entrée > sortie | Green bar |
-| S5-T07 | Rejected packets today | Yesterday's rejection exists | Not shown |
-| S5-T08 | Total rejected qty | 3 rejections: qty 12+8+4 | Card shows "24" |
-| S5-T09 | Inline vs Endline | API has CH1 and CH2 | Two groups of bars |
-| S5-T10 | Couverture Chaîne color | computed value < 5 days | Red bar |
+| Test ID | What to test                 | Steps                        | Expected                                                          |
+| ------- | ---------------------------- | ---------------------------- | ----------------------------------------------------------------- |
+| S5-T01  | Couverture Coupe calculation | API returns data             | (Sortie − Engagement) / cadence correct                           |
+| S5-T02  | Couverture Chaîne — partial  | B-04 unresolved              | Chart shows coverage with available qte_engagee, "—" for planifié |
+| S5-T03  | Tagging table color          | ecart_pct = 6%               | Red                                                               |
+| S5-T04  | Taux d'archivage placeholder | B-05 unresolved              | Grey card with B-05 message                                       |
+| S5-T05  | OF Coupe active filter       | Some OFs have DtFin not null | Only null-DtFin shown                                             |
+| S5-T06  | Sérigraphie Couverture       | entrée > sortie              | Green bar                                                         |
+| S5-T07  | Rejected packets today       | Yesterday's rejection exists | Not shown                                                         |
+| S5-T08  | Total rejected qty           | 3 rejections: qty 12+8+4     | Card shows "24"                                                   |
+| S5-T09  | Inline vs Endline            | API has CH1 and CH2          | Two groups of bars                                                |
+| S5-T10  | Couverture Chaîne color      | computed value < 5 days      | Red bar                                                           |
 
 ---
 
@@ -1089,6 +1165,7 @@ Combo Bar/Line chart per operator: bars=minutes_produites, line=efficiency%, das
 Page title: "PILOTAGE LOGISTIQUE"
 
 Six scrollable sections:
+
 1. Delivery Performance Cards
 2. Stock rotation / dead-stock / occupation gauges
 3. Stock composition pie charts
@@ -1099,21 +1176,25 @@ Six scrollable sections:
 ### 6.2 — Section A: Delivery Performance
 
 **Card 1 — DOT (F-REQ-334)**
+
 - Source: GPRO Planning (Blocker B-04) — mock value 96.2%
 - Target: ≥95% → Green, 90–95% → Orange, <90% → Red
 - Label: "DOT (Delivery On Time)"
 - Source label: "Source: GPRO Planning"
 
 **Card 2 — HOT (F-REQ-335)**
+
 - Source: GPRO Planning — mock value 94.8%
 - Label: "HOT (Handover On Time)"
 
 **Card 3 — Respect Planification (F-REQ-336)**
+
 - Data: `fetchQteProduite()` → today sum / configurable daily objective
 - Target: ≥95% → Green
 - Label: "Respect Planification"
 
 **Card 4 — Lead Time Global (F-REQ-337)**
+
 - Static: STRH + LT Transport = 32 jours (configurable constant)
 - Target: ≤32 jours → Green
 - Label: "Lead Time Global"
@@ -1125,17 +1206,20 @@ Buttons: "LISTE PACKING" | "PLAN D'EXPORT" (stubs)
 ### 6.3 — Section B: Stock KPIs
 
 **Row 1 — Taux de Rotation (3 radial gauges — F-REQ-316/317/318)**
+
 - Data: `fetchStockMoyen()` → `{ StockMoyen, NbLignesStock }`
 - Note: "Coût des marchandises" not in API. Show `StockMoyen` raw value with label "Valeur stock moyen: {StockMoyen}" and footnote "Coût marchandises requis depuis DIVA pour calcul rotation complet"
 - All 3 gauges (Accessoires, Tissu, FG) show same aggregate until granular endpoint available
 
 **Row 2 — Taux de Stock Mort (3 BigNumber cards — F-REQ-319/320/321)**
+
 - Data: `fetchArticlesSansMouvement()` → `{ NbArticles_SansMvt_365j, Qtte_SansMvt_365j }`
 - Data: `fetchQuantiteTotaleStock()` → `{ Quantite_Totale_Stock }`
 - Formula: `(Qtte_SansMvt_365j / Quantite_Totale_Stock * 100).toFixed(2) + "%"`
 - All 3 cards show same aggregate
 
 **Row 3 — Taux d'Occupation (3 gauge charts — F-REQ-322/323/324)**
+
 - Data: `fetchNombreRouleaux()` → `{ NbRouleaux }`
 - Data: `fetchCapaciteStockage()` → `{ Total_Conteneurs, Conteneurs_Actifs, Conteneurs_Consommes, Conteneurs_Supprimes }`
 - **⚠ Parse `Conteneurs_Actifs` to int** (API returns it as a string)
@@ -1145,33 +1229,39 @@ Buttons: "LISTE PACKING" | "PLAN D'EXPORT" (stubs)
 ### 6.4 — Section C: Stock Composition (3 Pie Charts)
 
 **Pie 1 — STOCK/Provenance (F-REQ-332)**
+
 - Data: `fetchQuantiteParProvenance()` → `{ Provenance, Quantite, NbArticles }`
 - Filter: exclude rows where `Provenance === null` (total rollup row)
 - Tooltip: "{Provenance}: {Quantite} ({NbArticles} articles)"
 - Number formatting: French locale (`toLocaleString('fr-FR')`)
 
 **Pie 2 — STOCK/Brand (F-REQ-333)**
+
 - Data: `fetchQuantiteParFamille()` → `{ FamilleFG, Quantite }`
 - Filter: exclude `FamilleFG === null` (total rollup) and handle "AUTRE" as its own slice
 - Show max 8 named brands + group rest as "Autres"
 
 **Pie 3 — STOCK/Typologie (F-REQ-331)**
+
 - Data: `fetchQuantiteParTypologie()` → `{ Typologie, Quantite, NbArticles }`
 - Show top 9 typologies, group rest as "Autres"
 
 ### 6.5 — Section D: OF & Delivery Status
 
 **OF Status Table (F-REQ-303/305)**
+
 - Data: `fetchEtatAvancement()` → all OFs
 - Columns: OF | Avancement (progress bar) | Qté prévue | Qté réalisée | Statut badge
 - Click row → expand → colis detail from `fetchColisTotalVar()` filtered by commande
 
 **Commandes Livrées à Temps (F-REQ-325/326/327)**
+
 - Data: `fetchNombreOFsLivres()` → `{ NbOF_Livres_Total, OF_AvecTransfertCoupe, OF_AvecTransfertCoupeJemmel, OF_AvecTransfertCoupe_Total }`
 - Formula: `(OF_AvecTransfertCoupe_Total / NbOF_Livres_Total * 100).toFixed(1) + "%"`
 - 3 BigNumberCards (Accessoires, Tissu, FG) showing same aggregate
 
 **Délai Moyen de Livraison (F-REQ-328/329/330)**
+
 - Data: `fetchMoyenneDateTransfert()` → `{ MoyenneJours, NbOFConsideres }`
 - **⚠ Parse `MoyenneJours` to float** (API returns it as a string)
 - Display: `"{parseFloat(MoyenneJours).toFixed(1)} jours (sur {NbOFConsideres} OFs)"`
@@ -1180,6 +1270,7 @@ Buttons: "LISTE PACKING" | "PLAN D'EXPORT" (stubs)
 ### 6.6 — Section E: Coverage Charts
 
 Reuse coverage chart components from Sprint 5:
+
 - Couverture Chaîne (F-REQ-310)
 - Couverture Coupe (F-REQ-311)
 - Couverture Sérigraphie (F-REQ-309)
@@ -1201,6 +1292,7 @@ All numbers formatted with French locale (`toLocaleString('fr-FR')`).
 ---
 
 ## Deliverables — Sprint 6
+
 1. 6 sections render without errors
 2. 4 delivery KPI cards (2 live, 2 mock from GPRO Planning)
 3. Occupation gauge with correct parseInt coercion on Conteneurs_Actifs
@@ -1215,22 +1307,22 @@ All numbers formatted with French locale (`toLocaleString('fr-FR')`).
 
 ## Tests — Sprint 6
 
-| Test ID | What to test | Steps | Expected |
-|---|---|---|---|
-| S6-T01 | Dead-stock formula | Check values | (Qtte_SansMvt / Quantite_Totale) × 100 = correct % |
-| S6-T02 | Occupation gauge type | Inspect `Conteneurs_Actifs` | Type is number after parseInt |
-| S6-T03 | Occupation gauge value | NbRouleaux=39031, Conteneurs_Actifs="42864" | Gauge shows ~91% (orange/red) |
-| S6-T04 | Provenance null filtered | API returns null row | Not shown as pie slice |
-| S6-T05 | Famille rollup filtered | FamilleFG null row | Excluded |
-| S6-T06 | OF table expand | Click OF row | Colis nested table appears |
-| S6-T07 | Livraison ratio | OF_AvecTransfertCoupe_Total=3213, Total=4270 | ~75,2% |
-| S6-T08 | Délai moyen type | Inspect MoyenneJours | Type is float after parseFloat |
-| S6-T09 | Délai moyen color | MoyenneJours = "4.16" | Orange (>1 day) |
-| S6-T10 | French numbers | Check any large number | "162 067 420,25" format |
-| S6-T11 | Stock search | Type "Coton" | Table filters |
-| S6-T12 | Sort by column | Click "Qté Stock" | Rows sort descending |
-| S6-T13 | Pagination | >20 rows | Page 2 button works |
-| S6-T14 | Qté Disponible | Qtte=500, qtteReserve=120 | Shows 380 |
+| Test ID | What to test             | Steps                                        | Expected                                           |
+| ------- | ------------------------ | -------------------------------------------- | -------------------------------------------------- |
+| S6-T01  | Dead-stock formula       | Check values                                 | (Qtte_SansMvt / Quantite_Totale) × 100 = correct % |
+| S6-T02  | Occupation gauge type    | Inspect `Conteneurs_Actifs`                  | Type is number after parseInt                      |
+| S6-T03  | Occupation gauge value   | NbRouleaux=39031, Conteneurs_Actifs="42864"  | Gauge shows ~91% (orange/red)                      |
+| S6-T04  | Provenance null filtered | API returns null row                         | Not shown as pie slice                             |
+| S6-T05  | Famille rollup filtered  | FamilleFG null row                           | Excluded                                           |
+| S6-T06  | OF table expand          | Click OF row                                 | Colis nested table appears                         |
+| S6-T07  | Livraison ratio          | OF_AvecTransfertCoupe_Total=3213, Total=4270 | ~75,2%                                             |
+| S6-T08  | Délai moyen type         | Inspect MoyenneJours                         | Type is float after parseFloat                     |
+| S6-T09  | Délai moyen color        | MoyenneJours = "4.16"                        | Orange (>1 day)                                    |
+| S6-T10  | French numbers           | Check any large number                       | "162 067 420,25" format                            |
+| S6-T11  | Stock search             | Type "Coton"                                 | Table filters                                      |
+| S6-T12  | Sort by column           | Click "Qté Stock"                            | Rows sort descending                               |
+| S6-T13  | Pagination               | >20 rows                                     | Page 2 button works                                |
+| S6-T14  | Qté Disponible           | Qtte=500, qtteReserve=120                    | Shows 380                                          |
 
 ---
 
@@ -1253,6 +1345,7 @@ Page title: "MÉTHODES & AMÉLIORATION CONTINUE"
 **Row 1 — 2 Gauge Charts:**
 
 **Gauge 1 — Taux d'Archivage Suivi Paquets (F-REQ-216)**
+
 - Formula: `(Nbre OF soldés archivés / Nbre OF soldés) * 100`
 - Source: Base suivi production (Blocker B-05 — no API endpoint yet)
 - Target: 85%
@@ -1261,6 +1354,7 @@ Page title: "MÉTHODES & AMÉLIORATION CONTINUE"
 - Show placeholder gauge at 0% with banner: "Source: Base suivi production — Données en attente (B-05)"
 
 **Gauge 2 — Taux de Fiabilité des Données sur Système (F-REQ-217)**
+
 - Formula: Différence entre tagging réel et sortie fin chaîne
 - Data: `fetchTagingReel()` → `{ chaine, shift, tag_theorique, tag_reel, ecart_pct }`
 - Target: 95%
@@ -1271,6 +1365,7 @@ Page title: "MÉTHODES & AMÉLIORATION CONTINUE"
 **Row 2 — 2 BigNumber Cards:**
 
 **Card 1 — Taux de Respect du Temps Estimé par Article (F-REQ-218)**
+
 - Formula: `Temps cotation - Temps prod >= 0 min` → compliant
 - Source: Base rendement + Logiciel Cotation (no API endpoint — manual entry via Admin modal)
 - Target: 90%
@@ -1279,6 +1374,7 @@ Page title: "MÉTHODES & AMÉLIORATION CONTINUE"
 - Label: "Respect Temps Estimé"
 
 **Card 2 — Taux des Temps Acceptés dès la Première Version (F-REQ-219)**
+
 - Formula: `(Nbr gammes déchiffrage - Nbr demandes négociation) / Nbre gammes déchiffrage * 100`
 - Source: Fichier déchiffrage + Logiciel Cotation (no API — admin-updatable)
 - Target: ≥80%
@@ -1294,12 +1390,14 @@ Page title: "MÉTHODES & AMÉLIORATION CONTINUE"
 | F-REQ-219 | Temps acceptés 1ère version | {admin value}% | ≥80% | Déchiffrage | ✅/🟠/🔴 |
 
 **Row 4 — Tagging Fiabilité Line Chart (from F-REQ-217):**
+
 - Data: `fetchTagingReel()` → plot `ecart_pct` per chain over all shifts
 - X-axis: chain + shift combinations; Y-axis: ecart %
 - Reference line at y=0 (perfect tagging) and y=5 (threshold)
 - Title: "FIABILITÉ TAGGING PAR CHAÎNE ET SHIFT"
 
 **Admin update modal** (IT role only, "METTRE À JOUR LES DONNÉES" button):
+
 - Opens modal with input fields for F-REQ-218 and F-REQ-219 manual values
 - Inputs: numerator and denominator for each formula
 - Saves to in-memory state (or backend if user management API available)
@@ -1312,21 +1410,21 @@ Page title: "DÉVELOPPEMENT & AMÉLIORATION"
 
 **Row 1 — 3 Primary Cards:**
 
-| Card | ID | Label | Formula | Target |
-|---|---|---|---|---|
-| 1 | F-REQ-350 | RFT (Développement) | modeles_valides_1er_coup / total_modeles × 100 | ≥95% |
-| 2 | F-REQ-351 | Respect Livraison à Date | modeles_livres_a_date / total_modeles × 100 | ≥95% |
-| 3 | F-REQ-352 | Fiabilité Nomenclature | nomenclatures_fiables / total_nomenclatures × 100 | ≥98% |
+| Card | ID        | Label                    | Formula                                           | Target |
+| ---- | --------- | ------------------------ | ------------------------------------------------- | ------ |
+| 1    | F-REQ-350 | RFT (Développement)      | modeles_valides_1er_coup / total_modeles × 100    | ≥95%   |
+| 2    | F-REQ-351 | Respect Livraison à Date | modeles_livres_a_date / total_modeles × 100       | ≥95%   |
+| 3    | F-REQ-352 | Fiabilité Nomenclature   | nomenclatures_fiables / total_nomenclatures × 100 | ≥98%   |
 
 Each: update frequency badge "FREQ: MENSUEL", trend arrow vs last month.
 
 **Row 2 — 3 Additional Cards:**
 
-| Card | ID | Label | Target |
-|---|---|---|---|
-| 4 | F-REQ-353 | % Réclamations Production | <2% |
-| 5 | F-REQ-354 | Déchiffrage Cotation | 90% |
-| 6 | F-REQ-355 | Étalonnage | 100% |
+| Card | ID        | Label                     | Target |
+| ---- | --------- | ------------------------- | ------ |
+| 4    | F-REQ-353 | % Réclamations Production | <2%    |
+| 5    | F-REQ-354 | Déchiffrage Cotation      | 90%    |
+| 6    | F-REQ-355 | Étalonnage                | 100%   |
 
 **Detail Table:** ID Exigence | Indicateur | Valeur actuelle | Cible | Statut
 
@@ -1341,6 +1439,7 @@ Each: update frequency badge "FREQ: MENSUEL", trend arrow vs last month.
 `FilterContext` (`/src/context/FilterContext.jsx`): store selected filter values globally.
 
 **Dropdowns:**
+
 - **Marque:** from `fetchQuantiteParFamille()` → FamilleFG values (exclude null)
 - **Atelier:** static ["Tous", "Confection", "Coupe", "Sérigraphie"]
 - **Ligne:** from `fetchWipChaine()` → chaine values
@@ -1353,13 +1452,13 @@ All pages read from FilterContext and re-filter displayed data on change.
 
 Library: SheetJS (xlsx).
 
-| Page | Sheet 1 (KPI Summary) | Sheet 2 (Raw data) |
-|---|---|---|
-| Quality | 8 KPI card values | vwDefect + checkpassqte raw |
-| Production | efficience_chaine + qte_produite + lost_time + etat_avancement | Raw per table |
-| Logistics | Stock KPI values | Full vue_stock + diva_stock join |
-| Méthodes | F-REQ-216 to 219 values | tagging_reel raw |
-| Development | All 6 KPI values | — |
+| Page        | Sheet 1 (KPI Summary)                                          | Sheet 2 (Raw data)               |
+| ----------- | -------------------------------------------------------------- | -------------------------------- |
+| Quality     | 8 KPI card values                                              | vwDefect + checkpassqte raw      |
+| Production  | efficience_chaine + qte_produite + lost_time + etat_avancement | Raw per table                    |
+| Logistics   | Stock KPI values                                               | Full vue_stock + diva_stock join |
+| Méthodes    | F-REQ-216 to 219 values                                        | tagging_reel raw                 |
+| Development | All 6 KPI values                                               | —                                |
 
 Filename: `BACOVET_{PageName}_{YYYY-MM-DD}.xlsx` (use French locale date)
 TopBar "IMPRIMER RAPPORT" dropdown: "📊 Exporter Excel" | "🖨 Imprimer"
@@ -1369,10 +1468,10 @@ Print: `window.print()` with CSS media query hiding sidebar.
 
 ```js
 function useAutoRefresh(fetchFn, intervalMs = 60000) {
-  const [data, setData] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [lastFetchTime, setLastFetchTime] = useState(null)
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastFetchTime, setLastFetchTime] = useState(null);
   // fetch on mount + interval
   // cleanup on unmount
   // return { data, isLoading, error, lastFetchTime, refetch }
@@ -1386,12 +1485,14 @@ Replace all manual `useEffect` fetch logic in Sprints 3–6 with this hook.
 `AlertContext` with rules engine running after every data refresh:
 
 **Quality alerts:**
+
 - RFT < 95% → CRITICAL (red)
 - RFT 95–98% → WARNING (orange)
 - BR > 5% → CRITICAL (red)
 - Chain DefectPct > 5% → WARNING (orange)
 
 **Production alerts:**
+
 - Efficience < 70% → CRITICAL (red)
 - Efficience 70–85% → WARNING (orange)
 - Lost time > 30 min → WARNING (orange)
@@ -1399,6 +1500,7 @@ Replace all manual `useEffect` fetch logic in Sprints 3–6 with this hook.
 - WIP > 2× cadence → WARNING (orange)
 
 Display in:
+
 1. AlertList on Quality page
 2. Badge count on sidebar nav items
 3. Toast for NEW alerts (not present in previous cycle)
@@ -1406,7 +1508,8 @@ Display in:
 ---
 
 ## Deliverables — Sprint 7
-1. Méthodes page renders with 4 rows of content    ← NEW
+
+1. Méthodes page renders with 4 rows of content ← NEW
 2. F-REQ-217 tagging gauge shows live value from API
 3. F-REQ-218/219 admin-updatable cards work
 4. Development page renders with 6 KPI cards
@@ -1421,23 +1524,23 @@ Display in:
 
 ## Tests — Sprint 7
 
-| Test ID | What to test | Steps | Expected |
-|---|---|---|---|
-| S7-T01 | Méthodes page renders | Navigate to /methods as Méthodes role | All 4 rows visible |
-| S7-T02 | F-REQ-217 gauge | Load Méthodes page | Tagging reliability % from API |
-| S7-T03 | F-REQ-216 placeholder | B-05 unresolved | Placeholder with B-05 message |
-| S7-T04 | Admin update — Méthodes | IT role, click update | Modal with F-REQ-218/219 inputs |
-| S7-T05 | Méthodes non-IT cannot update | Log in as Méthodes, look for button | Update button hidden |
-| S7-T06 | Dev page renders | Navigate to /development | All 6 KPI cards |
-| S7-T07 | Filter Ligne = CH1 | Select CH1 | Production charts show CH1 only |
-| S7-T08 | Filter reset | Change then reset | All back to "Tous" |
-| S7-T09 | Export Quality | Click Export on Quality page | Excel downloads |
-| S7-T10 | Export Méthodes | Click Export on Méthodes page | Excel with tagging_reel data |
-| S7-T11 | Export filename | Check file | "BACOVET_Qualité_2026-06-11.xlsx" format |
-| S7-T12 | Export 2 sheets | Open file | Sheet 1: KPI Summary, Sheet 2: raw data |
-| S7-T13 | Alert badge | Mock RFT < 95% | Badge on Qualité sidebar item |
-| S7-T14 | Alert toast | New critical alert | Toast bottom-right |
-| S7-T15 | useAutoRefresh cleanup | Navigate away | No memory leak (interval cleared) |
+| Test ID | What to test                  | Steps                                 | Expected                                 |
+| ------- | ----------------------------- | ------------------------------------- | ---------------------------------------- |
+| S7-T01  | Méthodes page renders         | Navigate to /methods as Méthodes role | All 4 rows visible                       |
+| S7-T02  | F-REQ-217 gauge               | Load Méthodes page                    | Tagging reliability % from API           |
+| S7-T03  | F-REQ-216 placeholder         | B-05 unresolved                       | Placeholder with B-05 message            |
+| S7-T04  | Admin update — Méthodes       | IT role, click update                 | Modal with F-REQ-218/219 inputs          |
+| S7-T05  | Méthodes non-IT cannot update | Log in as Méthodes, look for button   | Update button hidden                     |
+| S7-T06  | Dev page renders              | Navigate to /development              | All 6 KPI cards                          |
+| S7-T07  | Filter Ligne = CH1            | Select CH1                            | Production charts show CH1 only          |
+| S7-T08  | Filter reset                  | Change then reset                     | All back to "Tous"                       |
+| S7-T09  | Export Quality                | Click Export on Quality page          | Excel downloads                          |
+| S7-T10  | Export Méthodes               | Click Export on Méthodes page         | Excel with tagging_reel data             |
+| S7-T11  | Export filename               | Check file                            | "BACOVET_Qualité_2026-06-11.xlsx" format |
+| S7-T12  | Export 2 sheets               | Open file                             | Sheet 1: KPI Summary, Sheet 2: raw data  |
+| S7-T13  | Alert badge                   | Mock RFT < 95%                        | Badge on Qualité sidebar item            |
+| S7-T14  | Alert toast                   | New critical alert                    | Toast bottom-right                       |
+| S7-T15  | useAutoRefresh cleanup        | Navigate away                         | No memory leak (interval cleared)        |
 
 ---
 
@@ -1466,12 +1569,14 @@ Display in:
 ### 8.2 — TV / Large Screen (NF-REQ-507)
 
 Test on 1920×1080 at 5 metres viewing distance:
+
 - KPI values minimum 48px (3rem)
 - Labels minimum 18px (1.125rem)
 - Secondary info minimum 14px (0.875rem)
 - All status colors pass WCAG AA (4.5:1 contrast)
 
 ### 8.3 — Performance
+
 - Lazy-load pages with `React.lazy()` + `Suspense`
 - `useMemo()` for expensive chart data
 - Avoid re-render if data unchanged (deep comparison)
@@ -1481,6 +1586,7 @@ Test on 1920×1080 at 5 metres viewing distance:
 ### 8.4 — Error Resilience
 
 For every API call:
+
 - Fail → widget shows ErrorBanner, rest of page works
 - `success: false` → treated as error
 - Empty `data: []` → "Aucune donnée disponible"
@@ -1488,6 +1594,7 @@ For every API call:
 - Whole API unreachable → all widgets error, LiveSyncPill red, no crash
 
 **Specific coercion checks:**
+
 - `Conteneurs_Actifs` parseInt: if NaN → default 1 (avoid division by zero in occupation gauge)
 - `MoyenneJours` parseFloat: if NaN → show "N/A"
 - `ProducedToday` used as denominator: if 0 or result > 100 → show "N/A"
@@ -1495,30 +1602,31 @@ For every API call:
 
 ### 8.5 — Role Access Matrix Final Verification
 
-| Route | IT | Direction | Resp. Prod | Chef Atelier | Resp. Qualité | Méthodes | Coupe |
-|---|---|---|---|---|---|---|---|
-| /admin | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| /quality | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| /production | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| /logistics | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| /methods | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| /development | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Route        | IT  | Direction | Resp. Prod | Chef Atelier | Resp. Qualité | Méthodes | Coupe |
+| ------------ | --- | --------- | ---------- | ------------ | ------------- | -------- | ----- |
+| /admin       | ✅  | ❌        | ❌         | ❌           | ❌            | ❌       | ❌    |
+| /quality     | ✅  | ✅        | ✅         | ❌           | ✅            | ✅       | ❌    |
+| /production  | ✅  | ✅        | ✅         | ✅           | ❌            | ✅       | ✅    |
+| /logistics   | ✅  | ✅        | ❌         | ❌           | ❌            | ✅       | ✅    |
+| /methods     | ✅  | ✅        | ❌         | ❌           | ❌            | ✅       | ❌    |
+| /development | ✅  | ✅        | ❌         | ❌           | ❌            | ✅       | ❌    |
 
 ### 8.6 — Blocker Status Review
 
 Before UAT, review status of all pre-sprint blockers:
 
-| Blocker | Status | Action if unresolved |
-|---|---|---|
-| B-01: BR Bundling endpoints inactive | To verify | Show grey placeholder cards; flag in UAT sign-off |
-| B-02: DIVA BR GTD endpoints missing | To verify | Show grey placeholder cards; flag in UAT |
-| B-03: Auth endpoint confirmation | Must be resolved before Sprint 1 UAT | Cannot proceed without auth |
-| B-04: GPRO Consulting data | Likely unresolved | All affected fields show "—" |
-| B-05: Base suivi production | Likely unresolved | Taux d'archivage shows grey placeholder |
+| Blocker                              | Status                               | Action if unresolved                              |
+| ------------------------------------ | ------------------------------------ | ------------------------------------------------- |
+| B-01: BR Bundling endpoints inactive | To verify                            | Show grey placeholder cards; flag in UAT sign-off |
+| B-02: DIVA BR GTD endpoints missing  | To verify                            | Show grey placeholder cards; flag in UAT          |
+| B-03: Auth endpoint confirmation     | Must be resolved before Sprint 1 UAT | Cannot proceed without auth                       |
+| B-04: GPRO Consulting data           | Likely unresolved                    | All affected fields show "—"                      |
+| B-05: Base suivi production          | Likely unresolved                    | Taux d'archivage shows grey placeholder           |
 
 ### 8.7 — UAT Script
 
 Run with a real BACOVET user for each role:
+
 1. Login successfully
 2. Redirect to correct page
 3. Correct menu items visible
@@ -1530,17 +1638,17 @@ Run with a real BACOVET user for each role:
 
 **UAT Sign-off checklist:**
 
-| Page | Functional KPIs | Colors | Data matches source | Signed off by |
-|---|---|---|---|---|
-| Login | Auth works | — | — | IT |
-| Admin | Jobs visible; BR Bundling banner if needed | — | Jobs match server | IT |
-| Quality | RFT, partial BR (pending B-01/B-02) | Correct | GPRO / DIVA pending | Resp. Qualité |
-| Production — Confection | Efficience, WIP, Lost Time, OWE placeholder | Gauges correct | GPRO | Resp. Production |
-| Production — Coupe | Couverture Coupe, Couverture Chaîne, Tagging | Correct | GPRO | Chef Atelier / Coupe |
-| Production — Sérigraphie | Couverture Sérigraphie, Flux | Correct | GPRO | Resp. Production |
-| Logistics | Stock, OF, Livraison | Gauges correct | DIVA | Planning |
-| Méthodes | F-REQ-217 tagging; F-REQ-216/218/219 placeholders | Correct | GPRO | Méthodes |
-| Development | 6 KPIs (admin-entered) | Correct | Drive (manual) | Méthodes |
+| Page                     | Functional KPIs                                   | Colors         | Data matches source | Signed off by        |
+| ------------------------ | ------------------------------------------------- | -------------- | ------------------- | -------------------- |
+| Login                    | Auth works                                        | —              | —                   | IT                   |
+| Admin                    | Jobs visible; BR Bundling banner if needed        | —              | Jobs match server   | IT                   |
+| Quality                  | RFT, partial BR (pending B-01/B-02)               | Correct        | GPRO / DIVA pending | Resp. Qualité        |
+| Production — Confection  | Efficience, WIP, Lost Time, OWE placeholder       | Gauges correct | GPRO                | Resp. Production     |
+| Production — Coupe       | Couverture Coupe, Couverture Chaîne, Tagging      | Correct        | GPRO                | Chef Atelier / Coupe |
+| Production — Sérigraphie | Couverture Sérigraphie, Flux                      | Correct        | GPRO                | Resp. Production     |
+| Logistics                | Stock, OF, Livraison                              | Gauges correct | DIVA                | Planning             |
+| Méthodes                 | F-REQ-217 tagging; F-REQ-216/218/219 placeholders | Correct        | GPRO                | Méthodes             |
+| Development              | 6 KPIs (admin-entered)                            | Correct        | Drive (manual)      | Méthodes             |
 
 ---
 
@@ -1548,48 +1656,48 @@ Run with a real BACOVET user for each role:
 
 ### Performance Tests
 
-| Test ID | Test | Threshold |
-|---|---|---|
-| S8-P01 | Quality page TTI on Fast 3G | < 5 seconds |
-| S8-P02 | Logistics page TTI | < 5 seconds |
-| S8-P03 | Production page TTI | < 5 seconds |
-| S8-P04 | Méthodes page TTI | < 3 seconds |
-| S8-P05 | Memory — stay 30 min on Quality | Heap does not grow unboundedly |
-| S8-P06 | Concurrent API calls | Max 10 parallel requests |
+| Test ID | Test                            | Threshold                      |
+| ------- | ------------------------------- | ------------------------------ |
+| S8-P01  | Quality page TTI on Fast 3G     | < 5 seconds                    |
+| S8-P02  | Logistics page TTI              | < 5 seconds                    |
+| S8-P03  | Production page TTI             | < 5 seconds                    |
+| S8-P04  | Méthodes page TTI               | < 3 seconds                    |
+| S8-P05  | Memory — stay 30 min on Quality | Heap does not grow unboundedly |
+| S8-P06  | Concurrent API calls            | Max 10 parallel requests       |
 
 ### Security Tests
 
-| Test ID | Test | Expected |
-|---|---|---|
-| S8-S01 | API key not in browser storage | Not in localStorage/sessionStorage |
-| S8-S02 | JWT not in URL | Only in Authorization header |
-| S8-S03 | Direct URL /admin without login | Redirect to /login |
-| S8-S04 | Role bypass /admin as Chef Atelier | Redirect to /unauthorized |
-| S8-S05 | Back button after logout | Re-login required |
-| S8-S06 | Direct URL /methods as Chef Atelier | Redirect to /unauthorized |
+| Test ID | Test                                | Expected                           |
+| ------- | ----------------------------------- | ---------------------------------- |
+| S8-S01  | API key not in browser storage      | Not in localStorage/sessionStorage |
+| S8-S02  | JWT not in URL                      | Only in Authorization header       |
+| S8-S03  | Direct URL /admin without login     | Redirect to /login                 |
+| S8-S04  | Role bypass /admin as Chef Atelier  | Redirect to /unauthorized          |
+| S8-S05  | Back button after logout            | Re-login required                  |
+| S8-S06  | Direct URL /methods as Chef Atelier | Redirect to /unauthorized          |
 
 ### Visual Consistency Tests
 
-| Test ID | Test | Expected |
-|---|---|---|
-| S8-V01 | French number format | "162 067 420,25" |
-| S8-V02 | French date format | "11/06/2026" |
-| S8-V03 | French percentage | "96,8 %" |
-| S8-V04 | Error messages French | "Erreur de connexion au serveur" |
-| S8-V05 | KPI size at 1920×1080 | ≥48px, readable at 5m |
-| S8-V06 | Status color consistency | Same #16a34a green on all pages |
-| S8-V07 | Placeholder state consistent | All grey cards look the same (no mix of error banner + placeholder) |
-| S8-V08 | Sidebar one item active | Only one item highlighted at a time |
+| Test ID | Test                         | Expected                                                            |
+| ------- | ---------------------------- | ------------------------------------------------------------------- |
+| S8-V01  | French number format         | "162 067 420,25"                                                    |
+| S8-V02  | French date format           | "11/06/2026"                                                        |
+| S8-V03  | French percentage            | "96,8 %"                                                            |
+| S8-V04  | Error messages French        | "Erreur de connexion au serveur"                                    |
+| S8-V05  | KPI size at 1920×1080        | ≥48px, readable at 5m                                               |
+| S8-V06  | Status color consistency     | Same #16a34a green on all pages                                     |
+| S8-V07  | Placeholder state consistent | All grey cards look the same (no mix of error banner + placeholder) |
+| S8-V08  | Sidebar one item active      | Only one item highlighted at a time                                 |
 
 ### TV / Industrial Screen Tests
 
-| Test ID | Screen | Test | Expected |
-|---|---|---|---|
-| S8-TV01 | 1920×1080 | Quality page | All 8 KPI cards visible without scroll |
-| S8-TV02 | 1920×1080 | Production gauges | Readable |
-| S8-TV03 | 1920×1080 | Méthodes page | Both gauges readable |
-| S8-TV04 | 1366×768 | All pages | No horizontal scrollbar |
-| S8-TV05 | 3840×2160 | All pages | Scales up, no pixelation |
+| Test ID | Screen    | Test              | Expected                               |
+| ------- | --------- | ----------------- | -------------------------------------- |
+| S8-TV01 | 1920×1080 | Quality page      | All 8 KPI cards visible without scroll |
+| S8-TV02 | 1920×1080 | Production gauges | Readable                               |
+| S8-TV03 | 1920×1080 | Méthodes page     | Both gauges readable                   |
+| S8-TV04 | 1366×768  | All pages         | No horizontal scrollbar                |
+| S8-TV05 | 3840×2160 | All pages         | Scales up, no pixelation               |
 
 ---
 
@@ -1634,6 +1742,7 @@ Sprint 8 (QA + UAT)
 ```
 
 **Can be parallelised:**
+
 - Sprint 2 (Admin) in parallel with Sprint 3 after Sprint 1
 - Sprint 6 (Logistics) in parallel with Sprint 5 if two developers available
 - Méthodes page (Sprint 7 section 7.1) can be started in parallel with Sprint 5
@@ -1642,14 +1751,14 @@ Sprint 8 (QA + UAT)
 
 ## APPENDIX — Open Items & Pending Decisions
 
-| ID | Item | Owner | Target sprint |
-|---|---|---|---|
-| B-01 | Activate 4 BR Bundling query slugs in Novacity | Novacity admin | Before Sprint 3 |
-| B-02 | Configure DIVA BR GTD endpoints (F-REQ-101/102/103) | Novacity + Bacovet IT | Before Sprint 3 |
-| B-03 | Confirm/build `/api/auth/login` endpoint | Novacity / Bacovet IT | Before Sprint 1 |
-| B-04 | Confirm GPRO Consulting API connectivity plan | Bacovet IT | Before Sprint 4 |
-| B-05 | Confirm "Base suivi production" data access plan | Bacovet IT | Before Sprint 7 |
-| D-01 | Define exact `cadence_hebdomadaire_moyenne` constant | Bacovet Production | Sprint 4 |
-| D-02 | Define `cadence_moyenne` per chain for Couverture Chaîne | Bacovet Production | Sprint 5 |
-| D-03 | Confirm Google Drive API key scope + Sheet IDs | Bacovet IT | Sprint 7 |
-| D-04 | Confirm backend user management API design | Bacovet IT | Sprint 2 |
+| ID   | Item                                                     | Owner                 | Target sprint   |
+| ---- | -------------------------------------------------------- | --------------------- | --------------- |
+| B-01 | Activate 4 BR Bundling query slugs in Novacity           | Novacity admin        | Before Sprint 3 |
+| B-02 | Configure DIVA BR GTD endpoints (F-REQ-101/102/103)      | Novacity + Bacovet IT | Before Sprint 3 |
+| B-03 | Confirm/build `/api/auth/login` endpoint                 | Novacity / Bacovet IT | Before Sprint 1 |
+| B-04 | Confirm GPRO Consulting API connectivity plan            | Bacovet IT            | Before Sprint 4 |
+| B-05 | Confirm "Base suivi production" data access plan         | Bacovet IT            | Before Sprint 7 |
+| D-01 | Define exact `cadence_hebdomadaire_moyenne` constant     | Bacovet Production    | Sprint 4        |
+| D-02 | Define `cadence_moyenne` per chain for Couverture Chaîne | Bacovet Production    | Sprint 5        |
+| D-03 | Confirm Google Drive API key scope + Sheet IDs           | Bacovet IT            | Sprint 7        |
+| D-04 | Confirm backend user management API design               | Bacovet IT            | Sprint 2        |
