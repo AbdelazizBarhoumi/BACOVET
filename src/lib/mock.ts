@@ -1,7 +1,7 @@
 // Deterministic mock data for BACOVET dashboard.
 // Swap with real Novacity API calls once x-api-key is provided.
 
-export type Status = "green" | "orange" | "red";
+export type Status = "green" | "orange" | "red" | "grey";
 
 export function statusFor(value: number, target: number, kind: "min" | "max" = "min"): Status {
   if (kind === "min") {

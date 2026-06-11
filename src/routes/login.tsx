@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, ROLE_HOME, DEMO_ACCOUNTS } from "@/hooks/use-auth";
 import { pushAudit } from "@/lib/audit";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -19,11 +20,16 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { login, session } = useAuth();
+  const { login, session, isLoading } = useAuth();
+
   const [show, setShow] = useState(false);
   const [matricule, setMatricule] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    matricule?: boolean;
+    pwd?: boolean;
+  }>({});
 
   if (session) {
     return <Navigate to={ROLE_HOME[session.role]} />;
@@ -31,17 +37,33 @@ function LoginPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!matricule || !pwd) {
+
+    setErr(null);
+    setFieldErrors({});
+
+    const errors: { matricule?: boolean; pwd?: boolean } = {};
+    if (!matricule.trim()) errors.matricule = true;
+    if (!pwd.trim()) errors.pwd = true;
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       setErr("Identifiants incorrects");
       return;
     }
+
     const res = await login(matricule, pwd);
+
     if (!res.ok) {
-      setErr(res.error);
+      setErr("Identifiants incorrects. Veuillez réessayer.");
       pushAudit("WARN", `Tentative de connexion échouée: ${matricule}`);
       return;
     }
-    pushAudit("USER", `Connexion réussie: ${matricule.toUpperCase()} (${res.role})`);
+
+    pushAudit(
+      "USER",
+      `Connexion réussie: ${matricule.toUpperCase()} (${res.role})`
+    );
+
     navigate({ to: ROLE_HOME[res.role] });
   };
 
@@ -62,10 +84,15 @@ function LoginPage() {
             <div className="h-14 w-14 rounded-lg bg-primary text-primary-foreground grid place-items-center font-mono text-2xl font-bold mb-3">
               B
             </div>
-            <h1 className="text-xl font-bold tracking-[0.3em]">BACOVET</h1>
+
+            <h1 className="text-xl font-bold tracking-[0.3em]">
+              BACOVET
+            </h1>
+
             <div className="text-[11px] tracking-[0.25em] text-muted-foreground uppercase mt-1">
               Pilotage Opérationnel
             </div>
+
             <div className="mt-4 flex items-center gap-2 text-[10px] font-mono tracking-wider text-primary/80">
               <ShieldCheck className="h-3 w-3" />
               <span>ACCÈS PRIVÉ</span>
@@ -79,39 +106,89 @@ function LoginPage() {
               <Label className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
                 Matricule / EID
               </Label>
+
               <Input
                 value={matricule}
-                onChange={(e) => setMatricule(e.target.value)}
-                className="bg-secondary border-border font-mono"
+                onChange={(e) => {
+                  setMatricule(e.target.value);
+                  if (fieldErrors.matricule) setFieldErrors(prev => ({ ...prev, matricule: false }));
+                }}
+                className={cn(
+                  "bg-secondary border-border font-mono transition-colors",
+                  fieldErrors.matricule && "border-destructive ring-destructive"
+                )}
                 placeholder="P-1042"
                 autoComplete="username"
               />
+              {fieldErrors.matricule && (
+                <p className="text-[10px] text-destructive font-mono uppercase tracking-wider">
+                  Matricule requis
+                </p>
+              )}
             </div>
+
             <div className="space-y-1.5">
               <Label className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
                 Clé de sécurité
               </Label>
+
               <div className="relative">
                 <Input
                   type={show ? "text" : "password"}
                   value={pwd}
-                  onChange={(e) => setPwd(e.target.value)}
-                  className="bg-secondary border-border font-mono pr-10"
+                  onChange={(e) => {
+                    setPwd(e.target.value);
+                    if (fieldErrors.pwd) setFieldErrors(prev => ({ ...prev, pwd: false }));
+                  }}
+                  className={cn(
+                    "bg-secondary border-border font-mono pr-10 transition-colors",
+                    fieldErrors.pwd && "border-destructive ring-destructive"
+                  )}
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
+
                 <button
                   type="button"
                   onClick={() => setShow((s) => !s)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
-                  {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {show ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
+              {fieldErrors.pwd && (
+                <p className="text-[10px] text-destructive font-mono uppercase tracking-wider">
+                  Mot de passe requis
+                </p>
+              )}
             </div>
-            {err && <div className="text-xs text-destructive font-mono">{err}</div>}
-            <Button type="submit" className="w-full font-mono uppercase tracking-[0.18em] text-xs">
-              Validation Identité <ArrowRight className="h-3 w-3 ml-2" />
+
+            {err && (
+              <div className="text-xs text-destructive font-mono">
+                {err}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full font-mono uppercase tracking-[0.18em] text-xs transition-all"
+            >
+              {isLoading ? (
+                <>
+                  <span className="mr-2 h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Validation...
+                </>
+              ) : (
+                <>
+                  Validation Identité
+                  <ArrowRight className="h-3 w-3 ml-2" />
+                </>
+              )}
             </Button>
           </form>
 
@@ -120,30 +197,37 @@ function LoginPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
               Réseau local : connecté
             </span>
+
             <button
               type="button"
               onClick={() => {
                 setMatricule("");
                 setPwd("");
                 setErr(null);
+                setFieldErrors({});
               }}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
               Réinitialiser
             </button>
           </div>
         </div>
+
         <p className="text-center text-[10px] font-mono tracking-[0.2em] text-muted-foreground mt-6 uppercase">
           Excellence industrielle — Propriété de BACOVET Group
         </p>
+
         <details className="mt-3 text-[10px] font-mono text-muted-foreground/80">
-          <summary className="cursor-pointer text-center uppercase tracking-wider">
+          <summary className="cursor-pointer text-center uppercase tracking-wider hover:text-foreground transition-colors">
             Comptes de démonstration
           </summary>
+
           <div className="mt-2 rounded border border-border bg-card/40 p-3 space-y-0.5">
             <div className="text-[10px] mb-1 text-muted-foreground">
-              Mot de passe : <span className="text-foreground">demo</span>
+              Mot de passe :
+              <span className="text-foreground ml-1">demo</span>
             </div>
+
             {Object.entries(DEMO_ACCOUNTS).map(([mat, a]) => (
               <div key={mat} className="flex justify-between gap-3">
                 <button
@@ -151,11 +235,13 @@ function LoginPage() {
                   onClick={() => {
                     setMatricule(mat);
                     setPwd("demo");
+                    setFieldErrors({});
                   }}
                   className="text-primary hover:underline"
                 >
                   {mat}
                 </button>
+
                 <span className="text-muted-foreground truncate">
                   {a.name} · {a.role}
                 </span>

@@ -7,13 +7,22 @@ export function TrafficBadge({ status, children }: { status: Status; children?: 
     green: "bg-success/15 text-success border-success/40",
     orange: "bg-warning/15 text-warning border-warning/40",
     red: "bg-destructive/15 text-destructive border-destructive/40",
+    grey: "bg-muted text-muted-foreground border-border",
   };
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${map[status]}`}
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${status === "green" ? "bg-success" : status === "orange" ? "bg-warning" : "bg-destructive"}`}
+        className={`h-1.5 w-1.5 rounded-full ${
+          status === "green"
+            ? "bg-success"
+            : status === "orange"
+              ? "bg-warning"
+              : status === "red"
+                ? "bg-destructive"
+                : "bg-muted-foreground"
+        }`}
       />
       {children ?? status.toUpperCase()}
     </span>
@@ -29,6 +38,8 @@ export function BigNumberCard({
   source,
   trend,
   freq,
+  isLoading,
+  error,
 }: {
   label: string;
   value: number | string;
@@ -38,7 +49,33 @@ export function BigNumberCard({
   source?: string;
   trend?: "up" | "down" | "flat";
   freq?: string;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
+  if (isLoading) {
+    return (
+      <div className="relative overflow-hidden rounded-lg border border-border bg-card p-4 animate-pulse">
+        <div className="absolute left-0 top-0 h-full w-1 bg-muted" />
+        <div className="h-3 w-20 bg-muted rounded mb-4" />
+        <div className="h-8 w-32 bg-muted rounded mb-2" />
+        <div className="h-3 w-24 bg-muted rounded" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="relative overflow-hidden rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+        <div className="absolute left-0 top-0 h-full w-1 bg-destructive" />
+        <div className="text-[11px] uppercase tracking-wider text-destructive font-mono mb-2">
+          {label}
+        </div>
+        <div className="text-sm font-mono text-destructive/80 mb-1">ERREUR</div>
+        <div className="text-[10px] font-mono text-destructive/60 line-clamp-2">{error}</div>
+      </div>
+    );
+  }
+
   const bar =
     status === "green"
       ? "bg-success"
@@ -46,7 +83,7 @@ export function BigNumberCard({
         ? "bg-warning"
         : status === "red"
           ? "bg-destructive"
-          : "bg-muted";
+          : "bg-status-grey";
   return (
     <div className="relative overflow-hidden rounded-lg border border-border bg-card p-4">
       <div className={`absolute left-0 top-0 h-full w-1 ${bar}`} />

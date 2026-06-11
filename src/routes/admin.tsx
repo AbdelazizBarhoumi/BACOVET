@@ -29,6 +29,10 @@ import { getAudit, isAuditEnabled, pushAudit, setAuditEnabled, type AuditEntry }
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: ({ location }) => {
+    // Skip redirect on server to avoid flicker. 
+    // Client-side hydration will handle the redirect if session is missing.
+    if (typeof window === "undefined") return;
+
     if (!auth.session) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }

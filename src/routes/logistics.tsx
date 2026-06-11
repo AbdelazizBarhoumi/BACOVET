@@ -23,6 +23,7 @@ import { auth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/logistics")({
   beforeLoad: ({ location }) => {
+    if (typeof window === "undefined") return;
     if (!auth.session) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }

@@ -90,9 +90,43 @@ export type Session = {
   expiresAt: number;
 };
 
-// Global auth object for beforeLoad (memory-only)
+// Simple cookie helpers
+const setCookie = (name: string, value: string, days = 7) => {
+  if (typeof document === "undefined") return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+};
+
+const getCookie = (name: string) => {
+  if (typeof document === "undefined") return null;
+  return (
+    document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)")?.pop() ||
+    null
+  );
+};
+
+const removeCookie = (name: string) => {
+  setCookie(name, "", -1);
+};
+
+// Global auth object for beforeLoad (rehydrated from cookie if available)
+const getInitialSession = (): Session | null => {
+  const saved = getCookie("bacovet-session");
+  if (!saved) return null;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(saved));
+    if (Date.now() > parsed.expiresAt) {
+      removeCookie("bacovet-session");
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
 export const auth = {
-  session: null as Session | null,
+  session: getInitialSession(),
   isLoading: false,
   hasAccess(page: string): boolean {
     if (!this.session) return false;
@@ -121,13 +155,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(auth.session);
   const [isLoading, setIsLoading] = useState(auth.isLoading);
 
+  // Sync session state to auth object and cookie
+  useEffect(() => {
+    auth.session = session;
+    if (session) {
+      setCookie("bacovet-session", JSON.stringify(session));
+    } else {
+      removeCookie("bacovet-session");
+    }
+  }, [session]);
+
   // Auto-logout if session expires
   useEffect(() => {
     if (!session) return;
 
     const checkExpiry = () => {
       if (Date.now() > session.expiresAt) {
-        auth.session = null;
         setSession(null);
       }
     };
@@ -156,7 +199,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         expiresAt: Date.now() + SESSION_DURATION,
       };
 
-      auth.session = newSession;
       setSession(newSession);
       return { ok: true, role: acct.role } as const;
     } catch (error) {
@@ -168,7 +210,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    auth.session = null;
     setSession(null);
   };
 

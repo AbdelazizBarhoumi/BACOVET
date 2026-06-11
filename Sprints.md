@@ -249,7 +249,7 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 | S0-T05  | Méthodes can access /quality                | Log in as Méthodes, navigate to `/quality`         | Page loads (no redirect to /unauthorized)         |
 | S0-T06  | Session expiry                              | Set timeout to 10s for testing, wait               | Auto-logout and redirect to `/login`              |
 | S0-T07  | Router covers all 8 routes                  | Visit each route                                   | No 404 or blank page                              |
-| S0-T08  | Brand colors render                         | Add test div `bg-brand-dark text-status-green`     | Correct colors appear                             |
+| S0-T08  | Brand colors render                         | Add test div `bg-background text-success`     | Correct colors appear                             |
 | S0-T09  | Conteneurs_Actifs is integer                | Call `fetchCapaciteStockage()`, inspect result     | `typeof result[0].Conteneurs_Actifs === 'number'` |
 | S0-T10  | MoyenneJours is float                       | Call `fetchMoyenneDateTransfert()`, inspect result | `typeof result[0].MoyenneJours === 'number'`      |
 
@@ -280,7 +280,7 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 
 **Layout:**
 
-- Full-screen dark background (`bg-brand-dark`)
+- Full-screen dark background (`bg-background`)
 - Centered white card (max-width 400px, rounded, shadow)
 - Top: BACOVET logo (text-based if no image) + subtitle "PILOTAGE OPÉRATIONNEL"
 - Section header: "ACCÈS PRIVÉ" + lock icon + "NF-REQ-502 : AUTHENTIFICATION UNIQUE"
@@ -334,7 +334,7 @@ Create empty stub files (each returns `<div>ComponentName</div>`):
 
 **Behavior:**
 
-- Active route highlighted (`bg-brand-primary` + left border)
+- Active route highlighted (`bg-primary` + left border)
 - Hide items user's role cannot access
 - Production sub-items expand when `/production` is active
 
@@ -724,7 +724,7 @@ Sections:
 Filter to today. Group by `OpNo`, sum `Qty`. Top 8.
 
 - X-axis: OpNo; Y-axis: defect quantity
-- Brand-primary blue bars
+- primary blue bars
 - Title: "DÉFAUTS PAR OPÉRATION (Ce jour)"
 
 ### 3.5 — Best & Low QP Team Podiums (F-REQ-118 / F-REQ-119) ← NEW

@@ -214,7 +214,7 @@ VITE_API_KEY=your_x_api_key_here
 
 **Prerequisites:** Dev server running. Add a temporary test div to `App.jsx`:
 ```jsx
-<div className="bg-brand-dark text-status-green p-4">TEST COULEURS</div>
+<div className="bg-background text-success p-4">TEST COULEURS</div>
 ```
 
 **Steps:**
@@ -522,7 +522,7 @@ VITE_API_KEY=your_x_api_key_here
 4. Navigate to `/methods`. Look at the sidebar.
 
 **Expected result for each navigation:**
-- The currently active route has a distinct left border highlight (brand-primary blue) or background color.
+- The currently active route has a distinct left border highlight (primary blue) or background color.
 - Only **one** item is highlighted at a time.
 - When on `/quality`, QUALITÉ is highlighted; others are not.
 
