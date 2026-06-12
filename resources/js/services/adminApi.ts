@@ -50,7 +50,7 @@ export const fetchAllUsers = async () => {
 /**
  * Create a new user
  */
-export const createUser = async (userData: any) => {
+export const createUser = async (userData: Record<string, unknown>) => {
   return fetchWithToken(`${BASE_URL}/admin/users`, {
     method: "POST",
     body: JSON.stringify(userData),
@@ -60,7 +60,7 @@ export const createUser = async (userData: any) => {
 /**
  * Update an existing user
  */
-export const updateUser = async (userId: string | number, userData: any) => {
+export const updateUser = async (userId: string | number, userData: Record<string, unknown>) => {
   return fetchWithToken(`${BASE_URL}/admin/users/${userId}`, {
     method: "PUT",
     body: JSON.stringify(userData),
@@ -86,7 +86,7 @@ export const fetchAllScreens = async () => {
 /**
  * Update a screen
  */
-export const updateScreen = async (screenId: string | number, screenData: any) => {
+export const updateScreen = async (screenId: string | number, screenData: Record<string, unknown>) => {
   return fetchWithToken(`${BASE_URL}/admin/screens/${screenId}`, {
     method: "PUT",
     body: JSON.stringify(screenData),

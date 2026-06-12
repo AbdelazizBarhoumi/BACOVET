@@ -25,11 +25,11 @@ class CreateNewUser implements CreatesNewUsers
         ])->validate();
 
         return User::create([
-            'name'      => $input['name'],
-            'matricule' => $input['matricule'] ?? 'REG-' . strtoupper(bin2hex(random_bytes(3))),
-            'email'     => $input['email'],
-            'password'  => $input['password'],
-            'role_id'   => $input['role_id'] ?? \App\Models\Role::where('slug', 'direction')->first()?->id ?? 2,
+            'name' => $input['name'],
+            'matricule' => $input['matricule'] ?? 'REG-'.strtoupper(bin2hex(random_bytes(3))),
+            'email' => $input['email'],
+            'password' => $input['password'],
+            'role_id' => $input['role_id'] ?? \App\Models\Role::where('slug', 'direction')->first()?->id ?? 2,
             'is_active' => true,
         ]);
     }

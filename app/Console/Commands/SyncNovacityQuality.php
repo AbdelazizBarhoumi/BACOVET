@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class SyncNovacityQuality extends Command
 {
     protected $signature = 'sync:quality';
+
     protected $description = 'Sync Quality data from Novacity API';
 
     public function handle(SyncService $sync)

@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('query_slug')->nullable();
             $table->enum('source', ['DIVA', 'GPRO', 'GPRO_CONSULTING', 'GOOGLE_DRIVE', 'OTHER'])
-                  ->default('OTHER');
+                ->default('OTHER');
             $table->enum('last_status', ['ok', 'error', 'inactive', 'pending'])->default('pending');
             $table->integer('records_count')->nullable();
             $table->integer('response_time_ms')->nullable();

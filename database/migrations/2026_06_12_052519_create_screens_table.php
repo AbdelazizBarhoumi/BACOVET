@@ -15,7 +15,7 @@ return new class extends Migration
             $table->enum('assigned_page', [
                 'quality', 'production_confection', 'production_coupe',
                 'production_serigraphie', 'logistics', 'methodes',
-                'development', 'admin'
+                'development', 'admin',
             ])->nullable();
             $table->timestamps();
         });

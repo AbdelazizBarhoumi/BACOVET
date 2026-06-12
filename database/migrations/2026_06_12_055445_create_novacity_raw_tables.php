@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         // M-051 — inline_endline_raw (raw Novacity tables)
-        
+
         Schema::create('vw_item_trx', function (Blueprint $table) {
             $table->id();
             $table->json('raw_data');

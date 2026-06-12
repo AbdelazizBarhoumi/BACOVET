@@ -39,16 +39,16 @@ class ExternalApiIntegrationTest extends TestCase
         Http::fake([
             '*/api/data/checkpassqte*' => Http::response([
                 'success' => true,
-                'data' => [['shortname' => 'Chain A', 'defect_pct' => 2.5]]
+                'data' => [['shortname' => 'Chain A', 'defect_pct' => 2.5]],
             ], 200),
         ]);
 
-        $service = new NovacityService();
+        $service = new NovacityService;
         $data = $service->fetchEndpoint('check_pass_qte');
 
         $this->assertCount(1, $data);
         $this->assertEquals('Chain A', $data[0]['shortname']);
-        
+
         Http::assertSent(function ($request) {
             return $request->hasHeader('x-api-key') &&
                    str_contains($request->url(), '/api/data/checkpassqte');
@@ -61,11 +61,11 @@ class ExternalApiIntegrationTest extends TestCase
         Http::fake([
             '*/api/data/q/wip_chaine*' => Http::response([
                 'success' => true,
-                'data' => [['chaine' => 'Line 1', 'en_cours' => 50]]
+                'data' => [['chaine' => 'Line 1', 'en_cours' => 50]],
             ], 200),
         ]);
 
-        $service = new NovacityService();
+        $service = new NovacityService;
         $data = $service->fetchQuery('wip_chaine');
 
         $this->assertCount(1, $data);
@@ -80,13 +80,13 @@ class ExternalApiIntegrationTest extends TestCase
             'novacity_job_id' => 1,
             'name' => 'Sync Quality',
             'query_slug' => 'check_pass_qte',
-            'is_active' => true
+            'is_active' => true,
         ]);
 
         Http::fake([
             '*/api/data/checkpassqte*' => Http::response([
                 'success' => true,
-                'data' => [['log_date' => '2025-01-01', 'shortname' => 'Chain B', 'defect_pct' => 3.0]]
+                'data' => [['log_date' => '2025-01-01', 'shortname' => 'Chain B', 'defect_pct' => 3.0]],
             ], 200),
             '*/api/data/*' => Http::response(['success' => true, 'data' => []], 200),
             '*/api/data/q/*' => Http::response(['success' => true, 'data' => []], 200),
@@ -97,7 +97,7 @@ class ExternalApiIntegrationTest extends TestCase
 
         $this->assertDatabaseHas('check_pass_qte', [
             'shortname' => 'Chain B',
-            'defect_pct' => 3.0
+            'defect_pct' => 3.0,
         ]);
 
         $job = NovacityJob::where('query_slug', 'check_pass_qte')->first();
@@ -119,18 +119,18 @@ class ExternalApiIntegrationTest extends TestCase
         Http::fake([
             '*/api/admin/jobs/25/run' => Http::response([
                 'success' => true,
-                'data' => ['status' => 'started']
+                'data' => ['status' => 'started'],
             ], 200),
         ]);
 
         $this->actingAs($this->user)
-            ->getJson("/admin/jobs/25/run")
+            ->getJson('/admin/jobs/25/run')
             ->assertStatus(200)
             ->assertJsonFragment(['status' => 'started']);
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/api/admin/jobs/25/run') &&
-                   $request->hasHeader('Authorization', 'Bearer ' . config('novacity.admin_token'));
+                   $request->hasHeader('Authorization', 'Bearer '.config('novacity.admin_token'));
         });
     }
 
@@ -168,7 +168,7 @@ class ExternalApiIntegrationTest extends TestCase
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/api/admin/jobs') &&
-                   $request->hasHeader('Authorization', 'Bearer ' . config('novacity.admin_token'));
+                   $request->hasHeader('Authorization', 'Bearer '.config('novacity.admin_token'));
         });
     }
 
@@ -189,9 +189,9 @@ class ExternalApiIntegrationTest extends TestCase
         ]);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage("Novacity API error");
+        $this->expectExceptionMessage('Novacity API error');
 
-        $service = new NovacityService();
+        $service = new NovacityService;
         $service->fetchEndpoint('check_pass_qte');
     }
 }

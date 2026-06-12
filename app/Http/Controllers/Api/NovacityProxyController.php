@@ -25,7 +25,7 @@ class NovacityProxyController extends Controller
             'x-api-key' => (string) config('novacity.api_key'),
         ])
             ->timeout((int) config('novacity.timeout', 10))
-            ->get($baseUrl . '/api/' . $path, $query);
+            ->get($baseUrl.'/api/'.$path, $query);
 
         if ($response->failed()) {
             return response()->json([

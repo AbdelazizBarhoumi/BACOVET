@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class SyncNovacityLogistics extends Command
 {
     protected $signature = 'sync:logistics';
+
     protected $description = 'Sync Logistics data from Novacity API';
 
     public function handle(SyncService $sync)

@@ -17,11 +17,11 @@ class LogAuditTrail
 
         if (in_array($request->method(), self::LOG_METHODS)) {
             AuditLog::create([
-                'user_id'     => $request->user()?->id,
+                'user_id' => $request->user()?->id,
                 'action_type' => 'USER',
-                'message'     => "{$request->method()} {$request->path()} — HTTP {$response->getStatusCode()}",
-                'ip_address'  => $request->ip(),
-                'user_agent'  => $request->userAgent(),
+                'message' => "{$request->method()} {$request->path()} — HTTP {$response->getStatusCode()}",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
             ]);
         }
 

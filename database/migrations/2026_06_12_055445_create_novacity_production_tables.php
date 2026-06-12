@@ -41,7 +41,7 @@ return new class extends Migration
             $table->integer('quantite_prevue')->default(0);
             $table->integer('quantite_realisee')->default(0);
             $table->enum('statut', ['en_cours', 'termine', 'planifie', 'en_attente'])
-                  ->default('en_cours');
+                ->default('en_cours');
             $table->timestamp('synced_at')->useCurrent();
             $table->index(['of', 'statut']);
             $table->index('statut');

@@ -10,11 +10,11 @@ class NovacityJob extends Model
 
     protected $fillable = [
         'novacity_job_id', 'name', 'query_slug', 'source', 'last_status',
-        'records_count', 'response_time_ms', 'last_run_at', 'last_error', 'is_active'
+        'records_count', 'response_time_ms', 'last_run_at', 'last_error', 'is_active',
     ];
 
     protected $casts = [
         'last_run_at' => 'datetime',
-        'is_active'   => 'boolean',
+        'is_active' => 'boolean',
     ];
 }

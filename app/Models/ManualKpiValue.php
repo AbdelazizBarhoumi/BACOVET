@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ManualKpiValue extends Model
 {
     protected $fillable = [
-        'kpi_key', 'kpi_label', 'numerator', 'denominator', 'value', 'note', 'updated_by'
+        'kpi_key', 'kpi_label', 'numerator', 'denominator', 'value', 'note', 'updated_by',
     ];
 
     public function updater()

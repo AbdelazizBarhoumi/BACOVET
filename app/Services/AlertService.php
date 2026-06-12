@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\DB;
-
 class AlertService
 {
     public function generateQualityAlerts(): array

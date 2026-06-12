@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Support\Facades\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 class BrowserLogTest extends TestCase

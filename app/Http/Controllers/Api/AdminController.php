@@ -3,8 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\{AuditLog, SyncSetting, User, NovacityJob, Screen};
-use Illuminate\Http\{JsonResponse, Request};
+use App\Models\AuditLog;
+use App\Models\NovacityJob;
+use App\Models\Screen;
+use App\Models\SyncSetting;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
@@ -55,10 +60,10 @@ class AdminController extends Controller
 
                 $localJob = NovacityJob::create([
                     'novacity_job_id' => $id,
-                    'name'            => $remoteJob['nom'] ?? $remoteJob['label'] ?? 'Unknown Job',
-                    'query_slug'      => $remoteJob['action_ref'] ?? null,
-                    'source'          => $remoteJob['source'] ?? 'OTHER',
-                    'is_active'       => (bool) ($remoteJob['actif'] ?? true),
+                    'name' => $remoteJob['nom'] ?? $remoteJob['label'] ?? 'Unknown Job',
+                    'query_slug' => $remoteJob['action_ref'] ?? null,
+                    'source' => $remoteJob['source'] ?? 'OTHER',
+                    'is_active' => (bool) ($remoteJob['actif'] ?? true),
                 ]);
             }
 
@@ -84,15 +89,15 @@ class AdminController extends Controller
             ]);
 
             AuditLog::create([
-                'user_id'     => $request->user()?->id,
+                'user_id' => $request->user()?->id,
                 'action_type' => 'SYSTEM',
-                'message'     => "Déclenchement manuel du job Novacity",
-                'ip_address'  => $request->ip(),
+                'message' => 'Déclenchement manuel du job Novacity',
+                'ip_address' => $request->ip(),
             ]);
 
             return response()->json([
-                'message' => "Job lancé avec succès sur Novacity.",
-                'data' => $result
+                'message' => 'Job lancé avec succès sur Novacity.',
+                'data' => $result,
             ]);
         } catch (\Exception $e) {
             if ($e instanceof ValidationException) {
@@ -108,7 +113,7 @@ class AdminController extends Controller
             }
 
             return response()->json([
-                'message' => "Erreur lors du lancement du job: " . $e->getMessage()
+                'message' => 'Erreur lors du lancement du job: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -161,12 +166,12 @@ class AdminController extends Controller
             $user->role_id = $role->id;
         }
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $user->password = \Illuminate\Support\Facades\Hash::make($validated['password']);
         }
 
         $user->update(collect($validated)->except(['role', 'password', 'active'])->toArray());
-        
+
         if (isset($validated['active'])) {
             $user->is_active = $validated['active'];
         }
@@ -179,8 +184,9 @@ class AdminController extends Controller
     public function toggleUser(int $id): JsonResponse
     {
         $user = User::findOrFail($id);
-        $user->is_active = !$user->is_active;
+        $user->is_active = ! $user->is_active;
         $user->save();
+
         return response()->json(['message' => 'User status toggled.', 'is_active' => $user->is_active]);
     }
 
@@ -212,6 +218,7 @@ class AdminController extends Controller
     public function clearAuditLogs(): JsonResponse
     {
         AuditLog::truncate();
+
         return response()->json(['message' => 'Audit logs cleared.']);
     }
 
@@ -228,7 +235,7 @@ class AdminController extends Controller
 
         $setting = SyncSetting::where('key', $key)->firstOrFail();
         $setting->update([
-            'value'      => $request->value,
+            'value' => $request->value,
             'updated_by' => $request->user()->id,
         ]);
 
@@ -236,10 +243,10 @@ class AdminController extends Controller
         Cache::forget("sync_setting:{$key}");
 
         AuditLog::create([
-            'user_id'     => $request->user()->id,
+            'user_id' => $request->user()->id,
             'action_type' => 'SYSTEM',
-            'message'     => "Intervalle sync mis à jour: {$key} = {$request->value}s",
-            'ip_address'  => $request->ip(),
+            'message' => "Intervalle sync mis à jour: {$key} = {$request->value}s",
+            'ip_address' => $request->ip(),
         ]);
 
         return response()->json(['message' => 'Configuration mise à jour.', 'setting' => $setting->fresh()]);

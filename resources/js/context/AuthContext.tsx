@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const session = useMemo(() => {
     if (!auth?.user) return null;
-    const roleSlug = typeof auth.user.role === 'object' ? auth.user.role?.slug : auth.user.role;
+    const roleSlug = (typeof auth.user.role === 'object' && auth.user.role !== null) ? (auth.user.role as { slug?: string }).slug : auth.user.role;
     const normalizedRole = roleSlug === 'it' ? 'admin' : roleSlug;
     return {
       matricule: auth.user.matricule,

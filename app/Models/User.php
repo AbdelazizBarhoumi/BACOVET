@@ -65,6 +65,7 @@ class User extends Authenticatable
     public function hasRole(string|array $slugs): bool
     {
         $slugs = (array) $slugs;
+
         return in_array($this->role->slug, $slugs);
     }
 
@@ -74,21 +75,21 @@ class User extends Authenticatable
     }
 
     public const PAGE_ROLES = [
-        'admin'       => ['it'],
-        'quality'     => ['it','direction','resp_production','resp_qualite','methodes'],
-        'production'  => ['it','direction','resp_production','chef_atelier','methodes','coupe'],
-        'logistics'   => ['it','direction','methodes','coupe'],
-        'methods'     => ['it','direction','methodes'],
-        'development' => ['it','direction','methodes'],
+        'admin' => ['it'],
+        'quality' => ['it', 'direction', 'resp_production', 'resp_qualite', 'methodes'],
+        'production' => ['it', 'direction', 'resp_production', 'chef_atelier', 'methodes', 'coupe'],
+        'logistics' => ['it', 'direction', 'methodes', 'coupe'],
+        'methods' => ['it', 'direction', 'methodes'],
+        'development' => ['it', 'direction', 'methodes'],
     ];
 
     public const DEFAULT_REDIRECT = [
-        'it'              => '/admin',
-        'direction'       => '/quality',
+        'it' => '/admin',
+        'direction' => '/quality',
         'resp_production' => '/production',
-        'chef_atelier'    => '/production',
-        'resp_qualite'    => '/quality',
-        'methodes'        => '/methods',
-        'coupe'           => '/production',
+        'chef_atelier' => '/production',
+        'resp_qualite' => '/quality',
+        'methodes' => '/methods',
+        'coupe' => '/production',
     ];
 }

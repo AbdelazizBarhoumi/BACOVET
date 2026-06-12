@@ -1,6 +1,6 @@
 import { Head } from "@inertiajs/react";
 import { Pencil, Plus, Monitor, Trash2, AlertTriangle } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useReducer, useCallback } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,15 @@ type User = {
   is_active: boolean;
 };
 
+type JobApi = {
+    id: number;
+    name: string;
+    query_slug?: string;
+    last_status: string;
+    last_run_at: string;
+    is_active: boolean;
+};
+
 type Screen = { 
     id: number;
     name: string; 
@@ -63,23 +72,80 @@ type Screen = {
     assigned_page: string 
 };
 
-export default function AdminPage() {
-  const { session } = useAuth();
-  const { lastSync, now, refreshIntervalSec, setRefreshIntervalSec, forceSync } = useLiveData();
-
-  const [jobs, setJobs] = useState<
-    {
+type AdminState = {
+    jobs: {
       id: number;
       name: string;
       description?: string;
       last_status: string;
       last_run: string;
       active: boolean;
-    }[]
-  >([]);
-  const [error, setError] = useState<string | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [screens, setScreens] = useState<Screen[]>([]);
+    }[];
+    users: User[];
+    screens: Screen[];
+    error: string | null;
+};
+
+type AdminAction = {
+    type: 'LOAD_DATA';
+    payload: {
+        jobs: JobApi[];
+        users: User[];
+        screens: Screen[];
+    };
+} | {
+    type: 'SET_ERROR';
+    payload: string;
+} | {
+    type: 'UPDATE_JOBS';
+    payload: AdminState['jobs'];
+} | {
+    type: 'UPDATE_USERS';
+    payload: User[];
+} | {
+    type: 'UPDATE_SCREENS';
+    payload: Screen[];
+};
+
+const adminReducer = (state: AdminState, action: AdminAction): AdminState => {
+    switch (action.type) {
+        case 'LOAD_DATA': {
+            const normalized = (Array.isArray(action.payload.jobs) ? action.payload.jobs : []).map((j: JobApi) => ({
+                id: j.id,
+                name: j.name || "",
+                description: j.query_slug || "",
+                last_status: j.last_status,
+                last_run: j.last_run_at || "",
+                active: !!j.is_active,
+            }));
+            return { ...state, jobs: normalized, users: action.payload.users, screens: action.payload.screens, error: null };
+        }
+        case 'SET_ERROR':
+            return { ...state, error: action.payload };
+        case 'UPDATE_JOBS':
+            return { ...state, jobs: action.payload };
+        case 'UPDATE_USERS':
+            return { ...state, users: action.payload };
+        case 'UPDATE_SCREENS':
+            return { ...state, screens: action.payload };
+        default:
+            return state;
+    }
+};
+
+export default function AdminPage() {
+  const { session } = useAuth();
+  const { lastSync, now, refreshIntervalSec, setRefreshIntervalSec, forceSync } = useLiveData();
+
+  const [state, dispatch] = useReducer(adminReducer, {
+      jobs: [],
+      users: [],
+      screens: [],
+      error: null
+  });
+  
+  const { jobs, users, screens, error } = state;
+  
   const [logs, setLogs] = useState<AuditEntry[]>(() => getAudit());
   const [auditOn, setAuditOn] = useState<boolean>(() => isAuditEnabled());
   const [editing, setEditing] = useState<User | null>(null);
@@ -87,60 +153,41 @@ export default function AdminPage() {
   const logEndRef = useRef<HTMLDivElement>(null);
   const prevLogCount = useRef<number>(0);
 
-  const loadJobs = async () => {
-    console.log("DEBUG: loadJobs() called");
+  const loadData = useCallback(async (isMounted: boolean) => {
     try {
-      const data = await fetchAllJobs();
-      console.log("DEBUG: loadJobs() fetched data");
-      const normalized = (Array.isArray(data) ? data : []).map((j: any) => ({
-        id: j.id,
-        name: j.name || "",
-        description: j.query_slug || "",
-        last_status: j.last_status,
-        last_run: j.last_run_at || "",
-        active: !!j.is_active,
-      }));
-      setJobs(normalized);
-    } catch (err) {
-      console.error("Failed to load jobs", err);
-      setError("Impossible de contacter le serveur Novacity API");
-    }
-  };
+      const jobsData = await fetchAllJobs();
+      const usersData = await fetchAllUsers();
+      const screensData = await fetchAllScreens();
 
-  const loadUsers = async () => {
-    try {
-        const data = await fetchAllUsers();
-        setUsers(data);
-    } catch (err) {
-        console.error("Failed to load users", err);
-    }
-  };
+      if (!isMounted) return;
 
-  const loadScreens = async () => {
-    try {
-        const data = await fetchAllScreens();
-        setScreens(data);
-    } catch (err) {
-        console.error("Failed to load screens", err);
+      dispatch({ type: 'LOAD_DATA', payload: { jobs: jobsData, users: usersData, screens: screensData } });
+    } catch {
+      console.error("Failed to load data");
+      if (isMounted) dispatch({ type: 'SET_ERROR', payload: "Impossible de contacter le serveur Novacity API" });
     }
-  };
+  }, []);
+
+  // ... (keep useEffect and rest of the file)
+
 
   // FIX #1: Combined into single useEffect with proper cleanup
   useEffect(() => {
     if (typeof window === "undefined" || !session) return;
-    loadJobs();
-    loadUsers();
-    loadScreens();
+    
+    let isMounted = true;
+    loadData(isMounted);
     
     const refresh = () => setLogs(getAudit());
     window.addEventListener("bacovet-audit", refresh);
     const id = setInterval(refresh, 2000);
     
     return () => {
+      isMounted = false;
       window.removeEventListener("bacovet-audit", refresh);
       clearInterval(id);
     };
-  }, [session]); // Removed lastSync here
+  }, [session, loadData]); // Removed lastSync here
 
   // Add a separate effect for periodic sync if needed, but not for initial load
   useEffect(() => {
@@ -214,27 +261,30 @@ export default function AdminPage() {
       toast.success(result?.message || "Job lancé avec succès");
       pushAudit("SYSTEM", `Job lancé manuellement: ID ${id}`);
 
-      // Update job state locally if possible
-      setJobs(prev => prev.map(j =>
-        j.id === Number(id)
-          ? { ...j, last_run: result?.data?.ran_at || new Date().toISOString(), last_status: "ok" }
-          : j
-      ));
+      // Update job state locally
+      dispatch({ 
+        type: 'UPDATE_JOBS', 
+        payload: jobs.map(j =>
+          j.id === Number(id)
+            ? { ...j, last_run: result?.data?.ran_at || new Date().toISOString(), last_status: "ok" }
+            : j
+        ) 
+      });
     } catch {
       toast.error("Échec du lancement du job");
       // Optionally reload jobs on error to show accurate status
-      loadJobs();
+      loadData(true);
     }
   };
 
-  const deleteUserAction = (id: number) => {
+  const deleteUserAction = (_id: number) => {
     toast.error("Suppression non implémentée - Désactivez le compte à la place");
   };
 
   const toggleActive = async (id: number) => {
     try {
         const result = await toggleUserStatus(id);
-        setUsers(users.map(u => u.id === id ? { ...u, is_active: result.is_active } : u));
+        dispatch({ type: 'UPDATE_USERS', payload: users.map(u => u.id === id ? { ...u, is_active: result.is_active } : u) });
         const u = users.find(x => x.id === id);
         if (u) pushAudit("USER", `Utilisateur ${result.is_active ? "activé" : "désactivé"}: ${u.email}`);
         toast.success(result.message);
@@ -381,13 +431,14 @@ export default function AdminPage() {
                         onSave={async (u) => {
                           try {
                               const result = await createUser(u);
-                              setUsers([...users, result.user]);
+                              dispatch({ type: 'UPDATE_USERS', payload: [...users, result.user] });
                               pushAudit("USER", `Utilisateur créé: ${u.email} (${u.role})`);
                               setCreating(false);
                               toast.success("Utilisateur créé");
-                          } catch (err) {
+                          } catch {
                               toast.error("Erreur lors de la création");
                           }
+
                         }}
                         onCancel={() => setCreating(false)}
                       />
@@ -472,22 +523,23 @@ export default function AdminPage() {
                     <UserDialog
                       initial={{
                           ...editing,
-                          role: typeof editing.role === 'object' && editing.role !== null 
+                          role: (typeof editing.role === 'object' && editing.role !== null 
                             ? editing.role.slug 
-                            : (editing.role as unknown as Role),
+                            : editing.role) as Role,
                           active: editing.is_active
                       }}
                       isEditing={true}
                       onSave={async (u) => {
                         try {
                             const result = await updateUser(editing.id, u);
-                            setUsers(users.map((x) => (x.id === editing.id ? result.user : x)));
+                            dispatch({ type: 'UPDATE_USERS', payload: users.map((x) => (x.id === editing.id ? result.user : x)) });
                             pushAudit("USER", `Utilisateur modifié: ${u.email}`);
                             setEditing(null);
                             toast.success("Utilisateur mis à jour");
-                        } catch (err) {
-                            toast.error("Erreur lors de la mise à jour");
+                        } catch {
+                            toast.error("Erreur lors de la création");
                         }
+
                       }}
                       onCancel={() => setEditing(null)}
                     />
@@ -570,15 +622,16 @@ export default function AdminPage() {
                           try {
                               const nextStatus = s.status === "online" ? "offline" : "online";
                               const result = await updateScreen(s.id, { status: nextStatus });
-                              setScreens(screens.map(x => x.id === s.id ? result.screen : x));
+                              dispatch({ type: 'UPDATE_SCREENS', payload: screens.map(x => x.id === s.id ? result.screen : x) });
                               pushAudit(
                                 "SYSTEM",
                                 `Écran ${s.name}: ${nextStatus === "online" ? "en ligne" : "hors ligne"}`,
                               );
                               toast.success("Écran mis à jour");
                           } catch {
-                              toast.error("Erreur lors de la mise à jour");
+                              toast.error("Erreur lors de la création");
                           }
+
                         }}
                         className={`text-[10px] font-mono uppercase ${
                           s.status === "online" ? "text-success" : "text-destructive"
@@ -592,12 +645,13 @@ export default function AdminPage() {
                       onValueChange={async (v) => {
                         try {
                             const result = await updateScreen(s.id, { assigned_page: v });
-                            setScreens(screens.map(x => x.id === s.id ? result.screen : x));
+                            dispatch({ type: 'UPDATE_SCREENS', payload: screens.map(x => x.id === s.id ? result.screen : x) });
                             pushAudit("SYSTEM", `Écran ${s.name} → ${v}`);
                             toast.success("Écran mis à jour");
                         } catch {
-                            toast.error("Erreur lors de la mise à jour");
+                            toast.error("Erreur lors de la création");
                         }
+
                       }}
                     >
                       <SelectTrigger className="h-7 text-[10px] font-mono">
@@ -638,17 +692,19 @@ export default function AdminPage() {
 }
 
 // FIX #6: UserDialog no longer includes DialogContent - it's rendered inside Dialog by parent
+type UserDialogProps = {
+  initial?: Partial<Omit<User, 'role'> & { active?: boolean; role?: Role }>;
+  isEditing?: boolean;
+  onSave: (u: Record<string, unknown>) => void;
+  onCancel: () => void;
+};
+
 function UserDialog({
   initial,
   isEditing,
   onSave,
   onCancel,
-}: {
-  initial?: Partial<User & { active?: boolean; role?: Role }>;
-  isEditing?: boolean;
-  onSave: (u: any) => void;
-  onCancel: () => void;
-}) {
+}: UserDialogProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [matricule, setMatricule] = useState(initial?.matricule ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");

@@ -11,8 +11,7 @@ class SyncSetting extends Model
 
     public static function get(string $key, int $default = 60): int
     {
-        return (int) Cache::remember("sync_setting:{$key}", 30, fn() =>
-            static::where('key', $key)->value('value') ?? $default
+        return (int) Cache::remember("sync_setting:{$key}", 30, fn () => static::where('key', $key)->value('value') ?? $default
         );
     }
 }

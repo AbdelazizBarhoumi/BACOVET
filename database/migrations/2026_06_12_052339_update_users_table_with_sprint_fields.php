@@ -17,25 +17,25 @@ return new class extends Migration
                 $table->dropColumn('role');
             }
 
-            if (!Schema::hasColumn('users', 'matricule')) {
+            if (! Schema::hasColumn('users', 'matricule')) {
                 $table->string('matricule')->nullable()->after('name');
             }
-            
+
             $table->string('email')->nullable()->change(); // Make email nullable
-            
-            if (!Schema::hasColumn('users', 'role_id')) {
+
+            if (! Schema::hasColumn('users', 'role_id')) {
                 $table->foreignId('role_id')->nullable()->after('password')->constrained('roles');
             }
-            
-            if (!Schema::hasColumn('users', 'is_active')) {
+
+            if (! Schema::hasColumn('users', 'is_active')) {
                 $table->boolean('is_active')->default(true)->after('role_id');
             }
-            
-            if (!Schema::hasColumn('users', 'last_login_ip')) {
+
+            if (! Schema::hasColumn('users', 'last_login_ip')) {
                 $table->ipAddress('last_login_ip')->nullable()->after('is_active');
             }
-            
-            if (!Schema::hasColumn('users', 'last_login_at')) {
+
+            if (! Schema::hasColumn('users', 'last_login_at')) {
                 $table->timestamp('last_login_at')->nullable()->after('last_login_ip');
             }
         });
@@ -47,7 +47,7 @@ return new class extends Migration
                 'role_id' => $itRole->id,
             ]);
         }
-        
+
         // Ensure matricule is set if null (using ID as temporary)
         DB::table('users')->whereNull('matricule')->update([
             'matricule' => DB::raw('id'),
@@ -60,14 +60,14 @@ return new class extends Migration
             // Only add index if it doesn't exist
             // Actually change() might already handle some things, but let's be safe
         });
-        
+
         // Add indexes if they don't exist
         Schema::table('users', function (Blueprint $table) {
             // We can't easily check for index existence in Schema builder without raw queries
             // but usually migrate will fail if duplicate index.
             // Let's just try to add them and hope for the best or use raw SQL.
         });
-        
+
         try {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('matricule');

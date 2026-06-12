@@ -13,12 +13,13 @@ class CheckRole
     {
         $user = $request->user();
 
-        if (!$user || !$user->is_active) {
+        if (! $user || ! $user->is_active) {
             return response()->json(['message' => 'Non authentifié ou compte désactivé.'], 401);
         }
 
-        if (!empty($roles) && !in_array($user->role->slug, $roles)) {
+        if (! empty($roles) && ! in_array($user->role->slug, $roles)) {
             AuditLog::log('WARN', "Accès refusé à {$request->path()} — Rôle: {$user->role?->slug}", $request);
+
             return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
