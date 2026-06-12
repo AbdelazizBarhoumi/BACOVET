@@ -71,12 +71,20 @@ const QpTeamPodium = ({ title, teams, variant, isLoading, error }: QpTeamPodiumP
         <CheckCircle2 className="h-3 w-3 text-success" />
       ) : (
         <XCircle className="h-3 w-3 text-status-red" />
-      ) }
+      )}
       <span className="text-[8px] font-bold opacity-70">{label}</span>
     </div>
   );
 
-  const PodiumColumn = ({ team, height, rankColor }: { team?: QpTeam; height: string; rankColor: string }) => {
+  const PodiumColumn = ({
+    team,
+    height,
+    rankColor,
+  }: {
+    team?: QpTeam;
+    height: string;
+    rankColor: string;
+  }) => {
     if (!team) return <div className="flex-1" />;
     return (
       <div className="flex-1 flex flex-col items-center">
@@ -84,22 +92,22 @@ const QpTeamPodium = ({ title, teams, variant, isLoading, error }: QpTeamPodiumP
           <div className="text-xs font-black text-background">{team.chain}</div>
           <div className={`text-[10px] font-bold ${colors.text}`}>SCORE: {team.score}/12</div>
         </div>
-        
-        <div 
+
+        <div
           className={`w-full max-w-[70px] ${rankColor} rounded-t-lg shadow-inner flex flex-col items-center pt-3 gap-2 relative transition-all duration-500 ease-out`}
           style={{ height }}
         >
           {team.rank === 1 && variant === "best" && (
             <Trophy className="h-6 w-6 text-white/90 absolute -top-8 animate-bounce" />
           )}
-          
+
           <div className="flex flex-col gap-1.5 px-1">
             <Indicator ok={team.rft_ok} label="RFT" />
             <Indicator ok={team.br_in_ok} label="IN" />
             <Indicator ok={team.br_gtd_ok} label="GTD" />
             <Indicator ok={team.br_ok} label="CGL" />
           </div>
-          
+
           <div className="mt-auto pb-2 text-white/40 text-2xl font-black">{team.rank}</div>
         </div>
       </div>
@@ -111,7 +119,7 @@ const QpTeamPodium = ({ title, teams, variant, isLoading, error }: QpTeamPodiumP
       <h3 className="text-sm font-black uppercase tracking-[0.15em] mb-6 flex items-center gap-2">
         {variant === "best" ? "🏆" : "⚠️"} {title}
       </h3>
-      
+
       <div className="flex-1 flex items-end justify-around gap-1 px-2">
         <PodiumColumn team={second} height="70%" rankColor={colors[2]} />
         <PodiumColumn team={first} height="100%" rankColor={colors[1]} />

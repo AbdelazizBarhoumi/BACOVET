@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -38,11 +38,22 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
   const router = useRouter();
+  const [isRetrying, setIsRetrying] = useState(false);
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await router.invalidate({ sync: true });
+    } finally {
+      setIsRetrying(false);
+      reset();
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -55,13 +66,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            Try again
+            {isRetrying ? "Retrying…" : "Try again"}
           </button>
           <a
             href="/"
@@ -83,14 +92,14 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "BACOVET" },
+      { name: "description", content: "BACOVET — Production Monitoring" },
+      { name: "author", content: "BACOVET" },
+      { property: "og:title", content: "BACOVET" },
+      { property: "og:description", content: "BACOVET — Production Monitoring" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@BACOVET" },
     ],
     links: [
       {
@@ -106,8 +115,19 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  // Prevent FOUC by reading theme before render (runs once on mount)
+  const [themeClass, setThemeClass] = useState<string>("");
+
+  useEffect(() => {
+    // This runs after hydration; for SSR you'd need to inline this in the HTML shell
+    const stored = localStorage.getItem("theme");
+    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const resolved = stored ?? (systemDark ? "dark" : "light");
+    setThemeClass(resolved);
+  }, []);
+
   return (
-    <html lang="en">
+    <html lang="fr" className={themeClass}>
       <head>
         <HeadContent />
       </head>

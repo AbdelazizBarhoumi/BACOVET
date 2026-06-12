@@ -74,7 +74,7 @@ const Sidebar = () => {
           const Icon = item.icon;
           const active = pathname === item.to;
           const isParentOfActive = pathname.startsWith(item.to);
-          
+
           return (
             <div key={item.to}>
               <Link
@@ -85,23 +85,25 @@ const Sidebar = () => {
                     : "hover:bg-sidebar-accent"
                 }`}
               >
-                <Icon className="h-4 w-4"/>
+                <Icon className="h-4 w-4" />
                 <span className="flex-1 uppercase tracking-wide text-[12px] font-semibold">
                   {item.label}
                 </span>
                 {item.code && (
-                  <span className={`text-[10px] font-mono ${active ? "text-white/70" : "text-muted-foreground"}`}>
+                  <span
+                    className={`text-[10px] font-mono ${active ? "text-white/70" : "text-muted-foreground"}`}
+                  >
                     ({item.code})
                   </span>
                 )}
               </Link>
-              
+
               {isParentOfActive && item.children && (
                 <div className="ml-9 mt-1 mb-2 space-y-1 border-l border-border pl-2">
                   {item.children.map((c) => (
                     <Link
                       key={c.to}
-                      to={c.to as any}
+                      to={c.to as RolePage}
                       className="block text-xs py-1.5 px-2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <ChevronRight className="inline h-3 w-3 mr-1 opacity-50" />
@@ -117,7 +119,7 @@ const Sidebar = () => {
         {canSeeAdmin && (
           <>
             <div className="px-3 pt-6 pb-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-mono">
-               SYSTÈME
+              SYSTÈME
             </div>
             <Link
               to="/admin"
@@ -127,7 +129,9 @@ const Sidebar = () => {
                   : "hover:bg-sidebar-accent"
               }`}
             >
-              <Settings className={`h-4 w-4 ${pathname === "/admin" ? "text-white" : "text-primary"}`} />
+              <Settings
+                className={`h-4 w-4 ${pathname === "/admin" ? "text-white" : "text-primary"}`}
+              />
               <span className="flex-1 uppercase tracking-wide text-[12px] font-semibold">
                 ADMINISTRATION
               </span>

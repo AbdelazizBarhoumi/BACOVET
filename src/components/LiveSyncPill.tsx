@@ -10,15 +10,15 @@ const LiveSyncPill = ({ lastFetchTime, hasError }: LiveSyncPillProps) => {
   const { lastSync, isStale, forceSync } = useLiveData();
   // Use props if provided, otherwise use hook data
   const finalLastSync = lastFetchTime ?? lastSync;
-  
+
   // A pill is considered in error if:
   // 1. hasError prop is explicitly true
   // 2. hasError prop is undefined AND (isStale from hook OR local calculation from finalLastSync)
   const isLocallyStale = Date.now() - finalLastSync > 120_000;
   const finalHasError = hasError ?? (isStale || isLocallyStale);
-  
+
   const ago = Math.floor((Date.now() - finalLastSync) / 1000);
-  
+
   return (
     <button
       onClick={() => {

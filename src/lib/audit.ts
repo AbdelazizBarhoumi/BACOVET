@@ -31,3 +31,9 @@ export function isAuditEnabled() {
 export function setAuditEnabled(v: boolean) {
   localStorage.setItem("bacovet-audit-enabled", v ? "true" : "false");
 }
+
+export function clearAudit() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(KEY);
+  window.dispatchEvent(new CustomEvent("bacovet-audit"));
+}

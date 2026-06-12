@@ -27,7 +27,7 @@ export interface TopBarProps {
 const TopBar = ({ title: propTitle, subtitle, exportRows, exportFilename }: TopBarProps) => {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { session } = useAuth();
-  
+
   const title = propTitle || PAGE_TITLE_MAP[pathname] || "DASHBOARD";
   const showFilters = pathname !== "/admin" && pathname !== "/unauthorized";
 
@@ -62,7 +62,7 @@ const TopBar = ({ title: propTitle, subtitle, exportRows, exportFilename }: TopB
           <LiveSyncPill />
         </div>
       </div>
-      
+
       {showFilters && (
         <div className="px-6 py-2 flex items-center justify-between border-t border-border/60 bg-background/40">
           <GlobalFilterBar />

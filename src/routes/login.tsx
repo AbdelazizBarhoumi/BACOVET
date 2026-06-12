@@ -59,10 +59,7 @@ function LoginPage() {
       return;
     }
 
-    pushAudit(
-      "USER",
-      `Connexion réussie: ${matricule.toUpperCase()} (${res.role})`
-    );
+    pushAudit("USER", `Connexion réussie: ${matricule.toUpperCase()} (${res.role})`);
 
     navigate({ to: ROLE_HOME[res.role] });
   };
@@ -85,9 +82,7 @@ function LoginPage() {
               B
             </div>
 
-            <h1 className="text-xl font-bold tracking-[0.3em]">
-              BACOVET
-            </h1>
+            <h1 className="text-xl font-bold tracking-[0.3em]">BACOVET</h1>
 
             <div className="text-[11px] tracking-[0.25em] text-muted-foreground uppercase mt-1">
               Pilotage Opérationnel
@@ -111,11 +106,12 @@ function LoginPage() {
                 value={matricule}
                 onChange={(e) => {
                   setMatricule(e.target.value);
-                  if (fieldErrors.matricule) setFieldErrors(prev => ({ ...prev, matricule: false }));
+                  if (fieldErrors.matricule)
+                    setFieldErrors((prev) => ({ ...prev, matricule: false }));
                 }}
                 className={cn(
                   "bg-secondary border-border font-mono transition-colors",
-                  fieldErrors.matricule && "border-destructive ring-destructive"
+                  fieldErrors.matricule && "border-destructive ring-destructive",
                 )}
                 placeholder="P-1042"
                 autoComplete="username"
@@ -138,11 +134,11 @@ function LoginPage() {
                   value={pwd}
                   onChange={(e) => {
                     setPwd(e.target.value);
-                    if (fieldErrors.pwd) setFieldErrors(prev => ({ ...prev, pwd: false }));
+                    if (fieldErrors.pwd) setFieldErrors((prev) => ({ ...prev, pwd: false }));
                   }}
                   className={cn(
                     "bg-secondary border-border font-mono pr-10 transition-colors",
-                    fieldErrors.pwd && "border-destructive ring-destructive"
+                    fieldErrors.pwd && "border-destructive ring-destructive",
                   )}
                   placeholder="••••••••"
                   autoComplete="current-password"
@@ -153,11 +149,7 @@ function LoginPage() {
                   onClick={() => setShow((s) => !s)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
-                  {show ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {fieldErrors.pwd && (
@@ -167,11 +159,7 @@ function LoginPage() {
               )}
             </div>
 
-            {err && (
-              <div className="text-xs text-destructive font-mono">
-                {err}
-              </div>
-            )}
+            {err && <div className="text-xs text-destructive font-mono">{err}</div>}
 
             <Button
               type="submit"
@@ -224,8 +212,7 @@ function LoginPage() {
 
           <div className="mt-2 rounded border border-border bg-card/40 p-3 space-y-0.5">
             <div className="text-[10px] mb-1 text-muted-foreground">
-              Mot de passe :
-              <span className="text-foreground ml-1">demo</span>
+              Mot de passe :<span className="text-foreground ml-1">demo</span>
             </div>
 
             {Object.entries(DEMO_ACCOUNTS).map(([mat, a]) => (

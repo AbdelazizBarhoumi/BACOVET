@@ -318,29 +318,39 @@ export const adminData = {
   users: [
     {
       name: "Ahmed Belhaj",
-      role: "Responsable Production",
+      matricule: "P-1042",
+      role: "resp_production",
       email: "a.belhaj@bacovet.com",
       active: true,
     },
     {
       name: "Sonia Karoui",
-      role: "Responsable Qualité",
+      matricule: "Q-0210",
+      role: "resp_qualite",
       email: "s.karoui@bacovet.com",
       active: true,
     },
     {
       name: "Mehdi Trabelsi",
-      role: "Chef d'Atelier",
+      matricule: "P-2017",
+      role: "chef_atelier",
       email: "m.trabelsi@bacovet.com",
       active: true,
     },
     {
       name: "Nadia Saidi",
-      role: "Méthodes / Planning",
+      matricule: "L-3308",
+      role: "methodes",
       email: "n.saidi@bacovet.com",
       active: false,
     },
-    { name: "IT Admin", role: "Administrateur", email: "it@bacovet.com", active: true },
+    {
+      name: "IT Admin",
+      matricule: "ADMIN-001",
+      role: "admin",
+      email: "it@bacovet.com",
+      active: true,
+    },
   ],
   logs: [
     {

@@ -52,7 +52,9 @@ const BigNumberCard = ({
     return (
       <Card className="p-4 border-l-4 border-status-red bg-status-red/5 flex flex-col items-center justify-center text-center">
         <AlertCircle className="h-5 w-5 text-status-red mb-2" />
-        <p className="text-[10px] font-bold text-status-red uppercase tracking-wider mb-1">Erreur</p>
+        <p className="text-[10px] font-bold text-status-red uppercase tracking-wider mb-1">
+          Erreur
+        </p>
         <p className="text-[10px] text-status-red/80 line-clamp-2">{error}</p>
       </Card>
     );
@@ -64,9 +66,11 @@ const BigNumberCard = ({
         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
           {label}
         </span>
-        
+
         <div className="flex items-baseline gap-1 my-1">
-          <span className={`text-4xl lg:text-5xl font-black tracking-tighter ${statusColors[status].split(" ")[0]}`}>
+          <span
+            className={`text-4xl lg:text-5xl font-black tracking-tighter ${statusColors[status].split(" ")[0]}`}
+          >
             {typeof value === "number" ? value.toLocaleString("fr-FR") : value}
           </span>
           {unit && (
@@ -78,8 +82,8 @@ const BigNumberCard = ({
 
         {target && (
           <div className="mt-auto pt-2">
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className={`text-[10px] font-bold border-none ${bgStatusColors[status]} ${statusColors[status].split(" ")[0]}`}
             >
               CIBLE: {target}

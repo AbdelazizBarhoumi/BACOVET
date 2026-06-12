@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 export type Role =
   | "admin"
@@ -50,14 +43,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
   resp_production: ["/quality", "/production", "/unauthorized"],
   chef_atelier: ["/production", "/unauthorized"],
   resp_qualite: ["/quality", "/unauthorized"],
-  methodes: [
-    "/quality",
-    "/production",
-    "/logistics",
-    "/methods",
-    "/development",
-    "/unauthorized",
-  ],
+  methodes: ["/quality", "/production", "/logistics", "/methods", "/development", "/unauthorized"],
   coupe: ["/production", "/logistics", "/unauthorized"],
 };
 
@@ -99,10 +85,7 @@ const setCookie = (name: string, value: string, days = 7) => {
 
 const getCookie = (name: string) => {
   if (typeof document === "undefined") return null;
-  return (
-    document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)")?.pop() ||
-    null
-  );
+  return document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)")?.pop() || null;
 };
 
 const removeCookie = (name: string) => {

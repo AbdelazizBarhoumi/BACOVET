@@ -22,7 +22,7 @@ const ErrorBanner = ({ message, onDismiss }: ErrorBannerProps) => {
         <AlertCircle className="h-5 w-5 shrink-0" />
         <p className="text-sm font-bold uppercase tracking-wide">{message}</p>
       </div>
-      <button 
+      <button
         onClick={handleDismiss}
         className="hover:bg-white/20 p-1 rounded-full transition-colors"
         aria-label="Dismiss"
