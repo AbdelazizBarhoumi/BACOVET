@@ -1,0 +1,63 @@
+name: Laravel CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Note: runner-local MySQL will be installed instead of using Docker services
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, bcmath, intl, pdo_mysql
+
+      - name: Get Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install MySQL on runner
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
+          sudo systemctl start mysql
+          # Wait for MySQL to be ready (use debian maintenance credentials to test)
+          for i in {1..30}; do sudo mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT 1" >/dev/null 2>&1 && break || sleep 1; done
+          # Create test database and dedicated user using the debian maintenance credentials
+          sudo mysql --defaults-file=/etc/mysql/debian.cnf <<'SQL'
+          CREATE DATABASE IF NOT EXISTS iot_reap_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          CREATE USER IF NOT EXISTS 'iot_reap'@'localhost' IDENTIFIED BY 'secret';
+          GRANT ALL PRIVILEGES ON iot_reap_test.* TO 'iot_reap'@'localhost';
+          FLUSH PRIVILEGES;
+          SQL
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          echo "DB_CONNECTION=mysql" >> .env
+          echo "DB_HOST=127.0.0.1" >> .env
+          echo "DB_PORT=3306" >> .env
+          echo "DB_DATABASE=iot_reap_test" >> .env
+          echo "DB_USERNAME=iot_reap" >> .env
+          echo "DB_PASSWORD=secret" >> .env
+          php artisan key:generate
+
+      - name: Run migrations
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: iot_reap_test
+          DB_USERNAME: iot_reap
+          DB_PASSWORD: secret
+        run: php artisan migrate --force

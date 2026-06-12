@@ -14,8 +14,8 @@
  * ============================================================
  */
 
-const express = require("express");
 const cors = require("cors");
+const express = require("express");
 const app = express();
 
 // ── Config ────────────────────────────────────────────────────
@@ -974,7 +974,7 @@ app.get("/api/admin/jobs", (req, res) => {
     action_type: "run_query",
     action_ref: j.action_ref,
     actif: true,
-    last_run: new Date().toISOString(),
+    last_run: new Date(Date.now() - Math.floor(Math.random() * 10 * 60 * 1000)).toISOString(),
     last_status: "ok",
     last_message: `Requête exécutée : ${(QUERIES[j.action_ref]?.generate() || []).length} ligne(s) retournée(s).`,
     created_at: "2026-04-28T08:14:11.994Z",
@@ -993,7 +993,7 @@ app.get("/api/admin/jobs/:id/run", (req, res) => {
     success: true,
     status: "ok",
     message: `Requête exécutée : ${data.length} ligne(s) retournée(s).`,
-    ran_at: new Date().toISOString(),
+    ran_at: new Date(Date.now() - Math.floor(Math.random() * 10 * 60 * 1000)).toISOString(),
     data,
   });
 });

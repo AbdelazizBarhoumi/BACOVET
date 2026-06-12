@@ -1,0 +1,160 @@
+/* Instrument Sans from fontsource */
+@import '@fontsource/instrument-sans/400.css';
+@import '@fontsource/instrument-sans/500.css';
+@import '@fontsource/instrument-sans/600.css';
+
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@import "tw-animate-css";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--destructive);
+  --color-status-red: var(--status-red);
+  --color-status-orange: var(--status-orange);
+  --color-status-green: var(--status-green);
+  --color-status-grey: var(--status-grey);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-accent: var(--brand-accent);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+  :root {
+  --radius: 0.5rem;
+  /* Light industrial theme (default) */
+  --background: oklch(0.98 0.003 250);
+  --foreground: oklch(0.2 0.012 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.012 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.012 250);
+  --primary: oklch(0.62 0.17 70);
+  --primary-foreground: oklch(0.99 0.003 250);
+  --secondary: oklch(0.94 0.008 250);
+  --secondary-foreground: oklch(0.22 0.012 250);
+  --muted: oklch(0.95 0.006 250);
+  --muted-foreground: oklch(0.45 0.013 250);
+  --accent: oklch(0.92 0.02 220);
+  --accent-foreground: oklch(0.2 0.012 250);
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.62 0.17 145);
+  --warning: oklch(0.72 0.16 70);
+  --status-red: oklch(0.58 0.22 25);
+  --status-orange: oklch(0.72 0.16 70);
+  --status-green: oklch(0.62 0.17 145);
+  --status-grey: oklch(0.45 0.013 250);
+  --brand-dark: #1a1a2e;
+  --brand-primary: #0f3460;
+  --brand-accent: #e94560;
+  --border: oklch(0.9 0.008 250);
+
+  --input: oklch(0.92 0.008 250);
+  --ring: oklch(0.62 0.17 70);
+  --chart-1: oklch(0.62 0.17 70);
+  --chart-2: oklch(0.62 0.17 145);
+  --chart-3: oklch(0.58 0.22 25);
+  --chart-4: oklch(0.55 0.15 230);
+  --chart-5: oklch(0.65 0.14 300);
+  --sidebar: oklch(0.96 0.005 250);
+  --sidebar-foreground: oklch(0.22 0.012 250);
+  --sidebar-border: oklch(0.88 0.008 250);
+  --sidebar-accent: oklch(0.93 0.01 250);
+}
+
+.dark {
+  --background: oklch(0.18 0.012 250);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.22 0.013 250);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.22 0.013 250);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --primary: oklch(0.72 0.16 70);
+  --primary-foreground: oklch(0.18 0.012 250);
+  --secondary: oklch(0.28 0.014 250);
+  --secondary-foreground: oklch(0.96 0.005 250);
+  --muted: oklch(0.26 0.012 250);
+  --muted-foreground: oklch(0.7 0.015 250);
+  --accent: oklch(0.32 0.04 220);
+  --accent-foreground: oklch(0.96 0.005 250);
+  --destructive: oklch(0.62 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.7 0.17 145);
+  --warning: oklch(0.78 0.16 70);
+  --status-red: oklch(0.62 0.22 25);
+  --status-orange: oklch(0.78 0.16 70);
+  --status-green: oklch(0.7 0.17 145);
+  --status-grey: oklch(0.7 0.015 250);
+  --brand-dark: #1a1a2e;
+  --brand-primary: #0f3460;
+  --brand-accent: #e94560;
+  --border: oklch(0.3 0.013 250);
+  --input: oklch(0.28 0.013 250);
+  --ring: oklch(0.72 0.16 70);
+  --chart-1: oklch(0.72 0.16 70);
+  --chart-2: oklch(0.7 0.17 145);
+  --chart-3: oklch(0.62 0.22 25);
+  --chart-4: oklch(0.65 0.15 230);
+  --chart-5: oklch(0.75 0.12 300);
+  --sidebar: oklch(0.15 0.012 250);
+  --sidebar-foreground: oklch(0.88 0.008 250);
+  --sidebar-border: oklch(0.26 0.013 250);
+  --sidebar-accent: oklch(0.28 0.014 250);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
