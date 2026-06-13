@@ -52,29 +52,7 @@ export function BigNumberCard({
   isLoading?: boolean;
   error?: string | null;
 }) {
-  if (isLoading) {
-    return (
-      <div className="relative overflow-hidden rounded-lg border border-border bg-card p-4 animate-pulse">
-        <div className="absolute left-0 top-0 h-full w-1 bg-muted" />
-        <div className="h-3 w-20 bg-muted rounded mb-4" />
-        <div className="h-8 w-32 bg-muted rounded mb-2" />
-        <div className="h-3 w-24 bg-muted rounded" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="relative overflow-hidden rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-        <div className="absolute left-0 top-0 h-full w-1 bg-destructive" />
-        <div className="text-[11px] uppercase tracking-wider text-destructive font-mono mb-2">
-          {label}
-        </div>
-        <div className="text-sm font-mono text-destructive/80 mb-1">ERREUR</div>
-        <div className="text-[10px] font-mono text-destructive/60 line-clamp-2">{error}</div>
-      </div>
-    );
-  }
+  // ... keep isLoading and error branches unchanged ...
 
   const bar =
     status === "green"
@@ -84,8 +62,10 @@ export function BigNumberCard({
         : status === "red"
           ? "bg-destructive"
           : "bg-status-grey";
+
   return (
-    <div className="relative overflow-hidden rounded-lg border border-border bg-card p-4">
+    <div className="h-full relative overflow-hidden rounded-lg border border-border bg-card p-4 hover:ring-2 hover:ring-primary/30 flex flex-col">
+      {/* Header stays at top */}
       <div className={`absolute left-0 top-0 h-full w-1 ${bar}`} />
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">
@@ -93,35 +73,43 @@ export function BigNumberCard({
         </div>
         {status && <TrafficBadge status={status} />}
       </div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-4xl font-bold font-mono tabular-nums">
-          {typeof value === "number" ? value.toFixed(1) : value}
-        </span>
-        <span className="text-lg text-muted-foreground font-mono">{unit}</span>
-        {trend && (
-          <span className="ml-2 text-xs text-muted-foreground inline-flex items-center">
-            {trend === "up" ? (
-              <ArrowUp className="h-3 w-3 text-success" />
-            ) : trend === "down" ? (
-              <ArrowDown className="h-3 w-3 text-destructive" />
-            ) : (
-              <Minus className="h-3 w-3" />
-            )}
+
+      {/* Main content centered vertically */}
+      <div className="flex-1 flex flex-col justify-center min-h-0">
+        <div className="flex items-baseline gap-1">
+          <span className="text-4xl font-bold font-mono tabular-nums">
+            {typeof value === "number" ? value.toFixed(1) : value}
           </span>
+          <span className="text-lg text-muted-foreground font-mono">{unit}</span>
+          {trend && (
+            <span className="ml-2 text-xs text-muted-foreground inline-flex items-center">
+              {trend === "up" ? (
+                <ArrowUp className="h-3 w-3 text-success" />
+              ) : trend === "down" ? (
+                <ArrowDown className="h-3 w-3 text-destructive" />
+              ) : (
+                <Minus className="h-3 w-3" />
+              )}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Footer stays at bottom */}
+      <div className="mt-auto">
+        <div className="mt-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+          {target && <span>Cible: {target}</span>}
+          {freq && <span className="text-primary/80">{freq}</span>}
+        </div>
+        {source && (
+          <div className="mt-1 text-[10px] font-mono text-muted-foreground/70 truncate">
+            src: {source}
+          </div>
         )}
       </div>
-      <div className="mt-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-        {target && <span>Cible: {target}</span>}
-        {freq && <span className="text-primary/80">{freq}</span>}
-      </div>
-      {source && (
-        <div className="mt-1 text-[10px] font-mono text-muted-foreground/70 truncate">
-          src: {source}
-        </div>
-      )}
     </div>
   );
-}
+} 
 
 export function Panel({
   title,

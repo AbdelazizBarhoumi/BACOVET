@@ -64,28 +64,28 @@ export default function LogisticsPage() {
         {/* A — Delivery */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           <BigNumberCard
-            label="DOT · F-REQ-334"
+            label="DOT ·334"
             value={l.dot}
             target="≥ 95%"
             status={statusFor(l.dot, 95)}
             source="GPRO Planning"
           />
           <BigNumberCard
-            label="HOT · F-REQ-335"
+            label="HOT ·335"
             value={l.hot}
             target="≥ 95%"
             status={statusFor(l.hot, 95)}
             source="GPRO Planning"
           />
           <BigNumberCard
-            label="Respect Planification · F-REQ-336"
+            label="Respect Planification ·336"
             value={l.respectPlan}
             target="≥ 95%"
             status={statusFor(l.respectPlan, 95)}
             source="q/qte_produite"
           />
           <BigNumberCard
-            label="Lead Time Global · F-REQ-337"
+            label="Lead Time Global ·337"
             value={l.leadTime}
             unit="j"
             target="32 j"
@@ -103,14 +103,14 @@ export default function LogisticsPage() {
 
         {/* B — Stock KPIs */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-          <Panel title="Taux de Rotation Stock · F-REQ-316/317/318">
+          <Panel title="Taux de Rotation Stock ·316/317/318">
             <div className="flex justify-around items-end pt-2">
               <Gauge value={l.rotation.accessoires * 10} label="Accessoires" />
               <Gauge value={l.rotation.tissu * 10} label="Tissu" />
               <Gauge value={l.rotation.fg * 10} label="FG" />
             </div>
           </Panel>
-          <Panel title="Taux de Stock Mort · F-REQ-319/320/321">
+          <Panel title="Taux de Stock Mort ·319/320/321">
             <div className="grid grid-cols-3 gap-2 pt-2">
               {(["accessoires", "tissu", "fg"] as const).map((k) => (
                 <div
@@ -126,7 +126,7 @@ export default function LogisticsPage() {
               ))}
             </div>
           </Panel>
-          <Panel title="Taux d'Occupation · F-REQ-322/323/324">
+          <Panel title="Taux d'Occupation ·322/323/324">
             <div className="flex justify-around items-end pt-2">
               <Gauge value={l.occupation.accessoires} label="Accessoires" />
               <Gauge value={l.occupation.tissu} label="Tissu" />
@@ -138,9 +138,9 @@ export default function LogisticsPage() {
         {/* C — Pies */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
           {[
-            { title: "Stock par Provenance · F-REQ-332", data: l.provenance },
-            { title: "Stock par Marque · F-REQ-333", data: l.brand },
-            { title: "Stock par Typologie · F-REQ-331", data: l.typologie },
+            { title: "Stock par Provenance ·332", data: l.provenance },
+            { title: "Stock par Marque ·333", data: l.brand },
+            { title: "Stock par Typologie ·331", data: l.typologie },
           ].map((p) => (
             <Panel key={p.title} title={p.title}>
               <ResponsiveContainer width="100%" height={220}>
@@ -167,7 +167,7 @@ export default function LogisticsPage() {
 
         {/* D — OF & delivery */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-          <Panel title="Commandes Livrées à Temps · F-REQ-325/326/327">
+          <Panel title="Commandes Livrées à Temps ·325/326/327">
             <div className="grid grid-cols-3 gap-2">
               {(["accessoires", "tissu", "fg"] as const).map((k) => (
                 <div
@@ -181,7 +181,7 @@ export default function LogisticsPage() {
               ))}
             </div>
           </Panel>
-          <Panel title="Délai de Livraison Moyen · F-REQ-328/329/330">
+          <Panel title="Délai de Livraison Moyen ·328/329/330">
             <div className="grid grid-cols-3 gap-2">
               {(["accessoires", "tissu", "fg"] as const).map((k) => (
                 <div
@@ -241,9 +241,9 @@ export default function LogisticsPage() {
         {/* F — Couverture */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
           {[
-            { title: "Couverture Chaîne · F-REQ-310", data: l.couverture.chaine, target: 10 },
-            { title: "Couverture Coupe · F-REQ-311", data: l.couverture.coupe, target: 7 },
-            { title: "Couverture Sérigraphie · F-REQ-309", data: l.couverture.seri, target: 5 },
+            { title: "Couverture Chaîne ·310", data: l.couverture.chaine, target: 10 },
+            { title: "Couverture Coupe ·311", data: l.couverture.coupe, target: 7 },
+            { title: "Couverture Sérigraphie ·309", data: l.couverture.seri, target: 5 },
           ].map((c) => (
             <Panel key={c.title} title={c.title}>
               <ResponsiveContainer width="100%" height={180}>

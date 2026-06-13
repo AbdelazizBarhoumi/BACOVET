@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import '../css/app.css';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/context/AuthContext';
+import { FilterProvider } from '@/context/FilterContext';
 import { LiveDataProvider } from '@/hooks/use-live-data';
 import { initializeTheme } from './hooks/use-appearance';
 
@@ -28,10 +29,12 @@ createInertiaApp({
                     OldLayout(page)) : page;
                 return (
                     <AuthProvider>
-                        <LiveDataProvider>
-                            {layout}
-                            <Toaster />
-                        </LiveDataProvider>
+                        <FilterProvider>
+                            <LiveDataProvider>
+                                {layout}
+                                <Toaster />
+                            </LiveDataProvider>
+                        </FilterProvider>
                     </AuthProvider>
                 );
             };

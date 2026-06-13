@@ -190,6 +190,28 @@ class AdminController extends Controller
         return response()->json(['message' => 'User status toggled.', 'is_active' => $user->is_active]);
     }
 
+    public function deleteUser(Request $request, int $id): JsonResponse
+    {
+        $user = User::findOrFail($id);
+
+        if ($user->id === $request->user()?->id) {
+            throw ValidationException::withMessages([
+                'user' => 'Vous ne pouvez pas supprimer votre propre compte.',
+            ]);
+        }
+
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'action_type' => 'USER',
+            'message' => "Utilisateur supprimé: {$user->name} ({$user->email})",
+            'ip_address' => $request->ip(),
+        ]);
+
+        $user->delete();
+
+        return response()->json(['message' => 'Utilisateur supprimé.']);
+    }
+
     public function listScreens(): JsonResponse
     {
         return response()->json(Screen::all());
@@ -210,14 +232,72 @@ class AdminController extends Controller
         return response()->json(['message' => 'Screen updated successfully.', 'screen' => $screen]);
     }
 
+    public function createScreen(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'status' => 'sometimes|in:online,offline',
+            'assigned_page' => 'sometimes|string',
+        ]);
+
+        $screen = Screen::create([
+            'name' => $validated['name'],
+            'status' => $validated['status'] ?? 'offline',
+            'assigned_page' => $validated['assigned_page'] ?? 'quality',
+        ]);
+
+        return response()->json(['message' => 'Écran créé.', 'screen' => $screen]);
+    }
+
+    public function deleteScreen(Request $request, int $id): JsonResponse
+    {
+        $screen = Screen::findOrFail($id);
+
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'action_type' => 'SYSTEM',
+            'message' => "Écran supprimé: {$screen->name}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        $screen->delete();
+
+        return response()->json(['message' => 'Écran supprimé.']);
+    }
+
     public function auditLogs(): JsonResponse
     {
         return response()->json(AuditLog::with('user')->orderBy('created_at', 'desc')->paginate(50));
     }
 
+    public function createAuditLog(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'action_type' => 'required|string|max:50',
+            'message' => 'required|string|max:1000',
+        ]);
+
+        $log = AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'action_type' => $validated['action_type'],
+            'message' => $validated['message'],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json(['message' => 'Audit entry created.', 'log' => $log]);
+    }
+
     public function clearAuditLogs(): JsonResponse
     {
-        AuditLog::truncate();
+        AuditLog::where('user_id', $request->user()?->id)->delete();
+
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'action_type' => 'SYSTEM',
+            'message' => 'Journal d\'audit effacé par l\'administrateur',
+            'ip_address' => $request->ip(),
+        ]);
 
         return response()->json(['message' => 'Audit logs cleared.']);
     }

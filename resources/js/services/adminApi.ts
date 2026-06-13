@@ -6,7 +6,15 @@
 
 const BASE_URL = "";
 
+function getCsrfToken(): string {
+  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 const fetchWithToken = async (url: string, options: RequestInit = {}) => {
+  const method = (options.method || "GET").toUpperCase();
+  const isStateChanging = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -14,6 +22,7 @@ const fetchWithToken = async (url: string, options: RequestInit = {}) => {
       "Content-Type": "application/json",
       Accept: "application/json",
       "X-Requested-With": "XMLHttpRequest",
+      ...(isStateChanging ? { "X-XSRF-TOKEN": getCsrfToken() } : {}),
     },
   });
 
@@ -77,10 +86,29 @@ export const toggleUserStatus = async (userId: string | number) => {
 };
 
 /**
+ * Delete a user
+ */
+export const deleteUser = async (userId: string | number) => {
+  return fetchWithToken(`${BASE_URL}/admin/users/${userId}`, {
+    method: "DELETE",
+  });
+};
+
+/**
  * Fetch all screens
  */
 export const fetchAllScreens = async () => {
   return fetchWithToken(`${BASE_URL}/admin/screens`);
+};
+
+/**
+ * Create a new screen
+ */
+export const createScreen = async (screenData: Record<string, unknown>) => {
+  return fetchWithToken(`${BASE_URL}/admin/screens`, {
+    method: "POST",
+    body: JSON.stringify(screenData),
+  });
 };
 
 /**
@@ -90,6 +118,81 @@ export const updateScreen = async (screenId: string | number, screenData: Record
   return fetchWithToken(`${BASE_URL}/admin/screens/${screenId}`, {
     method: "PUT",
     body: JSON.stringify(screenData),
+  });
+};
+
+/**
+ * Delete a screen
+ */
+export const deleteScreen = async (screenId: string | number) => {
+  return fetchWithToken(`${BASE_URL}/admin/screens/${screenId}`, {
+    method: "DELETE",
+  });
+};
+
+// ─── Sync Config ────────────────────────────────────────────────────────────
+
+export type SyncConfigItem = {
+  key: string;
+  value: string;
+  description: string | null;
+  updated_at: string;
+};
+
+/**
+ * Fetch all sync interval configurations
+ */
+export const fetchSyncConfig = async (): Promise<SyncConfigItem[]> => {
+  const result = await fetchWithToken(`${BASE_URL}/admin/sync-config`);
+  return result.data || result;
+};
+
+/**
+ * Update a sync interval configuration
+ */
+export const updateSyncConfig = async (key: string, value: number) => {
+  return fetchWithToken(`${BASE_URL}/admin/sync-config/${key}`, {
+    method: "PUT",
+    body: JSON.stringify({ value }),
+  });
+};
+
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+export type AuditLogEntry = {
+  id: number;
+  user_id: number | null;
+  action_type: string;
+  message: string;
+  ip_address: string | null;
+  created_at: string;
+  user?: { id: number; name: string; matricule: string } | null;
+};
+
+/**
+ * Fetch server-side audit logs (paginated, latest first)
+ */
+export const fetchAuditLogs = async (): Promise<AuditLogEntry[]> => {
+  const result = await fetchWithToken(`${BASE_URL}/admin/audit-logs`);
+  return result.data?.data || result.data || result;
+};
+
+/**
+ * Create a server-side audit log entry
+ */
+export const createAuditLog = async (actionType: string, message: string) => {
+  return fetchWithToken(`${BASE_URL}/admin/audit-logs`, {
+    method: "POST",
+    body: JSON.stringify({ action_type: actionType, message }),
+  });
+};
+
+/**
+ * Clear audit logs (keeps a self-referencing entry of who cleared)
+ */
+export const clearAuditLogs = async () => {
+  return fetchWithToken(`${BASE_URL}/admin/audit-logs`, {
+    method: "DELETE",
   });
 };
 

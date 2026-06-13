@@ -25,24 +25,30 @@ import { Switch } from "@/components/ui/switch";
 import { Panel } from "@/components/widgets";
 import { ROLE_LABEL, type Role, useAuth } from "@/context/AuthContext";
 import { useLiveData } from "@/hooks/use-live-data";
-import {
-  getAudit,
-  isAuditEnabled,
-  pushAudit,
-  setAuditEnabled,
-  clearAudit,
-  type AuditEntry,
-} from "@/lib/audit";
 import { 
     fetchAllJobs, 
     runJobManually, 
     fetchAllUsers, 
     createUser, 
     updateUser, 
+    deleteUser,
     toggleUserStatus, 
     fetchAllScreens, 
-    updateScreen 
+    createScreen,
+    updateScreen,
+    deleteScreen,
+    fetchSyncConfig,
+    updateSyncConfig,
+    fetchAuditLogs,
+    createAuditLog,
+    clearAuditLogs,
+    type SyncConfigItem,
+    type AuditLogEntry,
 } from "@/services/adminApi";
+
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-muted ${className}`} />;
+}
 
 type User = {
   id: number;
@@ -146,58 +152,73 @@ export default function AdminPage() {
   
   const { jobs, users, screens, error } = state;
   
-  const [logs, setLogs] = useState<AuditEntry[]>(() => getAudit());
-  const [auditOn, setAuditOn] = useState<boolean>(() => isAuditEnabled());
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<User | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<User | null>(null);
+  const [creatingScreen, setCreatingScreen] = useState(false);
+  const [deletingScreen, setDeletingScreen] = useState<Screen | null>(null);
+  const [screenName, setScreenName] = useState("");
+  const [syncConfig, setSyncConfig] = useState<SyncConfigItem[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
   const prevLogCount = useRef<number>(0);
 
   const loadData = useCallback(async (isMounted: boolean) => {
+    setLoading(true);
     try {
-      const jobsData = await fetchAllJobs();
-      const usersData = await fetchAllUsers();
-      const screensData = await fetchAllScreens();
+      const [jobsData, usersData, screensData, auditData] = await Promise.all([
+        fetchAllJobs(),
+        fetchAllUsers(),
+        fetchAllScreens(),
+        fetchAuditLogs().catch(() => []),
+      ]);
 
       if (!isMounted) return;
 
       dispatch({ type: 'LOAD_DATA', payload: { jobs: jobsData, users: usersData, screens: screensData } });
+      setLogs(auditData);
+      setLoading(false);
+
+      try {
+        const config = await fetchSyncConfig();
+        if (isMounted) setSyncConfig(config);
+      } catch {
+        // Sync config fetch is optional — non-critical
+      }
     } catch {
       console.error("Failed to load data");
-      if (isMounted) dispatch({ type: 'SET_ERROR', payload: "Impossible de contacter le serveur Novacity API" });
+      if (isMounted) {
+        dispatch({ type: 'SET_ERROR', payload: "Impossible de contacter le serveur Novacity API" });
+        setLoading(false);
+      }
     }
   }, []);
 
-  // ... (keep useEffect and rest of the file)
-
-
-  // FIX #1: Combined into single useEffect with proper cleanup
   useEffect(() => {
     if (typeof window === "undefined" || !session) return;
     
     let isMounted = true;
     loadData(isMounted);
     
-    const refresh = () => setLogs(getAudit());
-    window.addEventListener("bacovet-audit", refresh);
-    const id = setInterval(refresh, 2000);
+    const refreshLogs = async () => {
+      try {
+        const data = await fetchAuditLogs();
+        if (isMounted) setLogs(data);
+      } catch {
+        // Non-critical — keep existing logs
+      }
+    };
+    const id = setInterval(refreshLogs, 10000);
     
     return () => {
       isMounted = false;
-      window.removeEventListener("bacovet-audit", refresh);
       clearInterval(id);
     };
-  }, [session, loadData]); // Removed lastSync here
-
-  // Add a separate effect for periodic sync if needed, but not for initial load
-  useEffect(() => {
-    if (typeof window === "undefined" || !session) return;
-    // Only refresh lighter data or specific parts if needed
-  }, [session, lastSync]);
+  }, [session, loadData]);
 
   useEffect(() => {
     if (logEndRef.current && logs.length > prevLogCount.current) {
-      // Check if near bottom before auto-scrolling
       const container = logEndRef.current.parentElement;
       if (container) {
           const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
@@ -259,7 +280,7 @@ export default function AdminPage() {
     try {
       const result = await runJobManually(id);
       toast.success(result?.message || "Job lancé avec succès");
-      pushAudit("SYSTEM", `Job lancé manuellement: ID ${id}`);
+      createAuditLog("SYSTEM", `Job lancé manuellement: ID ${id}`).catch(() => {});
 
       // Update job state locally
       dispatch({ 
@@ -277,8 +298,17 @@ export default function AdminPage() {
     }
   };
 
-  const deleteUserAction = (_id: number) => {
-    toast.error("Suppression non implémentée - Désactivez le compte à la place");
+  const deleteUserAction = async () => {
+    if (!deleting) return;
+    try {
+      await deleteUser(deleting.id);
+      dispatch({ type: 'UPDATE_USERS', payload: users.filter(u => u.id !== deleting.id) });
+      createAuditLog("USER", `Utilisateur supprimé: ${deleting.name} (${deleting.email})`).catch(() => {});
+      setDeleting(null);
+      toast.success("Utilisateur supprimé");
+    } catch {
+      toast.error("Erreur lors de la suppression");
+    }
   };
 
   const toggleActive = async (id: number) => {
@@ -286,7 +316,7 @@ export default function AdminPage() {
         const result = await toggleUserStatus(id);
         dispatch({ type: 'UPDATE_USERS', payload: users.map(u => u.id === id ? { ...u, is_active: result.is_active } : u) });
         const u = users.find(x => x.id === id);
-        if (u) pushAudit("USER", `Utilisateur ${result.is_active ? "activé" : "désactivé"}: ${u.email}`);
+        if (u) createAuditLog("USER", `Utilisateur ${result.is_active ? "activé" : "désactivé"}: ${u.email}`).catch(() => {});
         toast.success(result.message);
     } catch {
         toast.error("Échec de la modification du statut");
@@ -350,7 +380,7 @@ export default function AdminPage() {
                   size="sm"
                   onClick={() => {
                     forceSync();
-                    pushAudit("SYSTEM", "Sync globale forcée");
+                    createAuditLog("SYSTEM", "Sync globale forcée").catch(() => {});
                   }}
                 >
                   Forcer la synchronisation
@@ -364,7 +394,70 @@ export default function AdminPage() {
               </div>
             </Panel>
 
+            {syncConfig.length > 0 && (
+              <Panel title="Configuration Sync Backend">
+                <div className="space-y-3">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                    Intervalles de synchronisation Novacity → MySQL (min: 60s, max: 3600s)
+                  </p>
+                  {syncConfig.map((item) => (
+                    <div key={item.key} className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <Label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          {item.description || item.key}
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={60}
+                          max={3600}
+                          value={item.value}
+                          onChange={(e) => {
+                            const newVal = Math.max(60, Math.min(3600, Number(e.target.value) || 60));
+                            setSyncConfig((prev) =>
+                              prev.map((c) => (c.key === item.key ? { ...c, value: String(newVal) } : c))
+                            );
+                          }}
+                          className="w-24 font-mono h-7 text-xs"
+                        />
+                        <span className="text-[10px] font-mono text-muted-foreground">sec</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[10px] uppercase tracking-wider"
+                          onClick={async () => {
+                            try {
+                              await updateSyncConfig(item.key, Number(item.value));
+                              toast.success(`${item.description || item.key} mis à jour`);
+                              createAuditLog("SYSTEM", `Intervalle sync mis à jour: ${item.key} = ${item.value}s`).catch(() => {});
+                            } catch {
+                              toast.error("Erreur lors de la mise à jour");
+                            }
+                          }}
+                        >
+                          Sauver
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            )}
+
             <Panel title="Supervision des flux API">
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-4 py-2">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                      <div className="ml-auto"><Skeleton className="h-7 w-28" /></div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
@@ -400,7 +493,7 @@ export default function AdminPage() {
                                 handleRunJob(a.jobs[0].id);
                               } else {
                                 forceSync();
-                                pushAudit("SYSTEM", `Sync globale forcée via ${a.name}`);
+                                createAuditLog("SYSTEM", `Sync globale forcée via ${a.name}`).catch(() => {});
                               }
                             }}
                             className="h-7 text-[10px] uppercase tracking-wider"
@@ -413,6 +506,7 @@ export default function AdminPage() {
                   })}
                 </tbody>
               </table>
+              )}
             </Panel>
 
             <Panel
@@ -432,7 +526,7 @@ export default function AdminPage() {
                           try {
                               const result = await createUser(u);
                               dispatch({ type: 'UPDATE_USERS', payload: [...users, result.user] });
-                              pushAudit("USER", `Utilisateur créé: ${u.email} (${u.role})`);
+                              createAuditLog("USER", `Utilisateur créé: ${u.email} (${u.role})`).catch(() => {});
                               setCreating(false);
                               toast.success("Utilisateur créé");
                           } catch {
@@ -447,6 +541,21 @@ export default function AdminPage() {
                 </div>
               }
             >
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-center gap-4 py-2">
+                      <Skeleton className="h-7 w-7 rounded-full" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-5 w-14" />
+                      <div className="ml-auto flex gap-1"><Skeleton className="h-7 w-7" /><Skeleton className="h-7 w-7" /></div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono border-b border-border">
@@ -504,7 +613,7 @@ export default function AdminPage() {
                           size="sm"
                           variant="ghost"
                           className="h-7 w-7 p-0 text-destructive"
-                          onClick={() => deleteUserAction(u.id)}
+                          onClick={() => setDeleting(u)}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -513,6 +622,7 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+              )}
               <div className="mt-3 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
                 Total utilisateurs : <span className="text-foreground">{users.length}</span>
               </div>
@@ -533,7 +643,7 @@ export default function AdminPage() {
                         try {
                             const result = await updateUser(editing.id, u);
                             dispatch({ type: 'UPDATE_USERS', payload: users.map((x) => (x.id === editing.id ? result.user : x)) });
-                            pushAudit("USER", `Utilisateur modifié: ${u.email}`);
+                            createAuditLog("USER", `Utilisateur modifié: ${u.email}`).catch(() => {});
                             setEditing(null);
                             toast.success("Utilisateur mis à jour");
                         } catch {
@@ -546,6 +656,34 @@ export default function AdminPage() {
                   )}
                 </DialogContent>
               </Dialog>
+
+              <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="text-sm uppercase tracking-wider font-mono text-destructive flex items-center gap-2">
+                      <Trash2 className="h-4 w-4" />
+                      Supprimer l'utilisateur
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="py-2">
+                    <p className="text-sm text-muted-foreground">
+                      Voulez-vous vraiment supprimer l'utilisateur{" "}
+                      <span className="font-bold text-foreground">{deleting?.name}</span> ?
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cette action est irréversible. L'utilisateur ne pourra plus se connecter.
+                    </p>
+                  </div>
+                  <DialogFooter className="gap-2">
+                    <Button variant="ghost" onClick={() => setDeleting(null)} className="text-[10px] uppercase tracking-wider">
+                      Annuler
+                    </Button>
+                    <Button variant="destructive" onClick={deleteUserAction} className="text-[10px] uppercase tracking-wider px-6">
+                      Supprimer
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </Panel>
 
             <Panel
@@ -555,90 +693,130 @@ export default function AdminPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => {
+                    onClick={async () => {
                       if (confirm("Effacer tous les logs ?")) {
-                        clearAudit();
-                        setLogs(getAudit());
+                        try {
+                          await clearAuditLogs();
+                          setLogs([]);
+                          createAuditLog("SYSTEM", "Journal d'audit effacé par l'administrateur").catch(() => {});
+                          toast.success("Logs effacés");
+                        } catch {
+                          toast.error("Erreur lors de la suppression");
+                        }
                       }
                     }}
                     className="h-7 text-[10px] uppercase tracking-wider text-destructive"
                   >
                     <Trash2 className="h-3 w-3 mr-1" /> Effacer les logs
                   </Button>
-                  <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider">
-                    Enregistrement actif
-                    <Switch
-                      checked={auditOn}
-                      onCheckedChange={(v) => {
-                        setAuditOn(v);
-                        setAuditEnabled(v);
-                        pushAudit("SYSTEM", `Audit ${v ? "activé" : "désactivé"}`);
-                      }}
-                    />
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                    Enregistrement serveur actif
                   </div>
                 </div>
               }
             >
               <div className="space-y-1 font-mono text-xs max-h-80 overflow-auto">
-                {logs.length === 0 && (
+                {loading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="flex gap-2 py-1">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-3 w-48" />
+                      </div>
+                    ))}
+                  </div>
+                ) : logs.length === 0 ? (
                   <div className="text-muted-foreground italic">Aucun événement enregistré.</div>
+                ) : (
+                  logs.map((l, i) => {
+                    const color =
+                      l.action_type === "ERROR"
+                        ? "text-destructive"
+                        : l.action_type === "WARN"
+                          ? "text-warning"
+                          : l.action_type === "USER"
+                            ? "text-chart-4"
+                            : l.action_type === "SYSTEM"
+                              ? "text-primary"
+                              : "text-success";
+                    const time = l.created_at ? new Date(l.created_at).toLocaleTimeString() : "";
+                    return (
+                      <div key={i} className="flex gap-2 py-1 border-b border-border/30">
+                        <span className="text-muted-foreground">[{time}]</span>
+                        <span className={`${color} font-bold w-16`}>[{l.action_type}]</span>
+                        <span className="text-foreground/90">{l.message}</span>
+                      </div>
+                    );
+                  })
                 )}
-                {logs.map((l, i) => {
-                  const color =
-                    l.lvl === "ERROR"
-                      ? "text-destructive"
-                      : l.lvl === "WARN"
-                        ? "text-warning"
-                        : l.lvl === "USER"
-                          ? "text-chart-4"
-                          : l.lvl === "SYSTEM"
-                            ? "text-primary"
-                            : "text-success";
-                  return (
-                    <div key={i} className="flex gap-2 py-1 border-b border-border/30">
-                      <span className="text-muted-foreground">[{l.t}]</span>
-                      <span className={`${color} font-bold w-16`}>[{l.lvl}]</span>
-                      <span className="text-foreground/90">{l.msg}</span>
-                    </div>
-                  );
-                })}
                 <div ref={logEndRef} />
               </div>
             </Panel>
           </div>
 
           <div className="space-y-3">
-            <Panel title="Écrans TV">
+            <Panel
+              title="Écrans TV"
+              right={
+                <Button
+                  size="sm"
+                  className="h-7 text-[10px] uppercase tracking-wider"
+                  onClick={() => { setScreenName(""); setCreatingScreen(true); }}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Ajouter écran
+                </Button>
+              }
+            >
               <div className="space-y-2">
-                {screens.map((s) => (
+                {loading ? (
+                  [1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-md border border-border bg-secondary/40 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-3.5 w-3.5 rounded" />
+                          <Skeleton className="h-4 w-24" />
+                        </div>
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <Skeleton className="h-7 w-full" />
+                    </div>
+                  ))
+                ) : screens.map((s) => (
                   <div key={s.id} className="rounded-md border border-border bg-secondary/40 p-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-sm font-bold">{s.name}</span>
                       </div>
-                      <button
-                        onClick={async () => {
-                          try {
-                              const nextStatus = s.status === "online" ? "offline" : "online";
-                              const result = await updateScreen(s.id, { status: nextStatus });
-                              dispatch({ type: 'UPDATE_SCREENS', payload: screens.map(x => x.id === s.id ? result.screen : x) });
-                              pushAudit(
-                                "SYSTEM",
-                                `Écran ${s.name}: ${nextStatus === "online" ? "en ligne" : "hors ligne"}`,
-                              );
-                              toast.success("Écran mis à jour");
-                          } catch {
-                              toast.error("Erreur lors de la création");
-                          }
-
-                        }}
-                        className={`text-[10px] font-mono uppercase ${
-                          s.status === "online" ? "text-success" : "text-destructive"
-                        }`}
-                      >
-                        {s.status === "online" ? "En ligne" : "Hors ligne"}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={async () => {
+                            try {
+                                const nextStatus = s.status === "online" ? "offline" : "online";
+                                const result = await updateScreen(s.id, { status: nextStatus });
+                                dispatch({ type: 'UPDATE_SCREENS', payload: screens.map(x => x.id === s.id ? result.screen : x) });
+                                createAuditLog("SYSTEM", `Écran ${s.name}: ${nextStatus === "online" ? "en ligne" : "hors ligne"}`).catch(() => {});
+                                toast.success("Écran mis à jour");
+                            } catch {
+                                toast.error("Erreur lors de la mise à jour");
+                            }
+                          }}
+                          className={`text-[10px] font-mono uppercase ${
+                            s.status === "online" ? "text-success" : "text-destructive"
+                          }`}
+                        >
+                          {s.status === "online" ? "En ligne" : "Hors ligne"}
+                        </button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 text-destructive"
+                          onClick={() => setDeletingScreen(s)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                     <Select
                       value={s.assigned_page ?? ""}
@@ -646,12 +824,11 @@ export default function AdminPage() {
                         try {
                             const result = await updateScreen(s.id, { assigned_page: v });
                             dispatch({ type: 'UPDATE_SCREENS', payload: screens.map(x => x.id === s.id ? result.screen : x) });
-                            pushAudit("SYSTEM", `Écran ${s.name} → ${v}`);
+                            createAuditLog("SYSTEM", `Écran ${s.name} → ${v}`).catch(() => {});
                             toast.success("Écran mis à jour");
                         } catch {
-                            toast.error("Erreur lors de la création");
+                            toast.error("Erreur lors de la mise à jour");
                         }
-
                       }}
                     >
                       <SelectTrigger className="h-7 text-[10px] font-mono">
@@ -684,6 +861,98 @@ export default function AdminPage() {
                 <span className="text-success">{screens.filter((s) => s.status === "online").length}</span>
               </div>
             </Panel>
+
+            <Dialog open={creatingScreen} onOpenChange={setCreatingScreen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-sm uppercase tracking-wider font-mono text-primary flex items-center gap-2">
+                    <Monitor className="h-4 w-4" />
+                    Ajouter un écran
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div>
+                    <Label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                      Nom de l'écran
+                    </Label>
+                    <Input
+                      value={screenName}
+                      onChange={(e) => setScreenName(e.target.value)}
+                      className="font-mono h-9"
+                      placeholder="Ex: Écran Qualité 1"
+                    />
+                  </div>
+                </div>
+                <DialogFooter className="gap-2">
+                  <Button variant="ghost" onClick={() => setCreatingScreen(false)} className="text-[10px] uppercase tracking-wider">
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      if (!screenName.trim()) {
+                        toast.error("Veuillez entrer un nom");
+                        return;
+                      }
+                      try {
+                        const result = await createScreen({ name: screenName.trim() });
+                        dispatch({ type: 'UPDATE_SCREENS', payload: [...screens, result.screen] });
+                        createAuditLog("SYSTEM", `Écran créé: ${screenName.trim()}`).catch(() => {});
+                        setCreatingScreen(false);
+                        toast.success("Écran créé");
+                      } catch {
+                        toast.error("Erreur lors de la création");
+                      }
+                    }}
+                    className="text-[10px] uppercase tracking-wider px-6"
+                  >
+                    Créer
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deletingScreen} onOpenChange={(o) => !o && setDeletingScreen(null)}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-sm uppercase tracking-wider font-mono text-destructive flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    Supprimer l'écran
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="py-2">
+                  <p className="text-sm text-muted-foreground">
+                    Voulez-vous vraiment supprimer l'écran{" "}
+                    <span className="font-bold text-foreground">{deletingScreen?.name}</span> ?
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    L'écran sera déconnecté et ne pourra plus recevoir de pages.
+                  </p>
+                </div>
+                <DialogFooter className="gap-2">
+                  <Button variant="ghost" onClick={() => setDeletingScreen(null)} className="text-[10px] uppercase tracking-wider">
+                    Annuler
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={async () => {
+                      if (!deletingScreen) return;
+                      try {
+                        await deleteScreen(deletingScreen.id);
+                        dispatch({ type: 'UPDATE_SCREENS', payload: screens.filter(s => s.id !== deletingScreen.id) });
+                        createAuditLog("SYSTEM", `Écran supprimé: ${deletingScreen.name}`).catch(() => {});
+                        setDeletingScreen(null);
+                        toast.success("Écran supprimé");
+                      } catch {
+                        toast.error("Erreur lors de la suppression");
+                      }
+                    }}
+                    className="text-[10px] uppercase tracking-wider px-6"
+                  >
+                    Supprimer
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </AppShell>

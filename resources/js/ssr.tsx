@@ -3,6 +3,7 @@ import createServer from '@inertiajs/react/server';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import ReactDOMServer from 'react-dom/server';
 import { AuthProvider } from '@/context/AuthContext';
+import { FilterProvider } from '@/context/FilterContext';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -24,7 +25,7 @@ createServer((page) =>
                     const layout = OldLayout ? (Array.isArray(OldLayout) ? 
                         OldLayout.reduceRight((acc, LayoutFunc: Layout) => LayoutFunc(acc), page) : 
                         OldLayout(page)) : page;
-                    return <AuthProvider>{layout}</AuthProvider>;
+                    return <AuthProvider><FilterProvider>{layout}</FilterProvider></AuthProvider>;
                 };
 
                 return module;

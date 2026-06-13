@@ -60,12 +60,16 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         Route::get('/users', [AdminController::class, 'listUsers']);
         Route::post('/users', [AdminController::class, 'createUser']);
         Route::put('/users/{id}', [AdminController::class, 'updateUser']);
+        Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
         Route::patch('/users/{id}/toggle', [AdminController::class, 'toggleUser']);
 
         Route::get('/screens', [AdminController::class, 'listScreens']);
+        Route::post('/screens', [AdminController::class, 'createScreen']);
         Route::put('/screens/{id}', [AdminController::class, 'updateScreen']);
+        Route::delete('/screens/{id}', [AdminController::class, 'deleteScreen']);
 
         Route::get('/audit-logs', [AdminController::class, 'auditLogs']);
+        Route::post('/audit-logs', [AdminController::class, 'createAuditLog']);
         Route::delete('/audit-logs', [AdminController::class, 'clearAuditLogs']);
 
         Route::get('/sync-config', [AdminController::class, 'getSyncConfig']);

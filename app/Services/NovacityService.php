@@ -14,19 +14,20 @@ class NovacityService
 
     private int $timeout;
 
-    // Maps our slug names to Novacity query slugs
+    // Maps internal alias → actual Novacity query slug
+    // The aliases are short names used in SyncService; the values are the full Novacity slugs
     private const QUERY_SLUGS = [
         'wip_chaine' => 'wip_chaine',
         'etat_avancement' => 'etat_avancement',
         'efficience_chaine' => 'efficience_chaine',
         'minutes_presence' => 'minutes_presence',
         'minutes_produites' => 'minutes_produites',
-        'lost_time' => 'arrets_non_planifies',
+        'lost_time' => 'lost_time',
         'qte_produite' => 'qte_produite',
-        'qte_produit_indiv' => 'qte_produit_individuel_journalier',
+        'qte_produit_indiv_jour' => 'qte_produit_indiv_jour',
         'pieces_ok_jour' => 'pieces_ok_de_premier_coup_jour_en_cours',
         'pieces_produites_jour' => 'pieces_produites_jour_en_cours',
-        'pieces_ok_annee' => 'pieces_ok_annee_en_cours',
+        'pieces_ok_annee' => 'pieces_ok_de_premier_coup_annee_en_cours',
         'pieces_produites_annee' => 'pieces_produites_annee_en_cours',
         'rejets_paquet_jour' => 'rejets_suite_inspection_paquet_jour_en_cours',
         'inspections_paquet_jour' => 'inspections_paquet_jour_en_cours',
@@ -42,13 +43,14 @@ class NovacityService
         'quantite_par_provenance' => 'quantite_par_provenance',
         'quantite_par_famille' => 'quantite_par_famille',
         'quantite_par_typologie' => 'quantite_par_typologie',
-        'colis_total_var' => 'colis_total_var',
-        'packets_rejetes' => 'packets_rejetes_coupe',
+        'colis_total_var' => 'colis_total_3var',
+        'packets_rejetes' => 'packets_rejetes',
         'sortie_coupe' => 'sortie_coupe',
-        'qte_engagement' => 'qte_engagement_production',
+        'qte_engagement' => 'qte_engagement',
         'qte_depart_chaine' => 'qte_depart_chaine_article_of',
         'qte_entree_serigraphie' => 'qte_entree_serigraphie',
         'sortie_serigraphie' => 'sortie_serigraphie',
+        'taging_reel' => 'taging_reel',
     ];
 
     private const ENDPOINT_PATHS = [
@@ -62,7 +64,7 @@ class NovacityService
         'expeditions' => '/api/data/expeditions',
         'articles_colis' => '/api/data/articlescolis',
         'detail_colis' => '/api/data/detailcolis',
-        'inline_vs_endline_comparison' => '/api/data/inline_vs_endline_comparison',
+        'inline_vs_endline_comparison' => '/api/data/inlinevsendlinecomparison',
     ];
 
     public function __construct()

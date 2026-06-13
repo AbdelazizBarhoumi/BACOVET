@@ -18,12 +18,12 @@ const tt = { backgroundColor: "var(--card)", border: "1px solid var(--border)", 
 export default function DevPage() {
   const d = development;
   const exportRows = [
-    { kpi: "F-REQ-350 RFT Dev", valeur: d.rft, cible: "≥95%" },
-    { kpi: "F-REQ-351 Lead Time Dev", valeur: d.livraison, cible: "≥95%" },
-    { kpi: "F-REQ-352 Fiabilité Nomenclature", valeur: d.fiabilite, cible: "≥98%" },
-    { kpi: "F-REQ-353 Réclamations Prod", valeur: d.reclamations, cible: "<2%" },
-    { kpi: "F-REQ-354 Déchiffrage Cotation", valeur: d.decifrage, cible: "—" },
-    { kpi: "F-REQ-355 Étalonnage", valeur: d.etalonnage, cible: "100%" },
+    { kpi: "350 RFT Dev", valeur: d.rft, cible: "≥95%" },
+    { kpi: "351 Lead Time Dev", valeur: d.livraison, cible: "≥95%" },
+    { kpi: "352 Fiabilité Nomenclature", valeur: d.fiabilite, cible: "≥98%" },
+    { kpi: "353 Réclamations Prod", valeur: d.reclamations, cible: "<2%" },
+    { kpi: "354 Déchiffrage Cotation", valeur: d.decifrage, cible: "—" },
+    { kpi: "355 Étalonnage", valeur: d.etalonnage, cible: "100%" },
   ];
   return (
     <>
@@ -47,7 +47,7 @@ export default function DevPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <BigNumberCard
-            label="RFT Dev · F-REQ-350"
+            label="RFT Dev ·350"
             value={d.rft}
             target="≥ 95%"
             status={statusFor(d.rft, 95)}
@@ -56,7 +56,7 @@ export default function DevPage() {
             freq="Freq: Mensuel"
           />
           <BigNumberCard
-            label="Respect Livraison · F-REQ-351"
+            label="Respect Livraison ·351"
             value={d.livraison}
             target="≥ 95%"
             status={statusFor(d.livraison, 95)}
@@ -65,7 +65,7 @@ export default function DevPage() {
             freq="Freq: Mensuel"
           />
           <BigNumberCard
-            label="Fiabilité Nomenclature · F-REQ-352"
+            label="Fiabilité Nomenclature ·352"
             value={d.fiabilite}
             target="≥ 98%"
             status={statusFor(d.fiabilite, 98)}
@@ -78,7 +78,7 @@ export default function DevPage() {
         {/* Row 2 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <BigNumberCard
-            label="Réclamations Prod · F-REQ-353"
+            label="Réclamations Prod ·353"
             value={d.reclamations}
             target="< 2%"
             status={statusFor(d.reclamations, 2, "max")}
@@ -86,14 +86,14 @@ export default function DevPage() {
             freq="Freq: Mensuel"
           />
           <BigNumberCard
-            label="Déchiffrage Cotation · F-REQ-354"
+            label="Déchiffrage Cotation ·354"
             value={d.decifrage}
             target="—"
             source="Excel / Cotation"
             freq="Freq: Per new start"
           />
           <BigNumberCard
-            label="Étalonnage · F-REQ-355"
+            label="Étalonnage ·355"
             value={d.etalonnage}
             target="100%"
             status="green"
@@ -116,16 +116,16 @@ export default function DevPage() {
               </thead>
               <tbody className="font-mono">
                 {[
-                  ["F-REQ-350", "Right First Time", d.rft, statusFor(d.rft, 95)],
-                  ["F-REQ-351", "Lead Time (Dev)", d.livraison, statusFor(d.livraison, 95)],
-                  ["F-REQ-352", "Fiabilité Nomenclature", d.fiabilite, statusFor(d.fiabilite, 98)],
+                  ["350", "Right First Time", d.rft, statusFor(d.rft, 95)],
+                  ["351", "Lead Time (Dev)", d.livraison, statusFor(d.livraison, 95)],
+                  ["352", "Fiabilité Nomenclature", d.fiabilite, statusFor(d.fiabilite, 98)],
                   [
-                    "F-REQ-353",
+                    "353",
                     "Réclamations Prod",
                     d.reclamations,
                     statusFor(d.reclamations, 2, "max"),
                   ],
-                  ["F-REQ-354", "Déchiffrage Cotation", d.decifrage, statusFor(d.decifrage, 80)],
+                  ["354", "Déchiffrage Cotation", d.decifrage, statusFor(d.decifrage, 80)],
                 ].map((r, i) => (
                   <tr key={i} className="border-b border-border/50">
                     <td className="py-2 text-primary">{r[0]}</td>

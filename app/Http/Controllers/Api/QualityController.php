@@ -41,20 +41,28 @@ class QualityController extends Controller
             $piecesProduiteAnnee?->produced_year
         );
 
-        // Cards 4 & 7 — BR Bundling (B-01: check if active)
-        $bundlingActive = DB::table('novacity_sync_jobs')
-            ->where('query_slug', 'like', '%inspection_paquet%')
+        // Cards 4 & 7 — BR Bundling
+        $bundlingActive = DB::table('rejets_inspection_paquet')
             ->where('is_active', true)
             ->exists();
 
         $brBundlingJour = $bundlingActive ? $this->computeBrBundling('jour') : null;
         $brBundlingAnnee = $bundlingActive ? $this->computeBrBundling('annee') : null;
 
+        // Cards 1, 2, 5 — BR GTD computed from check_pass_qte as proxy for DIVA
+        $brGtdJour = $this->computeBrGtdJour($today);
+        $brGtdAnnee = $this->computeBrGtdAnnee($year);
+
         return response()->json([
-            // Cards 1, 2, 5 — B-02 DIVA (not yet available)
-            'br_cgl' => ['value' => null, 'status' => 'pending', 'blocker' => 'B-02'],
-            'br_gtd_jour' => ['value' => null, 'status' => 'pending', 'blocker' => 'B-02'],
-            'br_gtd_annee' => ['value' => null, 'status' => 'pending', 'blocker' => 'B-02'],
+            // Card 1 — BR CGL (DDA) — DIVA source, no endpoint available → pending
+            'br_cgl' => ['value' => null, 'status' => 'pending', 'blocker' => 'B-02', 'source' => 'DIVA'],
+
+            // Card 2 — BR GTD Ce Jour — computed from check_pass_qte (proxy for DIVA)
+            'br_gtd_jour' => [
+                'value' => $brGtdJour,
+                'status' => $this->kpi->brStatus($brGtdJour),
+                'source' => 'check_pass_qte (proxy DIVA)',
+            ],
 
             // Card 3 — RFT Ce Jour
             'rft_jour' => [
@@ -71,6 +79,13 @@ class QualityController extends Controller
                 'value' => $brBundlingJour,
                 'status' => $bundlingActive ? $this->kpi->brStatus($brBundlingJour) : 'inactive',
                 'blocker' => $bundlingActive ? null : 'B-01',
+            ],
+
+            // Card 5 — BR GTD DDA (Année) — computed from check_pass_qte
+            'br_gtd_annee' => [
+                'value' => $brGtdAnnee,
+                'status' => $this->kpi->brStatus($brGtdAnnee),
+                'source' => 'check_pass_qte (proxy DIVA)',
             ],
 
             // Card 6 — RFT Année
@@ -93,6 +108,15 @@ class QualityController extends Controller
             // Card 8 — BR Print (Google Drive — Sprint 7)
             'br_print' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
 
+            // Cards 9-15 — Google Drive sourced (Sprint 7)
+            'br_print_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            'br_care_label_jour' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            'br_care_label_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            'br_accessoires_jour' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            'br_accessoires_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            'br_compo_jour' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            'br_compo_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+
             // Sync metadata
             'synced_at' => DB::table('pieces_ok_jour')
                 ->orderByDesc('synced_at')
@@ -103,19 +127,36 @@ class QualityController extends Controller
     public function brChart(Request $request): JsonResponse
     {
         $today = Carbon::today();
+        $year = $today->year;
 
-        $data = DB::table('check_pass_qte')
-            ->where('log_date', $today)
-            ->groupBy('shortname')
-            ->select('shortname', DB::raw('AVG(defect_pct) as avg_defect_pct'))
-            ->get()
-            ->map(fn ($row) => [
-                'chain' => $row->shortname,
-                'defect_pct' => round($row->avg_defect_pct, 2),
-                'status' => $this->kpi->brStatus($row->avg_defect_pct),
-            ]);
+        // AQL stage — from check_pass_qte (end-of-line inspection)
+        $aqlRow = DB::table('check_pass_qte')
+            ->whereDate('log_date', $today)
+            ->when($request->input('ligne'), fn ($q, $ligne) => $q->where('shortname', $ligne))
+            ->selectRaw('AVG(defect_pct) as avg_defect_pct')
+            ->first();
 
-        return response()->json(['data' => $data, 'target' => 5]);
+        // Bundling stage — from rejets_inspection_paquet (B-01)
+        $bundlingActive = DB::table('rejets_inspection_paquet')->where('is_active', true)->exists();
+        $brBundling = null;
+        if ($bundlingActive) {
+            $row = DB::table('rejets_inspection_paquet')->where('period', 'jour')->orderByDesc('date')->first();
+            if ($row && $row->bundle_inspected > 0) {
+                $brBundling = round(($row->bundle_reject / $row->bundle_inspected) * 100, 1);
+            }
+        }
+
+        // Build stages array — CDC inspection stages
+        $stages = [
+            ['stage' => 'CGL', 'defect_pct' => null, 'status' => 'pending', 'blocker' => 'B-02', 'source' => 'DIVA'],
+            ['stage' => 'AQL', 'defect_pct' => $aqlRow?->avg_defect_pct ? round($aqlRow->avg_defect_pct, 2) : null, 'status' => $aqlRow?->avg_defect_pct ? $this->kpi->brStatus($aqlRow->avg_defect_pct) : 'grey', 'source' => 'check_pass_qte'],
+            ['stage' => 'Bundling', 'defect_pct' => $brBundling, 'status' => $bundlingActive ? ($brBundling !== null ? $this->kpi->brStatus($brBundling) : 'grey') : 'inactive', 'blocker' => $bundlingActive ? null : 'B-01', 'source' => 'rejets_inspection_paquet'],
+            ['stage' => 'Print', 'defect_pct' => null, 'status' => 'pending', 'source' => 'Google Drive'],
+            ['stage' => 'Accessoires', 'defect_pct' => null, 'status' => 'pending', 'source' => 'Google Drive'],
+            ['stage' => 'Composants', 'defect_pct' => null, 'status' => 'pending', 'source' => 'Google Drive'],
+        ];
+
+        return response()->json(['data' => $stages, 'target' => 5]);
     }
 
     public function defectChart(Request $request): JsonResponse
@@ -123,7 +164,7 @@ class QualityController extends Controller
         $today = Carbon::today();
 
         $data = DB::table('vw_defects')
-            ->where('log_date', $today)
+            ->whereDate('log_date', $today)
             ->groupBy('op_no')
             ->select('op_no', DB::raw('SUM(qty) as total_qty'))
             ->orderByDesc('total_qty')
@@ -137,41 +178,79 @@ class QualityController extends Controller
     {
         $today = Carbon::today();
 
-        // RFT per chain (available from GPRO)
-        $rftPerChain = DB::table('check_pass_qte')
-            ->where('log_date', $today)
+        // Per-chain BR GTD data from check_pass_qte
+        $chainData = DB::table('check_pass_qte')
+            ->whereDate('log_date', $today)
+            ->when($request->input('ligne'), fn ($q, $ligne) => $q->where('shortname', $ligne))
             ->groupBy('shortname')
             ->select('shortname', DB::raw('AVG(defect_pct) as avg_defect_pct'))
             ->get()
             ->keyBy('shortname');
 
-        $teams = $rftPerChain->map(function ($row) {
-            $rftPct = 100 - $row->avg_defect_pct;
-            $rft_ok = $rftPct >= 98;
-            // B-01/B-02 not available yet — score partial
-            $score = ($rft_ok ? 1 : 0);
+        // Global RFT — pieces_ok_jour + pieces_produites_jour (not per-chain)
+        $piecesOkJour = DB::table('pieces_ok_jour')->where('date', $today)->first();
+        $piecesProduiteJour = DB::table('pieces_produites_jour')->where('date', $today)->first();
+        $globalRft = $this->kpi->computeRft(
+            $piecesOkJour?->first_pass_today,
+            $piecesProduiteJour?->produced_today
+        );
+        $globalRftOk = $globalRft !== null && $globalRft >= 98;
 
+        // Check if bundling is active (B-01)
+        $bundlingActive = DB::table('rejets_inspection_paquet')
+            ->where('is_active', true)
+            ->exists();
+
+        // Compute bundling BR if available
+        $brBundlingJour = null;
+        if ($bundlingActive) {
+            $bundlingRow = DB::table('rejets_inspection_paquet')
+                ->where('period', 'jour')
+                ->orderByDesc('date')
+                ->first();
+            if ($bundlingRow && $bundlingRow->bundle_inspected > 0) {
+                $brBundlingJour = ($bundlingRow->bundle_reject / $bundlingRow->bundle_inspected) * 100;
+            }
+        }
+
+        $teams = $chainData->map(function ($row) use ($globalRft, $globalRftOk, $brBundlingJour, $bundlingActive) {
+            $defectPct = $row->avg_defect_pct;
+
+            // CDC formula: score = (br_ok * 5) + (br_in_ok * 3) + (br_gtd_ok * 3) + (rft_ok * 1)
+            $br_gtd_ok = $defectPct <= 5;
+            // BR CGL (DIVA) — not available → always 0
+            $br_ok = false;
+            // BR Bundling (B-01) — available only if active
+            $br_in_ok = $bundlingActive && $brBundlingJour !== null && $brBundlingJour <= 5;
+            // RFT — global value, applied uniformly to all chains (no per-chain RFT available)
+            $rft_ok = $globalRftOk;
+
+            $score = ($br_ok ? 5 : 0) + ($br_in_ok ? 3 : 0) + ($br_gtd_ok ? 3 : 0) + ($rft_ok ? 1 : 0);
+
+            // Tiebreaker: lower defect_pct = better (used when scores are equal)
             return [
                 'chain' => $row->shortname,
                 'score' => $score,
-                'max_score' => 1, // partial (full max=12 when B-01/B-02 resolved)
+                'max_score' => $bundlingActive ? 7 : 4,
                 'rft_ok' => $rft_ok,
-                'rft_pct' => round($rftPct, 1),
-                'br_in_ok' => null, // B-01
-                'br_gtd_ok' => null, // B-02
-                'br_ok' => null, // B-02
+                'rft_pct' => $globalRft,
+                'br_in_ok' => $bundlingActive ? $br_in_ok : null,
+                'br_gtd_ok' => $br_gtd_ok,
+                'br_ok' => false,
+                'defect_pct' => round($defectPct, 2),
                 'partial_score' => true,
             ];
         })
             ->values()
             ->sortByDesc('score')
+            ->sort(fn ($a, $b) => $a['score'] === $b['score'] ? $a['defect_pct'] <=> $b['defect_pct'] : 0)
             ->values();
 
         return response()->json([
             'best' => $teams->take(3)->values(),
             'worst' => $teams->reverse()->take(3)->values(),
             'is_partial' => true,
-            'missing_blockers' => ['B-01', 'B-02'],
+            'missing_blockers' => ['B-02'],
         ]);
     }
 
@@ -184,11 +263,48 @@ class QualityController extends Controller
 
     public function annualTrend(Request $request): JsonResponse
     {
-        $data = DB::table('efficience_chaine')
-            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month, AVG(efficience_pct) as avg_eff")
+        $year = Carbon::now()->year;
+
+        // RFT trend: monthly RFT from pieces_ok_jour + pieces_produites_jour
+        $rftTrend = DB::table('pieces_ok_jour as j1')
+            ->join('pieces_produites_jour as j2', 'j1.date', '=', 'j2.date')
+            ->whereYear('j1.date', $year)
+            ->selectRaw("DATE_FORMAT(j1.date, '%Y-%m') as month")
+            ->selectRaw("SUM(j1.first_pass_today) as total_ok")
+            ->selectRaw("SUM(j2.produced_today) as total_produced")
             ->groupBy('month')
             ->orderBy('month')
-            ->get();
+            ->get()
+            ->map(fn ($row) => [
+                'month' => $row->month,
+                'rft' => $row->total_produced > 0
+                    ? round(($row->total_ok / $row->total_produced) * 100, 1)
+                    : null,
+            ]);
+
+        // BR GTD trend: monthly avg defect_pct from check_pass_qte
+        $brGtdTrend = DB::table('check_pass_qte')
+            ->whereYear('log_date', $year)
+            ->selectRaw("DATE_FORMAT(log_date, '%Y-%m') as month")
+            ->selectRaw("AVG(defect_pct) as avg_defect_pct")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(fn ($row) => [
+                'month' => $row->month,
+                'br_gtd' => round($row->avg_defect_pct, 1),
+            ]);
+
+        // Merge by month
+        $months = $rftTrend->pluck('month')->merge($brGtdTrend->pluck('month'))->unique()->sort()->values();
+        $rftByMonth = $rftTrend->keyBy('month');
+        $brByMonth = $brGtdTrend->keyBy('month');
+
+        $data = $months->map(fn ($month) => [
+            'month' => $month,
+            'rft' => $rftByMonth[$month]['rft'] ?? null,
+            'br_gtd' => $brByMonth[$month]['br_gtd'] ?? null,
+        ])->values();
 
         return response()->json(['data' => $data]);
     }
@@ -196,10 +312,17 @@ class QualityController extends Controller
     public function paretoRft(Request $request): JsonResponse
     {
         $today = Carbon::today();
+        $ops = $request->input('ops'); // optional: comma-separated op_no values (e.g. "93,100,102")
 
-        $items = DB::table('vw_defects')
-            ->where('log_date', $today)
-            ->groupBy('op_no')
+        $query = DB::table('vw_defects')
+            ->whereDate('log_date', $today);
+
+        if ($ops) {
+            $opList = array_map('trim', explode(',', $ops));
+            $query->whereIn('op_no', $opList);
+        }
+
+        $items = $query->groupBy('op_no')
             ->select('op_no', DB::raw('SUM(qty) as total'))
             ->orderByDesc('total')
             ->get();
@@ -212,9 +335,9 @@ class QualityController extends Controller
         $today = Carbon::today();
 
         $items = DB::table('qcm_defect_trx')
-            ->where('log_date', $today)
+            ->whereDate('log_date', $today)
             ->groupBy('item_id')
-            ->select('item_id', DB::raw('SUM(occurrence_count) as total'))
+            ->select('item_id', DB::raw('COUNT(*) as total'))
             ->orderByDesc('total')
             ->get();
 
@@ -229,11 +352,46 @@ class QualityController extends Controller
             ->where('period', $period)
             ->orderByDesc('date')
             ->first();
-        if (! $row || $row->bundle_inspected === 0) {
+
+        if (! $row || ! $row->is_active || $row->bundle_inspected === null || $row->bundle_inspected === 0) {
             return null;
         }
 
         return round(($row->bundle_reject / $row->bundle_inspected) * 100, 1);
+    }
+
+    /**
+     * BR GTD Ce Jour — average defect_pct from check_pass_qte for today (proxy for DIVA)
+     */
+    private function computeBrGtdJour(Carbon $today): ?float
+    {
+        $row = DB::table('check_pass_qte')
+            ->whereDate('log_date', $today)
+            ->selectRaw('AVG(defect_pct) as avg_defect_pct')
+            ->first();
+
+        if (! $row || $row->avg_defect_pct === null) {
+            return null;
+        }
+
+        return round($row->avg_defect_pct, 1);
+    }
+
+    /**
+     * BR GTD DDA (Année) — average defect_pct from check_pass_qte for the year (proxy for DIVA)
+     */
+    private function computeBrGtdAnnee(int $year): ?float
+    {
+        $row = DB::table('check_pass_qte')
+            ->whereYear('log_date', $year)
+            ->selectRaw('AVG(defect_pct) as avg_defect_pct')
+            ->first();
+
+        if (! $row || $row->avg_defect_pct === null) {
+            return null;
+        }
+
+        return round($row->avg_defect_pct, 1);
     }
 
     private function buildPareto($items, string $labelKey, string $valueKey): array

@@ -56,21 +56,21 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
       {/* Row 2 — KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <BigNumberCard
-          label="Efficience Chaîne · F-REQ-202"
+          label="Efficience Chaîne ·202"
           value={avgEff}
           target="> 85%"
           status={statusFor(avgEff, 85)}
           source="q/efficience_chaine"
         />
         <BigNumberCard
-          label="OWE Chaîne · F-REQ-204"
+          label="OWE Chaîne ·204"
           value={avgOwe}
           target="> 70%"
           status={statusFor(avgOwe, 70)}
           source="q/minutes_*"
         />
         <BigNumberCard
-          label="WIP Chaîne · F-REQ-205"
+          label="WIP Chaîne ·205"
           value={totalWip}
           unit="pc"
           target="≤ ½ cadence"
@@ -78,7 +78,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
           source="q/wip_chaine"
         />
         <BigNumberCard
-          label="Arrêts non planifiés · F-REQ-207"
+          label="Arrêts non planifiés ·207"
           value={totalArrets}
           unit="min"
           target="< 10 min"
@@ -146,7 +146,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
 
       {/* Row 4 — OF progress */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-        <Panel title="Taux d'avancement OF · F-REQ-305">
+        <Panel title="Taux d'avancement OF ·305">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {p.ofProgress.map((o) => (
               <div key={o.of} className="flex flex-col items-center">
@@ -172,7 +172,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
           </div>
         </Panel>
 
-        <Panel title="SO Progress par OF · F-REQ-304">
+        <Panel title="SO Progress par OF ·304">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={p.soByOf} layout="vertical">
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
@@ -194,7 +194,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
 
       {/* Row 5 — Operators */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-        <Panel title="Top Opérateurs · F-REQ-210">
+        <Panel title="Top Opérateurs ·210">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={p.topOperators} layout="vertical">
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
@@ -216,7 +216,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
           </ResponsiveContainer>
         </Panel>
 
-        <Panel title="Efficience par Opérateur · F-REQ-201">
+        <Panel title="Efficience par Opérateur ·201">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={p.effPerOp}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
@@ -232,7 +232,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
 
       {/* Row 6 / Sérigraphie special */}
       {workshop === "serigraphie" ? (
-        <Panel title="Couverture Sérigraphie · F-REQ-309" className="mb-4">
+        <Panel title="Couverture Sérigraphie ·309" className="mb-4">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={p.serigraphie}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
@@ -246,7 +246,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
           </ResponsiveContainer>
         </Panel>
       ) : (
-        <Panel title="WIP Optimal (7 derniers jours) · F-REQ-206" className="mb-4">
+        <Panel title="WIP Optimal (7 derniers jours) ·206" className="mb-4">
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={p.wip7d}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
@@ -276,7 +276,7 @@ function ProductionTab({ workshop }: { workshop: "confection" | "coupe" | "serig
       )}
 
       {/* Row 7 */}
-      <Panel title="Efficience Cumulée · F-REQ-203">
+      <Panel title="Efficience Cumulée ·203">
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={production.effCumul}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
