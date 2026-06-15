@@ -12,13 +12,14 @@ export default function Register() {
 
             <div className="space-y-4 text-sm text-muted-foreground">
                 <div className="rounded-lg border border-border bg-secondary/30 p-4">
-                    <div className="flex items-center gap-2 text-foreground font-semibold">
+                    <div className="flex items-center gap-2 font-semibold text-foreground">
                         <ShieldCheck className="h-4 w-4 text-primary" />
                         Compte géré par l’équipe BACOVET
                     </div>
                     <p className="mt-2">
-                        La création de compte est contrôlée côté backend. Si vous avez besoin d’un accès,
-                        contactez l’administrateur système.
+                        La création de compte est contrôlée côté backend. Si
+                        vous avez besoin d’un accès, contactez l’administrateur
+                        système.
                     </p>
                 </div>
 

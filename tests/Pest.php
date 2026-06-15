@@ -1,4 +1,5 @@
 <?php
+
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class)->in('Feature', 'Unit');
@@ -8,8 +9,9 @@ uses(RefreshDatabase::class)->in('Feature', 'Unit');
 function makeUser(string $roleSlug = 'it', bool $active = true): \App\Models\User
 {
     $role = \App\Models\Role::factory()->create(['slug' => $roleSlug]);
+
     return \App\Models\User::factory()->create([
-        'role_id'   => $role->id,
+        'role_id' => $role->id,
         'is_active' => $active,
     ]);
 }
@@ -19,6 +21,7 @@ function actingAsRole(string $roleSlug): \App\Models\User
 {
     $user = makeUser($roleSlug);
     test()->actingAs($user); // defaults to 'web' guard
+
     return $user;
 }
 

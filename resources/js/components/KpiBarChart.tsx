@@ -1,5 +1,5 @@
 const KpiBarChart = () => {
-  return <div>KpiBarChart</div>;
+    return <div>KpiBarChart</div>;
 };
 
 export default KpiBarChart;

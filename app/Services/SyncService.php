@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\NovacityJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SyncService
 {
@@ -33,11 +34,16 @@ class SyncService
         'wip_chaine' => [
             'chaine' => 'chaine', 'en_cours' => 'en_cours',
             'entree_jour' => 'entree_jour', 'sortie_jour' => 'sortie_jour',
+            'of' => 'of_number', 'article' => 'article',
+        ],
+        'item_trx_enq' => [
+            'TransactionID' => 'transaction_id', 'SONo' => 'so_no',
+            'ItemNo' => 'item_no', 'OpNo' => 'op_no', 'IsSplit' => 'is_split',
         ],
         'etat_avancement' => [
             'of' => 'of', 'avancement_pct' => 'avancement_pct',
             'quantite_prevue' => 'quantite_prevue', 'quantite_realisee' => 'quantite_realisee',
-            'statut' => 'statut',
+            'statut' => 'statut', 'chaine' => 'chaine',
         ],
         'efficience_chaine' => [
             'chaine' => 'chaine', 'date' => 'date', 'efficience_pct' => 'efficience_pct',
@@ -45,7 +51,7 @@ class SyncService
         ],
         'qte_produite' => [
             'date' => 'date', 'chaine' => 'chaine', 'shift' => 'shift',
-            'shift_code' => 'shift_code', 'quantite' => 'quantite',
+            'quantite' => 'quantite',
         ],
         'lost_time' => [
             'date' => 'date', 'chaine' => 'chaine', 'motif' => 'motif',
@@ -76,7 +82,7 @@ class SyncService
             'quantite' => 'quantite',
         ],
         'of_fabrication' => [
-            'IDOFabrication' => 'idofabrication', 'OFabrication' => 'ofabrication',
+            'IDOFabrication' => 'idofabrication', 'OFabrication' => 'of_number',
             'DtDebut' => 'dt_debut', 'DtFin' => 'dt_fin',
         ],
         'inline_vs_endline_comparison' => [
@@ -86,20 +92,66 @@ class SyncService
         'qte_produit_individuel_jour' => [
             'date' => 'date', 'employe' => 'employee_id', 'chaine' => 'chaine',
             'quantite' => 'quantite', 'minutes_produites' => 'minutes_produites',
+            'OpNo' => 'poste', 'OpLib' => 'poste',
         ],
         'qte_depart_chaine_article_of' => [
             'of' => 'of', 'chaine' => 'chaine', 'article' => 'article',
-            'quantite' => 'quantite',
+            'quantite' => 'quantite', 'date' => 'date',
+        ],
+        'minutes_presence' => [
+            'employe' => 'employee_id', 'date' => 'date',
+            'minutes_presence' => 'minutes_presence', 'chaine' => 'chaine',
+        ],
+        'temps_operation' => [
+            'operation' => 'operation_code', 'temps_standard_s' => 'temps_standard_s',
+            'temps_reel_s' => 'temps_reel_s', 'ecart_pct' => 'ecart_pct',
         ],
 
-        // Logistics tables (partial — add as needed)
+        // Logistics tables
         'vue_stock' => [
             'idmp' => 'idmp', 'codemp' => 'code_mp', 'designation' => 'designation',
             'Famille' => 'famille', 'Couleur' => 'couleur',
         ],
         'diva_stock' => [
-            'IDMP' => 'idmp', 'Qtte' => 'qtte', 'qtteReserve' => 'qtte_reserve',
+            'IDMvtStock' => 'idmvt_stock', 'IDMP' => 'idmp', 'IDMagasin' => 'idmagasin',
+            'Qtte' => 'qtte', 'qtteReserve' => 'qtte_reserve',
         ],
+        'colis_total_var' => [
+            'Article' => 'article', 'Commande' => 'commande',
+            'OF' => 'of', 'TotalColis' => 'total_colis',
+            'TotalPieces' => 'total_qte',
+            'total_pieces' => 'total_qte',
+            'couleur' => 'couleur',
+        ],
+        'expeditions' => [
+            'IDExpedition' => 'idexpedition', 'DateCreation' => 'date_creation',
+            'Reference' => 'reference', 'Destination' => 'destination',
+            'DateExpedition' => 'date_expedition', 'QteExpedies' => 'qte_expedies',
+            'Statut' => 'statut', 'LibExpedition' => 'lib_expedition',
+        ],
+        'articles_sans_mouvement' => [
+            'NbArticles_SansMvt_365j' => 'nb_articles_sans_mvt_365j',
+            'Qtte_SansMvt_365j' => 'qtte_sans_mvt_365j',
+        ],
+        'moyenne_date_transfert' => [
+            'MoyenneJours' => 'moyenne_jours',
+            'NbOFConsideres' => 'nb_of_consideres',
+        ],
+    ];
+
+    /**
+     * Tables that should use UPSERT instead of TRUNCATE.
+     * Maps table name → unique keys for conflict resolution.
+     */
+    private const UPSERT_CONFIGS = [
+        'efficience_chaine' => ['date', 'chaine'],
+        'lost_time' => ['date', 'chaine', 'motif'],
+        'qte_produite' => ['date', 'chaine', 'shift_code'],
+        'qte_produit_individuel_jour' => ['date', 'employee_id', 'chaine', 'poste'],
+        'minutes_presence' => ['date', 'chaine', 'shift_code'],
+        'temps_operation' => ['date', 'operation_code', 'chaine'],
+        'item_trx_enq' => ['transaction_id'],
+        'of_fabrication' => ['of_number'],
     ];
 
     public function __construct(private NovacityService $novacity) {}
@@ -180,6 +232,7 @@ class SyncService
     {
         try {
             $data = $this->novacity->fetchQuery($key);
+
             return empty($data) ? null : $data;
         } catch (\Throwable) {
             return null;
@@ -188,6 +241,7 @@ class SyncService
 
     public function syncProduction(): void
     {
+        $this->syncTable('item_trx_enq', fn () => $this->novacity->fetchEndpoint('item_trx_enq'));
         $this->syncTable('wip_chaine', fn () => $this->novacity->fetchQuery('wip_chaine'));
         $this->syncTable('etat_avancement', fn () => $this->novacity->fetchQuery('etat_avancement'));
         $this->syncTable('efficience_chaine', fn () => $this->novacity->fetchQuery('efficience_chaine'));
@@ -203,6 +257,8 @@ class SyncService
         $this->syncTable('inline_vs_endline_comparison', fn () => $this->novacity->fetchEndpoint('inline_vs_endline_comparison'));
         $this->syncTable('qte_produit_individuel_jour', fn () => $this->novacity->fetchQuery('qte_produit_indiv_jour'));
         $this->syncTable('qte_depart_chaine_article_of', fn () => $this->novacity->fetchQuery('qte_depart_chaine'));
+        $this->syncTable('minutes_presence', fn () => $this->novacity->fetchQuery('minutes_presence'));
+        $this->syncTable('temps_operation', fn () => $this->novacity->fetchQuery('temps_operation'));
     }
 
     public function syncLogistics(): void
@@ -230,13 +286,19 @@ class SyncService
             $rows = $fetcher();
             if (! empty($rows)) {
                 $fieldMap = self::FIELD_MAPS[$table] ?? [];
-                $needsDate = in_array($table, ['pieces_ok_jour', 'pieces_produites_jour']);
-                $needsYear = in_array($table, ['pieces_ok_annee', 'pieces_produites_annee']);
-                DB::table($table)->truncate();
+                $upsertKeys = self::UPSERT_CONFIGS[$table] ?? null;
+                $hasAtelier = Schema::hasColumn($table, 'atelier');
+
+                if ($upsertKeys === null) {
+                    DB::table($table)->truncate();
+                }
+
                 $chunks = array_chunk($rows, 500);
                 $now = now();
                 foreach ($chunks as $chunk) {
-                    $insert = array_map(function ($r) use ($fieldMap, $now, $needsDate, $needsYear) {
+                    $insert = array_map(function ($r) use ($fieldMap, $now, $table, $hasAtelier) {
+                        $needsDate = in_array($table, ['pieces_ok_jour', 'pieces_produites_jour', 'taging_reel', 'qte_engagement']);
+                        $needsYear = in_array($table, ['pieces_ok_annee', 'pieces_produites_annee']);
                         $mapped = [];
                         foreach ((array) $r as $key => $value) {
                             // Try exact match first, then case-insensitive
@@ -251,9 +313,13 @@ class SyncService
                                 $snakeKey = strtolower(preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', $key));
                                 $mysqlKey = $fieldMap[$snakeKey] ?? $snakeKey;
                             }
-                            // Convert ISO datetime to date-only for DATE columns
-                            if (in_array($mysqlKey, ['log_date', 'date', 'dt_debut', 'dt_fin', 'date_rejet']) && is_string($value)) {
-                                $value = substr($value, 0, 10);
+                            // Convert ISO datetime to standard MySQL format
+                            if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $value)) {
+                                if (in_array($mysqlKey, ['log_date', 'date', 'dt_debut', 'dt_fin', 'date_rejet', 'bpd', 'epd', 'ehd'])) {
+                                    $value = substr($value, 0, 10);
+                                } else {
+                                    $value = date('Y-m-d H:i:s', strtotime($value));
+                                }
                             }
                             $mapped[$mysqlKey] = $value;
                         }
@@ -263,10 +329,59 @@ class SyncService
                         if ($needsYear && ! isset($mapped['year'])) {
                             $mapped['year'] = (int) now()->format('Y');
                         }
+
+                        // Coerce numeric strings for specific tables (Novacity returns numbers as strings)
+                        if ($table === 'moyenne_date_transfert') {
+                            if (isset($mapped['moyenne_jours']) && is_string($mapped['moyenne_jours'])) {
+                                $mapped['moyenne_jours'] = (float) $mapped['moyenne_jours'];
+                            }
+                            if (isset($mapped['nb_of_consideres']) && is_string($mapped['nb_of_consideres'])) {
+                                $mapped['nb_of_consideres'] = (int) $mapped['nb_of_consideres'];
+                            }
+                        }
+
+                        // Infer atelier if column exists
+                        if ($hasAtelier && ! isset($mapped['atelier'])) {
+                            if (str_contains($table, 'coupe')) {
+                                $mapped['atelier'] = 'coupe';
+                            } elseif (str_contains($table, 'serigraphie')) {
+                                $mapped['atelier'] = 'serigraphie';
+                            } elseif (isset($mapped['chaine']) && is_string($mapped['chaine'])) {
+                                $upperChain = strtoupper($mapped['chaine']);
+                                if ($upperChain === 'CH3' || str_starts_with($upperChain, 'COU')) {
+                                    $mapped['atelier'] = 'coupe';
+                                } elseif ($upperChain === 'CH4' || str_starts_with($upperChain, 'SER')) {
+                                    $mapped['atelier'] = 'serigraphie';
+                                } elseif (str_starts_with($upperChain, 'CH')) {
+                                    $mapped['atelier'] = 'confection';
+                                } else {
+                                    $mapped['atelier'] = 'confection';
+                                }
+                            } elseif (isset($mapped['shortname']) && is_string($mapped['shortname'])) {
+                                $upperShort = strtoupper($mapped['shortname']);
+                                if ($upperShort === 'CH3') {
+                                    $mapped['atelier'] = 'coupe';
+                                } elseif ($upperShort === 'CH4') {
+                                    $mapped['atelier'] = 'serigraphie';
+                                } else {
+                                    $mapped['atelier'] = 'confection';
+                                }
+                            } else {
+                                $mapped['atelier'] = 'confection';
+                            }
+                        }
+
                         $mapped['synced_at'] = $now;
+
                         return $mapped;
                     }, $chunk);
-                    DB::table($table)->insert($insert);
+
+                    if ($upsertKeys !== null) {
+                        // Use upsert to preserve history
+                        DB::table($table)->upsert($insert, $upsertKeys);
+                    } else {
+                        DB::table($table)->insert($insert);
+                    }
                 }
             }
             $this->updateJobStatus($table, 'ok', count($rows), microtime(true) - $start);

@@ -2,16 +2,17 @@
 
 namespace Tests\Traits;
 
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
 
 trait TestHelpers
 {
     protected function makeUser(string $roleSlug = 'it', bool $active = true): User
     {
         $role = Role::firstOrCreate(['slug' => $roleSlug], ['name' => ucfirst($roleSlug)]);
+
         return User::factory()->create([
-            'role_id'   => $role->id,
+            'role_id' => $role->id,
             'is_active' => $active,
         ]);
     }
@@ -20,6 +21,7 @@ trait TestHelpers
     {
         $user = $this->makeUser($roleSlug);
         $this->actingAs($user);
+
         return $user;
     }
 

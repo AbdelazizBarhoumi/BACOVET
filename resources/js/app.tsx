@@ -20,13 +20,19 @@ createInertiaApp({
             `./pages/${name}.tsx`,
             import.meta.glob('./pages/**/*.tsx'),
         ).then((module: unknown) => {
-            const page = (module as { default: { layout?: Layout | Layout[] } }).default;
+            const page = (module as { default: { layout?: Layout | Layout[] } })
+                .default;
             const OldLayout = page.layout;
 
             page.layout = (page: React.ReactNode) => {
-                const layout = OldLayout ? (Array.isArray(OldLayout) ? 
-                    OldLayout.reduceRight((acc, LayoutFunc: Layout) => LayoutFunc(acc), page) : 
-                    OldLayout(page)) : page;
+                const layout = OldLayout
+                    ? Array.isArray(OldLayout)
+                        ? OldLayout.reduceRight(
+                              (acc, LayoutFunc: Layout) => LayoutFunc(acc),
+                              page,
+                          )
+                        : OldLayout(page)
+                    : page;
                 return (
                     <AuthProvider>
                         <FilterProvider>
@@ -44,9 +50,7 @@ createInertiaApp({
     setup({ el, App, props }) {
         const root = createRoot(el);
 
-        root.render(
-            <App {...props} />
-        );
+        root.render(<App {...props} />);
     },
     progress: {
         color: '#4B5563',
@@ -61,7 +65,9 @@ initializeTheme();
 const isFromExtension = (stack?: string): boolean => {
     if (!stack) return false;
     // Common extension patterns: chrome-extension://, moz-extension://, background.js
-    return /chrome-extension:|moz-extension:|background\.js|content\.js|content-script/.test(stack);
+    return /chrome-extension:|moz-extension:|background\.js|content\.js|content-script/.test(
+        stack,
+    );
 };
 
 const sendLogToServer = (level: string, message: string) => {

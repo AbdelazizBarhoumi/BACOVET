@@ -26,8 +26,8 @@ class QualityController extends Controller
         $year = $today->year;
 
         // Card 3 — RFT Ce Jour
-        $piecesOkJour = DB::table('pieces_ok_jour')->where('date', $today)->first();
-        $piecesProduiteJour = DB::table('pieces_produites_jour')->where('date', $today)->first();
+        $piecesOkJour = DB::table('pieces_ok_jour')->whereDate('date', $today)->first();
+        $piecesProduiteJour = DB::table('pieces_produites_jour')->whereDate('date', $today)->first();
         $rftJour = $this->kpi->computeRft(
             $piecesOkJour?->first_pass_today,
             $piecesProduiteJour?->produced_today
@@ -188,8 +188,8 @@ class QualityController extends Controller
             ->keyBy('shortname');
 
         // Global RFT — pieces_ok_jour + pieces_produites_jour (not per-chain)
-        $piecesOkJour = DB::table('pieces_ok_jour')->where('date', $today)->first();
-        $piecesProduiteJour = DB::table('pieces_produites_jour')->where('date', $today)->first();
+        $piecesOkJour = DB::table('pieces_ok_jour')->whereDate('date', $today)->first();
+        $piecesProduiteJour = DB::table('pieces_produites_jour')->whereDate('date', $today)->first();
         $globalRft = $this->kpi->computeRft(
             $piecesOkJour?->first_pass_today,
             $piecesProduiteJour?->produced_today
@@ -270,8 +270,8 @@ class QualityController extends Controller
             ->join('pieces_produites_jour as j2', 'j1.date', '=', 'j2.date')
             ->whereYear('j1.date', $year)
             ->selectRaw("DATE_FORMAT(j1.date, '%Y-%m') as month")
-            ->selectRaw("SUM(j1.first_pass_today) as total_ok")
-            ->selectRaw("SUM(j2.produced_today) as total_produced")
+            ->selectRaw('SUM(j1.first_pass_today) as total_ok')
+            ->selectRaw('SUM(j2.produced_today) as total_produced')
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -286,7 +286,7 @@ class QualityController extends Controller
         $brGtdTrend = DB::table('check_pass_qte')
             ->whereYear('log_date', $year)
             ->selectRaw("DATE_FORMAT(log_date, '%Y-%m') as month")
-            ->selectRaw("AVG(defect_pct) as avg_defect_pct")
+            ->selectRaw('AVG(defect_pct) as avg_defect_pct')
             ->groupBy('month')
             ->orderBy('month')
             ->get()

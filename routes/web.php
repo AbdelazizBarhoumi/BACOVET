@@ -75,6 +75,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         Route::get('/sync-config', [AdminController::class, 'getSyncConfig']);
         Route::put('/sync-config/{key}', [AdminController::class, 'updateSyncConfig']);
 
+        Route::get('/kpi-values', [AdminController::class, 'listKpiValues']);
         Route::put('/kpi-values/{key}', [AdminController::class, 'updateKpiValue']);
     });
 
@@ -99,11 +100,14 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/chain-info', [ProductionController::class, 'chainInfo']);
             Route::get('/kpis', [ProductionController::class, 'kpis']);
             Route::get('/efficience-gauges', [ProductionController::class, 'efficienceGauges']);
+            Route::get('/wip-gauges', [ProductionController::class, 'wipGauges']);
             Route::get('/stoppage-timeline', [ProductionController::class, 'stoppageTimeline']);
             Route::get('/of-donuts', [ProductionController::class, 'ofDonuts']);
             Route::get('/efficience-trend', [ProductionController::class, 'efficienceTrend']);
             Route::get('/top-operators', [ProductionController::class, 'topOperators']);
             Route::get('/wip', [ProductionController::class, 'wip']);
+            Route::get('/so-progress', [ProductionController::class, 'soProgress']);
+            Route::get('/breakdown/{kpiKey}', [ProductionController::class, 'breakdown']);
             Route::get('/inline-endline', [ProductionController::class, 'inlineEndline']);
             // Coupe
             Route::get('/coupe/coverage', [ProductionController::class, 'coupeCoverage']);
@@ -111,7 +115,9 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/coupe/tagging', [ProductionController::class, 'coupeTagging']);
             Route::get('/coupe/ofs', [ProductionController::class, 'coupeOfs']);
             Route::get('/coupe/departage', [ProductionController::class, 'coupeDepartage']);
+            Route::get('/coupe/qte-departage', [ProductionController::class, 'coupeQteDepartage']);
             // Sérigraphie
+
             Route::get('/serigraphie/coverage', [ProductionController::class, 'serigraphieCoverage']);
             Route::get('/serigraphie/flux', [ProductionController::class, 'serigraphieFlux']);
             Route::get('/serigraphie/rejets', [ProductionController::class, 'serigraphieRejets']);
@@ -128,6 +134,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/livraison', [LogisticsController::class, 'livraison']);
             Route::get('/coverage', [LogisticsController::class, 'coverage']);
             Route::get('/stock-search', [LogisticsController::class, 'stockSearch']);
+            Route::get('/stock-reliability', [LogisticsController::class, 'stockReliability']);
         });
 
     // ── MÉTHODES ─────────────────────────────────────────────────────────

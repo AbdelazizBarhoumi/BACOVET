@@ -1,1 +1,1 @@
-export * from "@/context/AuthContext";
+export * from '@/context/AuthContext';

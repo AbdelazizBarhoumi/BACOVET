@@ -4,41 +4,43 @@
  * Handles administrative tasks like job monitoring and execution.
  */
 
-const BASE_URL = "";
+const BASE_URL = '';
 
 function getCsrfToken(): string {
-  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
 }
 
 const fetchWithToken = async (url: string, options: RequestInit = {}) => {
-  const method = (options.method || "GET").toUpperCase();
-  const isStateChanging = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+    const method = (options.method || 'GET').toUpperCase();
+    const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...options.headers,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "X-Requested-With": "XMLHttpRequest",
-      ...(isStateChanging ? { "X-XSRF-TOKEN": getCsrfToken() } : {}),
-    },
-  });
+    const response = await fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(isStateChanging ? { 'X-XSRF-TOKEN': getCsrfToken() } : {}),
+        },
+    });
 
-  if (!response.ok) {
-    throw new Error(`Admin API Error: ${response.status} ${response.statusText}`);
-  }
+    if (!response.ok) {
+        throw new Error(
+            `Admin API Error: ${response.status} ${response.statusText}`,
+        );
+    }
 
-  return response.json();
+    return response.json();
 };
 
 /**
  * Fetch all background jobs and their statuses
  */
 export const fetchAllJobs = async () => {
-  const result = await fetchWithToken(`${BASE_URL}/admin/jobs`);
-  return result.data || result;
+    const result = await fetchWithToken(`${BASE_URL}/admin/jobs`);
+    return result.data || result;
 };
 
 /**
@@ -46,153 +48,186 @@ export const fetchAllJobs = async () => {
  * @param jobId The ID of the job to run
  */
 export const runJobManually = async (jobId: string | number) => {
-  return fetchWithToken(`${BASE_URL}/admin/jobs/${jobId}/run`);
+    return fetchWithToken(`${BASE_URL}/admin/jobs/${jobId}/run`);
 };
 
 /**
  * Fetch all users
  */
 export const fetchAllUsers = async () => {
-  return fetchWithToken(`${BASE_URL}/admin/users`);
+    return fetchWithToken(`${BASE_URL}/admin/users`);
 };
 
 /**
  * Create a new user
  */
 export const createUser = async (userData: Record<string, unknown>) => {
-  return fetchWithToken(`${BASE_URL}/admin/users`, {
-    method: "POST",
-    body: JSON.stringify(userData),
-  });
+    return fetchWithToken(`${BASE_URL}/admin/users`, {
+        method: 'POST',
+        body: JSON.stringify(userData),
+    });
 };
 
 /**
  * Update an existing user
  */
-export const updateUser = async (userId: string | number, userData: Record<string, unknown>) => {
-  return fetchWithToken(`${BASE_URL}/admin/users/${userId}`, {
-    method: "PUT",
-    body: JSON.stringify(userData),
-  });
+export const updateUser = async (
+    userId: string | number,
+    userData: Record<string, unknown>,
+) => {
+    return fetchWithToken(`${BASE_URL}/admin/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(userData),
+    });
 };
 
 /**
  * Toggle user active status
  */
 export const toggleUserStatus = async (userId: string | number) => {
-  return fetchWithToken(`${BASE_URL}/admin/users/${userId}/toggle`, {
-    method: "PATCH",
-  });
+    return fetchWithToken(`${BASE_URL}/admin/users/${userId}/toggle`, {
+        method: 'PATCH',
+    });
 };
 
 /**
  * Delete a user
  */
 export const deleteUser = async (userId: string | number) => {
-  return fetchWithToken(`${BASE_URL}/admin/users/${userId}`, {
-    method: "DELETE",
-  });
+    return fetchWithToken(`${BASE_URL}/admin/users/${userId}`, {
+        method: 'DELETE',
+    });
 };
 
 /**
  * Fetch all screens
  */
 export const fetchAllScreens = async () => {
-  return fetchWithToken(`${BASE_URL}/admin/screens`);
+    return fetchWithToken(`${BASE_URL}/admin/screens`);
 };
 
 /**
  * Create a new screen
  */
 export const createScreen = async (screenData: Record<string, unknown>) => {
-  return fetchWithToken(`${BASE_URL}/admin/screens`, {
-    method: "POST",
-    body: JSON.stringify(screenData),
-  });
+    return fetchWithToken(`${BASE_URL}/admin/screens`, {
+        method: 'POST',
+        body: JSON.stringify(screenData),
+    });
 };
 
 /**
  * Update a screen
  */
-export const updateScreen = async (screenId: string | number, screenData: Record<string, unknown>) => {
-  return fetchWithToken(`${BASE_URL}/admin/screens/${screenId}`, {
-    method: "PUT",
-    body: JSON.stringify(screenData),
-  });
+export const updateScreen = async (
+    screenId: string | number,
+    screenData: Record<string, unknown>,
+) => {
+    return fetchWithToken(`${BASE_URL}/admin/screens/${screenId}`, {
+        method: 'PUT',
+        body: JSON.stringify(screenData),
+    });
 };
 
 /**
  * Delete a screen
  */
 export const deleteScreen = async (screenId: string | number) => {
-  return fetchWithToken(`${BASE_URL}/admin/screens/${screenId}`, {
-    method: "DELETE",
-  });
+    return fetchWithToken(`${BASE_URL}/admin/screens/${screenId}`, {
+        method: 'DELETE',
+    });
 };
 
 // ─── Sync Config ────────────────────────────────────────────────────────────
 
 export type SyncConfigItem = {
-  key: string;
-  value: string;
-  description: string | null;
-  updated_at: string;
+    key: string;
+    value: string;
+    description: string | null;
+    updated_at: string;
 };
 
 /**
  * Fetch all sync interval configurations
  */
 export const fetchSyncConfig = async (): Promise<SyncConfigItem[]> => {
-  const result = await fetchWithToken(`${BASE_URL}/admin/sync-config`);
-  return result.data || result;
+    const result = await fetchWithToken(`${BASE_URL}/admin/sync-config`);
+    return result.data || result;
 };
 
 /**
  * Update a sync interval configuration
  */
 export const updateSyncConfig = async (key: string, value: number) => {
-  return fetchWithToken(`${BASE_URL}/admin/sync-config/${key}`, {
-    method: "PUT",
-    body: JSON.stringify({ value }),
-  });
+    return fetchWithToken(`${BASE_URL}/admin/sync-config/${key}`, {
+        method: 'PUT',
+        body: JSON.stringify({ value }),
+    });
 };
 
 // ─── Audit Logs ──────────────────────────────────────────────────────────────
 
 export type AuditLogEntry = {
-  id: number;
-  user_id: number | null;
-  action_type: string;
-  message: string;
-  ip_address: string | null;
-  created_at: string;
-  user?: { id: number; name: string; matricule: string } | null;
+    id: number;
+    user_id: number | null;
+    action_type: string;
+    message: string;
+    ip_address: string | null;
+    created_at: string;
+    user?: { id: number; name: string; matricule: string } | null;
+};
+
+// ─── Manual KPI Values ──────────────────────────────────────────────────────
+
+export type ManualKpiEntry = {
+    kpi_key: string;
+    kpi_label: string;
+    value: number | null;
+    numerator: number | null;
+    denominator: number | null;
+    updated_at: string | null;
+    updated_by: string | null;
+};
+
+export const fetchManualKpiValues = async (): Promise<ManualKpiEntry[]> => {
+    const result = await fetchWithToken(`${BASE_URL}/admin/kpi-values`);
+    return result.data || result;
+};
+
+export const updateManualKpiValue = async (
+    key: string,
+    numerator: number,
+    denominator: number,
+) => {
+    return fetchWithToken(`${BASE_URL}/admin/kpi-values/${key}`, {
+        method: 'PUT',
+        body: JSON.stringify({ numerator, denominator }),
+    });
 };
 
 /**
  * Fetch server-side audit logs (paginated, latest first)
  */
 export const fetchAuditLogs = async (): Promise<AuditLogEntry[]> => {
-  const result = await fetchWithToken(`${BASE_URL}/admin/audit-logs`);
-  return result.data?.data || result.data || result;
+    const result = await fetchWithToken(`${BASE_URL}/admin/audit-logs`);
+    return result.data?.data || result.data || result;
 };
 
 /**
  * Create a server-side audit log entry
  */
 export const createAuditLog = async (actionType: string, message: string) => {
-  return fetchWithToken(`${BASE_URL}/admin/audit-logs`, {
-    method: "POST",
-    body: JSON.stringify({ action_type: actionType, message }),
-  });
+    return fetchWithToken(`${BASE_URL}/admin/audit-logs`, {
+        method: 'POST',
+        body: JSON.stringify({ action_type: actionType, message }),
+    });
 };
 
 /**
  * Clear audit logs (keeps a self-referencing entry of who cleared)
  */
 export const clearAuditLogs = async () => {
-  return fetchWithToken(`${BASE_URL}/admin/audit-logs`, {
-    method: "DELETE",
-  });
+    return fetchWithToken(`${BASE_URL}/admin/audit-logs`, {
+        method: 'DELETE',
+    });
 };
-

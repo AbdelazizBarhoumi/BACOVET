@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\ManualKpiValue;
 use App\Models\NovacityJob;
 use App\Models\Screen;
 use App\Models\SyncSetting;
@@ -334,7 +335,72 @@ class AdminController extends Controller
 
     public function updateKpiValue(Request $request, string $key): JsonResponse
     {
-        // Placeholder for manual KPI value update
-        return response()->json(['message' => 'KPI value updated (mock).']);
+        $validated = $request->validate([
+            'numerator' => 'required|numeric',
+            'denominator' => 'required|numeric|min:1',
+        ]);
+
+        $value = round(($validated['numerator'] / $validated['denominator']) * 100, 1);
+
+        $kpi = ManualKpiValue::updateOrCreate(
+            ['kpi_key' => $key],
+            [
+                'numerator' => $validated['numerator'],
+                'denominator' => $validated['denominator'],
+                'value' => $value,
+                'updated_by' => $request->user()->id,
+            ]
+        );
+
+        // Store history for trend charts
+        if (DB::table('manual_kpi_history')->where('kpi_key', $key)
+            ->where('year', now()->year)
+            ->where('month', now()->month)
+            ->exists()) {
+            DB::table('manual_kpi_history')
+                ->where('kpi_key', $key)
+                ->where('year', now()->year)
+                ->where('month', now()->month)
+                ->update(['value' => $value, 'numerator' => $validated['numerator'], 'denominator' => $validated['denominator'], 'updated_by' => $request->user()->id]);
+        } else {
+            DB::table('manual_kpi_history')->insert([
+                'kpi_key' => $key,
+                'year' => now()->year,
+                'month' => now()->month,
+                'value' => $value,
+                'numerator' => $validated['numerator'],
+                'denominator' => $validated['denominator'],
+                'updated_by' => $request->user()->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action_type' => 'SYSTEM',
+            'message' => "KPI mis à jour: {$key} = {$value}% ({$validated['numerator']}/{$validated['denominator']})",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'KPI mis à jour.',
+            'kpi' => $kpi->fresh(),
+        ]);
+    }
+
+    public function listKpiValues(): JsonResponse
+    {
+        $kpis = ManualKpiValue::all()->map(fn ($kpi) => [
+            'kpi_key' => $kpi->kpi_key,
+            'kpi_label' => $kpi->kpi_label,
+            'value' => $kpi->value,
+            'numerator' => $kpi->numerator,
+            'denominator' => $kpi->denominator,
+            'updated_at' => $kpi->updated_at?->toISOString(),
+            'updated_by' => $kpi->updater?->name,
+        ]);
+
+        return response()->json($kpis);
     }
 }

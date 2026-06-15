@@ -1,5 +1,5 @@
 const GaugeChart = () => {
-  return <div>GaugeChart</div>;
+    return <div>GaugeChart</div>;
 };
 
 export default GaugeChart;

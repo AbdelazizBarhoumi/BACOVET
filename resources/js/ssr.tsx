@@ -18,14 +18,25 @@ createServer((page) =>
                 `./pages/${name}.tsx`,
                 import.meta.glob('./pages/**/*.tsx'),
             ).then((module: unknown) => {
-                const page = (module as { default: { layout?: Layout | Layout[] } }).default;
+                const page = (
+                    module as { default: { layout?: Layout | Layout[] } }
+                ).default;
                 const OldLayout = page.layout;
 
                 page.layout = (page: React.ReactNode) => {
-                    const layout = OldLayout ? (Array.isArray(OldLayout) ? 
-                        OldLayout.reduceRight((acc, LayoutFunc: Layout) => LayoutFunc(acc), page) : 
-                        OldLayout(page)) : page;
-                    return <AuthProvider><FilterProvider>{layout}</FilterProvider></AuthProvider>;
+                    const layout = OldLayout
+                        ? Array.isArray(OldLayout)
+                            ? OldLayout.reduceRight(
+                                  (acc, LayoutFunc: Layout) => LayoutFunc(acc),
+                                  page,
+                              )
+                            : OldLayout(page)
+                        : page;
+                    return (
+                        <AuthProvider>
+                            <FilterProvider>{layout}</FilterProvider>
+                        </AuthProvider>
+                    );
                 };
 
                 return module;

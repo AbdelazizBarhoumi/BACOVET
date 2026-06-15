@@ -105,4 +105,56 @@ class AlertService
 
         return array_slice($alerts, 0, 10);
     }
+
+    public function generateProductionAlerts(): array
+    {
+        $today = Carbon::today();
+        $alerts = [];
+
+        // Global efficiency
+        $avgEff = DB::table('efficience_chaine')
+            ->whereDate('date', $today)
+            ->avg('efficience_pct');
+
+        if ($avgEff !== null) {
+            if ($avgEff < 70) {
+                $alerts[] = [
+                    'type' => 'EFFICIENCE CRITIQUE',
+                    'level' => 'red',
+                    'message' => 'Efficience moyenne: '.round($avgEff, 1).'% — Seuil 70% non atteint',
+                ];
+            } elseif ($avgEff < 85) {
+                $alerts[] = [
+                    'type' => 'EFFICIENCE EN BAISSE',
+                    'level' => 'orange',
+                    'message' => 'Efficience moyenne: '.round($avgEff, 1)."% — Sous l'objectif de 85%",
+                ];
+            }
+        }
+
+        // Lost time per chain
+        $lostTimeByChain = DB::table('lost_time')
+            ->whereDate('date', $today)
+            ->groupBy('chaine')
+            ->select('chaine', DB::raw('SUM(minutes_perdues) as total_minutes'))
+            ->get();
+
+        foreach ($lostTimeByChain as $row) {
+            if ($row->total_minutes > 30) {
+                $alerts[] = [
+                    'type' => "{$row->chaine} — Arrêt prolongé",
+                    'level' => 'red',
+                    'message' => "Temps perdu: {$row->total_minutes} min — Dépassement critique du seuil 30 min",
+                ];
+            } elseif ($row->total_minutes > 10) {
+                $alerts[] = [
+                    'type' => "{$row->chaine} — Arrêt suspect",
+                    'level' => 'orange',
+                    'message' => "Temps perdu: {$row->total_minutes} min — Vigilance au-dessus de 10 min",
+                ];
+            }
+        }
+
+        return array_slice($alerts, 0, 10);
+    }
 }

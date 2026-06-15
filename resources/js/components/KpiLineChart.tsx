@@ -1,5 +1,5 @@
 const KpiLineChart = () => {
-  return <div>KpiLineChart</div>;
+    return <div>KpiLineChart</div>;
 };
 
 export default KpiLineChart;
