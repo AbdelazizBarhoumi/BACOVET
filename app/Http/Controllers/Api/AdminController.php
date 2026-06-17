@@ -4,14 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\LtTransportConfig;
 use App\Models\ManualKpiValue;
 use App\Models\NovacityJob;
 use App\Models\Screen;
+use App\Models\SyncLog;
 use App\Models\SyncSetting;
 use App\Models\User;
+use App\Models\UserSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AdminController extends Controller
@@ -391,7 +398,7 @@ class AdminController extends Controller
 
     public function listKpiValues(): JsonResponse
     {
-        $kpis = ManualKpiValue::all()->map(fn ($kpi) => [
+        $kpis = ManualKpiValue::with('updater')->get()->map(fn ($kpi) => [
             'kpi_key' => $kpi->kpi_key,
             'kpi_label' => $kpi->kpi_label,
             'value' => $kpi->value,
@@ -402,5 +409,256 @@ class AdminController extends Controller
         ]);
 
         return response()->json($kpis);
+    }
+
+    // ── Pipeline Supervision ───────────────────────────────────────────────
+
+    public function pipelineStatus(): JsonResponse
+    {
+        $sources = [
+            'Novacity SDT' => ['SDT', 'Item', 'LostTime', 'Taging', 'Wip', 'Efficience', 'Avancement', 'QteProduite', 'ProduitIndividuel', 'Presence'],
+            'Novacity QCM' => ['QCM', 'Defect', 'CheckPass', 'Rover', 'Reject', 'Pieces', 'Inline', 'Endline', 'Bundling'],
+            'Novacity DIVATEX' => ['DIVATEX', 'MP', 'Stock', 'Colis', 'Expedition', 'VueStock', 'DivaStock', 'Mouvement', 'Conteneur'],
+            'Google Drive' => ['Drive', 'Spreadsheet', 'Print', 'CareLabel', 'Accessoires', 'Compo', 'DotHot', 'Development', 'Gammes', 'Cotation'],
+            'GPRO Consulting' => ['GPRO', 'Chain', 'Article', 'OfDates', 'Suivi'],
+        ];
+
+        $result = [];
+        foreach ($sources as $name => $keywords) {
+            $query = SyncLog::query();
+            $query->where(function ($q) use ($keywords) {
+                foreach ($keywords as $kw) {
+                    $q->orWhere('job_class', 'LIKE', "%{$kw}%");
+                    $q->orWhere('table_name', 'LIKE', "%{$kw}%");
+                }
+            });
+
+            $lastLog = $query->orderByDesc('executed_at')->first();
+            $recentErrors = SyncLog::query()
+                ->where('status', 'error')
+                ->where(function ($q) use ($keywords) {
+                    foreach ($keywords as $kw) {
+                        $q->orWhere('job_class', 'LIKE', "%{$kw}%");
+                        $q->orWhere('table_name', 'LIKE', "%{$kw}%");
+                    }
+                })
+                ->orderByDesc('executed_at')
+                ->first();
+
+            $totalRows = SyncLog::query()
+                ->where(function ($q) use ($keywords) {
+                    foreach ($keywords as $kw) {
+                        $q->orWhere('job_class', 'LIKE', "%{$kw}%");
+                        $q->orWhere('table_name', 'LIKE', "%{$kw}%");
+                    }
+                })
+                ->sum('rows_synced');
+
+            $status = 'offline';
+            if ($lastLog) {
+                $status = $lastLog->status === 'ok' ? 'online' : 'degraded';
+                if ($recentErrors && $recentErrors->executed_at->gt($lastLog->executed_at)) {
+                    $status = 'degraded';
+                }
+            }
+
+            $result[] = [
+                'name' => $name,
+                'status' => $status,
+                'last_sync' => $lastLog?->executed_at?->toISOString(),
+                'total_rows' => (int) $totalRows,
+                'last_error' => $recentErrors?->message,
+            ];
+        }
+
+        return response()->json($result);
+    }
+
+    public function pipelineLogs(Request $request): JsonResponse
+    {
+        $limit = $request->integer('limit', 100);
+
+        $logs = SyncLog::orderByDesc('executed_at')
+            ->limit($limit)
+            ->get();
+
+        return response()->json($logs);
+    }
+
+    public function triggerSync(Request $request, string $source): JsonResponse
+    {
+        $commandMap = [
+            'novacity-sdt' => 'sync:quality',
+            'novacity-qcm' => 'sync:quality',
+            'novacity-divatex' => 'sync:logistics',
+            'google-drive' => 'sync:drive',
+            'gpro-consulting' => 'sync:gpro',
+        ];
+
+        $command = $commandMap[$source] ?? null;
+        if (! $command) {
+            return response()->json(['message' => "Source inconnue: {$source}"], 422);
+        }
+
+        Process::run("php artisan {$command} --force");
+
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'action_type' => 'SYSTEM',
+            'message' => "Sync manuel déclenché: {$source} ({$command})",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json(['message' => "Sync {$source} déclenché avec succès."]);
+    }
+
+    // ── User Management Enhancements ───────────────────────────────────────
+
+    public function resetPassword(Request $request, int $id): JsonResponse
+    {
+        $user = User::findOrFail($id);
+        $tempPassword = Str::random(12);
+        $user->update(['password' => Hash::make($tempPassword)]);
+
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'action_type' => 'USER',
+            'message' => "Mot de passe réinitialisé pour: {$user->name} ({$user->email})",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'Mot de passe réinitialisé.',
+            'temp_password' => $tempPassword,
+        ]);
+    }
+
+    public function userSessions(int $id): JsonResponse
+    {
+        $user = User::findOrFail($id);
+        $sessions = UserSession::where('user_id', $user->id)
+            ->orderByDesc('last_activity')
+            ->get();
+
+        return response()->json($sessions);
+    }
+
+    // ── Screen Enhancements ────────────────────────────────────────────────
+
+    public function screenPing(Request $request, string $code): JsonResponse
+    {
+        $screen = Screen::where('screen_code', $code)->first();
+        if (! $screen) {
+            return response()->json(['message' => 'Écran inconnu.'], 404);
+        }
+
+        $screen->update([
+            'last_ping' => now(),
+            'status' => 'online',
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function screenConfig(string $code): JsonResponse
+    {
+        $screen = Screen::where('screen_code', $code)->first();
+        if (! $screen) {
+            return response()->json(['message' => 'Écran inconnu.'], 404);
+        }
+
+        return response()->json([
+            'assigned_page' => $screen->assigned_page,
+            'name' => $screen->name,
+            'location' => $screen->location,
+        ]);
+    }
+
+    // ── Audit Export ───────────────────────────────────────────────────────
+
+    public function exportAuditLogs(Request $request): JsonResponse
+    {
+        $query = AuditLog::with('user')->orderByDesc('created_at');
+
+        if ($request->filled('user')) {
+            $query->where('user_id', $request->user);
+        }
+        if ($request->filled('action')) {
+            $query->where('action_type', $request->action);
+        }
+        if ($request->filled('from')) {
+            $query->where('created_at', '>=', $request->from);
+        }
+        if ($request->filled('to')) {
+            $query->where('created_at', '<=', $request->to);
+        }
+
+        $logs = $query->get();
+
+        $csv = "Timestamp,User,Action,Message,IP\n";
+        foreach ($logs as $log) {
+            $csv .= implode(',', [
+                $log->created_at?->format('Y-m-d H:i:s') ?? '',
+                $log->user?->name ?? 'System',
+                $log->action_type,
+                '"'.str_replace('"', '""', $log->message).'"',
+                $log->ip_address ?? '',
+            ])."\n";
+        }
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="audit_logs_'.now()->format('Y-m-d').'.csv"',
+        ]);
+    }
+
+    // ── Lead Time Configuration ────────────────────────────────────────────
+
+    public function ltConfig(): JsonResponse
+    {
+        return response()->json(LtTransportConfig::with('updater')->get());
+    }
+
+    public function updateLtConfig(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'lt_transport_jours' => 'required|integer|min:0',
+            'strh_jours' => 'required|integer|min:0',
+        ]);
+
+        $config = LtTransportConfig::findOrFail($id);
+        $config->update([
+            'lt_transport_jours' => $validated['lt_transport_jours'],
+            'strh_jours' => $validated['strh_jours'],
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return response()->json(['message' => 'Configuration LT mise à jour.', 'config' => $config->fresh('updater')]);
+    }
+
+    public function createLtConfig(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'destination' => 'required|string|max:100|unique:lt_transport_config,destination',
+            'lt_transport_jours' => 'required|integer|min:0',
+            'strh_jours' => 'required|integer|min:0',
+        ]);
+
+        $config = LtTransportConfig::create([
+            'destination' => $validated['destination'],
+            'lt_transport_jours' => $validated['lt_transport_jours'],
+            'strh_jours' => $validated['strh_jours'],
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return response()->json(['message' => 'Destination ajoutée.', 'config' => $config->load('updater')]);
+    }
+
+    public function deleteLtConfig(Request $request, int $id): JsonResponse
+    {
+        $config = LtTransportConfig::findOrFail($id);
+        $config->delete();
+
+        return response()->json(['message' => 'Destination supprimée.']);
     }
 }

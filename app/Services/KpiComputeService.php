@@ -6,7 +6,7 @@ class KpiComputeService
 {
     public function computeRft(?int $ok, ?int $produced): ?float
     {
-        if (! $produced || $produced === 0) {
+        if (! $produced || $produced == 0) {
             return null;
         }
         $pct = ($ok / $produced) * 100;
@@ -117,7 +117,7 @@ class KpiComputeService
      */
     public function wipStatus(?int $wip, ?float $cadence): string
     {
-        if ($wip === null || $cadence === null || $cadence === 0.0) {
+        if ($wip === null || $cadence === null || $cadence == 0) {
             return 'grey';
         }
         if ($wip <= $cadence * 0.5) {

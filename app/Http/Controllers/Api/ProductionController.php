@@ -53,7 +53,6 @@ class ProductionController extends Controller
 
     /**
      * F-REQ-211-215: Chain Info (Route: chain-info)
-     * strictly aligned with CDC — returns N/A for missing GPRO consulting fields.
      */
     public function chainInfo(Request $request): JsonResponse
     {
@@ -84,8 +83,13 @@ class ProductionController extends Controller
             return [$item->code_mp => $item->designation];
         });
 
+        // GPRO data (now available via mock)
+        $gproArticle = DB::table('sync_gpro_article_master')->get()->keyBy('code_article');
+        $gproPlanning = DB::table('sync_gpro_chain_planning')->get()->groupBy('chaine');
+        $gproOfDates = DB::table('sync_gpro_of_dates')->get()->groupBy('of_numero');
+
         $missingFields = [];
-        $chains = $wip->map(function ($w, $ch) use ($eff, $quality, $depart, $fabrication, $stock, &$missingFields) {
+        $chains = $wip->map(function ($w, $ch) use ($eff, $quality, $depart, $fabrication, $stock, $gproArticle, $gproPlanning, $gproOfDates, &$missingFields) {
             $e = $eff->get($ch);
             $q = $quality->get($ch)?->avg('defect_pct');
 
@@ -104,18 +108,23 @@ class ProductionController extends Controller
                 $designation = $stock->first(fn ($val, $key) => str_ends_with($key, $articleSuffix)) ?? 'N/A';
             }
 
-            // Objectif: Use quantity launched on this chain from qte_depart_chaine_article_of
-            $objectif = $d?->quantite ?? 'N/A';
+            // Objectif: Use GPRO chain planning if available, else quantity launched
+            $gproPlan = $gproPlanning->get($ch)?->first();
+            $objectif = $gproPlan?->objectif_journalier ?? $d?->quantite ?? 'N/A';
 
-            // CDC strict: these fields require GPRO consulting which is NOT in current API
-            $sam = 'N/A';
-            $sot = 'N/A';
-            $effectif = 'N/A';
-            $ehd = 'N/A';
+            // GPRO data for SAM, SOT, Effectif, EHD
+            $gproArt = $gproArticle->get($article);
+            $sam = $gproArt?->sam_min ?? 'N/A';
+            $sot = $gproArt?->sot_min ?? 'N/A';
+            $effectif = $gproArt?->effectif_requis ?? $gproPlan?->objectif_journalier ?? 'N/A';
 
-            $missingFields[] = 'SAM (F-REQ-211)';
-            $missingFields[] = 'SOT (F-REQ-212)';
-            $missingFields[] = 'Effectif (F-REQ-213)';
+            // EHD from GPRO of_dates
+            $ofDates = $gproOfDates->get($of)?->first();
+            $ehd = $ofDates?->ehd ?? 'N/A';
+
+            if ($sam === 'N/A') $missingFields[] = 'SAM (F-REQ-211)';
+            if ($sot === 'N/A') $missingFields[] = 'SOT (F-REQ-212)';
+            if ($effectif === 'N/A') $missingFields[] = 'Effectif (F-REQ-213)';
 
             return [
                 'id' => $ch,
@@ -144,18 +153,6 @@ class ProductionController extends Controller
             'data' => $chains,
             'metadata' => [
                 'missing_fields' => array_unique($missingFields),
-                'note' => 'Note de conformité CDC — État des données : '.
-                          '1. SAM (211), SOT (212), Effectif (213) et EHD (308) : source GPRO Consulting (B-04) non connectée. '.
-                          '2. Designation (215) récupérée via vue_stock (§2.3). '.
-                          '3. Objectif (312) basé sur quantité lancée via qte_depart_chaine (§3.13) — source réelle = GPRO. '.
-                          '4. minutes_presence (§3.7) et minutes_produites (§3.8) sont des endpoints séparés — sync manquant. '.
-                          '5. OWE (204) bloqué par absence de SAM (B-04 GPRO Consulting).',
-                'cdc_traceability' => [
-                    'sam' => ['id' => 'F-REQ-211', 'label' => 'SAM', 'blocker' => 'Source GPRO Consulting manquante'],
-                    'sot' => ['id' => 'F-REQ-212', 'label' => 'SOT', 'blocker' => 'Source GPRO Consulting manquante'],
-                    'effectif' => ['id' => 'F-REQ-213', 'label' => 'Effectifs', 'blocker' => 'Source GPRO Consulting manquante'],
-                    'ehd' => ['id' => 'F-REQ-308', 'label' => 'EHD', 'blocker' => 'Source GPRO Consulting manquante'],
-                ],
             ],
         ]);
     }
@@ -203,8 +200,31 @@ class ProductionController extends Controller
             $brBundling = round(($bundlingRow->bundle_reject / $bundlingRow->bundle_inspected) * 100, 1);
         }
 
-        // 5. OWE (N/A)
-        $oweValue = 'N/A';
+        // 5. OWE — compute from efficacy * SOT / SAM (if GPRO data available)
+        $oweValue = null;
+        $oweStatus = 'grey';
+        if ($stats->avg_eff) {
+            // Get average SOT/SAM ratio from GPRO article master
+            // First try filtering by current OFs, fallback to all articles
+            $currentOfs = DB::table('qte_depart_chaine_article_of')
+                ->select('article')->distinct()->pluck('article');
+
+            $gproQuery = DB::table('sync_gpro_article_master')
+                ->where('sam_min', '>', 0);
+            if ($currentOfs->isNotEmpty()) {
+                $gproQuery->whereIn('code_article', $currentOfs);
+            }
+            $gproArts = $gproQuery->get();
+
+            if ($gproArts->isNotEmpty()) {
+                $avgSam = $gproArts->avg('sam_min');
+                $avgSot = $gproArts->avg('sot_min');
+                if ($avgSam > 0) {
+                    $oweValue = round(($stats->avg_eff * $avgSot) / $avgSam, 1);
+                    $oweStatus = $this->kpi->oweStatus($oweValue);
+                }
+            }
+        }
 
         $wipQuery = DB::table('wip_chaine');
         $this->applyFilters($wipQuery, $request);
@@ -221,8 +241,8 @@ class ProductionController extends Controller
                 'target' => '≥ 85%',
             ],
             'avg_owe' => [
-                'value' => null,
-                'status' => 'blocked',
+                'value' => $oweValue,
+                'status' => $oweStatus,
                 'target' => '≥ 70%',
             ],
             'rft_production' => [
@@ -251,12 +271,9 @@ class ProductionController extends Controller
                 'target' => '≤ 5%',
             ],
             'br_print' => [
-                'value' => null,
-                'status' => 'pending',
+                'value' => $this->computeBrPrint($today),
+                'status' => $this->kpi->brStatus($this->computeBrPrint($today)),
                 'target' => '≤ 5%',
-            ],
-            'metadata' => [
-                'note' => 'Statut des KPI Qualité : BR Print en attente de connecteur Google Drive.',
             ],
         ]);
     }
@@ -271,6 +288,19 @@ class ProductionController extends Controller
             ->first();
 
         return $row && $row->avg_defect_pct !== null ? round($row->avg_defect_pct, 1) : null;
+    }
+
+    private function computeBrPrint(Carbon $today): ?float
+    {
+        $row = DB::table('sync_drive_br_print')
+            ->whereDate('date', $today)
+            ->first();
+
+        if (! $row || $row->nb_inspections == 0) {
+            return null;
+        }
+
+        return round(($row->nb_rejets / $row->nb_inspections) * 100, 1);
     }
 
     /**
@@ -599,7 +629,12 @@ class ProductionController extends Controller
 
         $data = $eng->map(function ($e, $ch) use ($plan) {
             $p = $plan->get($ch)?->qte ?? 0;
-            $cadence = 100; // Placeholder cadence (pcs/day)
+            // Read cadence from GPRO chain planning if available
+            $gproPlan = DB::table('sync_gpro_chain_planning')
+                ->where('chaine', $ch)
+                ->latest('synced_at')
+                ->first();
+            $cadence = $gproPlan?->cadence_hebdo ?? self::DEFAULT_CADENCE_HEBDO;
 
             $diff = max(0, $e->qte - $p);
             $jours = $cadence > 0 ? round($diff / $cadence, 1) : 0;
@@ -771,5 +806,55 @@ class ProductionController extends Controller
     public function alerts(Request $request): JsonResponse
     {
         return response()->json(['alerts' => $this->alerts->generateProductionAlerts()]);
+    }
+
+    // ── Methods KPIs (F-REQ-216, 218, 219) ─────────────────────────────────
+
+    public function tauxArchivage(): JsonResponse
+    {
+        $total = DB::table('sync_gpro_suivi_paquets')->where('est_solde', true)->count();
+        $archive = DB::table('sync_gpro_suivi_paquets')
+            ->where('est_solde', true)->where('est_archive', true)->count();
+        $pct = $total > 0 ? round(($archive / $total) * 100, 1) : null;
+
+        return response()->json([
+            'value' => $pct,
+            'target' => 85,
+            'total' => $total,
+            'archived' => $archive,
+            'status' => $pct !== null ? $this->kpi->efficienceStatus($pct) : 'grey',
+        ]);
+    }
+
+    public function respectTempsEstime(): JsonResponse
+    {
+        $rows = DB::table('sync_drive_cotation')->get();
+        $total = $rows->count();
+        $respected = $rows->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
+        $pct = $total > 0 ? round(($respected / $total) * 100, 1) : null;
+
+        return response()->json([
+            'value' => $pct,
+            'target' => 90,
+            'total' => $total,
+            'respected' => $respected,
+            'status' => $pct !== null ? ($pct >= 90 ? 'green' : ($pct >= 80 ? 'orange' : 'red')) : 'grey',
+        ]);
+    }
+
+    public function tauxTempsAcceptes(): JsonResponse
+    {
+        $rows = DB::table('sync_drive_gammes')->get();
+        $totalGammes = $rows->sum('nb_gammes_total');
+        $accepted = $rows->sum('nb_gammes_acceptees_v1');
+        $pct = $totalGammes > 0 ? round(($accepted / $totalGammes) * 100, 1) : null;
+
+        return response()->json([
+            'value' => $pct,
+            'target' => 80,
+            'total' => $totalGammes,
+            'accepted' => $accepted,
+            'status' => $pct !== null ? ($pct >= 80 ? 'green' : ($pct >= 60 ? 'orange' : 'red')) : 'grey',
+        ]);
     }
 }

@@ -50,6 +50,9 @@ import {
     fetchSerigraphieRejets,
     fetchInlineEndline,
     fetchDepartage,
+    fetchTauxArchivage,
+    fetchRespectTempsEstime,
+    fetchTauxTempsAcceptes,
     type ChainInfo,
     type ProductionKpis,
     type GaugeItem,
@@ -58,7 +61,6 @@ import {
     type TrendItem,
     type TopOpItem,
     type WipAreaItem,
-    type ApiMetadata,
 } from '@/services/productionApi';
 import type { BreakdownData, BreakdownRow } from '../types/production';
 
@@ -101,6 +103,11 @@ type ExtraData = {
     seriRejets?: BreakdownRow[];
     seriRejetsMetadata?: Record<string, unknown>;
     inlineEndlineData?: BreakdownRow[];
+
+    // Methods KPIs (F-REQ-216, 218, 219)
+    tauxArchivage?: { value: number | null; status: string; target: number } | null;
+    respectTempsEstime?: { value: number | null; status: string; target: number } | null;
+    tauxTempsAcceptes?: { value: number | null; status: string; target: number } | null;
 };
 
 // ─── Misc helpers ─────────────────────────────────────────────────────────────
@@ -123,44 +130,6 @@ function KpiCardSkeleton() {
     );
 }
 
-function RequirementAlerts({ metadata }: { metadata: ApiMetadata | null }) {
-    if (!metadata?.cdc_traceability && !metadata?.note) return null;
-
-    return (
-        <div className="mb-4 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
-            <div className="flex items-start gap-3">
-                <InfoIcon className="mt-0.5 h-5 w-5 text-blue-500" />
-                <div className="w-full space-y-1">
-                    <div className="text-xs font-bold tracking-widest text-blue-500 uppercase">
-                        Note de conformité CDC
-                    </div>
-
-                    {metadata.note && (
-                        <div className="mb-2 border-b border-blue-500/10 pb-2 text-[10px] leading-relaxed font-semibold text-foreground">
-                            {metadata.note}
-                        </div>
-                    )}
-
-                    <div className="font-mono text-[10px] leading-relaxed text-muted-foreground">
-                        {metadata.cdc_traceability &&
-                            Object.entries(metadata.cdc_traceability).map(
-                                ([key, item]) => (
-                                    <div key={key}>
-                                        <span className="font-bold text-foreground">
-                                            [{item.id}] {item.label}:
-                                        </span>{' '}
-                                        Manquant dans l'API Novacity. Blocker:{' '}
-                                        {item.blocker}
-                                    </div>
-                                ),
-                            )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── ProductionTab ─────────────────────────────────────────────────────────────
 
 function ProductionTab({
@@ -178,7 +147,6 @@ function ProductionTab({
     wipData,
     extraData,
     loading,
-    metadata,
     onKpiClick,
 }: {
     workshop: 'confection' | 'coupe' | 'serigraphie';
@@ -195,7 +163,6 @@ function ProductionTab({
     wipData: WipAreaItem[];
     extraData: ExtraData;
     loading: boolean;
-    metadata: ApiMetadata | null;
     onKpiClick: (key: ProductionKpiKey) => void;
 }) {
     if (loading && !kpis) {
@@ -244,8 +211,6 @@ function ProductionTab({
 
     return (
         <>
-            <RequirementAlerts metadata={metadata} />
-
             {/* Row 1 — Chain info cards */}
             {workshop !== 'serigraphie' && (
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -444,6 +409,33 @@ function ProductionTab({
                     source="google_drive"
                     isLoading={loading}
                     onClick={() => onKpiClick('br_print')}
+                />
+                <ProductionKpiCard
+                    label="Taux Archivage ·216"
+                    value={extraData.tauxArchivage?.value ?? 'N/A'}
+                    target={`≥ ${extraData.tauxArchivage?.target ?? 85}%`}
+                    status={extraData.tauxArchivage?.status as Status}
+                    source="GPRO Suivi Paquets"
+                    isLoading={loading}
+                    onClick={() => onKpiClick('taux_archivage')}
+                />
+                <ProductionKpiCard
+                    label="Respect Temps Estimé ·218"
+                    value={extraData.respectTempsEstime?.value !== null ? `${extraData.respectTempsEstime?.value}%` : 'N/A'}
+                    target={`≥ ${extraData.respectTempsEstime?.target ?? 90}%`}
+                    status={extraData.respectTempsEstime?.status as Status}
+                    source="Drive Cotation"
+                    isLoading={loading}
+                    onClick={() => onKpiClick('respect_temps_estime')}
+                />
+                <ProductionKpiCard
+                    label="Temps Acceptés V1 ·219"
+                    value={extraData.tauxTempsAcceptes?.value !== null ? `${extraData.tauxTempsAcceptes?.value}%` : 'N/A'}
+                    target={`≥ ${extraData.tauxTempsAcceptes?.target ?? 80}%`}
+                    status={extraData.tauxTempsAcceptes?.status as Status}
+                    source="Drive Gammes"
+                    isLoading={loading}
+                    onClick={() => onKpiClick('temps_acceptes')}
                 />
             </div>
 
@@ -1237,7 +1229,6 @@ function Legend2({ color, label }: { color: string; label: string }) {
 export default function ProductionPage() {
     const [chains, setChains] = useState<ChainInfo[]>([]);
     const [kpis, setKpis] = useState<ProductionKpis | null>(null);
-    const [metadata, setMetadata] = useState<ApiMetadata | null>(null);
     const [gauges, setGauges] = useState<GaugeItem[]>([]);
     const [wipGauges, setWipGauges] = useState<GaugeItem[]>([]);
     const [stoppages, setStoppages] = useState<StoppageItem[]>([]);
@@ -1263,6 +1254,11 @@ export default function ProductionPage() {
     const [seriRejets, setSeriRejets] = useState<BreakdownRow[]>([]);
     const [seriRejetsMetadata, setSeriRejetsMetadata] = useState<Record<string, unknown> | undefined>(undefined);
     const [inlineEndlineData, setInlineEndlineData] = useState<BreakdownRow[]>([]);
+
+    // Methods KPIs (F-REQ-216, 218, 219)
+    const [tauxArchivage, setTauxArchivage] = useState<{ value: number | null; status: string; target: number } | null>(null);
+    const [respectTempsEstime, setRespectTempsEstime] = useState<{ value: number | null; status: string; target: number } | null>(null);
+    const [tauxTempsAcceptes, setTauxTempsAcceptes] = useState<{ value: number | null; status: string; target: number } | null>(null);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -1295,6 +1291,9 @@ export default function ProductionPage() {
             const promises: Promise<unknown>[] = [
                 fetchProductionChainInfo(filters),
                 fetchProductionKpis(filters),
+                fetchTauxArchivage(),
+                fetchRespectTempsEstime(),
+                fetchTauxTempsAcceptes(),
             ];
 
             if (activeTab !== 'serigraphie') {
@@ -1342,10 +1341,16 @@ export default function ProductionPage() {
             const chainsRes = nextResult();
             const kpisRes = nextResult();
             if (chainsRes.status === 'fulfilled') {
-                setChains((chainsRes.value as { data: ChainInfo[]; metadata: ApiMetadata }).data);
-                setMetadata((chainsRes.value as { data: ChainInfo[]; metadata: ApiMetadata }).metadata);
+                setChains((chainsRes.value as { data: ChainInfo[] }).data);
             }
             if (kpisRes.status === 'fulfilled') setKpis(kpisRes.value as ProductionKpis);
+
+            const archivageRes = nextResult();
+            const respectRes = nextResult();
+            const tempsAcceptesRes = nextResult();
+            if (archivageRes.status === 'fulfilled') setTauxArchivage(archivageRes.value as { value: number | null; status: string; target: number });
+            if (respectRes.status === 'fulfilled') setRespectTempsEstime(respectRes.value as { value: number | null; status: string; target: number });
+            if (tempsAcceptesRes.status === 'fulfilled') setTauxTempsAcceptes(tempsAcceptesRes.value as { value: number | null; status: string; target: number });
 
             if (activeTab !== 'serigraphie') {
                 const gaugesRes     = nextResult();
@@ -1492,7 +1497,6 @@ export default function ProductionPage() {
         allOps,
         wipData,
         loading,
-        metadata,
         onKpiClick: handleKpiClick,
     } as const;
 
@@ -1546,37 +1550,50 @@ export default function ProductionPage() {
                         <ProductionTab
                             {...sharedTabProps}
                             workshop="confection"
-                            extraData={{ departage, vignettes, coupeChainCoverage }}
-                        />
-                    </TabsContent>
+                            extraData={{
+                                departage,
+                                vignettes,
+                                coupeChainCoverage,
+                                tauxArchivage,
+                                respectTempsEstime,
+                                tauxTempsAcceptes
+                            }}
+                            />
+                            </TabsContent>
 
-                    <TabsContent value="coupe">
-                        <ProductionTab
+                            <TabsContent value="coupe">
+                            <ProductionTab
                             {...sharedTabProps}
                             workshop="coupe"
-                            extraData={{ 
-                                coupeCoverage, 
-                                coupeChainCoverage, 
-                                coupeTagging, 
-                                coupeOfs, 
-                                coupeQteDepartage, 
-                                inlineEndlineData 
+                            extraData={{
+                                coupeCoverage,
+                                coupeChainCoverage,
+                                coupeTagging,
+                                coupeOfs,
+                                coupeQteDepartage,
+                                inlineEndlineData,
+                                tauxArchivage,
+                                respectTempsEstime,
+                                tauxTempsAcceptes
                             }}
-                        />
-                    </TabsContent>
+                            />
+                            </TabsContent>
 
-                    <TabsContent value="serigraphie">
-                        <ProductionTab
+                            <TabsContent value="serigraphie">
+                            <ProductionTab
                             {...sharedTabProps}
                             workshop="serigraphie"
-                            extraData={{ 
+                            extraData={{
                                 serigraphieCoverage,
                                 seriFlux,
                                 seriRejets,
                                 seriRejetsMetadata,
-                                inlineEndlineData
+                                inlineEndlineData,
+                                tauxArchivage,
+                                respectTempsEstime,
+                                tauxTempsAcceptes
                             }}
-                        />
+                            />
                     </TabsContent>
                 </Tabs>
 
@@ -1593,6 +1610,11 @@ export default function ProductionPage() {
             <ProductionKpiDetailModal
                 kpiKey={selectedKpi}
                 kpiData={kpis}
+                extraData={{
+                    tauxArchivage,
+                    respectTempsEstime,
+                    tauxTempsAcceptes,
+                }}
                 breakdownData={breakdownData}
                 onClose={() => setSelectedKpi(null)}
             />

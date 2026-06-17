@@ -52,16 +52,8 @@ async function apiGet<T>(
 
 export type DataResponse<T> = { data: T[] };
 
-export type CdcTraceability = {
-    id: string;
-    label: string;
-    blocker: string;
-};
-
 export type ApiMetadata = {
     missing_fields?: string[];
-    note?: string;
-    cdc_traceability?: Record<string, CdcTraceability>;
 };
 
 export type ProductionKpis = {
@@ -227,4 +219,22 @@ export const fetchSerigraphieRejets = (filters?: Record<string, string>) =>
 
 export const fetchInlineEndline = (filters?: Record<string, string>) =>
     apiGet<DataResponse<Record<string, unknown>>>('/inline-endline', filters);
+
+// ── Methods KPIs (F-REQ-216, 218, 219) ─────────────────────────────────────
+
+export type MethodsKpiResponse = {
+    value: number | null;
+    target: number;
+    total: number;
+    status: string;
+};
+
+export const fetchTauxArchivage = () =>
+    apiGet<MethodsKpiResponse & { archived: number }>('/taux-archivage');
+
+export const fetchRespectTempsEstime = () =>
+    apiGet<MethodsKpiResponse & { respected: number }>('/respect-temps-estime');
+
+export const fetchTauxTempsAcceptes = () =>
+    apiGet<MethodsKpiResponse & { accepted: number }>('/taux-temps-acceptes');
 

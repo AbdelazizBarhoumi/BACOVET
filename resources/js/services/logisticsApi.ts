@@ -128,6 +128,8 @@ export type OfItem = {
     quantite_realisee: number;
     statut: string;
     colis: ColisDetail[];
+    bpd: string | null;
+    ehd: string | null;
     epd: string | null;
 };
 
@@ -199,6 +201,7 @@ export type ReliabilityCategory = {
 };
 
 export type StockReliability = {
+    global: ReliabilityCategory;
     accessoires: ReliabilityCategory;
     tissu: ReliabilityCategory;
     fg: ReliabilityCategory;
@@ -221,3 +224,12 @@ export const fetchLogisticsStockSearch = (params?: Record<string, string>) =>
     apiGet<StockSearchResult>('/stock-search', params);
 export const fetchLogisticsStockReliability = () =>
     apiGet<StockReliability>('/stock-reliability');
+
+export type DotHotTrendItem = {
+    month: string;
+    type: string;
+    pct: number | null;
+};
+
+export const fetchLogisticsDotHotTrend = () =>
+    apiGet<{ data: DotHotTrendItem[] }>('/dot-hot-trend');

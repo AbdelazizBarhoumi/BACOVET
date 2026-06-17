@@ -20,9 +20,15 @@ import {
     fetchMethodesKpis,
     fetchMethodesTaggingChart,
     fetchMethodesDetailTable,
+    fetchArchivageDetail,
+    fetchRespectTempsDetail,
+    fetchTempsAcceptesDetail,
     type MethodsKpisResponse,
     type TaggingChartItem,
     type DetailTableItem,
+    type ArchivageDetailItem,
+    type RespectTempsDetailItem,
+    type TempsAcceptesDetailItem,
     type KpiStatus,
 } from '@/services/methodsApi';
 
@@ -170,6 +176,9 @@ export default function MethodsPage() {
     const [kpis, setKpis] = useState<MethodsKpisResponse | null>(null);
     const [tagging, setTagging] = useState<TaggingChartItem[]>([]);
     const [details, setDetails] = useState<DetailTableItem[]>([]);
+    const [archivageDetail, setArchivageDetail] = useState<ArchivageDetailItem[]>([]);
+    const [respectTempsDetail, setRespectTempsDetail] = useState<RespectTempsDetailItem[]>([]);
+    const [tempsAcceptesDetail, setTempsAcceptesDetail] = useState<TempsAcceptesDetailItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -183,17 +192,23 @@ export default function MethodsPage() {
     const fetchData = useCallback(async () => {
         const methodFilters = ligneFilter ? { chaine: ligneFilter } : undefined;
         try {
-            const [k, t, d] = await Promise.allSettled([
+            const [k, t, d, arch, resp, temps] = await Promise.allSettled([
                 fetchMethodesKpis(methodFilters),
                 fetchMethodesTaggingChart(methodFilters),
                 fetchMethodesDetailTable(),
+                fetchArchivageDetail(),
+                fetchRespectTempsDetail(),
+                fetchTempsAcceptesDetail(),
             ]);
 
             if (k.status === 'fulfilled') setKpis(k.value);
             if (t.status === 'fulfilled') setTagging(t.value.data);
             if (d.status === 'fulfilled') setDetails(d.value.data);
+            if (arch.status === 'fulfilled') setArchivageDetail(arch.value.data);
+            if (resp.status === 'fulfilled') setRespectTempsDetail(resp.value.data);
+            if (temps.status === 'fulfilled') setTempsAcceptesDetail(temps.value.data);
 
-            const anyFailed = [k, t, d].some((r) => r.status === 'rejected');
+            const anyFailed = [k, t, d, arch, resp, temps].some((r) => r.status === 'rejected');
             if (anyFailed && k.status === 'rejected') {
                 setError('Erreur de connexion au serveur');
             } else {

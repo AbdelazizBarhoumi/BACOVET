@@ -211,6 +211,7 @@ export default function KpiDetailModal({
         br_accessoires_dda: 'br_accessoires_dda',
         br_compo_jour: 'br_compo_jour',
         br_compo_dda: 'br_compo_dda',
+        br_commande: 'br_commande',
     };
 
     const card = kpiData[kpiKeyMap[kpiKey]] as KpiCardType | undefined;
@@ -372,9 +373,9 @@ export default function KpiDetailModal({
                                 </div>
                                 <div className="truncate">
                                     <span className="text-muted-foreground">
-                                        Endpoint:
+                                        Source:
                                     </span>{' '}
-                                    {config.source.novacityEndpoint || 'N/A'}
+                                    {config.source.novacityEndpoint || config.source.mysqlTable || 'N/A'}
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground">
@@ -396,44 +397,35 @@ export default function KpiDetailModal({
                         </div>
                     </div>
 
-                    {/* Breakdown & Viz */}
-                    {isLive ? (
+                    {/* Breakdown & Viz — only show if at least one is available */}
+                    {isLive && (config.breakdownAvailable || config.trendAvailable) ? (
                         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-                            <div className="md:col-span-2">
-                                <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                    Ventilation par étape
-                                </h4>
-                                {config.breakdownAvailable ? (
+                            {config.breakdownAvailable && (
+                                <div className="md:col-span-2">
+                                    <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                        Ventilation par étape
+                                    </h4>
                                     <BrBreakdownTable
                                         brChartData={brChartData}
                                         target={config.target.value}
                                     />
-                                ) : (
-                                    <div className="text-xs text-muted-foreground italic">
-                                        Ventilation non disponible pour ce KPI.
-                                    </div>
-                                )}
-                            </div>
-                            <div className="border-l border-border pl-6">
-                                <h4 className="mb-2 text-center text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                    Tendance
-                                </h4>
-                                <div className="flex h-full min-h-[100px] items-center justify-center">
-                                    {config.trendAvailable &&
-                                    trendValues.length >= 2 ? (
+                                </div>
+                            )}
+                            {config.trendAvailable && trendValues.length >= 2 && (
+                                <div className="border-l border-border pl-6">
+                                    <h4 className="mb-2 text-center text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                        Tendance
+                                    </h4>
+                                    <div className="flex h-full min-h-[100px] items-center justify-center">
                                         <Sparkline
                                             data={trendValues}
                                             status={cardStatus}
                                         />
-                                    ) : (
-                                        <div className="text-[10px] text-muted-foreground italic">
-                                            Non disponible
-                                        </div>
-                                    )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
-                    ) : (
+                    ) : isLive ? null : (
                         <div className="mb-6 rounded-md border border-dashed border-border bg-secondary/30 p-4">
                             <div className="flex items-start gap-3">
                                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

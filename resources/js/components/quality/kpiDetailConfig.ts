@@ -13,7 +13,8 @@ export type KpiKey =
     | 'br_accessoires_jour'
     | 'br_accessoires_dda'
     | 'br_compo_jour'
-    | 'br_compo_dda';
+    | 'br_compo_dda'
+    | 'br_commande';
 
 export interface KpiDetailConfig {
     id: string;
@@ -50,15 +51,15 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         id: '101',
         label: 'BR CGL — Inspection Commande (Annuel)',
         description:
-            "Taux de pièces rejetées lors du contrôle final de commande depuis le début de l'année",
+            "Taux de pièces rejetées lors du contrôle final de commande depuis le début de l'année. Source: Google Drive Inspection Commande.",
         formula: {
             numerator: {
                 label: 'Nombre de rejets inspection commande annuel',
-                field: 'br_reject_year',
+                field: 'nb_rejets',
             },
             denominator: {
                 label: "Nombre d'inspections commande annuel",
-                field: 'br_inspected_year',
+                field: 'nb_inspections',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -68,19 +69,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'En attente — données DIVA non exposées',
         },
         source: {
-            system: 'DIVA',
+            system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
-            frequency: 'En attente',
-            status: 'pending',
+            mysqlTable: 'sync_drive_inspection_commande',
+            frequency: '4×/jour',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'annee',
-        exportFields: ['kpi_id', 'valeur', 'cible', 'statut'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_gtd_jour: {
@@ -178,15 +178,14 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Activation requise — requêtes Novacity inactives (B-01)',
         },
         source: {
             system: 'QCM',
             novacityEndpoint:
-                'rejets_suite_inspection_paquet_jour_en_cours + inspections_paquet_jour_en_cours (inactif)',
+                'rejets_suite_inspection_paquet_jour_en_cours + inspections_paquet_jour_en_cours',
             mysqlTable: 'rejets_inspection_paquet (period=jour)',
             frequency: 'Temps réel',
-            status: 'inactive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
@@ -288,14 +287,13 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Activation requise — requêtes Novacity inactives (B-01)',
         },
         source: {
             system: 'QCM',
-            novacityEndpoint: 'inactif',
+            novacityEndpoint: 'rejets_suite_inspection_paquet_annee_en_cours + inspections_paquet_annee_en_cours',
             mysqlTable: 'rejets_inspection_paquet (period=annee)',
             frequency: 'Temps réel',
-            status: 'inactive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
@@ -325,19 +323,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — mise à jour 4×/jour, non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_print',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'jour',
-        exportFields: ['date', 'br_print_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_print_dda: {
@@ -362,19 +359,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_print',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'annee',
-        exportFields: ['date', 'br_print_dda_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_care_label_jour: {
@@ -392,19 +388,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_care_label',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'jour',
-        exportFields: ['date', 'br_care_label_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_care_label_dda: {
@@ -426,19 +421,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_care_label',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'annee',
-        exportFields: ['date', 'br_care_label_dda_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_accessoires_jour: {
@@ -456,19 +450,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_accessoires',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'jour',
-        exportFields: ['date', 'br_accessoires_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_accessoires_dda: {
@@ -490,19 +483,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_accessoires',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'annee',
-        exportFields: ['date', 'br_accessoires_dda_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_compo_jour: {
@@ -520,19 +512,18 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_compo',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'jour',
-        exportFields: ['date', 'br_compo_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 
     br_compo_dda: {
@@ -554,18 +545,50 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             green: '< 4%',
             orange: '4% – 5%',
             red: '> 5%',
-            grey: 'Source Google Drive — non connectée',
         },
         source: {
             system: 'DRIVE',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_br_compo',
             frequency: '4×/jour',
-            status: 'google_drive',
+            status: 'live',
         },
         breakdownAvailable: false,
         trendAvailable: false,
         period: 'annee',
-        exportFields: ['date', 'br_compo_dda_pct'],
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
+    },
+
+    br_commande: {
+        id: '101',
+        label: 'BR Commande — Inspection Commande (Annuel)',
+        description:
+            "Taux de rejet annuel des commandes inspectées. Source: Google Drive Inspection Commande.",
+        formula: {
+            numerator: { label: 'Rejets inspection commande (année)', field: 'nb_rejets' },
+            denominator: {
+                label: 'Inspections commande (année)',
+                field: 'nb_inspections',
+            },
+            multiplier: 100,
+            resultUnit: '%',
+        },
+        target: { value: 5, operator: '<=' },
+        thresholds: {
+            green: '< 4%',
+            orange: '4% – 5%',
+            red: '> 5%',
+        },
+        source: {
+            system: 'DRIVE',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_drive_inspection_commande',
+            frequency: '4×/jour',
+            status: 'live',
+        },
+        breakdownAvailable: false,
+        trendAvailable: false,
+        period: 'annee',
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
     },
 };

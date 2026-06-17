@@ -31,6 +31,7 @@ import {
     fetchQualityAnnualTrend,
     fetchQualityParetoRft,
     fetchQualityParetoInspection,
+    fetchQualityParetoFg,
     type QualityKpis,
     type BrChartItem,
     type QpTeam,
@@ -298,6 +299,7 @@ export default function QualityPage() {
     const [trend, setTrend] = useState<AnnualTrendItem[]>([]);
     const [paretoRft, setParetoRft] = useState<ParetoItem[]>([]);
     const [paretoInsp, setParetoInsp] = useState<ParetoItem[]>([]);
+    const [paretoFg, setParetoFg] = useState<ParetoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -315,6 +317,7 @@ export default function QualityPage() {
                 trendRes,
                 paretoRftRes,
                 paretoInspRes,
+                paretoFgRes,
             ] = await Promise.allSettled([
                 fetchQualityKpis(filters),
                 fetchQualityBrChart(filters),
@@ -322,6 +325,7 @@ export default function QualityPage() {
                 fetchQualityAnnualTrend(),
                 fetchQualityParetoRft(filters),
                 fetchQualityParetoInspection(filters),
+                fetchQualityParetoFg(filters),
             ]);
 
             if (kpisRes.status === 'fulfilled') setKpis(kpisRes.value);
@@ -351,6 +355,8 @@ export default function QualityPage() {
                 setParetoRft(paretoRftRes.value.data);
             if (paretoInspRes.status === 'fulfilled')
                 setParetoInsp(paretoInspRes.value.data);
+            if (paretoFgRes.status === 'fulfilled')
+                setParetoFg(paretoFgRes.value.data);
 
             const anyFailed = [
                 kpisRes,
@@ -359,6 +365,7 @@ export default function QualityPage() {
                 trendRes,
                 paretoRftRes,
                 paretoInspRes,
+                paretoFgRes,
             ].some((r) => r.status === 'rejected');
 
             if (anyFailed && kpisRes.status === 'rejected') {
@@ -460,6 +467,11 @@ export default function QualityPage() {
               {
                   kpi: 'BR Compo DDA',
                   valeur: kpis.br_compo_dda.value ?? '—',
+                  cible: '≤ 5%',
+              },
+              {
+                  kpi: 'BR Commande (DDA)',
+                  valeur: kpis.br_commande.value ?? '—',
                   cible: '≤ 5%',
               },
               ...brChart.map((s) => ({
@@ -679,6 +691,19 @@ export default function QualityPage() {
                         onClick={() => setOpenModal('br_compo_dda')}
                         isLoading={loading}
                     />
+                    <KpiCard
+                        label="BR Commande (DDA)"
+                        kpi={
+                            kpis?.br_commande ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="Google Drive"
+                        onClick={() => setOpenModal('br_commande')}
+                        isLoading={loading}
+                    />
                 </div>
 
                 {/* Section B — BR Bar Chart + Alerts */}
@@ -833,6 +858,12 @@ export default function QualityPage() {
                             >
                                 Pareto Inspection Colis
                             </TabsTrigger>
+                            <TabsTrigger
+                                value="fg"
+                                className="text-xs tracking-wider uppercase"
+                            >
+                                Pareto FG (Colis)
+                            </TabsTrigger>
                         </TabsList>
                         <TabsContent value="rft">
                             {paretoRft.length === 0 ? (
@@ -937,6 +968,62 @@ export default function QualityPage() {
                                             fill="var(--chart-4)"
                                             radius={[0, 4, 4, 0]}
                                             name="Occurrences"
+                                        />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="cumulative"
+                                            stroke="var(--destructive)"
+                                            strokeWidth={2}
+                                            dot={{ r: 3 }}
+                                            name="Cumulé %"
+                                            xAxisId={0}
+                                        />
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                            )}
+                        </TabsContent>
+                        <TabsContent value="fg">
+                            {paretoFg.length === 0 ? (
+                                <div className="flex h-[260px] items-center justify-center text-xs text-muted-foreground">
+                                    {loading
+                                        ? 'Chargement...'
+                                        : 'Aucune donnée disponible'}
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height={260}>
+                                    <ComposedChart
+                                        data={paretoFg}
+                                        layout="vertical"
+                                    >
+                                        <CartesianGrid
+                                            stroke="var(--border)"
+                                            strokeDasharray="3 3"
+                                        />
+                                        <XAxis
+                                            type="number"
+                                            tick={{
+                                                fill: 'var(--muted-foreground)',
+                                                fontSize: 11,
+                                            }}
+                                        />
+                                        <YAxis
+                                            dataKey="label"
+                                            type="category"
+                                            width={130}
+                                            tick={{
+                                                fill: 'var(--muted-foreground)',
+                                                fontSize: 11,
+                                            }}
+                                        />
+                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Legend
+                                            wrapperStyle={{ fontSize: 11 }}
+                                        />
+                                        <Bar
+                                            dataKey="value"
+                                            fill="var(--chart-2)"
+                                            radius={[0, 4, 4, 0]}
+                                            name="Rejets FG"
                                         />
                                         <Line
                                             type="monotone"

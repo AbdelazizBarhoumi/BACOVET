@@ -15,12 +15,15 @@ class MethodesController extends Controller
         $today = Carbon::today();
         $chaine = request()->query('chaine');
 
-        // F-REQ-216: Taux d'Archivage — from "Base suivi production" (Blocker B-05)
-        $archivage = ['value' => null, 'blocker' => 'B-05', 'target' => 85, 'frequency' => 'Journalier'];
+        // F-REQ-216: Taux d'Archivage — from sync_gpro_suivi_paquets
+        $suiviData = DB::table('sync_gpro_suivi_paquets')->get();
+        $totalSold = $suiviData->where('est_solde', true)->count();
+        $archived = $suiviData->where('est_solde', true)->where('est_archive', true)->count();
+        $archivagePct = $totalSold > 0 ? round(($archived / $totalSold) * 100, 1) : null;
+        $archivageStatus = $archivagePct !== null ? ($archivagePct >= 85 ? 'green' : ($archivagePct >= 70 ? 'orange' : 'red')) : 'grey';
 
-        // F-REQ-217: Taux de Fiabilité des Données — compute from taging_reel
-        $taggingQuery = DB::table('taging_reel')
-            ->whereDate('date', $today);
+        // F-REQ-217: Taux de Fiabilité des Données — from taging_reel
+        $taggingQuery = DB::table('taging_reel')->whereDate('date', $today);
         if ($chaine && $chaine !== 'TOUS') {
             $taggingQuery->where('chaine', $chaine);
         }
@@ -39,14 +42,38 @@ class MethodesController extends Controller
             default => 'red',
         };
 
-        // F-REQ-218: Respect Temps Estimé — manual KPI
-        $f218 = ManualKpiValue::where('kpi_key', 'f_req_218')->first();
+        // F-REQ-218: Respect Temps Estimé — from sync_drive_cotation
+        $cotationData = DB::table('sync_drive_cotation')->get();
+        $totalCotation = $cotationData->count();
+        $respected = $cotationData->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
+        $respectPct = $totalCotation > 0 ? round(($respected / $totalCotation) * 100, 1) : null;
+        $respectStatus = $respectPct !== null ? ($respectPct >= 90 ? 'green' : ($respectPct >= 80 ? 'orange' : 'red')) : 'grey';
 
-        // F-REQ-219: Temps Acceptés 1ère Version — manual KPI
-        $f219 = ManualKpiValue::where('kpi_key', 'f_req_219')->first();
+        // F-REQ-219: Temps Acceptés 1ère Version — from sync_drive_gammes
+        $gammesData = DB::table('sync_drive_gammes')->get();
+        $totalGammes = $gammesData->sum('nb_gammes_total');
+        $accepted = $gammesData->sum('nb_gammes_acceptees_v1');
+        $acceptPct = $totalGammes > 0 ? round(($accepted / $totalGammes) * 100, 1) : null;
+        $acceptStatus = $acceptPct !== null ? ($acceptPct >= 80 ? 'green' : ($acceptPct >= 70 ? 'orange' : 'red')) : 'grey';
+
+        // Synced at — latest from any source
+        $syncedAt = collect([
+            DB::table('sync_gpro_suivi_paquets')->orderByDesc('synced_at')->value('synced_at'),
+            DB::table('taging_reel')->orderByDesc('synced_at')->value('synced_at'),
+            DB::table('sync_drive_cotation')->orderByDesc('synced_at')->value('synced_at'),
+            DB::table('sync_drive_gammes')->orderByDesc('synced_at')->value('synced_at'),
+        ])->filter()->max();
 
         return response()->json([
-            'f_req_216' => $archivage,
+            'f_req_216' => [
+                'value' => $archivagePct,
+                'status' => $archivageStatus,
+                'target' => 85,
+                'frequency' => 'Journalier',
+                'source' => 'sync_gpro_suivi_paquets',
+                'numerator' => $archived,
+                'denominator' => $totalSold,
+            ],
             'f_req_217' => [
                 'value' => $fiabilite,
                 'status' => $fiabiliteStatus,
@@ -62,24 +89,24 @@ class MethodesController extends Controller
                 ],
             ],
             'f_req_218' => [
-                'value' => $f218?->value,
-                'numerator' => $f218?->numerator,
-                'denominator' => $f218?->denominator,
+                'value' => $respectPct,
+                'status' => $respectStatus,
                 'target' => 90,
                 'frequency' => 'Au démarrage',
-                'updated_at' => $f218?->updated_at?->toISOString(),
+                'source' => 'sync_drive_cotation',
+                'numerator' => $respected,
+                'denominator' => $totalCotation,
             ],
             'f_req_219' => [
-                'value' => $f219?->value,
-                'numerator' => $f219?->numerator,
-                'denominator' => $f219?->denominator,
+                'value' => $acceptPct,
+                'status' => $acceptStatus,
                 'target' => 80,
                 'frequency' => 'Déchiffrage',
-                'updated_at' => $f219?->updated_at?->toISOString(),
+                'source' => 'sync_drive_gammes',
+                'numerator' => $accepted,
+                'denominator' => $totalGammes,
             ],
-            'synced_at' => DB::table('taging_reel')
-                ->orderByDesc('synced_at')
-                ->value('synced_at'),
+            'synced_at' => $syncedAt,
         ]);
     }
 
@@ -122,32 +149,41 @@ class MethodesController extends Controller
 
     private function getKpiSummary(): array
     {
-        $today = Carbon::today();
-        $chaine = request()->query('chaine');
+        // F-REQ-216 — from sync_gpro_suivi_paquets
+        $suiviData = DB::table('sync_gpro_suivi_paquets')->get();
+        $totalSold = $suiviData->where('est_solde', true)->count();
+        $archived = $suiviData->where('est_solde', true)->where('est_archive', true)->count();
+        $archivagePct = $totalSold > 0 ? round(($archived / $totalSold) * 100, 1) : null;
 
-        // F-REQ-217
-        $taggingQuery = DB::table('taging_reel')->whereDate('date', $today);
-        if ($chaine && $chaine !== 'TOUS') {
-            $taggingQuery->where('chaine', $chaine);
-        }
-        $taggingRows = $taggingQuery->get();
+        // F-REQ-217 — from taging_reel
+        $today = Carbon::today();
+        $taggingRows = DB::table('taging_reel')->whereDate('date', $today)->get();
         $fiabilite = null;
         if ($taggingRows->isNotEmpty()) {
             $avgAbsEcart = $taggingRows->avg(fn ($r) => abs($r->ecart_pct ?? 0));
             $fiabilite = round(100 - $avgAbsEcart, 1);
         }
 
-        $f218 = ManualKpiValue::where('kpi_key', 'f_req_218')->first();
-        $f219 = ManualKpiValue::where('kpi_key', 'f_req_219')->first();
+        // F-REQ-218 — from sync_drive_cotation
+        $cotationData = DB::table('sync_drive_cotation')->get();
+        $totalCotation = $cotationData->count();
+        $respected = $cotationData->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
+        $respectPct = $totalCotation > 0 ? round(($respected / $totalCotation) * 100, 1) : null;
+
+        // F-REQ-219 — from sync_drive_gammes
+        $gammesData = DB::table('sync_drive_gammes')->get();
+        $totalGammes = $gammesData->sum('nb_gammes_total');
+        $accepted = $gammesData->sum('nb_gammes_acceptees_v1');
+        $acceptPct = $totalGammes > 0 ? round(($accepted / $totalGammes) * 100, 1) : null;
 
         return [
             [
                 'id' => 'F-REQ-216',
                 'indicateur' => "Taux d'archivage suivi paquets",
-                'valeur' => null,
+                'valeur' => $archivagePct !== null ? $archivagePct.'%' : '—',
                 'cible' => '85%',
                 'frequence' => 'Journalier',
-                'blocker' => 'B-05',
+                'status' => $archivagePct !== null ? ($archivagePct >= 85 ? 'green' : ($archivagePct >= 70 ? 'orange' : 'red')) : 'grey',
             ],
             [
                 'id' => 'F-REQ-217',
@@ -155,30 +191,65 @@ class MethodesController extends Controller
                 'valeur' => $fiabilite !== null ? $fiabilite.'%' : '—',
                 'cible' => '95%',
                 'frequence' => 'Journalier',
-                'status' => $fiabilite !== null
-                    ? ($fiabilite >= 95 ? 'green' : ($fiabilite >= 90 ? 'orange' : 'red'))
-                    : 'grey',
+                'status' => $fiabilite !== null ? ($fiabilite >= 95 ? 'green' : ($fiabilite >= 90 ? 'orange' : 'red')) : 'grey',
             ],
             [
                 'id' => 'F-REQ-218',
                 'indicateur' => 'Respect temps estimé',
-                'valeur' => $f218?->value !== null ? $f218->value.'%' : '—',
+                'valeur' => $respectPct !== null ? $respectPct.'%' : '—',
                 'cible' => '90%',
                 'frequence' => 'Au démarrage',
-                'status' => $f218?->value !== null
-                    ? ($f218->value >= 90 ? 'green' : ($f218->value >= 85 ? 'orange' : 'red'))
-                    : 'grey',
+                'status' => $respectPct !== null ? ($respectPct >= 90 ? 'green' : ($respectPct >= 80 ? 'orange' : 'red')) : 'grey',
             ],
             [
                 'id' => 'F-REQ-219',
                 'indicateur' => 'Temps acceptés 1ère version',
-                'valeur' => $f219?->value !== null ? $f219->value.'%' : '—',
+                'valeur' => $acceptPct !== null ? $acceptPct.'%' : '—',
                 'cible' => '≥80%',
                 'frequence' => 'Déchiffrage',
-                'status' => $f219?->value !== null
-                    ? ($f219->value >= 80 ? 'green' : ($f219->value >= 70 ? 'orange' : 'red'))
-                    : 'grey',
+                'status' => $acceptPct !== null ? ($acceptPct >= 80 ? 'green' : ($acceptPct >= 70 ? 'orange' : 'red')) : 'grey',
             ],
         ];
+    }
+
+    // ── Detail Endpoints ─────────────────────────────────────────────────────
+
+    public function archivageDetail(): JsonResponse
+    {
+        $data = DB::table('sync_gpro_suivi_paquets')
+            ->select('of_numero', 'est_solde', 'est_archive')
+            ->get();
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function respectTempsDetail(): JsonResponse
+    {
+        $data = DB::table('sync_drive_cotation')
+            ->select('article', 'temps_cotation_min', 'temps_production_min')
+            ->get()
+            ->map(fn ($r) => [
+                'article' => $r->article,
+                'temps_cotation' => $r->temps_cotation_min,
+                'temps_production' => $r->temps_production_min,
+                'difference' => round($r->temps_production_min - $r->temps_cotation_min, 2),
+                'est_respecte' => $r->temps_cotation_min <= $r->temps_production_min,
+            ]);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function tempsAcceptesDetail(): JsonResponse
+    {
+        $data = DB::table('sync_drive_gammes')
+            ->get()
+            ->map(fn ($r) => [
+                'article' => $r->article,
+                'nb_gammes_total' => $r->nb_gammes_total,
+                'nb_acceptees_v1' => $r->nb_gammes_acceptees_v1,
+                'taux_pct' => $r->nb_gammes_total > 0 ? round(($r->nb_gammes_acceptees_v1 / $r->nb_gammes_total) * 100, 1) : null,
+            ]);
+
+        return response()->json(['data' => $data]);
     }
 }

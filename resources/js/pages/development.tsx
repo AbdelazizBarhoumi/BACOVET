@@ -18,8 +18,12 @@ import { Panel, TrafficBadge } from '@/components/widgets';
 import {
     fetchDevelopmentKpis,
     fetchDevelopmentTrend,
+    fetchLeadTimeDev,
+    fetchDevelopmentTrendRft,
+    fetchDevelopmentTrendLivraison,
     type DevelopmentKpisResponse,
     type TrendItem,
+    type LeadTimeDevResponse,
 } from '@/services/developmentApi';
 
 const tooltipStyle = {
@@ -163,6 +167,9 @@ function KpiCard({
 export default function DevPage() {
     const [kpis, setKpis] = useState<DevelopmentKpisResponse | null>(null);
     const [trend, setTrend] = useState<TrendItem[]>([]);
+    const [trendRft, setTrendRft] = useState<TrendItem[]>([]);
+    const [trendLivraison, setTrendLivraison] = useState<TrendItem[]>([]);
+    const [leadTime, setLeadTime] = useState<LeadTimeDevResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -172,15 +179,21 @@ export default function DevPage() {
 
     const fetchData = useCallback(async () => {
         try {
-            const [k, t] = await Promise.allSettled([
+            const [k, t, lt, rftT, livT] = await Promise.allSettled([
                 fetchDevelopmentKpis(),
                 fetchDevelopmentTrend(),
+                fetchLeadTimeDev(),
+                fetchDevelopmentTrendRft(),
+                fetchDevelopmentTrendLivraison(),
             ]);
 
             if (k.status === 'fulfilled') setKpis(k.value);
             if (t.status === 'fulfilled') setTrend(t.value.data);
+            if (lt.status === 'fulfilled') setLeadTime(lt.value);
+            if (rftT.status === 'fulfilled') setTrendRft(rftT.value.data);
+            if (livT.status === 'fulfilled') setTrendLivraison(livT.value.data);
 
-            const anyFailed = [k, t].some((r) => r.status === 'rejected');
+            const anyFailed = [k, t, lt, rftT, livT].some((r) => r.status === 'rejected');
             if (anyFailed && k.status === 'rejected') {
                 setError('Erreur de connexion au serveur');
             } else {
@@ -206,11 +219,18 @@ export default function DevPage() {
     const k = kpis?.kpis;
 
     const exportRows = k
-        ? Object.entries(k).map(([key, v]) => ({
-              kpi: `${KPI_META[key]?.fReq ?? key} ${KPI_META[key]?.label ?? key}`,
-              valeur: v.value !== null ? `${v.value}%` : '—',
-              cible: `${v.target_kind === 'min' ? '≥' : '≤'}${v.target}%`,
-          }))
+        ? [
+            ...Object.entries(k).map(([key, v]) => ({
+                kpi: `${KPI_META[key]?.fReq ?? key} ${KPI_META[key]?.label ?? key}`,
+                valeur: v.value !== null ? `${v.value}%` : '—',
+                cible: `${v.target_kind === 'min' ? '≥' : '≤'}${v.target}%`,
+            })),
+            ...(leadTime ? [{
+                kpi: '334 Lead Time Dev',
+                valeur: leadTime.value !== null ? `${leadTime.value}j` : '—',
+                cible: '≤0j',
+            }] : []),
+        ]
         : [];
 
     return (
@@ -322,6 +342,67 @@ export default function DevPage() {
                     </div>
                 </div>
 
+                {/* Row 3 — Lead Time Dev + Trend Charts */}
+                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {/* Lead Time Dev */}
+                    <div className="space-y-2">
+                        <KpiCard
+                            label="Lead Time Dev"
+                            fReq="334"
+                            value={leadTime?.value ?? null}
+                            status={leadTime?.status ?? 'grey'}
+                            target={0}
+                            targetKind="max"
+                            source={leadTime?.source ?? 'sync_drive_development'}
+                            freq="Mensuel"
+                            isLoading={loading}
+                        />
+                        <div className="font-mono text-[9px] text-muted-foreground">
+                            Délai moyen livraison (jours) — source: sync_drive_development
+                        </div>
+                    </div>
+
+                    {/* RFT Trend */}
+                    <Panel title="Tendance RFT Développement" className="min-h-[200px]">
+                        {trendRft.length === 0 ? (
+                            <div className="flex h-[160px] items-center justify-center text-xs text-muted-foreground">
+                                {loading ? 'Chargement...' : 'Aucune donnée'}
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height={160}>
+                                <LineChart data={trendRft}>
+                                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                                    <XAxis dataKey="mois" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
+                                    <YAxis domain={[80, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
+                                    <Tooltip contentStyle={tooltipStyle} />
+                                    <ReferenceLine y={95} stroke="var(--success)" strokeDasharray="4 4" label={{ value: 'Cible 95%', fill: 'var(--success)', fontSize: 10 }} />
+                                    <Line type="monotone" dataKey="valeur" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} name="RFT %" />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        )}
+                    </Panel>
+
+                    {/* Livraison Trend */}
+                    <Panel title="Tendance Respect Livraison" className="min-h-[200px]">
+                        {trendLivraison.length === 0 ? (
+                            <div className="flex h-[160px] items-center justify-center text-xs text-muted-foreground">
+                                {loading ? 'Chargement...' : 'Aucune donnée'}
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height={160}>
+                                <LineChart data={trendLivraison}>
+                                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                                    <XAxis dataKey="mois" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
+                                    <YAxis domain={[80, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
+                                    <Tooltip contentStyle={tooltipStyle} />
+                                    <ReferenceLine y={95} stroke="var(--success)" strokeDasharray="4 4" label={{ value: 'Cible 95%', fill: 'var(--success)', fontSize: 10 }} />
+                                    <Line type="monotone" dataKey="valeur" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} name="Livraison %" />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        )}
+                    </Panel>
+                </div>
+
                 {/* Detail Table */}
                 {loading ? (
                     <Panel title="Détails des Indicateurs Mensuels (Série 350)">
@@ -372,6 +453,20 @@ export default function DevPage() {
                                         </tr>
                                     );
                                 })}
+                                {leadTime && (
+                                    <tr className="border-b border-border/50">
+                                        <td className="py-2 text-primary">334</td>
+                                        <td>Lead Time Dev</td>
+                                        <td className="text-right tabular-nums">
+                                            {leadTime.value !== null ? `${leadTime.value}j` : '—'}
+                                        </td>
+                                        <td className="text-right text-muted-foreground">{'≤'}0j</td>
+                                        <td className="text-right text-muted-foreground">{leadTime.frequency}</td>
+                                        <td className="text-right">
+                                            <TrafficBadge status={leadTime.status} />
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </Panel>
