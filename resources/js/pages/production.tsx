@@ -217,6 +217,14 @@ function ProductionTab({
         seriRejetsMetadata = null,
     } = extraData;
 
+    const [coupeOfsPage, setCoupeOfsPage] = useState(1);
+    const COUPE_OFS_PAGE_SIZE = 20;
+    const coupeOfsTotalPages = Math.max(1, Math.ceil(coupeOfs.length / COUPE_OFS_PAGE_SIZE));
+    const coupeOfsPageItems = useMemo(() => {
+        const start = (coupeOfsPage - 1) * COUPE_OFS_PAGE_SIZE;
+        return coupeOfs.slice(start, start + COUPE_OFS_PAGE_SIZE);
+    }, [coupeOfs, coupeOfsPage]);
+
     return (
         <>
             {/* Row 1 — Chain info cards */}
@@ -1097,7 +1105,7 @@ function ProductionTab({
                         </div>
                     </Panel>
 
-                    <Panel title="Liste des OF actifs (Coupe) ·302">
+                    <Panel title={`Liste des OF actifs (Coupe) ·${coupeOfs.length}`}>
                         <div className="overflow-x-auto">
                             <table className="w-full font-mono text-xs">
                                 <thead>
@@ -1111,8 +1119,8 @@ function ProductionTab({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {coupeOfs.length > 0 ? (
-                                        coupeOfs.map((o, i) => (
+                                    {coupeOfsPageItems.length > 0 ? (
+                                        coupeOfsPageItems.map((o, i) => (
                                             <tr key={i} className="border-b border-border/50">
                                                 <td className="py-2 font-bold">{o.of_number}</td>
                                                 <td
@@ -1159,6 +1167,71 @@ function ProductionTab({
                                 </tbody>
                             </table>
                         </div>
+                        {coupeOfs.length > COUPE_OFS_PAGE_SIZE && (
+                            <div className="mt-3 flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">
+                                    {coupeOfsPage} / {coupeOfsTotalPages} pages
+                                </span>
+                                <Pagination>
+                                    <PaginationContent>
+                                        <PaginationItem>
+                                            <PaginationPrevious
+                                                href="#"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setCoupeOfsPage((p) => Math.max(1, p - 1));
+                                                }}
+                                                className={coupeOfsPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                                            />
+                                        </PaginationItem>
+                                        {Array.from({ length: coupeOfsTotalPages }, (_, i) => i + 1)
+                                            .filter((p) => {
+                                                if (coupeOfsTotalPages <= 7) return true;
+                                                if (p === 1 || p === coupeOfsTotalPages) return true;
+                                                if (Math.abs(p - coupeOfsPage) <= 1) return true;
+                                                return false;
+                                            })
+                                            .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                                                if (idx > 0 && typeof arr[idx - 1] === 'number' && p - (arr[idx - 1] as number) > 1) {
+                                                    acc.push('ellipsis');
+                                                }
+                                                acc.push(p);
+                                                return acc;
+                                            }, [])
+                                            .map((item, idx) =>
+                                                item === 'ellipsis' ? (
+                                                    <PaginationItem key={`e-${idx}`}>
+                                                        <span className="px-2 text-muted-foreground">...</span>
+                                                    </PaginationItem>
+                                                ) : (
+                                                    <PaginationItem key={item}>
+                                                        <PaginationLink
+                                                            href="#"
+                                                            isActive={item === coupeOfsPage}
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setCoupeOfsPage(item);
+                                                            }}
+                                                        >
+                                                            {item}
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                ),
+                                            )}
+                                        <PaginationItem>
+                                            <PaginationNext
+                                                href="#"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setCoupeOfsPage((p) => Math.min(coupeOfsTotalPages, p + 1));
+                                                }}
+                                                className={coupeOfsPage === coupeOfsTotalPages ? 'pointer-events-none opacity-50' : ''}
+                                            />
+                                        </PaginationItem>
+                                    </PaginationContent>
+                                </Pagination>
+                            </div>
+                        )}
                     </Panel>
 
                     <Panel title="Quantité Départage par OF ·303" className="lg:col-span-2">
@@ -1377,8 +1450,6 @@ export default function ProductionPage() {
     // Sprint 5 - Coupe & Sérigraphie
     const [coupeTagging, setCoupeTagging] = useState<BreakdownRow[]>([]);
     const [coupeOfs, setCoupeOfs] = useState<BreakdownRow[]>([]);
-    const [coupeOfsPage, setCoupeOfsPage] = useState(1);
-    const COUPE_OFS_PAGE_SIZE = 20;
     const [coupeQteDepartage, setCoupeQteDepartage] = useState<BreakdownRow[]>([]);
     const [seriFlux, setSeriFlux] = useState<BreakdownRow[]>([]);
     const [seriRejets, setSeriRejets] = useState<BreakdownRow[]>([]);
@@ -1401,12 +1472,6 @@ export default function ProductionPage() {
     const [selectedKpi, setSelectedKpi] = useState<ProductionKpiKey | null>(null);
     const [breakdownData, setBreakdownData] = useState<BreakdownData | null>(null);
 
-    const coupeOfsTotalPages = Math.max(1, Math.ceil(coupeOfs.length / COUPE_OFS_PAGE_SIZE));
-    const coupeOfsPageItems = useMemo(() => {
-        const start = (coupeOfsPage - 1) * COUPE_OFS_PAGE_SIZE;
-        return coupeOfs.slice(start, start + COUPE_OFS_PAGE_SIZE);
-    }, [coupeOfs, coupeOfsPage]);
-
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { getFilterParams } = useFilters();
     const { url } = usePage();
@@ -1419,10 +1484,6 @@ export default function ProductionPage() {
             setActiveTab(tab);
         }
     }, [url]);
-
-    useEffect(() => {
-        setCoupeOfsPage(1);
-    }, [coupeOfs.length]);
 
     const fetchData = useCallback(async () => {
         try {

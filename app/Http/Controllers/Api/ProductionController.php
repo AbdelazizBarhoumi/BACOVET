@@ -580,9 +580,25 @@ class ProductionController extends Controller
 
     public function inlineEndline(Request $request): JsonResponse
     {
-        $data = DB::table('inline_vs_endline_comparison')->whereDate('log_date', Carbon::today())->get();
+        $rows = DB::table('inline_vs_endline_comparison')
+            ->whereDate('log_date', Carbon::today())
+            ->get();
 
-        return response()->json(['data' => $data]);
+        $grouped = [];
+        foreach ($rows as $row) {
+            $chaine = $row->shortname;
+            if (!isset($grouped[$chaine])) {
+                $grouped[$chaine] = ['chaine' => $chaine, 'inline' => 0, 'endline' => 0];
+            }
+            $opera = strtolower(trim($row->opera));
+            if ($opera === 'inline') {
+                $grouped[$chaine]['inline'] += $row->count;
+            } elseif ($opera === 'endline') {
+                $grouped[$chaine]['endline'] += $row->count;
+            }
+        }
+
+        return response()->json(['data' => array_values($grouped)]);
     }
 
     // ── COUPE ────────────────────────────────────────────────────────────

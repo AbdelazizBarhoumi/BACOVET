@@ -103,6 +103,10 @@ class SyncService
             'employe' => 'employee_id', 'date' => 'date',
             'minutes_presence' => 'minutes_presence', 'chaine' => 'chaine',
         ],
+        'minutes_produites' => [
+            'date' => 'date', 'chaine' => 'chaine',
+            'minutes_produites' => 'minutes_produites',
+        ],
         'temps_operation' => [
             'operation' => 'operation_code', 'temps_standard_s' => 'temps_standard_s',
             'temps_reel_s' => 'temps_reel_s', 'ecart_pct' => 'ecart_pct',
@@ -201,7 +205,8 @@ class SyncService
         'lost_time' => ['date', 'chaine', 'motif'],
         'qte_produite' => ['date', 'chaine', 'shift_code'],
         'qte_produit_individuel_jour' => ['date', 'employee_id', 'chaine', 'poste'],
-        'minutes_presence' => ['date', 'chaine', 'shift_code'],
+        'minutes_presence' => ['date', 'employee_id', 'chaine'],
+        'minutes_produites' => ['date', 'chaine'],
         'temps_operation' => ['date', 'operation_code', 'chaine'],
         'item_trx_enq' => ['transaction_id'],
         'of_fabrication' => ['of_number'],

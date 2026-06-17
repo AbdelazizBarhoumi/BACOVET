@@ -232,35 +232,18 @@ export const clearAuditLogs = async () => {
     });
 };
 
-// ─── Pipeline Supervision ─────────────────────────────────────────────────
+// ─── Pipeline Supervision ───────────────────────────────────────────────────
 
 export type PipelineStatus = {
     name: string;
-    status: 'online' | 'offline' | 'degraded';
+    status: 'online' | 'degraded' | 'offline';
     last_sync: string | null;
     total_rows: number;
     last_error: string | null;
 };
 
-export type PipelineLogEntry = {
-    id: number;
-    job_class: string;
-    table_name: string | null;
-    rows_synced: number;
-    status: 'ok' | 'error' | 'skipped';
-    message: string | null;
-    duration_ms: number;
-    executed_at: string;
-};
-
 export const fetchPipelineStatus = async (): Promise<PipelineStatus[]> => {
     return fetchWithToken(`${BASE_URL}/admin/pipeline/status`);
-};
-
-export const fetchPipelineLogs = async (
-    limit = 100,
-): Promise<PipelineLogEntry[]> => {
-    return fetchWithToken(`${BASE_URL}/admin/pipeline/logs?limit=${limit}`);
 };
 
 export const triggerSourceSync = async (source: string) => {
@@ -272,96 +255,5 @@ export const triggerSourceSync = async (source: string) => {
 export const triggerAllSync = async () => {
     return fetchWithToken(`${BASE_URL}/admin/pipeline/sync-all`, {
         method: 'POST',
-    });
-};
-
-// ─── User Enhancements ────────────────────────────────────────────────────
-
-export const resetUserPassword = async (userId: string | number) => {
-    return fetchWithToken(`${BASE_URL}/admin/users/${userId}/reset-password`, {
-        method: 'POST',
-    });
-};
-
-export const fetchUserSessions = async (userId: string | number) => {
-    return fetchWithToken(`${BASE_URL}/admin/users/${userId}/sessions`);
-};
-
-// ─── Audit Export ─────────────────────────────────────────────────────────
-
-export const exportAuditLogs = async (filters?: {
-    user?: number;
-    action?: string;
-    from?: string;
-    to?: string;
-}) => {
-    const params = new URLSearchParams();
-    if (filters?.user) params.set('user', String(filters.user));
-    if (filters?.action) params.set('action', filters.action);
-    if (filters?.from) params.set('from', filters.from);
-    if (filters?.to) params.set('to', filters.to);
-
-    const response = await fetch(
-        `${BASE_URL}/admin/audit-logs/export?${params.toString()}`,
-        {
-            headers: {
-                Accept: 'text/csv',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        },
-    );
-
-    if (!response.ok) throw new Error('Export failed');
-
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-};
-
-// ─── Lead Time Config ─────────────────────────────────────────────────────
-
-export type LtConfigEntry = {
-    id: number;
-    destination: string;
-    lt_transport_jours: number;
-    strh_jours: number;
-    total_lt: number;
-    updated_by: number | null;
-    updated_at: string;
-    updater?: { id: number; name: string } | null;
-};
-
-export const fetchLtConfig = async (): Promise<LtConfigEntry[]> => {
-    return fetchWithToken(`${BASE_URL}/admin/lt-config`);
-};
-
-export const createLtConfig = async (data: {
-    destination: string;
-    lt_transport_jours: number;
-    strh_jours: number;
-}) => {
-    return fetchWithToken(`${BASE_URL}/admin/lt-config`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
-};
-
-export const updateLtConfig = async (
-    id: number,
-    data: { lt_transport_jours: number; strh_jours: number },
-) => {
-    return fetchWithToken(`${BASE_URL}/admin/lt-config/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-};
-
-export const deleteLtConfig = async (id: number) => {
-    return fetchWithToken(`${BASE_URL}/admin/lt-config/${id}`, {
-        method: 'DELETE',
     });
 };

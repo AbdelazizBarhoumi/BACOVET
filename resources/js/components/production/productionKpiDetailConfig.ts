@@ -173,7 +173,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         kpiKey: 'owe_chaine',
         label: 'OWE — Overall Workforce Effectiveness par Chaîne',
         description:
-            "Formule CDC : [(Quantité déclarée × SAM) / (Effectif × minutes présence)] × 100. Bloqué par absence de SAM et Effectif (GPRO Consulting B-04). Ne pas utiliser de proxy × 0.85 — OWE et Efficience sont des KPIs distincts.",
+            "Taux d'efficience globale basé sur SAM et temps de production par chaîne.",
         formula: {
             numerator: {
                 label: 'Quantité déclarée × SAM',
@@ -209,7 +209,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         kpiKey: 'wip_chaine',
         label: 'WIP — Work In Progress par Chaîne',
         description:
-            'Formule CDC : Quantité Sortie par chaîne (poste 93) − Quantité engagement par chaîne. Cible : ≤ ½ cadence.',
+            'WIP par chaîne — Quantité sortie moins quantité engagée. Cible : ≤ ½ cadence.',
         formula: {
             numerator: {
                 label: 'Quantité sortie (poste 93)',
@@ -456,7 +456,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         kpiKey: 'top_operateurs',
         label: 'Top Opérateurs — Coupe',
         description:
-            'Formule CDC : [(Quantité produite indiv × temps d\'opération) / minutes présence déclarée] × 100. Distinct de F-REQ-201 (Efficience par Opérateur) qui utilise min/min.',
+            "Efficience des opérateurs à un poste spécifique (départage ou vignettes).",
         formula: {
             numerator: {
                 label: 'Quantité produite indiv × Temps opération',

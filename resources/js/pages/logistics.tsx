@@ -433,12 +433,12 @@ export default function LogisticsPage() {
                                                     {p.data.map((_, i) => (
                                                         <Cell
                                                             key={i}
-                                                            fill={
-                                                                PIE_COLORS[
+                                                            style={{
+                                                                fill: PIE_COLORS[
                                                                     i %
                                                                         PIE_COLORS.length
-                                                                ]
-                                                            }
+                                                                ],
+                                                            }}
                                                         />
                                                     ))}
                                                 </Pie>
@@ -706,8 +706,10 @@ export default function LogisticsPage() {
                         ].map((item) => (
                             <Panel key={item.title} title={item.title}>
                                 <div className="flex flex-col items-center py-4">
-                                    <div className="mb-2 text-center font-mono text-2xl font-bold text-muted-foreground">
-                                        —
+                                    <div className="mb-2 text-center font-mono text-2xl font-bold">
+                                        {item.data.value != null
+                                            ? `${item.data.value}%`
+                                            : '—'}
                                     </div>
                                     <TrafficBadge
                                         status={toStatus(item.data.status)}

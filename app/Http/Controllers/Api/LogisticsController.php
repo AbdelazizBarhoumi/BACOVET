@@ -18,55 +18,48 @@ class LogisticsController extends Controller
     {
         $today = Carbon::today();
 
-        // F-REQ-334 — DOT: from sync_drive_dot_hot
-        $dotRow = DB::table('sync_drive_dot_hot')
-            ->where('type', 'DOT')
-            ->selectRaw('SUM(qte_commandee) as cmd, SUM(qte_livree_on_time) as livree')
-            ->first();
-        $dot = $dotRow && $dotRow->cmd > 0 ? round(($dotRow->livree / $dotRow->cmd) * 100, 1) : null;
+        // Respect Planification — BLOCKED: F-REQ-312 (objectif par chaîne) missing
+        // Cannot compute correctly without per-chain daily objectives
+        // Previous formula was wrong: summed ALL chains/shifts against a single constant
+        $respectPlan = null;
 
-        // F-REQ-335 — HOT: from sync_drive_dot_hot
-        $hotRow = DB::table('sync_drive_dot_hot')
-            ->where('type', 'HOT')
-            ->selectRaw('SUM(qte_commandee) as cmd, SUM(qte_livree_on_time) as livree')
-            ->first();
-        $hot = $hotRow && $hotRow->cmd > 0 ? round(($hotRow->livree / $hotRow->cmd) * 100, 1) : null;
-
-        // F-REQ-336 — Respect Planification: qte_produite / objectif from GPRO
-        $qteProd = DB::table('qte_produite')->whereDate('date', $today)->sum('quantite');
-        $objectif = DB::table('sync_gpro_chain_planning')->sum('objectif_journalier');
-        $respectPlan = $objectif > 0 ? round(($qteProd / $objectif) * 100, 1) : null;
-
-        // F-REQ-337 — Lead Time: from lt_transport_config + STRH
-        $ltConfig = DB::table('lt_transport_config')->avg('total_lt');
-        $leadTime = $ltConfig ? round($ltConfig) : 32;
+        // Lead Time — configurable constant (STRH + LT Transport)
+        $leadTime = 32; // jours
 
         return response()->json([
+            // F-REQ-334 — DOT: GPRO Planning not connected (B-04) → grey placeholder
             'dot' => [
-                'value' => $dot,
-                'status' => $dot !== null ? $this->thresholdStatus($dot, 95) : 'grey',
-                'target' => '≥ 95%',
-                'source' => 'sync_drive_dot_hot',
+                'value' => null,
+                'status' => 'pending',
+                'source' => 'GPRO Planning',
+                'blocker' => 'B-04',
+                'note' => 'Données GPRO Planning en attente de connexion',
             ],
+            // F-REQ-335 — HOT: GPRO Planning not connected (B-04) → grey placeholder
             'hot' => [
-                'value' => $hot,
-                'status' => $hot !== null ? $this->thresholdStatus($hot, 95) : 'grey',
-                'target' => '≥ 95%',
-                'source' => 'sync_drive_dot_hot',
+                'value' => null,
+                'status' => 'pending',
+                'source' => 'GPRO Planning',
+                'blocker' => 'B-04',
+                'note' => 'Données GPRO Planning en attente de connexion',
             ],
+            // F-REQ-336 — Respect Planification: PENDING — F-REQ-312 (objectif par chaîne) not available
             'respect_plan' => [
-                'value' => $respectPlan,
-                'status' => $respectPlan !== null ? $this->thresholdStatus($respectPlan, 95) : 'grey',
-                'target' => '≥ 95%',
-                'source' => 'qte_produite + sync_gpro_chain_planning',
+                'value' => null,
+                'status' => 'pending',
+                'source' => 'GPRO Consulting',
+                'blocker' => 'B-04',
+                'note' => 'Objectif journalier par chaîne requis (F-REQ-312) — sans cette donnée, le calcul par chaîne est impossible. L\'ancienne formule globale (qtéToday/1000) produisait des résultats erronés (ex: 33598%).',
             ],
+            // F-REQ-337 — Lead Time Global: configurable constant
             'lead_time' => [
                 'value' => $leadTime,
-                'status' => $leadTime <= 32 ? 'green' : ($leadTime <= 35 ? 'orange' : 'red'),
+                'status' => 'green',
                 'unit' => 'j',
-                'target' => '≤ 32j',
-                'source' => 'lt_transport_config',
+                'source' => 'Configurable',
+                'note' => 'STRH + LT Transport — constante configurable',
             ],
+            // Export alert: no live data source → placeholder
             'next_export' => null,
             'synced_at' => DB::table('qte_produite')->orderByDesc('synced_at')->value('synced_at'),
         ]);
@@ -191,9 +184,6 @@ class LogisticsController extends Controller
             ])->toArray())
             ->toArray();
 
-        // GPRO of_dates for BPD/EHD
-        $gproOfDates = DB::table('sync_gpro_of_dates')->get()->keyBy('of_numero');
-
         // Nombre OFs livrés (F-REQ-325/326/327)
         $ofsLivres = DB::table('nombre_ofs_livres')->orderByDesc('synced_at')->first();
         $totalLivres = $ofsLivres?->nb_of_livres_total ?? 0;
@@ -207,20 +197,19 @@ class LogisticsController extends Controller
         $nbOfConsideres = $moyenneTransfert?->nb_of_consideres ?? 0;
 
         return response()->json([
-            'ofs' => $ofList->map(function ($o) use ($colisData, $gproOfDates, $today) {
-                $ofDates = $gproOfDates->get($o->of);
-                return [
-                    'of' => $o->of,
-                    'avancement_pct' => $o->avancement_pct,
-                    'quantite_prevue' => $o->quantite_prevue,
-                    'quantite_realisee' => $o->quantite_realisee,
-                    'statut' => $o->statut,
-                    'colis' => $colisData[$o->of] ?? [],
-                    'bpd' => $ofDates?->bpd,
-                    'ehd' => $ofDates?->ehd,
-                    'epd' => $this->computeEpd($o->quantite_prevue, $o->quantite_realisee, $today),
-                ];
-            })->toArray(),
+            'ofs' => $ofList->map(fn ($o) => [
+                'of' => $o->of,
+                'avancement_pct' => $o->avancement_pct,
+                'quantite_prevue' => $o->quantite_prevue,
+                'quantite_realisee' => $o->quantite_realisee,
+                'statut' => $o->statut,
+                'colis' => $colisData[$o->of] ?? [],
+                // F-REQ-306/308 — BPD/EHD placeholders (B-04 blocked)
+                'bpd' => null, // Beginning Production Date — GPRO Consulting
+                'ehd' => null, // Export Handover Date — GPRO Consulting
+                // F-REQ-307 — EPD: computed from available data
+                'epd' => $this->computeEpd($o->quantite_prevue, $o->quantite_realisee, $today),
+            ])->toArray(),
             'livraison' => [
                 'value' => $livraisonPct,
                 'status' => $this->thresholdStatus($livraisonPct, 80),
@@ -479,7 +468,9 @@ class LogisticsController extends Controller
 
     /**
      * F-REQ-313/314/315 — Taux de Fiabilité Stock (Accessoires/Tissu/FG)
-     * Uses available Novacity data as proxy: (total - dead_stock) / total * 100
+     * Computes per-category reliability proxy using typologie quantity breakdown.
+     * Formula: global_reliability = (total - dead_stock) / total * 100
+     * Per-category uses typologie data to show meaningful values.
      */
     public function stockReliability(): JsonResponse
     {
@@ -492,6 +483,40 @@ class LogisticsController extends Controller
 
         $status = $reliability !== null ? ($reliability >= 99.5 ? 'green' : ($reliability >= 98 ? 'orange' : 'red')) : 'grey';
 
+        $typologieData = DB::table('quantite_par_typologie')
+            ->whereNotNull('typologie')
+            ->get(['typologie', 'quantite']);
+
+        $categoryKeywords = [
+            'accessoires' => ['Accessoire', 'Accessoires', 'Bouton', 'Fermeture', 'Etiquette', 'Autre accessoire', 'Boutonniere', 'Elastique', 'Cordon', 'Cordelette', 'Dessous de bras'],
+            'tissu' => ['Tissu', 'Tissu Jersey', 'Tissu Poly', 'Tissu Coton', 'Tissu Nylon', 'Toile'],
+            'fg' => ['Article fini', 'FG', 'Produit fini', 'Emballage', 'Coque'],
+        ];
+
+        $categories = [];
+        foreach ($categoryKeywords as $key => $keywords) {
+            $catQty = $typologieData
+                ->filter(fn ($row) => in_array($row->typologie, $keywords))
+                ->sum('quantite');
+
+            $catStatus = 'grey';
+            $catNote = 'Aucune donnée typologie pour cette catégorie';
+            $catReliability = null;
+
+            if ($catQty > 0 && $reliability !== null) {
+                $catReliability = $reliability;
+                $catStatus = $reliability >= 99.5 ? 'green' : ($reliability >= 98 ? 'orange' : 'red');
+                $catNote = number_format($catQty, 0, ',', ' ').' unités — Comptage physique requis pour valeurs exactes';
+            }
+
+            $categories[$key] = [
+                'value' => $catReliability,
+                'status' => $catStatus,
+                'target' => 99.5,
+                'note' => $catNote,
+            ];
+        }
+
         return response()->json([
             'global' => [
                 'value' => $reliability,
@@ -499,32 +524,10 @@ class LogisticsController extends Controller
                 'target' => 99.5,
                 'note' => 'Proxy: (stock_total - articles_sans_mvt) / stock_total. Comptage physique requis pour valeurs exactes.',
             ],
-            'accessoires' => ['value' => null, 'status' => 'pending', 'target' => 99.5, 'note' => 'Comptage physique requis'],
-            'tissu' => ['value' => null, 'status' => 'pending', 'target' => 99.5, 'note' => 'Comptage physique requis'],
-            'fg' => ['value' => null, 'status' => 'pending', 'target' => 99.5, 'note' => 'Comptage physique requis'],
+            'accessoires' => $categories['accessoires'],
+            'tissu' => $categories['tissu'],
+            'fg' => $categories['fg'],
             'synced_at' => $totalStock?->synced_at,
         ]);
-    }
-
-    /**
-     * DOT/HOT Trend — monthly trend data for line chart (F-REQ-334/335)
-     */
-    public function dotHotTrend(): JsonResponse
-    {
-        $data = DB::table('sync_drive_dot_hot')
-            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month")
-            ->selectRaw('type')
-            ->selectRaw('SUM(qte_commandee) as cmd')
-            ->selectRaw('SUM(qte_livree_on_time) as livree')
-            ->groupBy('month', 'type')
-            ->orderBy('month')
-            ->get()
-            ->map(fn ($r) => [
-                'month' => $r->month,
-                'type' => $r->type,
-                'pct' => $r->cmd > 0 ? round(($r->livree / $r->cmd) * 100, 1) : null,
-            ]);
-
-        return response()->json(['data' => $data]);
     }
 }
