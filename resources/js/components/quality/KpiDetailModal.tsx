@@ -1,4 +1,4 @@
-import { X, Info, Download } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -74,8 +74,8 @@ function Sparkline({ data, status }: { data: number[]; status: string }) {
         status === 'green'
             ? '#16a34a'
             : status === 'orange'
-              ? '#ea580c'
-              : '#dc2626';
+                ? '#ea580c'
+                : '#dc2626';
 
     const points = data
         .map((v, i) => {
@@ -211,6 +211,7 @@ export default function KpiDetailModal({
         br_accessoires_dda: 'br_accessoires_dda',
         br_compo_jour: 'br_compo_jour',
         br_compo_dda: 'br_compo_dda',
+        br_commande: 'br_commande',
     };
 
     const card = kpiData[kpiKeyMap[kpiKey]] as KpiCardType | undefined;
@@ -321,44 +322,46 @@ export default function KpiDetailModal({
                                 {cardStatus === 'green'
                                     ? '🟢 Conforme'
                                     : cardStatus === 'orange'
-                                      ? '🟠 Vigilance'
-                                      : cardStatus === 'red'
-                                        ? '🔴 Critique'
-                                        : '⚪ ' + cardStatus.toUpperCase()}
+                                        ? '🟠 Vigilance'
+                                        : cardStatus === 'red'
+                                            ? '🔴 Critique'
+                                            : '⚪ ' + cardStatus.toUpperCase()}
                             </div>
                         </div>
                     </div>
 
                     {/* Formula & Source */}
                     <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <div>
-                            <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                Formule de calcul
-                            </h4>
-                            <div className="flex items-center gap-2 font-mono text-[10px]">
-                                <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                    <div className="truncate text-[8px] opacity-70">
-                                        {config.formula.numerator.label}
+                        {config.formula.numerator.field !== '—' && config.formula.denominator.field !== '—' && (
+                            <div>
+                                <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                    Formule de calcul
+                                </h4>
+                                <div className="flex items-center gap-2 font-mono text-[10px]">
+                                    <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
+                                        <div className="truncate text-[8px] opacity-70">
+                                            {config.formula.numerator.label}
+                                        </div>
+                                        <div className="truncate font-bold">
+                                            {config.formula.numerator.field}
+                                        </div>
                                     </div>
-                                    <div className="truncate font-bold">
-                                        {config.formula.numerator.field}
+                                    <div className="text-muted-foreground">÷</div>
+                                    <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
+                                        <div className="truncate text-[8px] opacity-70">
+                                            {config.formula.denominator.label}
+                                        </div>
+                                        <div className="truncate font-bold">
+                                            {config.formula.denominator.field}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="text-muted-foreground">÷</div>
-                                <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                    <div className="truncate text-[8px] opacity-70">
-                                        {config.formula.denominator.label}
+                                    <div className="text-muted-foreground">×</div>
+                                    <div className="font-bold">
+                                        {config.formula.multiplier}
                                     </div>
-                                    <div className="truncate font-bold">
-                                        {config.formula.denominator.field}
-                                    </div>
-                                </div>
-                                <div className="text-muted-foreground">×</div>
-                                <div className="font-bold">
-                                    {config.formula.multiplier}
                                 </div>
                             </div>
-                        </div>
+                        )}
                         <div>
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                 Source de données
@@ -372,9 +375,9 @@ export default function KpiDetailModal({
                                 </div>
                                 <div className="truncate">
                                     <span className="text-muted-foreground">
-                                        Endpoint:
+                                        Source:
                                     </span>{' '}
-                                    {config.source.novacityEndpoint || 'N/A'}
+                                    {config.source.novacityEndpoint || config.source.mysqlTable || 'N/A'}
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground">
@@ -396,64 +399,39 @@ export default function KpiDetailModal({
                         </div>
                     </div>
 
-                    {/* Breakdown & Viz */}
-                    {isLive ? (
+                    {/* Breakdown & Viz — only show if at least one is available */}
+                    {isLive && (config.breakdownAvailable || config.trendAvailable) && (
                         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-                            <div className="md:col-span-2">
-                                <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                    Ventilation par étape
-                                </h4>
-                                {config.breakdownAvailable ? (
+                            {config.breakdownAvailable && (
+                                <div className="md:col-span-2">
+                                    <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                        Ventilation par étape
+                                    </h4>
+
                                     <BrBreakdownTable
                                         brChartData={brChartData}
                                         target={config.target.value}
                                     />
-                                ) : (
-                                    <div className="text-xs text-muted-foreground italic">
-                                        Ventilation non disponible pour ce KPI.
-                                    </div>
-                                )}
-                            </div>
-                            <div className="border-l border-border pl-6">
-                                <h4 className="mb-2 text-center text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                    Tendance
-                                </h4>
-                                <div className="flex h-full min-h-[100px] items-center justify-center">
-                                    {config.trendAvailable &&
-                                    trendValues.length >= 2 ? (
+                                </div>
+                            )}
+
+                            {config.trendAvailable && trendValues.length >= 2 && (
+                                <div className="border-l border-border pl-6">
+                                    <h4 className="mb-2 text-center text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                        Tendance
+                                    </h4>
+
+                                    <div className="flex h-full min-h-[100px] items-center justify-center">
                                         <Sparkline
                                             data={trendValues}
                                             status={cardStatus}
                                         />
-                                    ) : (
-                                        <div className="text-[10px] text-muted-foreground italic">
-                                            Non disponible
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="mb-6 rounded-md border border-dashed border-border bg-secondary/30 p-4">
-                            <div className="flex items-start gap-3">
-                                <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                <div>
-                                    <div className="mb-1 text-xs font-bold text-muted-foreground">
-                                        Données indisponibles
-                                    </div>
-                                    <div className="text-xs text-muted-foreground/80">
-                                        {config.thresholds.grey ||
-                                            'Source en attente de connexion.'}
-                                    </div>
-                                    <div className="mt-1 font-mono text-[10px] text-primary/70 uppercase">
-                                        {config.source.status === 'pending'
-                                            ? 'Action requise: équipe DIVA'
-                                            : 'CODE BLOQUANT: B-01'}
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
+
 
                     {/* Alert rules */}
                     <div className="mt-4">
@@ -509,26 +487,26 @@ export default function KpiDetailModal({
                                 const wb = XLSX.utils.book_new();
                                 const exportRows =
                                     config.breakdownAvailable &&
-                                    brChartData.length > 0
+                                        brChartData.length > 0
                                         ? brChartData.map((item) => ({
-                                              Étape: item.stage,
-                                              Valeur:
-                                                  item.defect_pct != null
-                                                      ? `${item.defect_pct.toFixed(2)}%`
-                                                      : '—',
-                                              Statut: item.status,
-                                          }))
+                                            Étape: item.stage,
+                                            Valeur:
+                                                item.defect_pct != null
+                                                    ? `${item.defect_pct.toFixed(2)}%`
+                                                    : '—',
+                                            Statut: item.status,
+                                        }))
                                         : [
-                                              {
-                                                  KPI: config.label,
-                                                  Valeur:
-                                                      card.value != null
-                                                          ? `${card.value.toFixed(1)}%`
-                                                          : '—',
-                                                  Statut: card.status,
-                                                  Cible: `${config.target.operator}${config.target.value}%`,
-                                              },
-                                          ];
+                                            {
+                                                KPI: config.label,
+                                                Valeur:
+                                                    card.value != null
+                                                        ? `${card.value.toFixed(1)}%`
+                                                        : '—',
+                                                Statut: card.status,
+                                                Cible: `${config.target.operator}${config.target.value}%`,
+                                            },
+                                        ];
                                 const ws = XLSX.utils.json_to_sheet(exportRows);
                                 XLSX.utils.book_append_sheet(wb, ws, 'Data');
                                 XLSX.writeFile(

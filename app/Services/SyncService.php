@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AuditLog;
 use App\Models\NovacityJob;
+use App\Models\SyncLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -137,6 +138,58 @@ class SyncService
             'MoyenneJours' => 'moyenne_jours',
             'NbOFConsideres' => 'nb_of_consideres',
         ],
+
+        // Google Drive tables (columns already snake_case from Sheets mock)
+        'sync_drive_br_print' => [
+            'date' => 'date', 'nb_inspections' => 'nb_inspections', 'nb_rejets' => 'nb_rejets',
+        ],
+        'sync_drive_br_care_label' => [
+            'date' => 'date', 'nb_inspections' => 'nb_inspections', 'nb_rejets' => 'nb_rejets',
+        ],
+        'sync_drive_br_accessoires' => [
+            'date' => 'date', 'nb_inspections' => 'nb_inspections', 'nb_rejets' => 'nb_rejets',
+        ],
+        'sync_drive_br_compo' => [
+            'date' => 'date', 'nb_inspections' => 'nb_inspections', 'nb_rejets' => 'nb_rejets',
+        ],
+        'sync_drive_inspection_commande' => [
+            'date' => 'date', 'nb_inspections' => 'nb_inspections', 'nb_rejets' => 'nb_rejets',
+        ],
+        'sync_drive_dot_hot' => [
+            'date' => 'date', 'of' => 'of', 'type' => 'type',
+            'qte_commandee' => 'qte_commandee', 'qte_livree_on_time' => 'qte_livree_on_time',
+        ],
+        'sync_drive_development' => [
+            'date' => 'date', 'modele' => 'modele', 'statut_validation' => 'statut_validation',
+            'date_livraison_prevue' => 'date_livraison_prevue', 'date_livraison_reelle' => 'date_livraison_reelle',
+            'nomenclature_valide' => 'nomenclature_valide', 'est_reclamation' => 'est_reclamation',
+        ],
+        'sync_drive_gammes' => [
+            'article' => 'article', 'nb_gammes_total' => 'nb_gammes_total',
+            'nb_gammes_acceptees_v1' => 'nb_gammes_acceptees_v1',
+        ],
+        'sync_drive_cotation' => [
+            'article' => 'article', 'temps_cotation_min' => 'temps_cotation_min',
+            'temps_production_min' => 'temps_production_min', 'date' => 'date',
+        ],
+
+        // GPRO Consulting tables
+        'sync_gpro_chain_planning' => [
+            'chaine' => 'chaine', 'of_numero' => 'of_numero', 'qte_of' => 'qte_of',
+            'objectif_journalier' => 'objectif_journalier', 'cadence_moyenne' => 'cadence_moyenne',
+            'cadence_hebdo' => 'cadence_hebdo',
+        ],
+        'sync_gpro_article_master' => [
+            'code_article' => 'code_article', 'designation' => 'designation',
+            'sam_min' => 'sam_min', 'sot_min' => 'sot_min', 'effectif_requis' => 'effectif_requis',
+        ],
+        'sync_gpro_of_dates' => [
+            'of_numero' => 'of_numero', 'chaine' => 'chaine',
+            'bpd' => 'bpd', 'epd' => 'epd', 'ehd' => 'ehd',
+        ],
+        'sync_gpro_suivi_paquets' => [
+            'of_numero' => 'of_numero', 'est_solde' => 'est_solde', 'est_archive' => 'est_archive',
+        ],
     ];
 
     /**
@@ -152,9 +205,25 @@ class SyncService
         'temps_operation' => ['date', 'operation_code', 'chaine'],
         'item_trx_enq' => ['transaction_id'],
         'of_fabrication' => ['of_number'],
+
+        // Google Drive tables
+        'sync_drive_br_print' => ['date'],
+        'sync_drive_br_care_label' => ['date'],
+        'sync_drive_br_accessoires' => ['date'],
+        'sync_drive_br_compo' => ['date'],
+        'sync_drive_inspection_commande' => ['date'],
+        'sync_drive_gammes' => ['article'],
+
+        // GPRO Consulting tables
+        'sync_gpro_article_master' => ['code_article'],
+        'sync_gpro_suivi_paquets' => ['of_numero'],
     ];
 
-    public function __construct(private NovacityService $novacity) {}
+    public function __construct(
+        private NovacityService $novacity,
+        private GoogleDriveService $drive,
+        private GproConsultingService $gpro,
+    ) {}
 
     public function syncQuality(): void
     {
@@ -212,6 +281,7 @@ class SyncService
 
             $status = $jourActive || $anneeActive ? 'ok' : 'inactive';
             $this->updateJobStatus('rejets_inspection_paquet', $status, 2, microtime(true) - $start);
+            SyncLog::record('syncBundlingData', 'rejets_inspection_paquet', 2, $status === 'inactive' ? 'skipped' : 'ok', $status === 'inactive' ? 'B-01 queries inactive' : null, (int) ((microtime(true) - $start) * 1000));
 
             if (! $jourActive && ! $anneeActive) {
                 AuditLog::warn('Sync rejets_inspection_paquet — queries INACTIVE (B-01), placeholders inserted');
@@ -258,6 +328,7 @@ class SyncService
         $this->syncTable('qte_produit_individuel_jour', fn () => $this->novacity->fetchQuery('qte_produit_indiv_jour'));
         $this->syncTable('qte_depart_chaine_article_of', fn () => $this->novacity->fetchQuery('qte_depart_chaine'));
         $this->syncTable('minutes_presence', fn () => $this->novacity->fetchQuery('minutes_presence'));
+        $this->syncTable('minutes_produites', fn () => $this->novacity->fetchQuery('minutes_produites'));
         $this->syncTable('temps_operation', fn () => $this->novacity->fetchQuery('temps_operation'));
     }
 
@@ -277,6 +348,27 @@ class SyncService
         $this->syncTable('quantite_par_typologie', fn () => $this->novacity->fetchQuery('quantite_par_typologie'));
         $this->syncTable('expeditions', fn () => $this->novacity->fetchEndpoint('expeditions'));
         $this->syncTable('colis_total_var', fn () => $this->novacity->fetchQuery('colis_total_var'));
+    }
+
+    public function syncGoogleDrive(): void
+    {
+        $this->syncTable('sync_drive_br_print', fn () => $this->drive->fetchSheet('br_print'));
+        $this->syncTable('sync_drive_br_care_label', fn () => $this->drive->fetchSheet('br_care_label'));
+        $this->syncTable('sync_drive_br_accessoires', fn () => $this->drive->fetchSheet('br_accessoires'));
+        $this->syncTable('sync_drive_br_compo', fn () => $this->drive->fetchSheet('br_compo'));
+        $this->syncTable('sync_drive_inspection_commande', fn () => $this->drive->fetchSheet('inspection_commande'));
+        $this->syncTable('sync_drive_dot_hot', fn () => $this->drive->fetchSheet('dot_hot'));
+        $this->syncTable('sync_drive_development', fn () => $this->drive->fetchSheet('development'));
+        $this->syncTable('sync_drive_gammes', fn () => $this->drive->fetchSheet('gammes'));
+        $this->syncTable('sync_drive_cotation', fn () => $this->drive->fetchSheet('cotation'));
+    }
+
+    public function syncGproConsulting(): void
+    {
+        $this->syncTable('sync_gpro_chain_planning', fn () => $this->gpro->fetchData('chain_planning'));
+        $this->syncTable('sync_gpro_article_master', fn () => $this->gpro->fetchData('article_master'));
+        $this->syncTable('sync_gpro_of_dates', fn () => $this->gpro->fetchData('of_dates'));
+        $this->syncTable('sync_gpro_suivi_paquets', fn () => $this->gpro->fetchData('suivi_paquets'));
     }
 
     private function syncTable(string $table, callable $fetcher): void
@@ -314,12 +406,16 @@ class SyncService
                                 $mysqlKey = $fieldMap[$snakeKey] ?? $snakeKey;
                             }
                             // Convert ISO datetime to standard MySQL format
-                            if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $value)) {
-                                if (in_array($mysqlKey, ['log_date', 'date', 'dt_debut', 'dt_fin', 'date_rejet', 'bpd', 'epd', 'ehd'])) {
-                                    $value = substr($value, 0, 10);
-                                } else {
-                                    $value = date('Y-m-d H:i:s', strtotime($value));
+                            if (is_string($value) && $value !== '') {
+                                if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $value)) {
+                                    if (in_array($mysqlKey, ['log_date', 'date', 'dt_debut', 'dt_fin', 'date_rejet', 'bpd', 'epd', 'ehd'])) {
+                                        $value = substr($value, 0, 10);
+                                    } else {
+                                        $value = date('Y-m-d H:i:s', strtotime($value));
+                                    }
                                 }
+                            } elseif ($value === '') {
+                                $value = null;
                             }
                             $mapped[$mysqlKey] = $value;
                         }
@@ -330,7 +426,71 @@ class SyncService
                             $mapped['year'] = (int) now()->format('Y');
                         }
 
-                        // Coerce numeric strings for specific tables (Novacity returns numbers as strings)
+                        // Coerce numeric strings for specific tables (APIs return numbers as strings)
+                        if (str_starts_with($table, 'sync_drive_br_') || $table === 'sync_drive_inspection_commande') {
+                            foreach (['nb_inspections', 'nb_rejets'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (int) $mapped[$numField];
+                                }
+                            }
+                        }
+                        if ($table === 'sync_drive_dot_hot') {
+                            foreach (['qte_commandee', 'qte_livree_on_time'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (int) $mapped[$numField];
+                                }
+                            }
+                        }
+                        if ($table === 'sync_drive_development') {
+                            foreach (['nomenclature_valide', 'est_reclamation'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (int) $mapped[$numField];
+                                }
+                            }
+                        }
+                        if ($table === 'sync_drive_gammes') {
+                            foreach (['nb_gammes_total', 'nb_gammes_acceptees_v1'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (int) $mapped[$numField];
+                                }
+                            }
+                        }
+                        if ($table === 'sync_drive_cotation') {
+                            foreach (['temps_cotation_min', 'temps_production_min'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (float) $mapped[$numField];
+                                }
+                            }
+                        }
+                        if ($table === 'sync_gpro_chain_planning') {
+                            foreach (['qte_of', 'objectif_journalier'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (int) $mapped[$numField];
+                                }
+                            }
+                            foreach (['cadence_moyenne', 'cadence_hebdo'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (float) $mapped[$numField];
+                                }
+                            }
+                        }
+                        if ($table === 'sync_gpro_article_master') {
+                            foreach (['sam_min', 'sot_min'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (float) $mapped[$numField];
+                                }
+                            }
+                            if (isset($mapped['effectif_requis']) && is_string($mapped['effectif_requis'])) {
+                                $mapped['effectif_requis'] = (int) $mapped['effectif_requis'];
+                            }
+                        }
+                        if ($table === 'sync_gpro_suivi_paquets') {
+                            foreach (['est_solde', 'est_archive'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (int) $mapped[$numField];
+                                }
+                            }
+                        }
                         if ($table === 'moyenne_date_transfert') {
                             if (isset($mapped['moyenne_jours']) && is_string($mapped['moyenne_jours'])) {
                                 $mapped['moyenne_jours'] = (float) $mapped['moyenne_jours'];
@@ -386,9 +546,11 @@ class SyncService
             }
             $this->updateJobStatus($table, 'ok', count($rows), microtime(true) - $start);
             AuditLog::info("Sync {$table} réussie — ".count($rows).' enregistrements');
+            SyncLog::record('syncTable', $table, count($rows), 'ok', null, (int) ((microtime(true) - $start) * 1000));
         } catch (\Throwable $e) {
             $this->updateJobStatus($table, 'error', 0, 0, $e->getMessage());
             AuditLog::error("Sync {$table} échouée — {$e->getMessage()}");
+            SyncLog::record('syncTable', $table, 0, 'error', $e->getMessage(), (int) ((microtime(true) - $start) * 1000));
             Log::error("SyncService [{$table}]: {$e->getMessage()}");
         }
     }

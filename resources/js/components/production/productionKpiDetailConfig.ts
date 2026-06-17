@@ -19,6 +19,9 @@ export type ProductionKpiKey =
     | 'br_gtd'
     | 'br_bundling'
     | 'br_print'
+    | 'taux_archivage'
+    | 'respect_temps_estime'
+    | 'temps_acceptes'
     | 'sam'
     | 'sot'
     | 'effectifs'
@@ -56,9 +59,7 @@ export interface ProductionKpiDetailConfig {
         novacityEndpoint: string | null;
         mysqlTable: string | null;
         frequency: string;
-        status: 'live' | 'pending' | 'inactive' | 'blocked';
-        blocker?: string;
-        formula_source?: 'official' | 'interim';
+        status: 'live' | 'pending' | 'inactive' | 'google_drive';
     };
     view: 'confection' | 'coupe' | 'serigraphie' | 'all';
     breakdownType:
@@ -87,15 +88,15 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         kpiKey: 'efficience_chaine',
         label: 'Efficience par Chaîne',
         description:
-            'Formule officielle CDC : [(Quantité déclarée × SOT) / (Effectif × minutes présence)] × 100. Formule interim : heures_standards / heures_prod × 100 (source Novacity efficience_chaine). Le champ heures_standards de Novacity pourrait être équivalent à Qty × SOT — à vérifier avec l\'équipe Novacity.',
+            'Taux d\'efficience de la chaîne de production basé sur les heures standards et les heures produites.',
         formula: {
             numerator: {
-                label: 'Quantité déclarée × SOT (interim: heures_standards)',
-                field: 'qty_declared_x_sot',
+                label: 'Heures standards',
+                field: 'heures_standards',
             },
             denominator: {
-                label: 'Effectif × Minutes présence (interim: heures_prod)',
-                field: 'headcount_x_minutes',
+                label: 'Heures produites',
+                field: 'heures_prod',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -105,15 +106,13 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             green: '≥ 90%',
             orange: '85% – 90%',
             red: '< 85%',
-            grey: 'Données GPRO consulting indisponibles',
         },
         source: {
-            system: 'SDT (G.PRO + GPRO consulting)',
+            system: 'SDT',
             novacityEndpoint: 'GET /api/data/q/efficience_chaine',
             mysqlTable: 'efficience_chaine',
-            frequency: 'Instantané (chaque minute)',
+            frequency: 'Instantané',
             status: 'live',
-            formula_source: 'interim',
         },
         view: 'all',
         breakdownType: 'per_chain',
@@ -192,15 +191,13 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             green: '≥ 75%',
             orange: '70% – 75%',
             red: '< 70%',
-            grey: 'SAM non disponible — GPRO consulting requis',
         },
         source: {
-            system: 'QCM (RoverEffectiveness)',
+            system: 'GPRO + Novacity',
             novacityEndpoint: 'GET /api/data/rovereffectiveness',
-            mysqlTable: 'rover_effectiveness',
+            mysqlTable: 'efficience_chaine + sync_gpro_article_master',
             frequency: 'Instantané',
-            status: 'blocked',
-            blocker: 'B-04 — GPRO Consulting: SAM et Effectif requis',
+            status: 'live',
         },
         view: 'all',
         breakdownType: 'per_chain',
@@ -526,7 +523,6 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             green: '≥ 80% et EPD non dépassée',
             orange: '50% – 80% ou EPD proche',
             red: '< 50% ou EPD dépassée',
-            grey: 'Aucun OF en cours',
         },
         source: {
             system: 'SDT',
@@ -811,7 +807,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         source: {
             system: 'Quality',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'check_pass_qte',
             frequency: 'Instantané',
             status: 'live',
         },
@@ -837,7 +833,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         source: {
             system: 'Quality',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'rejets_inspection_paquet',
             frequency: 'Instantané',
             status: 'live',
         },
@@ -863,20 +859,111 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             green: '≤ 5%',
             orange: '5% – 10%',
             red: '> 10%',
-            grey: 'En attente de connecteur',
         },
         source: {
-            system: 'Quality',
+            system: 'Google Drive',
             novacityEndpoint: null,
-            mysqlTable: null,
-            frequency: 'Instantané',
-            status: 'pending',
-            blocker: 'Google Drive connector',
+            mysqlTable: 'sync_drive_br_print',
+            frequency: '4×/jour',
+            status: 'live',
         },
         view: 'all',
         breakdownType: 'none',
         miniVizType: 'none',
         exportFields: ['date', 'br_print'],
+    },
+    taux_archivage: {
+        kpiKey: 'taux_archivage',
+        id: 'F-REQ-216',
+        label: "Taux d'Archivage Suivi Paquets",
+        description:
+            "Pourcentage de paquets soldés qui ont été archivés. Source: GPRO Suivi Paquets.",
+        formula: {
+            type: 'computed',
+            resultUnit: '%',
+            numerator: { label: 'Paquets archivés (est_solde=1)', field: 'est_archive' },
+            denominator: { label: 'Paquets soldés (est_solde=1)', field: 'est_solde' },
+            multiplier: 100,
+        },
+        target: { value: 85, operator: '≥' },
+        thresholds: {
+            green: '≥ 85%',
+            orange: '70% – 85%',
+            red: '< 70%',
+        },
+        source: {
+            system: 'GPRO',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_gpro_suivi_paquets',
+            frequency: 'Quotidien',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_chain',
+        miniVizType: 'gauge',
+        exportFields: ['of_numero', 'est_solde', 'est_archive'],
+    },
+    respect_temps_estime: {
+        kpiKey: 'respect_temps_estime',
+        id: 'F-REQ-218',
+        label: 'Taux de Respect du Temps Estimé',
+        description:
+            "Pourcentage d'articles dont le temps de production est inférieur ou égal au temps coté. Source: Google Drive Cotation.",
+        formula: {
+            type: 'computed',
+            resultUnit: '%',
+            numerator: { label: 'Articles respectant le temps estimé', field: 'respect_count' },
+            denominator: { label: 'Total articles', field: 'total_count' },
+            multiplier: 100,
+        },
+        target: { value: 90, operator: '≥' },
+        thresholds: {
+            green: '≥ 90%',
+            orange: '80% – 90%',
+            red: '< 80%',
+        },
+        source: {
+            system: 'DRIVE',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_drive_cotation',
+            frequency: '4×/jour',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_chain',
+        miniVizType: 'gauge',
+        exportFields: ['article', 'temps_cotation_min', 'temps_production_min'],
+    },
+    temps_acceptes: {
+        kpiKey: 'temps_acceptes',
+        id: 'F-REQ-219',
+        label: 'Taux des Temps Acceptés dès la 1ère Version',
+        description:
+            "Pourcentage de gammes acceptées dès la première version. Source: Google Drive Gammes.",
+        formula: {
+            type: 'computed',
+            resultUnit: '%',
+            numerator: { label: 'Gammes acceptées V1', field: 'nb_gammes_acceptees_v1' },
+            denominator: { label: 'Total gammes', field: 'nb_gammes_total' },
+            multiplier: 100,
+        },
+        target: { value: 80, operator: '≥' },
+        thresholds: {
+            green: '≥ 80%',
+            orange: '60% – 80%',
+            red: '< 60%',
+        },
+        source: {
+            system: 'DRIVE',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_drive_gammes',
+            frequency: '4×/jour',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_chain',
+        miniVizType: 'gauge',
+        exportFields: ['article', 'nb_gammes_total', 'nb_gammes_acceptees_v1'],
     },
     sam: {
         kpiKey: 'sam',
@@ -893,13 +980,11 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         target: { value: 0 },
         thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
         source: {
-            system: 'GPRO consulting (non exposé via Novacity)',
+            system: 'GPRO Consulting',
             novacityEndpoint: null,
-            mysqlTable: null,
-            frequency: 'N/A',
-            status: 'pending',
-            blocker:
-                'B-04 — GPRO consulting endpoint non disponible dans Novacity',
+            mysqlTable: 'sync_gpro_article_master',
+            frequency: 'Tous les 15 min',
+            status: 'live',
         },
         view: 'confection',
         breakdownType: 'none',
@@ -921,12 +1006,11 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         target: { value: 0 },
         thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
         source: {
-            system: 'GPRO consulting (non exposé via Novacity)',
+            system: 'GPRO Consulting',
             novacityEndpoint: null,
-            mysqlTable: null,
-            frequency: 'N/A',
-            status: 'pending',
-            blocker: 'B-04',
+            mysqlTable: 'sync_gpro_article_master',
+            frequency: 'Tous les 15 min',
+            status: 'live',
         },
         view: 'confection',
         breakdownType: 'none',
@@ -948,12 +1032,11 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         target: { value: 0 },
         thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
         source: {
-            system: 'GPRO consulting (non exposé via Novacity)',
+            system: 'GPRO Consulting',
             novacityEndpoint: null,
-            mysqlTable: null,
-            frequency: 'N/A',
-            status: 'pending',
-            blocker: 'B-04',
+            mysqlTable: 'sync_gpro_article_master',
+            frequency: 'Tous les 15 min',
+            status: 'live',
         },
         view: 'confection',
         breakdownType: 'none',
@@ -975,12 +1058,11 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         target: { value: 0 },
         thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
         source: {
-            system: 'GPRO consulting (non exposé via Novacity)',
+            system: 'GPRO Consulting',
             novacityEndpoint: null,
-            mysqlTable: null,
-            frequency: 'N/A',
-            status: 'pending',
-            blocker: 'B-04',
+            mysqlTable: 'sync_gpro_chain_planning',
+            frequency: 'Toutes les 5 min',
+            status: 'live',
         },
         view: 'confection',
         breakdownType: 'none',

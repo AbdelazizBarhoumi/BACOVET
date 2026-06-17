@@ -53,9 +53,12 @@ class QualityController extends Controller
         $brGtdJour = $this->computeBrGtdJour($today);
         $brGtdAnnee = $this->computeBrGtdAnnee($year);
 
+        // Card 1 — BR CGL (DDA) — F-REQ-101 from sync_drive_inspection_commande
+        $brCgl = $this->computeDriveBrDda('sync_drive_inspection_commande', $year);
+
         return response()->json([
-            // Card 1 — BR CGL (DDA) — DIVA source, no endpoint available → pending
-            'br_cgl' => ['value' => null, 'status' => 'pending', 'blocker' => 'B-02', 'source' => 'DIVA'],
+            // Card 1 — BR CGL (DDA) — F-REQ-101
+            'br_cgl' => $brCgl,
 
             // Card 2 — BR GTD Ce Jour — computed from check_pass_qte (proxy for DIVA)
             'br_gtd_jour' => [
@@ -105,17 +108,20 @@ class QualityController extends Controller
                 'blocker' => $bundlingActive ? null : 'B-01',
             ],
 
-            // Card 8 — BR Print (Google Drive — Sprint 7)
-            'br_print' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            // Card 8 — BR Print (Google Drive)
+            'br_print' => $this->computeDriveBr('sync_drive_br_print', $today),
 
-            // Cards 9-15 — Google Drive sourced (Sprint 7)
-            'br_print_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
-            'br_care_label_jour' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
-            'br_care_label_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
-            'br_accessoires_jour' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
-            'br_accessoires_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
-            'br_compo_jour' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
-            'br_compo_dda' => ['value' => null, 'status' => 'pending', 'source' => 'google_drive'],
+            // Cards 9-15 — Google Drive sourced
+            'br_print_dda' => $this->computeDriveBrDda('sync_drive_br_print', $year),
+            'br_care_label_jour' => $this->computeDriveBr('sync_drive_br_care_label', $today),
+            'br_care_label_dda' => $this->computeDriveBrDda('sync_drive_br_care_label', $year),
+            'br_accessoires_jour' => $this->computeDriveBr('sync_drive_br_accessoires', $today),
+            'br_accessoires_dda' => $this->computeDriveBrDda('sync_drive_br_accessoires', $year),
+            'br_compo_jour' => $this->computeDriveBr('sync_drive_br_compo', $today),
+            'br_compo_dda' => $this->computeDriveBrDda('sync_drive_br_compo', $year),
+
+            // F-REQ-101 — BR Commande (DDA) from sync_drive_inspection_commande
+            'br_commande' => $this->computeDriveBrDda('sync_drive_inspection_commande', $year),
 
             // Sync metadata
             'synced_at' => DB::table('pieces_ok_jour')
@@ -147,13 +153,19 @@ class QualityController extends Controller
         }
 
         // Build stages array — CDC inspection stages
+        $printBr = $this->computeDriveBr('sync_drive_br_print', $today);
+        $accessoiresBr = $this->computeDriveBr('sync_drive_br_accessoires', $today);
+        $compoBr = $this->computeDriveBr('sync_drive_br_compo', $today);
+        $inspectionCmdBr = $this->computeDriveBr('sync_drive_inspection_commande', $today);
+
         $stages = [
             ['stage' => 'CGL', 'defect_pct' => null, 'status' => 'pending', 'blocker' => 'B-02', 'source' => 'DIVA'],
             ['stage' => 'AQL', 'defect_pct' => $aqlRow?->avg_defect_pct ? round($aqlRow->avg_defect_pct, 2) : null, 'status' => $aqlRow?->avg_defect_pct ? $this->kpi->brStatus($aqlRow->avg_defect_pct) : 'grey', 'source' => 'check_pass_qte'],
             ['stage' => 'Bundling', 'defect_pct' => $brBundling, 'status' => $bundlingActive ? ($brBundling !== null ? $this->kpi->brStatus($brBundling) : 'grey') : 'inactive', 'blocker' => $bundlingActive ? null : 'B-01', 'source' => 'rejets_inspection_paquet'],
-            ['stage' => 'Print', 'defect_pct' => null, 'status' => 'pending', 'source' => 'Google Drive'],
-            ['stage' => 'Accessoires', 'defect_pct' => null, 'status' => 'pending', 'source' => 'Google Drive'],
-            ['stage' => 'Composants', 'defect_pct' => null, 'status' => 'pending', 'source' => 'Google Drive'],
+            ['stage' => 'Inspection Cmd', 'defect_pct' => $inspectionCmdBr['value'], 'status' => $inspectionCmdBr['status'], 'source' => 'sync_drive_inspection_commande'],
+            ['stage' => 'Print', 'defect_pct' => $printBr['value'], 'status' => $printBr['status'], 'source' => 'sync_drive_br_print'],
+            ['stage' => 'Accessoires', 'defect_pct' => $accessoiresBr['value'], 'status' => $accessoiresBr['status'], 'source' => 'sync_drive_br_accessoires'],
+            ['stage' => 'Composants', 'defect_pct' => $compoBr['value'], 'status' => $compoBr['status'], 'source' => 'sync_drive_br_compo'],
         ];
 
         return response()->json(['data' => $stages, 'target' => 5]);
@@ -344,7 +356,70 @@ class QualityController extends Controller
         return response()->json(['data' => $this->buildPareto($items, 'item_id', 'total')]);
     }
 
+    public function paretoFg(Request $request): JsonResponse
+    {
+        $today = Carbon::today();
+
+        // From packets_rejetes (DIVA)
+        $packets = DB::table('packets_rejetes')
+            ->whereDate('date_rejet', $today)
+            ->groupBy('motif')
+            ->select('motif as label', DB::raw('SUM(qtte) as value'))
+            ->get();
+
+        // From inspection_commande (Drive)
+        $inspection = DB::table('sync_drive_inspection_commande')
+            ->whereDate('date', $today)
+            ->selectRaw("'Inspection Commande' as label, nb_rejets as value")
+            ->first();
+
+        $items = $packets;
+        if ($inspection && $inspection->value > 0) {
+            $items = $items->push($inspection);
+        }
+        $items = $items->sortByDesc('value')->values();
+
+        return response()->json(['data' => $this->buildPareto($items, 'label', 'value')]);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private function computeDriveBr(string $table, Carbon $today): array
+    {
+        $row = DB::table($table)->whereDate('date', $today)->first();
+
+        if (! $row || $row->nb_inspections == 0) {
+            return ['value' => null, 'status' => 'grey', 'source' => $table];
+        }
+
+        $br = round(($row->nb_rejets / $row->nb_inspections) * 100, 1);
+
+        return [
+            'value' => $br,
+            'status' => $this->kpi->brStatus($br),
+            'source' => $table,
+        ];
+    }
+
+    private function computeDriveBrDda(string $table, int $year): array
+    {
+        $row = DB::table($table)
+            ->whereYear('date', $year)
+            ->selectRaw('SUM(nb_rejets) as total_rejets, SUM(nb_inspections) as total_inspections')
+            ->first();
+
+        if (! $row || $row->total_inspections == 0) {
+            return ['value' => null, 'status' => 'grey', 'source' => $table];
+        }
+
+        $br = round(($row->total_rejets / $row->total_inspections) * 100, 1);
+
+        return [
+            'value' => $br,
+            'status' => $this->kpi->brStatus($br),
+            'source' => $table,
+        ];
+    }
 
     private function computeBrBundling(string $period): ?float
     {
@@ -353,7 +428,7 @@ class QualityController extends Controller
             ->orderByDesc('date')
             ->first();
 
-        if (! $row || ! $row->is_active || $row->bundle_inspected === null || $row->bundle_inspected === 0) {
+        if (! $row || ! $row->is_active || $row->bundle_inspected == 0) {
             return null;
         }
 

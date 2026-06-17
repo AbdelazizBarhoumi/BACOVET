@@ -60,6 +60,7 @@ export type DevelopmentKpi = {
     target_kind: 'min' | 'max';
     frequency: string;
     status: KpiStatus;
+    source?: string;
     updated_at?: string;
 };
 
@@ -85,3 +86,22 @@ export const fetchDevelopmentKpis = () =>
 
 export const fetchDevelopmentTrend = () =>
     apiGet<{ data: TrendItem[] }>('/trend');
+
+export type LeadTimeDevResponse = {
+    value: number | null;
+    target: number;
+    status: KpiStatus;
+    unit: string;
+    target_kind: string;
+    frequency: string;
+    source?: string;
+};
+
+export const fetchLeadTimeDev = () =>
+    apiGet<LeadTimeDevResponse>('/lead-time');
+
+export const fetchDevelopmentTrendRft = () =>
+    apiGet<{ data: TrendItem[] }>('/trend-rft');
+
+export const fetchDevelopmentTrendLivraison = () =>
+    apiGet<{ data: TrendItem[] }>('/trend-livraison');

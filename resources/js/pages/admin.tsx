@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { Pencil, Plus, Monitor, Trash2, AlertTriangle } from 'lucide-react';
+import { Pencil, Plus, Monitor, Trash2, AlertTriangle, Download, KeyRound, Clock, Filter } from 'lucide-react';
 import { useEffect, useState, useRef, useReducer, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app-shell';
@@ -44,9 +44,22 @@ import {
     clearAuditLogs,
     fetchManualKpiValues,
     updateManualKpiValue,
+    fetchPipelineStatus,
+    fetchPipelineLogs,
+    triggerSourceSync,
+    triggerAllSync,
+    resetUserPassword,
+    exportAuditLogs,
+    fetchLtConfig,
+    createLtConfig,
+    updateLtConfig,
+    deleteLtConfig,
     type SyncConfigItem,
     type AuditLogEntry,
     type ManualKpiEntry,
+    type PipelineStatus,
+    type PipelineLogEntry,
+    type LtConfigEntry,
 } from '@/services/adminApi';
 
 function Skeleton({ className = '' }: { className?: string }) {
@@ -77,8 +90,13 @@ type JobApi = {
 type Screen = {
     id: number;
     name: string;
+    screen_code: string | null;
     status: 'online' | 'offline';
     assigned_page: string;
+    location: string | null;
+    resolution: string | null;
+    notes: string | null;
+    last_ping: string | null;
 };
 
 type AdminState = {
@@ -187,8 +205,15 @@ export default function AdminPage() {
     const [editingKpi, setEditingKpi] = useState<ManualKpiEntry | null>(null);
     const [kpiNumerator, setKpiNumerator] = useState('');
     const [kpiDenominator, setKpiDenominator] = useState('');
+    const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus[]>([]);
+    const [pipelineLogs, setPipelineLogs] = useState<PipelineLogEntry[]>([]);
+    const [ltConfig, setLtConfig] = useState<LtConfigEntry[]>([]);
+    const [auditFilterUser, setAuditFilterUser] = useState('');
+    const [auditFilterAction, setAuditFilterAction] = useState('');
+    const [forceSyncLoading, setForceSyncLoading] = useState(false);
     const logEndRef = useRef<HTMLDivElement>(null);
     const prevLogCount = useRef<number>(0);
+    const pollTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
     const loadData = useCallback(async (isMounted: boolean) => {
         setLoading(true);
@@ -227,6 +252,21 @@ export default function AdminPage() {
             } catch {
                 // KPI values fetch is optional
             }
+
+            try {
+                const [pStatus, pLogs, ltCfg] = await Promise.all([
+                    fetchPipelineStatus().catch(() => []),
+                    fetchPipelineLogs(50).catch(() => []),
+                    fetchLtConfig().catch(() => []),
+                ]);
+                if (isMounted) {
+                    setPipelineStatus(pStatus);
+                    setPipelineLogs(pLogs);
+                    setLtConfig(ltCfg);
+                }
+            } catch {
+                // Pipeline/LT fetch is optional
+            }
         } catch {
             console.error('Failed to load data');
             if (isMounted) {
@@ -255,13 +295,32 @@ export default function AdminPage() {
                 // Non-critical — keep existing logs
             }
         };
-        const id = setInterval(refreshLogs, 10000);
+        const refreshPipeline = async () => {
+            try {
+                const [status, logs] = await Promise.all([
+                    fetchPipelineStatus(),
+                    fetchPipelineLogs(50),
+                ]);
+                if (isMounted) {
+                    setPipelineStatus(status);
+                    setPipelineLogs(logs);
+                }
+            } catch {
+                // Non-critical — keep existing data
+            }
+        };
+        const interval = Math.max(10, refreshIntervalSec) * 1000;
+        const id = setInterval(refreshLogs, interval);
+        const pid = setInterval(refreshPipeline, interval);
 
         return () => {
             isMounted = false;
             clearInterval(id);
+            clearInterval(pid);
+            pollTimers.current.forEach(clearTimeout);
+            pollTimers.current = [];
         };
-    }, [session, loadData]);
+    }, [session, loadData, refreshIntervalSec]);
 
     useEffect(() => {
         if (logEndRef.current && logs.length > prevLogCount.current) {
@@ -279,9 +338,11 @@ export default function AdminPage() {
     }, [logs]);
 
     const sources = [
-        { name: 'ERP DIVA', match: /DIVA|Stock/i },
-        { name: 'GPRO-PROD', match: /GPRO|Prod|Chaine|Efficience/i },
-        { name: 'Google Drive', match: /Drive|Spreadsheet/i },
+        { name: 'Novacity SDT', match: /SDT|Item|LostTime|Taging|Wip|Efficience|Avancement|QteProduite|ProduitIndividuel|Presence/i },
+        { name: 'Novacity QCM', match: /QCM|Defect|CheckPass|Rover|Reject|Pieces|Inline|Endline|Bundling/i },
+        { name: 'Novacity DIVATEX', match: /DIVATEX|MP|Stock|Colis|Expedition|VueStock|DivaStock|Mouvement|Conteneur/i },
+        { name: 'Google Drive', match: /Drive|Spreadsheet|Print|CareLabel|Accessoires|Compo|DotHot|Development|Gammes|Cotation/i },
+        { name: 'GPRO Consulting', match: /GPRO|Chain|Article|OfDates|Suivi/i },
     ];
 
     const apiStatus = sources.map((s) => {
@@ -404,19 +465,32 @@ export default function AdminPage() {
         }
     };
 
-    const statusMeta = (status: 'ok' | 'error' | 'stale') => {
+    const statusMeta = (status: 'ok' | 'error' | 'stale' | 'online' | 'offline' | 'degraded') => {
         switch (status) {
             case 'ok':
+            case 'online':
                 return {
                     dot: 'bg-success',
                     text: 'text-success',
-                    label: '200 OK',
+                    label: status === 'online' ? 'ONLINE' : '200 OK',
                 };
             case 'error':
                 return {
                     dot: 'bg-destructive',
                     text: 'text-destructive',
                     label: 'ERREUR',
+                };
+            case 'degraded':
+                return {
+                    dot: 'bg-warning',
+                    text: 'text-warning',
+                    label: 'DEGRADED',
+                };
+            case 'offline':
+                return {
+                    dot: 'bg-muted-foreground',
+                    text: 'text-muted-foreground',
+                    label: 'OFFLINE',
                 };
             case 'stale':
                 return {
@@ -491,15 +565,21 @@ export default function AdminPage() {
                                 </div>
                                 <Button
                                     size="sm"
-                                    onClick={() => {
-                                        forceSync();
-                                        createAuditLog(
-                                            'SYSTEM',
-                                            'Sync globale forcée',
-                                        ).catch(() => {});
+                                    disabled={forceSyncLoading}
+                                    onClick={async () => {
+                                        setForceSyncLoading(true);
+                                        try {
+                                            await triggerAllSync();
+                                            forceSync();
+                                            toast.success('Toutes les synchronisations déclenchées');
+                                        } catch {
+                                            toast.error('Erreur lors de la synchronisation globale');
+                                        } finally {
+                                            setForceSyncLoading(false);
+                                        }
                                     }}
                                 >
-                                    Forcer la synchronisation
+                                    {forceSyncLoading ? 'Sync en cours...' : 'Forcer la synchronisation'}
                                 </Button>
                                 <div className="ml-auto font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
                                     Dernière sync:{' '}
@@ -730,12 +810,13 @@ export default function AdminPage() {
                         <Panel title="Supervision des flux API">
                             {loading ? (
                                 <div className="space-y-3">
-                                    {[1, 2, 3].map((i) => (
+                                    {[1, 2, 3, 4, 5].map((i) => (
                                         <div
                                             key={i}
                                             className="flex items-center gap-4 py-2"
                                         >
                                             <Skeleton className="h-4 w-28" />
+                                            <Skeleton className="h-4 w-16" />
                                             <Skeleton className="h-4 w-16" />
                                             <Skeleton className="h-4 w-24" />
                                             <div className="ml-auto">
@@ -745,93 +826,143 @@ export default function AdminPage() {
                                     ))}
                                 </div>
                             ) : (
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                            <th className="py-2 text-left">
-                                                Source
-                                            </th>
-                                            <th className="text-left">
-                                                Statut
-                                            </th>
-                                            <th className="text-left">
-                                                Dernière sync
-                                            </th>
-                                            <th className="text-right">
-                                                Action
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="font-mono">
-                                        {apiStatus.map((a) => {
-                                            const meta = statusMeta(a.status);
-                                            return (
-                                                <tr
-                                                    key={a.name}
-                                                    className="border-b border-border/50"
-                                                >
-                                                    <td className="py-2 font-bold">
-                                                        {a.name}
-                                                    </td>
-                                                    <td>
-                                                        <span className="inline-flex items-center gap-2 text-xs">
-                                                            <span
-                                                                className={`h-2 w-2 rounded-full ${meta.dot} ${
-                                                                    a.status ===
-                                                                    'ok'
-                                                                        ? 'animate-pulse'
-                                                                        : ''
-                                                                }`}
-                                                            />
-                                                            <span
-                                                                className={
-                                                                    meta.text
-                                                                }
-                                                            >
-                                                                {meta.label}
+                                <>
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                                <th className="py-2 text-left">Source</th>
+                                                <th className="text-left">Statut</th>
+                                                <th className="text-right">Lignes</th>
+                                                <th className="text-left">Dernière sync</th>
+                                                <th className="text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="font-mono">
+                                            {pipelineStatus.map((ps) => {
+                                                const meta = statusMeta(ps.status);
+                                                const legacy = apiStatus.find((a) => a.name.includes(ps.name.split(' ')[1]) || ps.name.includes(a.name.split(' ')[0]));
+                                                return (
+                                                    <tr key={ps.name} className="border-b border-border/50">
+                                                        <td className="py-2 font-bold">{ps.name}</td>
+                                                        <td>
+                                                            <span className="inline-flex items-center gap-2 text-xs">
+                                                                <span className={`h-2 w-2 rounded-full ${meta.dot} ${ps.status === 'online' ? 'animate-pulse' : ''}`} />
+                                                                <span className={meta.text}>{meta.label}</span>
                                                             </span>
+                                                        </td>
+                                                        <td className="text-right text-xs tabular-nums">
+                                                            {ps.total_rows > 0 ? ps.total_rows.toLocaleString() : '—'}
+                                                        </td>
+                                                        <td className="text-xs text-muted-foreground">
+                                                            {ps.last_sync
+                                                                ? (() => {
+                                                                      const diff = now - new Date(ps.last_sync).getTime();
+                                                                      const mins = Math.floor(diff / 60000);
+                                                                      const secs = Math.floor((diff % 60000) / 1000);
+                                                                      return mins > 0 ? `il y a ${mins} min ${secs}s` : `il y a ${secs}s`;
+                                                                  })()
+                                                                : 'Jamais'}
+                                                        </td>
+                                                        <td className="text-right">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const sourceKey = ps.name.toLowerCase().replace(/\s+/g, '-');
+                                                                        const prevSync = ps.last_sync;
+                                                                        await triggerSourceSync(sourceKey);
+                                                                        toast.success(`Sync ${ps.name} déclenché`);
+                                                                        createAuditLog('SYSTEM', `Sync manuel: ${ps.name}`).catch(() => {});
+                                                                        let attempts = 0;
+                                                                        const poll = async () => {
+                                                                            attempts++;
+                                                                            try {
+                                                                                const [logs, status] = await Promise.all([
+                                                                                    fetchPipelineLogs(50),
+                                                                                    fetchPipelineStatus(),
+                                                                                ]);
+                                                                                setPipelineLogs(logs);
+                                                                                setPipelineStatus(status);
+                                                                                const updated = status.find((s) => s.name === ps.name);
+                                                                                if (updated && updated.last_sync !== prevSync) {
+                                                                                    if (updated.status === 'online') {
+                                                                                        toast.success(`Sync ${ps.name} terminé`);
+                                                                                    } else if (updated.last_error) {
+                                                                                        toast.error(`Sync ${ps.name}: ${updated.last_error}`);
+                                                                                    }
+                                                                                    return;
+                                                                                }
+                                                                            } catch { /* keep polling */ }
+                                                                            if (attempts < 10) {
+                                                                                const t = setTimeout(poll, 3000);
+                                                                                pollTimers.current.push(t);
+                                                                            }
+                                                                        };
+                                                                        const t = setTimeout(poll, 2000);
+                                                                        pollTimers.current.push(t);
+                                                                    } catch {
+                                                                        toast.error(`Erreur sync ${ps.name}`);
+                                                                    }
+                                                                }}
+                                                                className="h-7 text-[10px] tracking-wider uppercase"
+                                                            >
+                                                                Exécuter
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {pipelineStatus.some((ps) => ps.last_error) && (
+                                        <div className="mt-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+                                            <AlertTriangle className="inline h-3 w-3 mr-1" />
+                                            Erreurs récentes: {pipelineStatus.filter((ps) => ps.last_error).map((ps) => `${ps.name}: ${ps.last_error}`).join(' | ')}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </Panel>
+
+                        <Panel title="Journal de synchronisation">
+                            <div className="max-h-64 overflow-y-auto">
+                                {pipelineLogs.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">Aucun log de synchronisation</p>
+                                ) : (
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                                <th className="py-1 text-left">Heure</th>
+                                                <th className="text-left">Table</th>
+                                                <th className="text-right">Lignes</th>
+                                                <th className="text-left">Statut</th>
+                                                <th className="text-right">Durée</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="font-mono">
+                                            {pipelineLogs.map((log) => (
+                                                <tr key={log.id} className="border-b border-border/30">
+                                                    <td className="py-1 text-muted-foreground">
+                                                        {new Date(log.executed_at).toLocaleTimeString('fr-FR')}
+                                                    </td>
+                                                    <td>{log.table_name || log.job_class}</td>
+                                                    <td className="text-right tabular-nums">{log.rows_synced}</td>
+                                                    <td>
+                                                        <span className={
+                                                            log.status === 'ok' ? 'text-success' :
+                                                            log.status === 'error' ? 'text-destructive' : 'text-warning'
+                                                        }>
+                                                            {log.status.toUpperCase()}
                                                         </span>
                                                     </td>
-                                                    <td className="text-xs text-muted-foreground">
-                                                        {a.last}
-                                                    </td>
-                                                    <td className="text-right">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => {
-                                                                if (
-                                                                    a.jobs &&
-                                                                    a.jobs
-                                                                        .length >
-                                                                        0
-                                                                ) {
-                                                                    handleRunJob(
-                                                                        a
-                                                                            .jobs[0]
-                                                                            .id,
-                                                                    );
-                                                                } else {
-                                                                    forceSync();
-                                                                    createAuditLog(
-                                                                        'SYSTEM',
-                                                                        `Sync globale forcée via ${a.name}`,
-                                                                    ).catch(
-                                                                        () => {},
-                                                                    );
-                                                                }
-                                                            }}
-                                                            className="h-7 text-[10px] tracking-wider uppercase"
-                                                        >
-                                                            Exécuter Maintenant
-                                                        </Button>
-                                                    </td>
+                                                    <td className="text-right tabular-nums">{log.duration_ms}ms</td>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            )}
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
                         </Panel>
 
                         <Panel
@@ -992,6 +1123,23 @@ export default function AdminPage() {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
+                                                        className="h-7 w-7 p-0 text-warning"
+                                                        title="Réinitialiser le mot de passe"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const result = await resetUserPassword(u.id);
+                                                                toast.success(`Mot de passe temporaire: ${result.temp_password}`);
+                                                                createAuditLog('USER', `Mot de passe réinitialisé: ${u.name}`).catch(() => {});
+                                                            } catch {
+                                                                toast.error('Erreur lors de la réinitialisation');
+                                                            }
+                                                        }}
+                                                    >
+                                                        <KeyRound className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
                                                         className="h-7 w-7 p-0 text-destructive"
                                                         onClick={() =>
                                                             setDeleting(u)
@@ -1112,6 +1260,44 @@ export default function AdminPage() {
                             </Dialog>
                         </Panel>
 
+                        <Panel title="Matrice des permissions par rôle">
+                            <p className="mb-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                Accès en lecture par série de dashboard
+                            </p>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                            <th className="py-2 text-left">Rôle</th>
+                                            <th className="text-center">Qualité (100)</th>
+                                            <th className="text-center">Production (200)</th>
+                                            <th className="text-center">Logistique (300)</th>
+                                            <th className="text-center">Dev (350)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="font-mono">
+                                        {[
+                                            { role: 'admin', q: true, p: true, l: true, d: true, label: 'IT / Administrateur' },
+                                            { role: 'direction', q: true, p: true, l: true, d: true, label: 'Direction' },
+                                            { role: 'resp_production', q: false, p: true, l: true, d: false, label: 'Resp. Production' },
+                                            { role: 'chef_atelier', q: false, p: true, l: false, d: false, label: 'Chef d\'Atelier' },
+                                            { role: 'resp_qualite', q: true, p: false, l: false, d: false, label: 'Resp. Qualité' },
+                                            { role: 'methodes', q: false, p: true, l: false, d: false, label: 'Méthodes' },
+                                            { role: 'planning_coupe', q: false, p: false, l: true, d: false, label: 'Planning Coupe' },
+                                        ].map((r) => (
+                                            <tr key={r.role} className="border-b border-border/50">
+                                                <td className="py-1.5 font-bold">{r.label}</td>
+                                                <td className="text-center">{r.q ? '✓' : '—'}</td>
+                                                <td className="text-center">{r.p ? '✓' : '—'}</td>
+                                                <td className="text-center">{r.l ? '✓' : '—'}</td>
+                                                <td className="text-center">{r.d ? '✓' : '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Panel>
+
                         <Panel
                             title="Journal d'audit système"
                             right={
@@ -1147,12 +1333,64 @@ export default function AdminPage() {
                                         <Trash2 className="mr-1 h-3 w-3" />{' '}
                                         Effacer les logs
                                     </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={async () => {
+                                            try {
+                                                await exportAuditLogs({
+                                                    user: auditFilterUser ? Number(auditFilterUser) : undefined,
+                                                    action: auditFilterAction || undefined,
+                                                });
+                                                toast.success('Export téléchargé');
+                                            } catch {
+                                                toast.error('Erreur export');
+                                            }
+                                        }}
+                                        className="h-7 text-[10px] tracking-wider uppercase"
+                                    >
+                                        <Download className="mr-1 h-3 w-3" /> Export CSV
+                                    </Button>
                                     <div className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
                                         Enregistrement serveur actif
                                     </div>
                                 </div>
                             }
                         >
+                            <div className="mb-3 flex items-center gap-3">
+                                <Filter className="h-3 w-3 text-muted-foreground" />
+                                <Select value={auditFilterAction} onValueChange={setAuditFilterAction}>
+                                    <SelectTrigger className="h-7 w-36 text-[10px]">
+                                        <SelectValue placeholder="Toutes actions" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Toutes actions</SelectItem>
+                                        <SelectItem value="USER">Utilisateur</SelectItem>
+                                        <SelectItem value="SYSTEM">Système</SelectItem>
+                                        <SelectItem value="INFO">Info</SelectItem>
+                                        <SelectItem value="ERROR">Erreur</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Select value={auditFilterUser} onValueChange={setAuditFilterUser}>
+                                    <SelectTrigger className="h-7 w-36 text-[10px]">
+                                        <SelectValue placeholder="Tous utilisateurs" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Tous utilisateurs</SelectItem>
+                                        {users.map((u) => (
+                                            <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-[10px]"
+                                    onClick={() => { setAuditFilterAction(''); setAuditFilterUser(''); }}
+                                >
+                                    Réinitialiser
+                                </Button>
+                            </div>
                             <div className="max-h-80 space-y-1 overflow-auto font-mono text-xs">
                                 {loading ? (
                                     <div className="space-y-2">
@@ -1574,6 +1812,99 @@ export default function AdminPage() {
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
+
+                        <Panel title="Configuration Lead Time Transport">
+                            <p className="mb-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                Temps de transport fixes par destination
+                            </p>
+                            <div className="max-h-64 overflow-y-auto">
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                            <th className="py-1 text-left">Destination</th>
+                                            <th className="text-right">LT Transport</th>
+                                            <th className="text-right">STRH</th>
+                                            <th className="text-right">Total LT</th>
+                                            <th className="text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="font-mono">
+                                        {ltConfig.map((lt) => (
+                                            <tr key={lt.id} className="border-b border-border/30">
+                                                <td className="py-1">{lt.destination}</td>
+                                                <td className="text-right tabular-nums">{lt.lt_transport_jours}j</td>
+                                                <td className="text-right tabular-nums">{lt.strh_jours}j</td>
+                                                <td className="text-right tabular-nums font-bold">{lt.total_lt}j</td>
+                                                <td className="text-right">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-6 w-6 p-0 text-destructive"
+                                                        onClick={async () => {
+                                                            if (!confirm(`Supprimer ${lt.destination}?`)) return;
+                                                            try {
+                                                                await deleteLtConfig(lt.id);
+                                                                setLtConfig((prev) => prev.filter((x) => x.id !== lt.id));
+                                                                toast.success('Destination supprimée');
+                                                            } catch {
+                                                                toast.error('Erreur');
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="mt-3 flex gap-2">
+                                <Input
+                                    id="lt-dest"
+                                    placeholder="Destination"
+                                    className="h-7 flex-1 font-mono text-[10px]"
+                                />
+                                <Input
+                                    id="lt-transport"
+                                    type="number"
+                                    placeholder="LT"
+                                    className="h-7 w-16 font-mono text-[10px]"
+                                />
+                                <Input
+                                    id="lt-strh"
+                                    type="number"
+                                    placeholder="STRH"
+                                    className="h-7 w-16 font-mono text-[10px]"
+                                />
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[10px] tracking-wider uppercase"
+                                    onClick={async () => {
+                                        const dest = (document.getElementById('lt-dest') as HTMLInputElement)?.value;
+                                        const lt = Number((document.getElementById('lt-transport') as HTMLInputElement)?.value);
+                                        const strh = Number((document.getElementById('lt-strh') as HTMLInputElement)?.value);
+                                        if (!dest || isNaN(lt) || isNaN(strh)) {
+                                            toast.error('Remplir tous les champs');
+                                            return;
+                                        }
+                                        try {
+                                            const result = await createLtConfig({ destination: dest, lt_transport_jours: lt, strh_jours: strh });
+                                            setLtConfig((prev) => [...prev, result.config]);
+                                            toast.success('Destination ajoutée');
+                                            (document.getElementById('lt-dest') as HTMLInputElement).value = '';
+                                            (document.getElementById('lt-transport') as HTMLInputElement).value = '';
+                                            (document.getElementById('lt-strh') as HTMLInputElement).value = '';
+                                        } catch {
+                                            toast.error('Erreur lors de l\'ajout');
+                                        }
+                                    }}
+                                >
+                                    <Plus className="mr-1 h-3 w-3" /> Ajouter
+                                </Button>
+                            </div>
+                        </Panel>
                     </div>
                 </div>
             </AppShell>

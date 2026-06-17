@@ -38,14 +38,6 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
         return () => clearInterval(tick);
     }, []);
 
-    useEffect(() => {
-        const id = setInterval(
-            () => setLastSync(Date.now()),
-            refreshIntervalSec * 1000,
-        );
-        return () => clearInterval(id);
-    }, [refreshIntervalSec]);
-
     const value = useMemo<Ctx>(
         () => ({
             lastSync,

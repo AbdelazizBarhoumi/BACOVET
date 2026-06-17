@@ -101,3 +101,35 @@ export const fetchMethodesTaggingChart = (filters?: Record<string, string>) =>
 
 export const fetchMethodesDetailTable = () =>
     apiGet<{ data: DetailTableItem[] }>('/detail-table');
+
+// ── Detail Endpoints ─────────────────────────────────────────────────────────
+
+export type ArchivageDetailItem = {
+    of_numero: string;
+    est_solde: boolean;
+    est_archive: boolean;
+};
+
+export type RespectTempsDetailItem = {
+    article: string;
+    temps_cotation: number;
+    temps_production: number;
+    difference: number;
+    est_respecte: boolean;
+};
+
+export type TempsAcceptesDetailItem = {
+    article: string;
+    nb_gammes_total: number;
+    nb_acceptees_v1: number;
+    taux_pct: number | null;
+};
+
+export const fetchArchivageDetail = () =>
+    apiGet<{ data: ArchivageDetailItem[] }>('/archivage-detail');
+
+export const fetchRespectTempsDetail = () =>
+    apiGet<{ data: RespectTempsDetailItem[] }>('/respect-temps-detail');
+
+export const fetchTempsAcceptesDetail = () =>
+    apiGet<{ data: TempsAcceptesDetailItem[] }>('/temps-acceptes-detail');

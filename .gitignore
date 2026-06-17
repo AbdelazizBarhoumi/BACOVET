@@ -26,4 +26,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-novacity-mock
+novacity-mock/node_modules
+gpro-consulting-mock/node_modules
+google-drive-mock/node_modules

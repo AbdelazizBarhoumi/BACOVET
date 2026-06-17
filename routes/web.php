@@ -46,6 +46,10 @@ require __DIR__.'/settings.php';
 // ─── PUBLIC ──────────────────────────────────────────────────────────────
 Route::post('/auth/login', [AuthController::class, 'login']);
 
+// Screen heartbeat (public, no auth)
+Route::post('/screens/{code}/ping', [AdminController::class, 'screenPing']);
+Route::get('/screens/{code}/config', [AdminController::class, 'screenConfig']);
+
 // ─── AUTHENTICATED ───────────────────────────────────────────────────────
 Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
@@ -71,12 +75,29 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         Route::get('/audit-logs', [AdminController::class, 'auditLogs']);
         Route::post('/audit-logs', [AdminController::class, 'createAuditLog']);
         Route::delete('/audit-logs', [AdminController::class, 'clearAuditLogs']);
+        Route::get('/audit-logs/export', [AdminController::class, 'exportAuditLogs']);
 
         Route::get('/sync-config', [AdminController::class, 'getSyncConfig']);
         Route::put('/sync-config/{key}', [AdminController::class, 'updateSyncConfig']);
 
         Route::get('/kpi-values', [AdminController::class, 'listKpiValues']);
         Route::put('/kpi-values/{key}', [AdminController::class, 'updateKpiValue']);
+
+        // Pipeline supervision
+        Route::get('/pipeline/status', [AdminController::class, 'pipelineStatus']);
+        Route::get('/pipeline/logs', [AdminController::class, 'pipelineLogs']);
+        Route::post('/pipeline/sync/{source}', [AdminController::class, 'triggerSync']);
+        Route::post('/pipeline/sync-all', [AdminController::class, 'triggerSyncAll']);
+
+        // User management additions
+        Route::post('/users/{id}/reset-password', [AdminController::class, 'resetPassword']);
+        Route::get('/users/{id}/sessions', [AdminController::class, 'userSessions']);
+
+        // Lead Time Config
+        Route::get('/lt-config', [AdminController::class, 'ltConfig']);
+        Route::post('/lt-config', [AdminController::class, 'createLtConfig']);
+        Route::put('/lt-config/{id}', [AdminController::class, 'updateLtConfig']);
+        Route::delete('/lt-config/{id}', [AdminController::class, 'deleteLtConfig']);
     });
 
     // ── QUALITY ──────────────────────────────────────────────────────────
@@ -91,6 +112,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/annual-trend', [QualityController::class, 'annualTrend']);
             Route::get('/pareto/rft', [QualityController::class, 'paretoRft']);
             Route::get('/pareto/inspection', [QualityController::class, 'paretoInspection']);
+            Route::get('/pareto/fg', [QualityController::class, 'paretoFg']);
         });
 
     // ── PRODUCTION ───────────────────────────────────────────────────────
@@ -121,6 +143,10 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/serigraphie/coverage', [ProductionController::class, 'serigraphieCoverage']);
             Route::get('/serigraphie/flux', [ProductionController::class, 'serigraphieFlux']);
             Route::get('/serigraphie/rejets', [ProductionController::class, 'serigraphieRejets']);
+            // Methods KPIs
+            Route::get('/taux-archivage', [ProductionController::class, 'tauxArchivage']);
+            Route::get('/respect-temps-estime', [ProductionController::class, 'respectTempsEstime']);
+            Route::get('/taux-temps-acceptes', [ProductionController::class, 'tauxTempsAcceptes']);
         });
 
     // ── LOGISTICS ────────────────────────────────────────────────────────
@@ -135,6 +161,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/coverage', [LogisticsController::class, 'coverage']);
             Route::get('/stock-search', [LogisticsController::class, 'stockSearch']);
             Route::get('/stock-reliability', [LogisticsController::class, 'stockReliability']);
+            Route::get('/dot-hot-trend', [LogisticsController::class, 'dotHotTrend']);
         });
 
     // ── MÉTHODES ─────────────────────────────────────────────────────────
@@ -144,6 +171,9 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/kpis', [MethodesController::class, 'kpis']);
             Route::get('/tagging-chart', [MethodesController::class, 'taggingChart']);
             Route::get('/detail-table', [MethodesController::class, 'detailTable']);
+            Route::get('/archivage-detail', [MethodesController::class, 'archivageDetail']);
+            Route::get('/respect-temps-detail', [MethodesController::class, 'respectTempsDetail']);
+            Route::get('/temps-acceptes-detail', [MethodesController::class, 'tempsAcceptesDetail']);
         });
 
     // ── DEVELOPMENT ──────────────────────────────────────────────────────
@@ -152,6 +182,9 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         ->group(function () {
             Route::get('/kpis', [DevelopmentController::class, 'kpis']);
             Route::get('/trend', [DevelopmentController::class, 'trend']);
+            Route::get('/lead-time', [DevelopmentController::class, 'leadTimeDev']);
+            Route::get('/trend-rft', [DevelopmentController::class, 'trendRft']);
+            Route::get('/trend-livraison', [DevelopmentController::class, 'trendLivraison']);
         });
 
     // ── FILTERS ──────────────────────────────────────────────────────────

@@ -23,6 +23,11 @@ import {
 interface ProductionKpiDetailModalProps {
     kpiKey: ProductionKpiKey | null;
     kpiData: ProductionKpis | null; // Full response from GET /production/kpis
+    extraData?: {
+        tauxArchivage?: { value: number | null; status: string; target: number } | null;
+        respectTempsEstime?: { value: number | null; status: string; target: number } | null;
+        tauxTempsAcceptes?: { value: number | null; status: string; target: number } | null;
+    } | null;
     trendData?: BreakdownRow[];
     breakdownData?: BreakdownData | null;
     onClose: () => void;
@@ -386,6 +391,7 @@ function BreakdownTable({
 export default function ProductionKpiDetailModal({
     kpiKey,
     kpiData,
+    extraData,
     breakdownData,
     onClose,
 }: ProductionKpiDetailModalProps) {
@@ -423,13 +429,29 @@ export default function ProductionKpiDetailModal({
         owe_chaine: 'avg_owe',
         wip_chaine: 'total_wip',
         arrets_non_planifies: 'total_lost_time',
+        rft_production: 'rft_production',
         br_gtd: 'br_gtd',
         br_bundling: 'br_bundling',
         br_print: 'br_print',
     };
 
+    // Extra KPIs come from a separate API call, not from kpiData
+    const extraKpiMap: Record<string, string> = {
+        taux_archivage: 'tauxArchivage',
+        respect_temps_estime: 'respectTempsEstime',
+        temps_acceptes: 'tauxTempsAcceptes',
+    };
+
     const responseKey = kpiMap[kpiKey] || kpiKey;
-    const card = (kpiData as unknown as Record<string, {value: number, status: string}>)?.[responseKey] || {
+    const extraKey = extraKpiMap[kpiKey];
+
+    let card;
+    if (extraKey && extraData?.[extraKey as keyof typeof extraData]) {
+        card = extraData[extraKey as keyof typeof extraData];
+    } else {
+        card = (kpiData as unknown as Record<string, {value: number, status: string}>)?.[responseKey];
+    }
+    card = card || {
         value: 0,
         status: 'grey',
         target: config.target.value,
@@ -502,12 +524,6 @@ export default function ProductionKpiDetailModal({
                         {config.description}
                     </p>
 
-                    {config.source.formula_source === 'interim' && (
-                        <div className="mb-4 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-semibold text-amber-600 uppercase">
-                            ⚠ Formule interim — La formule officielle CDC nécessite GPRO Consulting (SAM, SOT, Effectif)
-                        </div>
-                    )}
-
                     {/* Top stats */}
                     <div className="mb-6 grid grid-cols-3 gap-3">
                         <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
@@ -554,53 +570,55 @@ export default function ProductionKpiDetailModal({
 
                     {/* Formula & Source */}
                     <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <div>
-                            <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                Formule de calcul
-                            </h4>
-                            {config.formula.type === 'raw value' ? (
-                                <div className="rounded border border-border bg-secondary/10 p-2 font-mono text-xs italic">
-                                    Valeur brute:{' '}
-                                    {config.formula.field ||
-                                        config.formula.numerator.field}
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2 font-mono text-[10px]">
-                                    <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                        <div className="truncate text-[8px] opacity-70">
-                                            {config.formula.numerator.label}
-                                        </div>
-                                        <div className="truncate font-bold">
-                                            {config.formula.numerator.field}
-                                        </div>
+                        {config.formula.numerator.field !== 'N/A' && config.formula.denominator.field !== 'N/A' && (
+                            <div>
+                                <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                    Formule de calcul
+                                </h4>
+                                {config.formula.type === 'raw value' ? (
+                                    <div className="rounded border border-border bg-secondary/10 p-2 font-mono text-xs italic">
+                                        Valeur brute:{' '}
+                                        {config.formula.field ||
+                                            config.formula.numerator.field}
                                     </div>
-                                    <div className="text-muted-foreground">
-                                        {config.formula.operator ===
-                                        'subtraction'
-                                            ? '−'
-                                            : '÷'}
-                                    </div>
-                                    <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                        <div className="truncate text-[8px] opacity-70">
-                                            {config.formula.denominator.label}
-                                        </div>
-                                        <div className="truncate font-bold">
-                                            {config.formula.denominator.field}
-                                        </div>
-                                    </div>
-                                    {config.formula.multiplier && (
-                                        <>
-                                            <div className="text-muted-foreground">
-                                                ×
+                                ) : (
+                                    <div className="flex items-center gap-2 font-mono text-[10px]">
+                                        <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
+                                            <div className="truncate text-[8px] opacity-70">
+                                                {config.formula.numerator.label}
                                             </div>
-                                            <div className="font-bold">
-                                                {config.formula.multiplier}
+                                            <div className="truncate font-bold">
+                                                {config.formula.numerator.field}
                                             </div>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                                        </div>
+                                        <div className="text-muted-foreground">
+                                            {config.formula.operator ===
+                                            'subtraction'
+                                                ? '−'
+                                                : '÷'}
+                                        </div>
+                                        <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
+                                            <div className="truncate text-[8px] opacity-70">
+                                                {config.formula.denominator.label}
+                                            </div>
+                                            <div className="truncate font-bold">
+                                                {config.formula.denominator.field}
+                                            </div>
+                                        </div>
+                                        {config.formula.multiplier && (
+                                            <>
+                                                <div className="text-muted-foreground">
+                                                    ×
+                                                </div>
+                                                <div className="font-bold">
+                                                    {config.formula.multiplier}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <div>
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                 Source de données
@@ -614,9 +632,9 @@ export default function ProductionKpiDetailModal({
                                 </div>
                                 <div className="truncate">
                                     <span className="text-muted-foreground">
-                                        Endpoint:
+                                        Source:
                                     </span>{' '}
-                                    {config.source.novacityEndpoint || 'N/A'}
+                                    {config.source.novacityEndpoint || config.source.mysqlTable || 'N/A'}
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground">
@@ -639,7 +657,7 @@ export default function ProductionKpiDetailModal({
                     </div>
 
                     {/* Breakdown & Viz */}
-                    {isLive ? (
+                    {isLive && (
                         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
                             <div className="md:col-span-2">
                                 <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
@@ -679,32 +697,6 @@ export default function ProductionKpiDetailModal({
                                         <HorizontalBarViz
                                             data={breakdownData?.rows || []}
                                         />
-                                    )}
-                                    {config.miniVizType === 'none' && (
-                                        <div className="text-[10px] text-muted-foreground italic">
-                                            Non applicable
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="mb-6 rounded-md border border-dashed border-border bg-secondary/30 p-4">
-                            <div className="flex items-start gap-3">
-                                <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                <div>
-                                    <div className="mb-1 text-xs font-bold text-muted-foreground">
-                                        Données indisponibles
-                                    </div>
-                                    <div className="text-xs text-muted-foreground/80">
-                                        {config.thresholds.grey ||
-                                            'Source en attente de connexion.'}
-                                    </div>
-                                    {config.source.blocker && (
-                                        <div className="mt-1 font-mono text-[10px] text-primary/70">
-                                            CODE BLOQUANT:{' '}
-                                            {config.source.blocker}
-                                        </div>
                                     )}
                                 </div>
                             </div>

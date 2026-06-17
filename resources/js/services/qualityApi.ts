@@ -85,6 +85,7 @@ export type QualityKpis = {
     br_accessoires_dda: KpiCard;
     br_compo_jour: KpiCard;
     br_compo_dda: KpiCard;
+    br_commande: KpiCard;
     synced_at: string | null;
 };
 
@@ -170,3 +171,6 @@ export const fetchQualityParetoRft = (filters?: Record<string, string>) =>
 export const fetchQualityParetoInspection = (
     filters?: Record<string, string>,
 ) => apiGet<{ data: ParetoItem[] }>('/pareto/inspection', filters);
+
+export const fetchQualityParetoFg = (filters?: Record<string, string>) =>
+    apiGet<{ data: ParetoItem[] }>('/pareto/fg', filters);

@@ -45,3 +45,15 @@ Schedule::command('sync:logistics')
     ->everyMinute()
     ->name('sync-logistics')
     ->withoutOverlapping(10);
+
+Schedule::command('sync:drive')
+    ->when(fn () => isSyncDue('drive_interval_seconds'))
+    ->everyMinute()
+    ->name('sync-drive')
+    ->withoutOverlapping(10);
+
+Schedule::command('sync:gpro')
+    ->when(fn () => isSyncDue('gpro_interval_seconds'))
+    ->everyMinute()
+    ->name('sync-gpro')
+    ->withoutOverlapping(5);

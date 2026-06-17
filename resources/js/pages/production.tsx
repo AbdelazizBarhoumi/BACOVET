@@ -1,6 +1,6 @@
 import { Head, usePage } from '@inertiajs/react';
 import { AlertTriangle, InfoIcon } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Area,
     AreaChart,
@@ -25,6 +25,14 @@ import { ProductionKpiCard } from '@/components/production/ProductionKpiCard';
 import type { ProductionKpiKey } from '@/components/production/productionKpiDetailConfig';
 import ProductionKpiDetailModal from '@/components/production/ProductionKpiDetailModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from '@/components/ui/pagination';
 import { Gauge, Panel, TrafficBadge } from '@/components/widgets';
 import { useFilters } from '@/context/FilterContext';
 import type { Status } from '@/lib/mock';
@@ -50,6 +58,9 @@ import {
     fetchSerigraphieRejets,
     fetchInlineEndline,
     fetchDepartage,
+    fetchTauxArchivage,
+    fetchRespectTempsEstime,
+    fetchTauxTempsAcceptes,
     type ChainInfo,
     type ProductionKpis,
     type GaugeItem,
@@ -58,7 +69,6 @@ import {
     type TrendItem,
     type TopOpItem,
     type WipAreaItem,
-    type ApiMetadata,
 } from '@/services/productionApi';
 import type { BreakdownData, BreakdownRow } from '../types/production';
 
@@ -101,6 +111,11 @@ type ExtraData = {
     seriRejets?: BreakdownRow[];
     seriRejetsMetadata?: Record<string, unknown>;
     inlineEndlineData?: BreakdownRow[];
+
+    // Methods KPIs (F-REQ-216, 218, 219)
+    tauxArchivage?: { value: number | null; status: string; target: number } | null;
+    respectTempsEstime?: { value: number | null; status: string; target: number } | null;
+    tauxTempsAcceptes?: { value: number | null; status: string; target: number } | null;
 };
 
 // ─── Misc helpers ─────────────────────────────────────────────────────────────
@@ -123,44 +138,6 @@ function KpiCardSkeleton() {
     );
 }
 
-function RequirementAlerts({ metadata }: { metadata: ApiMetadata | null }) {
-    if (!metadata?.cdc_traceability && !metadata?.note) return null;
-
-    return (
-        <div className="mb-4 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
-            <div className="flex items-start gap-3">
-                <InfoIcon className="mt-0.5 h-5 w-5 text-blue-500" />
-                <div className="w-full space-y-1">
-                    <div className="text-xs font-bold tracking-widest text-blue-500 uppercase">
-                        Note de conformité CDC
-                    </div>
-
-                    {metadata.note && (
-                        <div className="mb-2 border-b border-blue-500/10 pb-2 text-[10px] leading-relaxed font-semibold text-foreground">
-                            {metadata.note}
-                        </div>
-                    )}
-
-                    <div className="font-mono text-[10px] leading-relaxed text-muted-foreground">
-                        {metadata.cdc_traceability &&
-                            Object.entries(metadata.cdc_traceability).map(
-                                ([key, item]) => (
-                                    <div key={key}>
-                                        <span className="font-bold text-foreground">
-                                            [{item.id}] {item.label}:
-                                        </span>{' '}
-                                        Manquant dans l'API Novacity. Blocker:{' '}
-                                        {item.blocker}
-                                    </div>
-                                ),
-                            )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── ProductionTab ─────────────────────────────────────────────────────────────
 
 function ProductionTab({
@@ -178,7 +155,6 @@ function ProductionTab({
     wipData,
     extraData,
     loading,
-    metadata,
     onKpiClick,
 }: {
     workshop: 'confection' | 'coupe' | 'serigraphie';
@@ -195,7 +171,6 @@ function ProductionTab({
     wipData: WipAreaItem[];
     extraData: ExtraData;
     loading: boolean;
-    metadata: ApiMetadata | null;
     onKpiClick: (key: ProductionKpiKey) => void;
 }) {
     if (loading && !kpis) {
@@ -244,8 +219,6 @@ function ProductionTab({
 
     return (
         <>
-            <RequirementAlerts metadata={metadata} />
-
             {/* Row 1 — Chain info cards */}
             {workshop !== 'serigraphie' && (
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -255,8 +228,21 @@ function ProductionTab({
                             className="rounded-lg border border-border bg-card p-3"
                         >
                             <div className="mb-2 flex items-center justify-between">
-                                <div className="text-sm font-bold tracking-wider">
-                                    {c.id}
+                                <div className="flex items-center gap-2">
+                                    <span
+                                        className={`inline-block h-2 w-2 rounded-full ${
+                                            c.status === 'green'
+                                                ? 'bg-green-500'
+                                                : c.status === 'orange'
+                                                  ? 'bg-orange-400'
+                                                  : c.status === 'red'
+                                                    ? 'bg-red-500'
+                                                    : 'bg-gray-400'
+                                        }`}
+                                    />
+                                    <div className="text-sm font-bold tracking-wider">
+                                        {c.id}
+                                    </div>
                                 </div>
                                 <div className="flex flex-col items-end">
                                     <div className="font-mono text-[10px] text-primary uppercase">
@@ -295,6 +281,38 @@ function ProductionTab({
                                 <KV label="EPD" value={c.epd ?? 'N/A'} />
                                 <KV label="EHD" value={c.ehd ?? 'N/A'} />
                             </div>
+                            {c.br_gtd != null && (
+                                <div className="mt-1 flex items-center gap-2 font-mono text-[9px] uppercase">
+                                    <span className="text-muted-foreground">BR GTD:</span>
+                                    <span
+                                        className={`font-bold ${
+                                            c.br_gtd <= 4
+                                                ? 'text-green-600'
+                                                : c.br_gtd <= 5
+                                                  ? 'text-orange-500'
+                                                  : 'text-red-600'
+                                        }`}
+                                    >
+                                        {c.br_gtd.toFixed(1)}%
+                                    </span>
+                                </div>
+                            )}
+                            {(c.entree_jour != null || c.sortie_jour != null) && (
+                                <div className="mt-1 flex items-center gap-3 font-mono text-[9px] text-muted-foreground uppercase">
+                                    <span>
+                                        Entrée:{' '}
+                                        <span className="font-bold text-foreground">
+                                            {c.entree_jour ?? 'N/A'}
+                                        </span>
+                                    </span>
+                                    <span>
+                                        Sortie:{' '}
+                                        <span className="font-bold text-foreground">
+                                            {c.sortie_jour ?? 'N/A'}
+                                        </span>
+                                    </span>
+                                </div>
+                            )}
                             {(c.hp != null || c.hs != null) && (
                                 <div className="mt-2 flex gap-3 border-t border-border/30 pt-1 font-mono text-[9px] text-muted-foreground uppercase">
                                     <span>
@@ -379,6 +397,23 @@ function ProductionTab({
                 />
                 {workshop !== 'serigraphie' && (
                     <ProductionKpiCard
+                        label="WIP Total ·205"
+                        value={
+                            kpis.total_wip.value ??
+                            (kpis.total_wip.status === 'pending' ||
+                            kpis.total_wip.status === 'inactive'
+                                ? '-'
+                                : 'N/A')
+                        }
+                        target={kpis.total_wip.target}
+                        status={kpis.total_wip.status as Status}
+                        source="local_db:wip_chaine"
+                        isLoading={loading}
+                        onClick={() => onKpiClick('wip_chaine')}
+                    />
+                )}
+                {workshop !== 'serigraphie' && (
+                    <ProductionKpiCard
                         label="Arrêts non planifiés ·207"
                         value={
                             kpis.total_lost_time.value ??
@@ -445,6 +480,33 @@ function ProductionTab({
                     isLoading={loading}
                     onClick={() => onKpiClick('br_print')}
                 />
+                <ProductionKpiCard
+                    label="Taux Archivage ·216"
+                    value={extraData.tauxArchivage?.value ?? 'N/A'}
+                    target={`≥ ${extraData.tauxArchivage?.target ?? 85}%`}
+                    status={extraData.tauxArchivage?.status as Status}
+                    source="GPRO Suivi Paquets"
+                    isLoading={loading}
+                    onClick={() => onKpiClick('taux_archivage')}
+                />
+                <ProductionKpiCard
+                    label="Respect Temps Estimé ·218"
+                    value={extraData.respectTempsEstime?.value !== null ? `${extraData.respectTempsEstime?.value}%` : 'N/A'}
+                    target={`≥ ${extraData.respectTempsEstime?.target ?? 90}%`}
+                    status={extraData.respectTempsEstime?.status as Status}
+                    source="Drive Cotation"
+                    isLoading={loading}
+                    onClick={() => onKpiClick('respect_temps_estime')}
+                />
+                <ProductionKpiCard
+                    label="Temps Acceptés V1 ·219"
+                    value={extraData.tauxTempsAcceptes?.value !== null ? `${extraData.tauxTempsAcceptes?.value}%` : 'N/A'}
+                    target={`≥ ${extraData.tauxTempsAcceptes?.target ?? 80}%`}
+                    status={extraData.tauxTempsAcceptes?.status as Status}
+                    source="Drive Gammes"
+                    isLoading={loading}
+                    onClick={() => onKpiClick('temps_acceptes')}
+                />
             </div>
 
             {/* Row 3 — Gauges + Timeline */}
@@ -474,13 +536,19 @@ function ProductionTab({
                                 <div className="flex min-h-[120px] items-end justify-around pt-2">
                                     {wipGauges.length > 0 ? (
                                         wipGauges.map((c) => (
-                                            <Gauge
-                                                key={c.chaine}
-                                                value={Number(c.wip)}
-                                                label={c.chaine}
-                                                max={200}
-                                                inverted={true}
-                                            />
+                                            <div key={c.chaine} className="flex flex-col items-center">
+                                                <Gauge
+                                                    value={Number(c.wip)}
+                                                    label={c.chaine}
+                                                    max={200}
+                                                    inverted={true}
+                                                />
+                                                {(c.raw_wip != null || c.target != null) && (
+                                                    <div className="mt-1 font-mono text-[9px] text-muted-foreground">
+                                                        {c.raw_wip ?? '—'} / {c.target ?? '—'}
+                                                    </div>
+                                                )}
+                                            </div>
                                         ))
                                     ) : (
                                         <div className="font-mono text-xs text-muted-foreground">
@@ -494,7 +562,10 @@ function ProductionTab({
 
                     <Panel title="Chronologie des arrêts (Aujourd'hui)" className="h-full">
                         <div className="space-y-3 font-mono text-xs">
-                            {(['CH1', 'CH2', 'CH3', 'CH4'] as const).map((ch) => (
+                            {(() => {
+                                const uniqueChains = [...new Set(stoppages.map((s) => s.chaine))].sort();
+                                return uniqueChains.length > 0 ? uniqueChains : ['CH1', 'CH2', 'CH3', 'CH4'];
+                            })().map((ch) => (
                                 <div key={ch} className="flex items-center gap-2">
                                     <div className="w-10 text-muted-foreground">{ch}</div>
                                     <div className="relative h-6 flex-1 overflow-hidden rounded bg-secondary">
@@ -986,6 +1057,7 @@ function ProductionTab({
                                 <thead>
                                     <tr className="border-b border-border text-muted-foreground uppercase">
                                         <th className="py-2 text-left">Chaîne</th>
+                                        <th className="py-2 text-left">Shift</th>
                                         <th className="py-2 text-right">Théorique</th>
                                         <th className="py-2 text-right">Réel</th>
                                         <th className="py-2 text-right">Écart</th>
@@ -996,6 +1068,7 @@ function ProductionTab({
                                         coupeTagging.map((t, i) => (
                                             <tr key={i} className="border-b border-border/50">
                                                 <td className="py-2 font-bold">{t.chaine}</td>
+                                                <td className="py-2 text-muted-foreground">{t.shift ?? '—'}</td>
                                                 <td className="py-2 text-right">{t.tag_theorique}</td>
                                                 <td className="py-2 text-right">{t.tag_reel}</td>
                                                 <td
@@ -1012,7 +1085,7 @@ function ProductionTab({
                                     ) : (
                                         <tr>
                                             <td
-                                                colSpan={4}
+                                                colSpan={5}
                                                 className="py-4 text-center italic text-muted-foreground"
                                             >
                                                 Aucune donnée
@@ -1031,8 +1104,10 @@ function ProductionTab({
                                     <tr className="border-b border-border text-muted-foreground uppercase">
                                         <th className="py-2 text-left">OF</th>
                                         <th className="py-2 text-left">Article</th>
+                                        <th className="py-2 text-left">Désignation</th>
                                         <th className="py-2 text-right">Qté</th>
                                         <th className="py-2 text-center">Début</th>
+                                        <th className="py-2 text-center">Statut</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1041,19 +1116,40 @@ function ProductionTab({
                                             <tr key={i} className="border-b border-border/50">
                                                 <td className="py-2 font-bold">{o.of_number}</td>
                                                 <td
-                                                    className="max-w-[120px] truncate py-2"
-                                                    title={o.article?.toString()}
+                                                    className="max-w-[100px] truncate py-2"
+                                                    title={o.designation?.toString() ?? undefined}
                                                 >
                                                     {o.article}
                                                 </td>
+                                                <td
+                                                    className="max-w-[120px] truncate py-2 text-muted-foreground"
+                                                    title={o.designation?.toString() ?? undefined}
+                                                >
+                                                    {o.designation ?? '—'}
+                                                </td>
                                                 <td className="py-2 text-right">{o.quantite}</td>
                                                 <td className="py-2 text-center">{o.dt_debut}</td>
+                                                <td className="py-2 text-center">
+                                                    {o.statut ? (
+                                                        <span
+                                                            className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                                                                o.statut === 'termine'
+                                                                    ? 'bg-green-100 text-green-700'
+                                                                    : o.statut === 'en_cours'
+                                                                      ? 'bg-blue-100 text-blue-700'
+                                                                      : 'bg-gray-100 text-gray-600'
+                                                            }`}
+                                                        >
+                                                            {o.statut}
+                                                        </span>
+                                                    ) : '—'}
+                                                </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
                                             <td
-                                                colSpan={4}
+                                                colSpan={6}
                                                 className="py-4 text-center italic text-muted-foreground"
                                             >
                                                 Chargement...
@@ -1145,9 +1241,25 @@ function ProductionTab({
                                     vertical={false}
                                     stroke="var(--border)"
                                 />
-                                <XAxis dataKey="article" hide />
+                                <XAxis
+                                    dataKey="article"
+                                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                                    interval={0}
+                                    angle={-45}
+                                    textAnchor="end"
+                                    height={60}
+                                />
                                 <YAxis tick={{ fontSize: 10 }} />
-                                <Tooltip contentStyle={tt} />
+                                <Tooltip
+                                    contentStyle={tt}
+                                    formatter={(value: number, name: string, props: { payload?: Record<string, unknown> }) => {
+                                        const couleur = props.payload?.couleur;
+                                        return [
+                                            value,
+                                            name + (couleur ? ` (${couleur})` : ''),
+                                        ];
+                                    }}
+                                />
                                 <Legend wrapperStyle={{ fontSize: 11 }} />
                                 <Bar
                                     dataKey="entree"
@@ -1171,8 +1283,10 @@ function ProductionTab({
                                 <thead>
                                     <tr className="border-b border-border text-muted-foreground uppercase">
                                         <th className="py-2 text-left">ID Colis</th>
+                                        <th className="py-2 text-left">Référence</th>
                                         <th className="py-2 text-left">Motif</th>
                                         <th className="py-2 text-right">Qté</th>
+                                        <th className="py-2 text-center">Date rejet</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1180,16 +1294,22 @@ function ProductionTab({
                                         seriRejets.map((r, i) => (
                                             <tr key={i} className="border-b border-border/50">
                                                 <td className="py-2 font-bold">{r.id_colis}</td>
+                                                <td className="py-2 text-muted-foreground">{r.reference ?? '—'}</td>
                                                 <td className="py-2 text-destructive">
                                                     {r.motif}
                                                 </td>
                                                 <td className="py-2 text-right">{r.qtte}</td>
+                                                <td className="py-2 text-center text-muted-foreground">
+                                                    {r.date_rejet
+                                                        ? new Date(String(r.date_rejet)).toLocaleDateString('fr-FR')
+                                                        : '—'}
+                                                </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
                                             <td
-                                                colSpan={3}
+                                                colSpan={5}
                                                 className="py-4 text-center italic text-muted-foreground"
                                             >
                                                 Aucun rejet
@@ -1237,7 +1357,6 @@ function Legend2({ color, label }: { color: string; label: string }) {
 export default function ProductionPage() {
     const [chains, setChains] = useState<ChainInfo[]>([]);
     const [kpis, setKpis] = useState<ProductionKpis | null>(null);
-    const [metadata, setMetadata] = useState<ApiMetadata | null>(null);
     const [gauges, setGauges] = useState<GaugeItem[]>([]);
     const [wipGauges, setWipGauges] = useState<GaugeItem[]>([]);
     const [stoppages, setStoppages] = useState<StoppageItem[]>([]);
@@ -1258,11 +1377,18 @@ export default function ProductionPage() {
     // Sprint 5 - Coupe & Sérigraphie
     const [coupeTagging, setCoupeTagging] = useState<BreakdownRow[]>([]);
     const [coupeOfs, setCoupeOfs] = useState<BreakdownRow[]>([]);
+    const [coupeOfsPage, setCoupeOfsPage] = useState(1);
+    const COUPE_OFS_PAGE_SIZE = 20;
     const [coupeQteDepartage, setCoupeQteDepartage] = useState<BreakdownRow[]>([]);
     const [seriFlux, setSeriFlux] = useState<BreakdownRow[]>([]);
     const [seriRejets, setSeriRejets] = useState<BreakdownRow[]>([]);
     const [seriRejetsMetadata, setSeriRejetsMetadata] = useState<Record<string, unknown> | undefined>(undefined);
     const [inlineEndlineData, setInlineEndlineData] = useState<BreakdownRow[]>([]);
+
+    // Methods KPIs (F-REQ-216, 218, 219)
+    const [tauxArchivage, setTauxArchivage] = useState<{ value: number | null; status: string; target: number } | null>(null);
+    const [respectTempsEstime, setRespectTempsEstime] = useState<{ value: number | null; status: string; target: number } | null>(null);
+    const [tauxTempsAcceptes, setTauxTempsAcceptes] = useState<{ value: number | null; status: string; target: number } | null>(null);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -1274,6 +1400,12 @@ export default function ProductionPage() {
     // Modal state
     const [selectedKpi, setSelectedKpi] = useState<ProductionKpiKey | null>(null);
     const [breakdownData, setBreakdownData] = useState<BreakdownData | null>(null);
+
+    const coupeOfsTotalPages = Math.max(1, Math.ceil(coupeOfs.length / COUPE_OFS_PAGE_SIZE));
+    const coupeOfsPageItems = useMemo(() => {
+        const start = (coupeOfsPage - 1) * COUPE_OFS_PAGE_SIZE;
+        return coupeOfs.slice(start, start + COUPE_OFS_PAGE_SIZE);
+    }, [coupeOfs, coupeOfsPage]);
 
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { getFilterParams } = useFilters();
@@ -1288,6 +1420,10 @@ export default function ProductionPage() {
         }
     }, [url]);
 
+    useEffect(() => {
+        setCoupeOfsPage(1);
+    }, [coupeOfs.length]);
+
     const fetchData = useCallback(async () => {
         try {
             const filters = getFilterParams();
@@ -1295,6 +1431,9 @@ export default function ProductionPage() {
             const promises: Promise<unknown>[] = [
                 fetchProductionChainInfo(filters),
                 fetchProductionKpis(filters),
+                fetchTauxArchivage(),
+                fetchRespectTempsEstime(),
+                fetchTauxTempsAcceptes(),
             ];
 
             if (activeTab !== 'serigraphie') {
@@ -1342,10 +1481,16 @@ export default function ProductionPage() {
             const chainsRes = nextResult();
             const kpisRes = nextResult();
             if (chainsRes.status === 'fulfilled') {
-                setChains((chainsRes.value as { data: ChainInfo[]; metadata: ApiMetadata }).data);
-                setMetadata((chainsRes.value as { data: ChainInfo[]; metadata: ApiMetadata }).metadata);
+                setChains((chainsRes.value as { data: ChainInfo[] }).data);
             }
             if (kpisRes.status === 'fulfilled') setKpis(kpisRes.value as ProductionKpis);
+
+            const archivageRes = nextResult();
+            const respectRes = nextResult();
+            const tempsAcceptesRes = nextResult();
+            if (archivageRes.status === 'fulfilled') setTauxArchivage(archivageRes.value as { value: number | null; status: string; target: number });
+            if (respectRes.status === 'fulfilled') setRespectTempsEstime(respectRes.value as { value: number | null; status: string; target: number });
+            if (tempsAcceptesRes.status === 'fulfilled') setTauxTempsAcceptes(tempsAcceptesRes.value as { value: number | null; status: string; target: number });
 
             if (activeTab !== 'serigraphie') {
                 const gaugesRes     = nextResult();
@@ -1389,7 +1534,19 @@ export default function ProductionPage() {
                 if (taggingRes.status    === 'fulfilled') setCoupeTagging((taggingRes.value as { data: BreakdownRow[] }).data);
                 if (ofsRes.status        === 'fulfilled') setCoupeOfs((ofsRes.value as { data: BreakdownRow[] }).data);
                 if (qteDepRes.status     === 'fulfilled') setCoupeQteDepartage((qteDepRes.value as { data: BreakdownRow[] }).data);
-                if (inlineEndRes.status  === 'fulfilled') setInlineEndlineData((inlineEndRes.value as { data: BreakdownRow[] }).data);
+                if (inlineEndRes.status  === 'fulfilled') {
+                    const raw = (inlineEndRes.value as { data: Record<string, unknown>[] }).data;
+                    const grouped = new Map<string, { chaine: string; inline: number; endline: number }>();
+                    for (const row of raw) {
+                        const chaine = String(row.shortname ?? row.chaine ?? '');
+                        if (!grouped.has(chaine)) grouped.set(chaine, { chaine, inline: 0, endline: 0 });
+                        const g = grouped.get(chaine)!;
+                        const count = Number(row.count ?? 0);
+                        if (row.opera === 'inline') g.inline += count;
+                        else if (row.opera === 'endline') g.endline += count;
+                    }
+                    setInlineEndlineData([...grouped.values()]);
+                }
             } else if (activeTab === 'serigraphie') {
                 const seriCovRes    = nextResult();
                 const fluxRes       = nextResult();
@@ -1492,7 +1649,6 @@ export default function ProductionPage() {
         allOps,
         wipData,
         loading,
-        metadata,
         onKpiClick: handleKpiClick,
     } as const;
 
@@ -1546,37 +1702,50 @@ export default function ProductionPage() {
                         <ProductionTab
                             {...sharedTabProps}
                             workshop="confection"
-                            extraData={{ departage, vignettes, coupeChainCoverage }}
-                        />
-                    </TabsContent>
+                            extraData={{
+                                departage,
+                                vignettes,
+                                coupeChainCoverage,
+                                tauxArchivage,
+                                respectTempsEstime,
+                                tauxTempsAcceptes
+                            }}
+                            />
+                            </TabsContent>
 
-                    <TabsContent value="coupe">
-                        <ProductionTab
+                            <TabsContent value="coupe">
+                            <ProductionTab
                             {...sharedTabProps}
                             workshop="coupe"
-                            extraData={{ 
-                                coupeCoverage, 
-                                coupeChainCoverage, 
-                                coupeTagging, 
-                                coupeOfs, 
-                                coupeQteDepartage, 
-                                inlineEndlineData 
+                            extraData={{
+                                coupeCoverage,
+                                coupeChainCoverage,
+                                coupeTagging,
+                                coupeOfs,
+                                coupeQteDepartage,
+                                inlineEndlineData,
+                                tauxArchivage,
+                                respectTempsEstime,
+                                tauxTempsAcceptes
                             }}
-                        />
-                    </TabsContent>
+                            />
+                            </TabsContent>
 
-                    <TabsContent value="serigraphie">
-                        <ProductionTab
+                            <TabsContent value="serigraphie">
+                            <ProductionTab
                             {...sharedTabProps}
                             workshop="serigraphie"
-                            extraData={{ 
+                            extraData={{
                                 serigraphieCoverage,
                                 seriFlux,
                                 seriRejets,
                                 seriRejetsMetadata,
-                                inlineEndlineData
+                                inlineEndlineData,
+                                tauxArchivage,
+                                respectTempsEstime,
+                                tauxTempsAcceptes
                             }}
-                        />
+                            />
                     </TabsContent>
                 </Tabs>
 
@@ -1593,6 +1762,11 @@ export default function ProductionPage() {
             <ProductionKpiDetailModal
                 kpiKey={selectedKpi}
                 kpiData={kpis}
+                extraData={{
+                    tauxArchivage,
+                    respectTempsEstime,
+                    tauxTempsAcceptes,
+                }}
                 breakdownData={breakdownData}
                 onClose={() => setSelectedKpi(null)}
             />

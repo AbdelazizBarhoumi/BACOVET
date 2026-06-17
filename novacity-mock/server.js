@@ -87,7 +87,7 @@ const SHIFTS = ["S1", "S2"];
 const GROUPS = ["G01", "G02", "G03"];
 const EMPLOYEES = ["EMP0123", "EMP0456", "EMP0789", "EMP1011", "EMP1213"];
 const OPS = ["OP10", "OP20", "OP30", "OP40"];
-const ARTICLES = ["ART-001", "ART-002", "ART-003", "ART-004"];
+const ARTICLES = ["ART-0001", "ART-0002", "ART-0003", "ART-0004"];
 const COLORS = ["Blanc", "Noir", "Rouge", "Bleu", "Ecru", "Beige"];
 const STYLES = ["STY-A01", "STY-A02", "STY-B01", "STY-B02"];
 const OFS = ["OF-2026-0412", "OF-2026-0413", "OF-2026-0414", "OF-2026-0415"];
@@ -490,11 +490,13 @@ const QUERIES = {
   wip_chaine: {
     prestataire: "Prestataire Alpha",
     generate: () =>
-      CHAINS.map((ch) => ({
+      CHAINS.map((ch, i) => ({
         chaine: ch,
         en_cours: Math.floor(jitter(1200, 15)),
         entree_jour: Math.floor(jitter(380, 10)),
         sortie_jour: Math.floor(jitter(355, 10)),
+        of: OFS[i % OFS.length],
+        article: ARTICLES[i % ARTICLES.length],
       })),
   },
 
