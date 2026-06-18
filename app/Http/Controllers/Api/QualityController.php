@@ -298,10 +298,34 @@ class QualityController extends Controller
                 'br_gtd' => round($row->avg_defect_pct, 1),
             ]);
 
+        // BR Bundling trend: monthly reject rate from rejets_inspection_paquet (jour rows)
+        // Note: is_active filter excludes inactive placeholder rows (B-01) that would pollute the monthly aggregate.
+        // Daily reads in kpis()/brChart()/qpTeams() don't need this filter — they guard with bundle_inspected > 0.
+        $brBundlingTrend = DB::table('rejets_inspection_paquet')
+            ->where('period', 'jour')
+            ->whereYear('date', $year)
+            ->where('is_active', true)
+            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month")
+            ->selectRaw('SUM(bundle_reject) as total_reject')
+            ->selectRaw('SUM(bundle_inspected) as total_inspected')
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(fn ($row) => [
+                'month' => $row->month,
+                'br_bundling' => $row->total_inspected > 0
+                    ? round(($row->total_reject / $row->total_inspected) * 100, 1)
+                    : null,
+            ]);
+
         // Merge by month
-        $months = $rftTrend->pluck('month')->merge($brGtdTrend->pluck('month'))->unique()->sort()->values();
+        $months = $rftTrend->pluck('month')
+            ->merge($brGtdTrend->pluck('month'))
+            ->merge($brBundlingTrend->pluck('month'))
+            ->unique()->sort()->values();
         $rftByMonth = $rftTrend->keyBy('month');
         $brByMonth = $brGtdTrend->keyBy('month');
+        $brBundlingByMonth = $brBundlingTrend->keyBy('month');
 
         // Drive-sourced monthly trends
         $driveTables = [
@@ -331,15 +355,17 @@ class QualityController extends Controller
             $months = $months->merge($trend->pluck('month'))->unique()->sort()->values();
         }
 
-        $data = $months->map(function ($month) use ($rftByMonth, $brByMonth, $driveTrends) {
+        $data = $months->map(function ($month) use ($rftByMonth, $brByMonth, $brBundlingByMonth, $driveTrends) {
             $row = [
                 'month' => $month,
                 'rft' => $rftByMonth[$month]['rft'] ?? null,
                 'br_gtd' => $brByMonth[$month]['br_gtd'] ?? null,
+                'br_bundling' => $brBundlingByMonth[$month]['br_bundling'] ?? null,
             ];
             foreach ($driveTrends as $key => $byMonth) {
                 $row[$key] = $byMonth[$month]['value'] ?? null;
             }
+
             return $row;
         })->values();
 

@@ -204,7 +204,7 @@ export default function LogisticsKpiDetailModal({
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                 Formule de calcul
                             </h4>
-                            <div className="flex items-center gap-2 font-mono text-[10px]">
+                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
                                 <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
                                     <div className="truncate text-[8px] opacity-70">
                                         {config.formula.numerator.label}

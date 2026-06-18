@@ -44,6 +44,7 @@ export function BigNumberCard({
     source,
     trend,
     freq,
+    badge,
     isLoading,
     onClick,
 }: {
@@ -55,6 +56,7 @@ export function BigNumberCard({
     source?: string;
     trend?: 'up' | 'down' | 'flat';
     freq?: string;
+    badge?: string;
     isLoading?: boolean;
     onClick?: () => void;
 }) {
@@ -139,6 +141,11 @@ export function BigNumberCard({
                 {source && (
                     <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/70">
                         src: {source}
+                    </div>
+                )}
+                {badge && (
+                    <div className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        {badge}
                     </div>
                 )}
             </div>

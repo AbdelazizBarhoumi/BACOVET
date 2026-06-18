@@ -74,7 +74,7 @@ class GoogleDriveService
         }
 
         // google/apiclient usage (production mode)
-        $client = new \Google\Client();
+        $client = new \Google\Client;
         $client->setAuthConfig(config('google_drive.service_account_json'));
         $client->addScope(\Google\Service\Sheets::SPREADSHEETS_READONLY);
 

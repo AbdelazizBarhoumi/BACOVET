@@ -1,5 +1,5 @@
 import { Head, usePage } from '@inertiajs/react';
-import { AlertTriangle, InfoIcon } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Area,
@@ -35,6 +35,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Gauge, Panel, TrafficBadge } from '@/components/widgets';
 import { useFilters } from '@/context/FilterContext';
+import { useLiveData } from '@/hooks/use-live-data';
 import type { Status } from '@/lib/mock';
 import {
     fetchProductionChainInfo,
@@ -111,6 +112,7 @@ type ExtraData = {
     seriRejets?: BreakdownRow[];
     seriRejetsMetadata?: Record<string, unknown>;
     inlineEndlineData?: BreakdownRow[];
+    inlineEndlineSource?: string | null;
 
     // Methods KPIs (F-REQ-216, 218, 219)
     tauxArchivage?: { value: number | null; status: string; target: number } | null;
@@ -158,6 +160,7 @@ function ProductionTab({
     allOps,
     wipData,
     extraData,
+    missingFields,
     loading,
     onKpiClick,
 }: {
@@ -174,9 +177,46 @@ function ProductionTab({
     allOps: TopOpItem[];
     wipData: WipAreaItem[];
     extraData: ExtraData;
+    missingFields: string[];
     loading: boolean;
     onKpiClick: (key: ProductionKpiKey) => void;
 }) {
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const interval = setInterval(() => setNow(Date.now()), 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const [coupeOfsPage, setCoupeOfsPage] = useState(1);
+    const COUPE_OFS_PAGE_SIZE = 20;
+
+    // Destructure once for clean access throughout the render
+    const {
+        departage = [],
+        vignettes = [],
+        coupeChainCoverage = null,
+        coupeCoverage = null,
+        serigraphieCoverage = null,
+        coupeTagging = [],
+        coupeOfs = [],
+        coupeQteDepartage = [],
+        inlineEndlineData = [],
+        inlineEndlineSource = null,
+        seriFlux = [],
+        seriRejets = [],
+        seriRejetsMetadata = null,
+    } = extraData;
+
+    const coupeOfsPageItems = useMemo(() => {
+        const start = (coupeOfsPage - 1) * COUPE_OFS_PAGE_SIZE;
+        return coupeOfs.slice(start, start + COUPE_OFS_PAGE_SIZE);
+    }, [coupeOfs, coupeOfsPage]);
+
+    const coupeOfsTotalPages = Math.max(
+        1,
+        Math.ceil(coupeOfs.length / COUPE_OFS_PAGE_SIZE),
+    );
+
     if (loading && !kpis) {
         return (
             <div className="space-y-4">
@@ -205,34 +245,19 @@ function ProductionTab({
             </div>
         );
 
-    // Destructure once for clean access throughout the render
-    const {
-        departage = [],
-        vignettes = [],
-        coupeChainCoverage = null,
-        coupeCoverage = null,
-        serigraphieCoverage = null,
-        coupeTagging = [],
-        coupeOfs = [],
-        coupeQteDepartage = [],
-        inlineEndlineData = [],
-        seriFlux = [],
-        seriRejets = [],
-        seriRejetsMetadata = null,
-    } = extraData;
-
-    const [coupeOfsPage, setCoupeOfsPage] = useState(1);
-    const COUPE_OFS_PAGE_SIZE = 20;
-    const coupeOfsTotalPages = Math.max(1, Math.ceil(coupeOfs.length / COUPE_OFS_PAGE_SIZE));
-    const coupeOfsPageItems = useMemo(() => {
-        const start = (coupeOfsPage - 1) * COUPE_OFS_PAGE_SIZE;
-        return coupeOfs.slice(start, start + COUPE_OFS_PAGE_SIZE);
-    }, [coupeOfs, coupeOfsPage]);
-
     return (
         <>
             {/* Row 1 — Chain info cards */}
             {workshop !== 'serigraphie' && (
+                <>
+                {missingFields.length > 0 && (
+                    <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                            Données GPRO Consulting indisponibles : {missingFields.join(', ')} — sync en attente de vérification.
+                        </span>
+                    </div>
+                )}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
                     {chains.map((c) => (
                         <div
@@ -354,10 +379,11 @@ function ProductionTab({
                         </div>
                     )}
                 </div>
+                </>
             )}
 
             {/* Row 2 — KPIs */}
-            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                 {workshop !== 'serigraphie' && (
                     <>
                         <ProductionKpiCard
@@ -371,7 +397,7 @@ function ProductionTab({
                             }
                             target={kpis.avg_efficience.target}
                             status={kpis.avg_efficience.status as Status}
-                            source="local_db:efficience_chaine"
+                            source="SDT"
                             isLoading={loading}
                             onClick={() => onKpiClick('efficience_chaine')}
                         />
@@ -386,7 +412,7 @@ function ProductionTab({
                             }
                             target={kpis.avg_owe.target}
                             status={kpis.avg_owe.status as Status}
-                            source="local_db:formula"
+                            source="SDT (G.PRO + GPRO consulting)"
                             isLoading={loading}
                             onClick={() => onKpiClick('owe_chaine')}
                         />
@@ -403,7 +429,7 @@ function ProductionTab({
                     }
                     target={kpis.rft_production?.target}
                     status={kpis.rft_production?.status as Status}
-                    source={kpis.rft_production?.source ?? 'local_db:pieces_ok_jour'}
+                    source={kpis.rft_production?.source ?? 'GPRO + Novacity'}
                     isLoading={loading}
                     onClick={() => onKpiClick('rft_production')}
                 />
@@ -419,7 +445,7 @@ function ProductionTab({
                         }
                         target={kpis.total_wip.target}
                         status={kpis.total_wip.status as Status}
-                        source="local_db:wip_chaine"
+                        source="SDT"
                         isLoading={loading}
                         onClick={() => onKpiClick('wip_chaine')}
                     />
@@ -437,7 +463,7 @@ function ProductionTab({
                         unit="min"
                         target={kpis.total_lost_time.target}
                         status={kpis.total_lost_time.status as Status}
-                        source="local_db:lost_time"
+                        source="SDT"
                         isLoading={loading}
                         onClick={() => onKpiClick('arrets_non_planifies')}
                     />
@@ -456,22 +482,24 @@ function ProductionTab({
                             }
                             target={kpis.br_gtd?.target}
                             status={kpis.br_gtd?.status as Status}
-                            source="check_pass_qte"
+                            source="SDT (G.PRO)"
                             isLoading={loading}
                             onClick={() => onKpiClick('br_gtd')}
                         />
                         <ProductionKpiCard
                             label="BR Bundling ·106"
                             value={
-                                kpis.br_bundling?.value ??
-                                (kpis.br_bundling?.status === 'pending' ||
-                                kpis.br_bundling?.status === 'inactive'
-                                    ? '-'
-                                    : 'N/A')
+                                kpis.br_bundling?.source_active === false
+                                    ? '— Indisponible'
+                                    : kpis.br_bundling?.value ??
+                                    (kpis.br_bundling?.status === 'pending' ||
+                                    kpis.br_bundling?.status === 'inactive'
+                                        ? '-'
+                                        : 'N/A')
                             }
                             target={kpis.br_bundling?.target}
                             status={kpis.br_bundling?.status as Status}
-                            source="inspections_paquet"
+                            source="SDT (G.PRO)"
                             isLoading={loading}
                             onClick={() => onKpiClick('br_bundling')}
                         />
@@ -488,7 +516,14 @@ function ProductionTab({
                     }
                     target={kpis.br_print?.target}
                     status={kpis.br_print?.status as Status}
-                    source="google_drive"
+                    source="Google Drive"
+                    badge={
+                        kpis.br_print?.synced_at
+                            ? (now - new Date(kpis.br_print.synced_at).getTime()) > 6 * 60 * 60 * 1000
+                                ? '⚠ Données potentiellement périmées (>6h)'
+                                : undefined
+                            : '⚠ Sync non vérifié'
+                    }
                     isLoading={loading}
                     onClick={() => onKpiClick('br_print')}
                 />
@@ -497,7 +532,7 @@ function ProductionTab({
                     value={extraData.tauxArchivage?.value ?? 'N/A'}
                     target={`≥ ${extraData.tauxArchivage?.target ?? 85}%`}
                     status={extraData.tauxArchivage?.status as Status}
-                    source="GPRO Suivi Paquets"
+                    source="GPRO Prod"
                     isLoading={loading}
                     onClick={() => onKpiClick('taux_archivage')}
                 />
@@ -506,7 +541,7 @@ function ProductionTab({
                     value={extraData.respectTempsEstime?.value != null ? `${extraData.respectTempsEstime.value}%` : 'N/A'}
                     target={`≥ ${extraData.respectTempsEstime?.target ?? 90}%`}
                     status={extraData.respectTempsEstime?.status as Status}
-                    source="Drive Cotation"
+                    source="DRIVE"
                     isLoading={loading}
                     onClick={() => onKpiClick('respect_temps_estime')}
                 />
@@ -515,7 +550,7 @@ function ProductionTab({
                     value={extraData.tauxTempsAcceptes?.value != null ? `${extraData.tauxTempsAcceptes.value}%` : 'N/A'}
                     target={`≥ ${extraData.tauxTempsAcceptes?.target ?? 80}%`}
                     status={extraData.tauxTempsAcceptes?.status as Status}
-                    source="Drive Gammes"
+                    source="DRIVE"
                     isLoading={loading}
                     onClick={() => onKpiClick('temps_acceptes')}
                 />
@@ -1351,6 +1386,11 @@ function ProductionTab({
                     </Panel>
 
                     <Panel title="Opérations par Chaîne" className="lg:col-span-2">
+                        {inlineEndlineSource === 'vw_defects' && (
+                            <div className="mb-2 rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                Source: données défauts (substitut)
+                            </div>
+                        )}
                         {inlineEndlineData.length > 0 ? (() => {
                             const operaKeys = Object.keys(inlineEndlineData[0] ?? {}).filter((k) => k !== 'chaine');
                             const colors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
@@ -1488,12 +1528,6 @@ function ProductionTab({
                                 </tbody>
                             </table>
                         </div>
-                        {!!seriRejetsMetadata?.br_print_note && (
-                            <div className="mt-2 flex items-center gap-2 text-[10px] italic text-muted-foreground">
-                                <InfoIcon className="h-3 w-3" />
-                                {String(seriRejetsMetadata?.br_print_note)}
-                            </div>
-                        )}
                     </Panel>
                 </div>
             )}
@@ -1525,6 +1559,7 @@ function Legend2({ color, label }: { color: string; label: string }) {
 
 export default function ProductionPage() {
     const [chains, setChains] = useState<ChainInfo[]>([]);
+    const [missingFields, setMissingFields] = useState<string[]>([]);
     const [kpis, setKpis] = useState<ProductionKpis | null>(null);
     const [gauges, setGauges] = useState<GaugeItem[]>([]);
     const [wipGauges, setWipGauges] = useState<GaugeItem[]>([]);
@@ -1551,6 +1586,7 @@ export default function ProductionPage() {
     const [seriRejets, setSeriRejets] = useState<BreakdownRow[]>([]);
     const [seriRejetsMetadata, setSeriRejetsMetadata] = useState<Record<string, unknown> | undefined>(undefined);
     const [inlineEndlineData, setInlineEndlineData] = useState<BreakdownRow[]>([]);
+    const [inlineEndlineSource, setInlineEndlineSource] = useState<string | null>(null);
 
     // Methods KPIs (F-REQ-216, 218, 219)
     const [tauxArchivage, setTauxArchivage] = useState<{ value: number | null; status: string; target: number } | null>(null);
@@ -1559,7 +1595,6 @@ export default function ProductionPage() {
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [lastSync, setLastSync] = useState<Date | null>(null);
     const [activeTab, setActiveTab] = useState<'confection' | 'coupe' | 'serigraphie'>(
         'confection',
     );
@@ -1570,6 +1605,7 @@ export default function ProductionPage() {
 
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { getFilterParams } = useFilters();
+    const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
     const { url } = usePage();
 
     // Sync activeTab with URL ?tab=... parameter
@@ -1638,7 +1674,9 @@ export default function ProductionPage() {
             const chainsRes = nextResult();
             const kpisRes = nextResult();
             if (chainsRes.status === 'fulfilled') {
-                setChains((chainsRes.value as { data: ChainInfo[] }).data);
+                const chainsVal = chainsRes.value as { data: ChainInfo[]; metadata?: { missing_fields?: string[] } };
+                setChains(chainsVal.data);
+                setMissingFields(chainsVal.metadata?.missing_fields ?? []);
             }
             if (kpisRes.status === 'fulfilled') setKpis(kpisRes.value as ProductionKpis);
 
@@ -1692,7 +1730,9 @@ export default function ProductionPage() {
                 if (ofsRes.status        === 'fulfilled') setCoupeOfs((ofsRes.value as { data: BreakdownRow[] }).data);
                 if (qteDepRes.status     === 'fulfilled') setCoupeQteDepartage((qteDepRes.value as { data: BreakdownRow[] }).data);
                 if (inlineEndRes.status  === 'fulfilled') {
-                    const raw = (inlineEndRes.value as { data: { chaine: string; opera: string; count: number }[] }).data;
+                    const inlineVal = inlineEndRes.value as { data: { chaine: string; opera: string; count: number }[]; source?: string };
+                    const raw = inlineVal.data;
+                    setInlineEndlineSource(inlineVal.source ?? null);
                     const byOpera = new Map<string, Record<string, number>>();
                     for (const row of raw) {
                         if (!byOpera.has(row.opera)) byOpera.set(row.opera, {});
@@ -1729,17 +1769,18 @@ export default function ProductionPage() {
                 setError(
                     'Erreur de connexion au serveur — Certaines données peuvent être manquantes',
                 );
+                recordFetchError();
             } else {
                 setError(null);
+                recordFetchSuccess();
             }
-
-            setLastSync(new Date());
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Erreur de chargement');
+            recordFetchError();
         } finally {
             setLoading(false);
         }
-    }, [getFilterParams, activeTab]);
+    }, [getFilterParams, activeTab, recordFetchError, recordFetchSuccess]);
 
     const handleKpiClick = useCallback(
         async (key: ProductionKpiKey) => {
@@ -1777,11 +1818,11 @@ export default function ProductionPage() {
         setLoading(true);
 
         fetchData();
-        intervalRef.current = setInterval(fetchData, 60_000);
+        intervalRef.current = setInterval(fetchData, refreshIntervalSec * 1000);
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [fetchData]);
+    }, [fetchData, refreshIntervalSec]);
 
     const exportRows = chains.map((c) => ({
         chaine:         c.id,
@@ -1811,6 +1852,7 @@ export default function ProductionPage() {
         topOps,
         allOps,
         wipData,
+        missingFields,
         loading,
         onKpiClick: handleKpiClick,
     } as const;
@@ -1887,6 +1929,7 @@ export default function ProductionPage() {
                                 coupeOfs,
                                 coupeQteDepartage,
                                 inlineEndlineData,
+                                inlineEndlineSource,
                                 tauxArchivage,
                                 respectTempsEstime,
                                 tauxTempsAcceptes
@@ -1911,15 +1954,6 @@ export default function ProductionPage() {
                             />
                     </TabsContent>
                 </Tabs>
-
-                {lastSync && !loading && (
-                    <div className="mt-4 text-center font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                        Dernière sync:{' '}
-                        <span className="text-foreground">
-                            {lastSync.toLocaleTimeString('fr-FR')}
-                        </span>
-                    </div>
-                )}
             </AppShell>
 
             <ProductionKpiDetailModal

@@ -27,7 +27,6 @@ import { ROLE_LABEL, type Role, useAuth } from '@/context/AuthContext';
 import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchAllJobs,
-    runJobManually,
     fetchAllUsers,
     createUser,
     updateUser,
@@ -40,17 +39,16 @@ import {
     fetchSyncConfig,
     updateSyncConfig,
     fetchAuditLogs,
+    fetchPipelineStatus,
+    triggerSourceSync,
+    type PipelineStatus,
     createAuditLog,
     clearAuditLogs,
     fetchManualKpiValues,
     updateManualKpiValue,
-    fetchPipelineStatus,
-    triggerSourceSync,
-    triggerAllSync,
     type SyncConfigItem,
     type AuditLogEntry,
     type ManualKpiEntry,
-    type PipelineStatus,
 } from '@/services/adminApi';
 
 function Skeleton({ className = '' }: { className?: string }) {
@@ -73,6 +71,7 @@ type JobApi = {
     id: number;
     name: string;
     query_slug?: string;
+    source?: string;
     last_status: string;
     last_run_at: string;
     is_active: boolean;
@@ -90,6 +89,7 @@ type AdminState = {
         id: number;
         name: string;
         description?: string;
+        source?: string;
         last_status: string;
         last_run: string;
         active: boolean;
@@ -134,6 +134,7 @@ const adminReducer = (state: AdminState, action: AdminAction): AdminState => {
                 id: j.id,
                 name: j.name || '',
                 description: j.query_slug || '',
+                source: j.source,
                 last_status: j.last_status,
                 last_run: j.last_run_at || '',
                 active: !!j.is_active,
@@ -163,10 +164,11 @@ export default function AdminPage() {
     const { session } = useAuth();
     const {
         lastSync,
-        now,
         refreshIntervalSec,
         setRefreshIntervalSec,
         forceSync,
+        recordFetchSuccess,
+        recordFetchError,
     } = useLiveData();
 
     const [state, dispatch] = useReducer(adminReducer, {
@@ -191,6 +193,8 @@ export default function AdminPage() {
     const [editingKpi, setEditingKpi] = useState<ManualKpiEntry | null>(null);
     const [kpiNumerator, setKpiNumerator] = useState('');
     const [kpiDenominator, setKpiDenominator] = useState('');
+    const [pipelineSources, setPipelineSources] = useState<PipelineStatus[]>([]);
+    const [syncingSources, setSyncingSources] = useState<Set<string>>(new Set());
     const logEndRef = useRef<HTMLDivElement>(null);
     const prevLogCount = useRef<number>(0);
 
@@ -199,9 +203,9 @@ export default function AdminPage() {
         try {
             const [jobsData, usersData, screensData, auditData] =
                 await Promise.all([
-                    fetchAllJobs(),
-                    fetchAllUsers(),
-                    fetchAllScreens(),
+                    fetchAllJobs().catch(() => []),
+                    fetchAllUsers().catch(() => []),
+                    fetchAllScreens().catch(() => []),
                     fetchAuditLogs().catch(() => []),
                 ]);
 
@@ -231,13 +235,16 @@ export default function AdminPage() {
             } catch {
                 // KPI values fetch is optional
             }
+
+            try {
+                const pipeline = await fetchPipelineStatus();
+                if (isMounted) setPipelineSources(pipeline);
+            } catch {
+                // Pipeline status is optional
+            }
         } catch {
             console.error('Failed to load data');
             if (isMounted) {
-                dispatch({
-                    type: 'SET_ERROR',
-                    payload: 'Impossible de contacter le serveur Novacity API',
-                });
                 setLoading(false);
             }
         }
@@ -251,21 +258,31 @@ export default function AdminPage() {
             loadData(isMounted);
         }, 0);
 
-        const refreshLogs = async () => {
+        const refreshAll = async () => {
             try {
-                const data = await fetchAuditLogs();
-                if (isMounted) setLogs(data);
+                const [auditData, pipelineData, syncConfigData] =
+                    await Promise.all([
+                        fetchAuditLogs(),
+                        fetchPipelineStatus(),
+                        fetchSyncConfig(),
+                    ]);
+                if (isMounted) {
+                    setLogs(auditData);
+                    setPipelineSources(pipelineData);
+                    setSyncConfig(syncConfigData);
+                }
+                recordFetchSuccess();
             } catch {
-                // Non-critical — keep existing logs
+                recordFetchError();
             }
         };
-        const id = setInterval(refreshLogs, 10000);
+        const id = setInterval(refreshAll, refreshIntervalSec * 1000);
 
         return () => {
             isMounted = false;
             clearInterval(id);
         };
-    }, [session, loadData]);
+    }, [session, loadData, refreshIntervalSec, recordFetchSuccess, recordFetchError]);
 
     useEffect(() => {
         if (logEndRef.current && logs.length > prevLogCount.current) {
@@ -282,52 +299,6 @@ export default function AdminPage() {
         prevLogCount.current = logs.length;
     }, [logs]);
 
-    const sources = [
-        { name: 'ERP DIVA', match: /DIVA|Stock/i },
-        { name: 'GPRO-PROD', match: /GPRO|Prod|Chaine|Efficience/i },
-        { name: 'Google Drive', match: /Drive|Spreadsheet/i },
-    ];
-
-    const apiStatus = sources.map((s) => {
-        const sourceJobs = jobs.filter(
-            (j) =>
-                s.match.test(j.name || '') || s.match.test(j.description || ''),
-        );
-        const hasError = sourceJobs.some((j) => j.last_status !== 'ok');
-        const latestRun = Math.max(
-            ...sourceJobs.map((j) => {
-                const time = new Date(j.last_run).getTime();
-                return isNaN(time) ? 0 : time;
-            }),
-            0,
-        );
-
-        const isStale = latestRun > 0 && now - latestRun > 120000;
-
-        let status: 'ok' | 'error' | 'stale' = 'ok';
-        if (error || hasError) status = 'error';
-        else if (isStale) status = 'stale';
-
-        return {
-            name: s.name,
-            status,
-            last:
-                latestRun > 0
-                    ? (() => {
-                          const diff = now - latestRun;
-                          const mins = Math.floor(diff / 60000);
-                          const secs = Math.floor((diff % 60000) / 1000);
-                          return mins > 0
-                              ? `il y a ${mins} min ${secs}s`
-                              : `il y a ${secs}s`;
-                      })()
-                    : error
-                      ? 'Erreur'
-                      : 'Jamais',
-            jobs: sourceJobs,
-        };
-    });
-
     const inactiveBundlingIds = [60, 61, 54, 55];
     const bundlingInactive =
         jobs.length > 0 &&
@@ -336,37 +307,6 @@ export default function AdminPage() {
                 inactiveBundlingIds.includes(Number(j.id)) &&
                 j.active === false,
         );
-
-    const handleRunJob = async (id: number | string) => {
-        if (!session) return;
-        try {
-            const result = await runJobManually(id);
-            toast.success(result?.message || 'Job lancé avec succès');
-            createAuditLog('SYSTEM', `Job lancé manuellement: ID ${id}`).catch(
-                () => {},
-            );
-
-            // Update job state locally
-            dispatch({
-                type: 'UPDATE_JOBS',
-                payload: jobs.map((j) =>
-                    j.id === Number(id)
-                        ? {
-                              ...j,
-                              last_run:
-                                  result?.data?.ran_at ||
-                                  new Date().toISOString(),
-                              last_status: 'ok',
-                          }
-                        : j,
-                ),
-            });
-        } catch {
-            toast.error('Échec du lancement du job');
-            // Optionally reload jobs on error to show accurate status
-            loadData(true);
-        }
-    };
 
     const deleteUserAction = async () => {
         if (!deleting) return;
@@ -408,25 +348,25 @@ export default function AdminPage() {
         }
     };
 
-    const statusMeta = (status: 'ok' | 'error' | 'stale') => {
+    const statusMeta = (status: 'online' | 'degraded' | 'offline') => {
         switch (status) {
-            case 'ok':
+            case 'online':
                 return {
                     dot: 'bg-success',
                     text: 'text-success',
-                    label: '200 OK',
+                    label: 'ONLINE',
                 };
-            case 'error':
-                return {
-                    dot: 'bg-destructive',
-                    text: 'text-destructive',
-                    label: 'ERREUR',
-                };
-            case 'stale':
+            case 'degraded':
                 return {
                     dot: 'bg-warning',
                     text: 'text-warning',
-                    label: 'STALE',
+                    label: 'DEGRADED',
+                };
+            case 'offline':
+                return {
+                    dot: 'bg-destructive',
+                    text: 'text-destructive',
+                    label: 'OFFLINE',
                 };
         }
     };
@@ -767,22 +707,25 @@ export default function AdminPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="font-mono">
-                                        {apiStatus.map((a) => {
-                                            const meta = statusMeta(a.status);
+                                        {pipelineSources.map((src) => {
+                                            const meta = statusMeta(src.status);
+                                            const slug = src.name
+                                                .toLowerCase()
+                                                .replace(/\s+/g, '-');
                                             return (
                                                 <tr
-                                                    key={a.name}
+                                                    key={src.name}
                                                     className="border-b border-border/50"
                                                 >
                                                     <td className="py-2 font-bold">
-                                                        {a.name}
+                                                        {src.name}
                                                     </td>
                                                     <td>
                                                         <span className="inline-flex items-center gap-2 text-xs">
                                                             <span
                                                                 className={`h-2 w-2 rounded-full ${meta.dot} ${
-                                                                    a.status ===
-                                                                    'ok'
+                                                                    src.status ===
+                                                                    'online'
                                                                         ? 'animate-pulse'
                                                                         : ''
                                                                 }`}
@@ -797,37 +740,71 @@ export default function AdminPage() {
                                                         </span>
                                                     </td>
                                                     <td className="text-xs text-muted-foreground">
-                                                        {a.last}
+                                                        {src.last_sync
+                                                            ? (() => {
+                                                                  const diff =
+                                                                      Date.now() -
+                                                                      new Date(
+                                                                          src.last_sync,
+                                                                      ).getTime();
+                                                                  const mins =
+                                                                      Math.floor(
+                                                                          diff /
+                                                                              60000,
+                                                                      );
+                                                                  const secs =
+                                                                      Math.floor(
+                                                                          (diff %
+                                                                              60000) /
+                                                                              1000,
+                                                                      );
+                                                                  return mins > 0
+                                                                      ? `il y a ${mins} min ${secs}s`
+                                                                      : `il y a ${secs}s`;
+                                                              })()
+                                                            : 'Jamais'}
                                                     </td>
                                                     <td className="text-right">
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            onClick={() => {
-                                                                if (
-                                                                    a.jobs &&
-                                                                    a.jobs
-                                                                        .length >
-                                                                        0
-                                                                ) {
-                                                                    handleRunJob(
-                                                                        a
-                                                                            .jobs[0]
-                                                                            .id,
-                                                                    );
-                                                                } else {
-                                                                    forceSync();
+                                                            disabled={syncingSources.has(src.name)}
+                                                            onClick={async () => {
+                                                                setSyncingSources((prev) => new Set(prev).add(src.name));
+                                                                try {
+                                                                    await triggerSourceSync(slug);
                                                                     createAuditLog(
                                                                         'SYSTEM',
-                                                                        `Sync globale forcée via ${a.name}`,
-                                                                    ).catch(
-                                                                        () => {},
+                                                                        `Sync déclenché: ${src.name}`,
+                                                                    ).catch(() => {});
+                                                                    setPipelineSources((prev) =>
+                                                                        prev.map((p) =>
+                                                                            p.name === src.name
+                                                                                ? { ...p, status: 'online', last_sync: new Date().toISOString() }
+                                                                                : p,
+                                                                        ),
                                                                     );
+                                                                    for (let i = 0; i < 5; i++) {
+                                                                        await new Promise((r) => setTimeout(r, 2000));
+                                                                        const pipeline = await fetchPipelineStatus();
+                                                                        setPipelineSources(pipeline);
+                                                                        const updated = pipeline.find((p) => p.name === src.name);
+                                                                        if (updated && updated.status === 'online') break;
+                                                                    }
+                                                                    toast.success(`Sync ${src.name} terminé`);
+                                                                } catch {
+                                                                    toast.error(`Échec du sync ${src.name}`);
+                                                                } finally {
+                                                                    setSyncingSources((prev) => {
+                                                                        const next = new Set(prev);
+                                                                        next.delete(src.name);
+                                                                        return next;
+                                                                    });
                                                                 }
                                                             }}
                                                             className="h-7 text-[10px] tracking-wider uppercase"
                                                         >
-                                                            Exécuter Maintenant
+                                                            {syncingSources.has(src.name) ? 'Sync en cours…' : 'Exécuter Maintenant'}
                                                         </Button>
                                                     </td>
                                                 </tr>
@@ -1126,7 +1103,7 @@ export default function AdminPage() {
                                         onClick={async () => {
                                             if (
                                                 confirm(
-                                                    'Effacer tous les logs ?',
+                                                    'Archiver les logs ? (masquage, pas suppression)',
                                                 )
                                             ) {
                                                 try {
@@ -1134,10 +1111,10 @@ export default function AdminPage() {
                                                     setLogs([]);
                                                     createAuditLog(
                                                         'SYSTEM',
-                                                        "Journal d'audit effacé par l'administrateur",
+                                                        "Journal d'audit masqué par l'administrateur",
                                                     ).catch(() => {});
                                                     toast.success(
-                                                        'Logs effacés',
+                                                        'Logs archivés',
                                                     );
                                                 } catch {
                                                     toast.error(
@@ -1149,7 +1126,7 @@ export default function AdminPage() {
                                         className="h-7 text-[10px] tracking-wider text-destructive uppercase"
                                     >
                                         <Trash2 className="mr-1 h-3 w-3" />{' '}
-                                        Effacer les logs
+                                        Archiver les logs
                                     </Button>
                                     <div className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
                                         Enregistrement serveur actif
@@ -1178,11 +1155,11 @@ export default function AdminPage() {
                                 ) : (
                                     logs.map((l, i) => {
                                         const color =
-                                            l.action_type === 'ERROR'
+                                            l.action_type === 'ERROR' || l.action_type === 'LOGIN_FAILED'
                                                 ? 'text-destructive'
                                                 : l.action_type === 'WARN'
                                                   ? 'text-warning'
-                                                  : l.action_type === 'USER'
+                                                  : l.action_type === 'USER' || l.action_type === 'LOGIN' || l.action_type === 'LOGOUT'
                                                     ? 'text-chart-4'
                                                     : l.action_type === 'SYSTEM'
                                                       ? 'text-primary'
@@ -1263,7 +1240,7 @@ export default function AdminPage() {
                                                           {s.name}
                                                       </span>
                                                   </div>
-                                                  <div className="flex items-center gap-1">
+                                                  <div className="flex items-center gap-1 cursor-pointer">
                                                       <button
                                                           onClick={async () => {
                                                               try {
@@ -1307,7 +1284,7 @@ export default function AdminPage() {
                                                                   );
                                                               }
                                                           }}
-                                                          className={`font-mono text-[10px] uppercase ${
+                                                          className={`font-mono text-[10px] uppercase cursor-pointer ${
                                                               s.status ===
                                                               'online'
                                                                   ? 'text-success'
@@ -1375,8 +1352,12 @@ export default function AdminPage() {
                                                   <SelectContent>
                                                       {[
                                                           {
-                                                              label: 'Qualité (100)',
+                                                              label: 'Qualité (Série 100)',
                                                               value: 'quality',
+                                                          },
+                                                          {
+                                                              label: 'Production (Série 200)',
+                                                              value: 'production',
                                                           },
                                                           {
                                                               label: 'Production / Confection',
@@ -1391,16 +1372,16 @@ export default function AdminPage() {
                                                               value: 'production_serigraphie',
                                                           },
                                                           {
-                                                              label: 'Logistique (300)',
+                                                              label: 'Logistique (Série 300)',
                                                               value: 'logistics',
                                                           },
                                                           {
-                                                              label: 'Méthodes',
-                                                              value: 'methodes',
+                                                              label: 'Développement (Série 350)',
+                                                              value: 'development',
                                                           },
                                                           {
-                                                              label: 'Développement (350)',
-                                                              value: 'development',
+                                                              label: 'Méthodes (F-REQ-404)',
+                                                              value: 'methodes',
                                                           },
                                                           {
                                                               label: 'Admin',

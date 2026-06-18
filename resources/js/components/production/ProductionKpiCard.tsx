@@ -8,6 +8,7 @@ interface ProductionKpiCardProps {
     target?: string;
     status?: Status;
     source?: string;
+    badge?: string;
     isLoading?: boolean;
     onClick?: () => void;
 }

@@ -30,7 +30,7 @@ const TopBar = ({
     const { url: pathname } = usePage();
 
     const title = propTitle || PAGE_TITLE_MAP[pathname] || 'DASHBOARD';
-    const showFilters = pathname !== '/admin' && pathname !== '/unauthorized' && pathname !== '/development';
+    const showFilters = pathname !== '/admin' && pathname !== '/unauthorized';
 
     const filename =
         exportFilename ||
@@ -53,20 +53,20 @@ const TopBar = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <ThemeToggle />
-                    <LiveSyncPill />
-                </div>
-            </div>
-
-            {showFilters && (
-                <div className="flex items-center justify-between border-t border-border/60 bg-background/40 px-6 py-2">
-                    <GlobalFilterBar />
                     {exportRows && exportRows.length > 0 && (
                         <ExportButton
                             rows={exportRows as Record<string, string | number | null>[]}
                             filename={filename}
                         />
                     )}
+                    <ThemeToggle />
+                    <LiveSyncPill />
+                </div>
+            </div>
+
+            {showFilters && (
+                <div className="border-t border-border/60 bg-background/40 px-6 py-2">
+                    <GlobalFilterBar />
                 </div>
             )}
         </header>

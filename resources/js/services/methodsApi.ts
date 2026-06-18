@@ -133,3 +133,16 @@ export const fetchRespectTempsDetail = () =>
 
 export const fetchTempsAcceptesDetail = () =>
     apiGet<{ data: TempsAcceptesDetailItem[] }>('/temps-acceptes-detail');
+
+export type FiabiliteDetailItem = {
+    chaine: string;
+    shift: string;
+    tag_theorique: number;
+    tag_reel: number;
+    ecart_pct: number;
+    ecart_abs: number;
+    status: KpiStatus;
+};
+
+export const fetchFiabiliteDetail = (filters?: Record<string, string>) =>
+    apiGet<{ data: FiabiliteDetailItem[] }>('/fiabilite-detail', filters);

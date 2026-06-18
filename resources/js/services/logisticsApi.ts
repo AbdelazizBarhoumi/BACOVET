@@ -66,6 +66,9 @@ export type KpiCard = {
     status: KpiStatus;
     unit?: string;
     source?: string;
+    note?: string;
+    target?: number;
+    is_fallback?: boolean;
     blocker?: string | null;
     raw?: Record<string, unknown>;
 };
@@ -168,6 +171,7 @@ export type LogisticsCoverage = {
     chaine: CoverageItem[];
     coupe: CoverageItem[];
     serigraphie: CoverageItem[];
+    is_fallback?: boolean;
     synced_at: string | null;
 };
 

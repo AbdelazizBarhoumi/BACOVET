@@ -1,0 +1,213 @@
+
+<h2 class="sr-only">Production page delivery audit: comparison of MD implementation against the BACOVET CDC requirements and Novacity API availability.</h2>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:14px;color:var(--color-text-primary)}
+.hdr{padding:1.25rem 0 0.75rem;border-bottom:0.5px solid var(--color-border-tertiary)}
+.hdr h1{font-size:17px;font-weight:500;margin-bottom:4px}
+.hdr p{font-size:13px;color:var(--color-text-secondary)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:1rem 0}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px}
+.stat .lbl{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.stat .val{font-size:22px;font-weight:500}
+.val.ok{color:#3B6D11}.val.warn{color:#854F0B}.val.err{color:#A32D2D}
+.section{margin:1.25rem 0}
+.section-title{font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-bottom:6px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.b-ok{background:#EAF3DE;color:#3B6D11}.b-warn{background:#FAEEDA;color:#854F0B}.b-err{background:#FCEBEB;color:#A32D2D}.b-info{background:#E6F1FB;color:#185FA5}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{font-size:11px;font-weight:500;text-align:left;padding:6px 10px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.tbl td{padding:7px 10px;border-bottom:0.5px solid var(--color-border-tertiary);vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .mono{font-family:var(--font-mono);font-size:11px;color:var(--color-text-secondary)}
+.block{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:14px}
+.blocker{border-left:3px solid #E24B4A;background:#FCEBEB;border-radius:var(--border-radius-md);padding:10px 14px;margin-bottom:10px}
+.blocker .bt{font-size:13px;font-weight:500;color:#A32D2D;margin-bottom:3px}
+.blocker .bd{font-size:12px;color:#791F1F;line-height:1.5}
+.blocker .bfix{font-size:11.5px;color:#501313;margin-top:6px;padding:6px 8px;background:rgba(255,255,255,.5);border-radius:4px}
+.warning-item{border-left:3px solid #EF9F27;background:#FAEEDA;border-radius:var(--border-radius-md);padding:10px 14px;margin-bottom:10px}
+.warning-item .bt{font-size:13px;font-weight:500;color:#854F0B;margin-bottom:3px}
+.warning-item .bd{font-size:12px;color:#633806;line-height:1.5}
+.ok-block{border-left:3px solid #639922;background:#EAF3DE;border-radius:var(--border-radius-md);padding:10px 14px;margin-bottom:10px}
+.ok-block .bt{font-size:13px;font-weight:500;color:#3B6D11;margin-bottom:3px}
+.ok-block .bd{font-size:12px;color:#27500A;line-height:1.5}
+.row-group{margin-bottom:2px}
+.row-lbl{font-size:11px;font-weight:500;color:var(--color-text-secondary);padding:4px 0 2px;text-transform:uppercase;letter-spacing:.04em}
+.icon-ok::before{content:'✓';color:#639922;font-weight:700;margin-right:4px}
+.icon-warn::before{content:'⚠';color:#EF9F27;margin-right:4px}
+.icon-err::before{content:'✗';color:#E24B4A;font-weight:700;margin-right:4px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+.dot-ok{background:#639922}.dot-warn{background:#EF9F27}.dot-err{background:#E24B4A}.dot-off{background:#888780}
+code{font-family:var(--font-mono);font-size:11px;background:var(--color-background-secondary);padding:1px 5px;border-radius:3px;color:var(--color-text-secondary)}
+.tabs{display:flex;gap:0;border-bottom:0.5px solid var(--color-border-tertiary);margin:1rem 0 0}
+.tab{padding:8px 14px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--color-text-secondary);border-bottom:2px solid transparent;margin-bottom:-0.5px}
+.tab.active{color:var(--color-text-primary);border-bottom:2px solid var(--color-text-primary);font-weight:500}
+.panel{display:none;padding-top:14px}.panel.active{display:block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+
+<div class="hdr">
+  <h1><i class="ti ti-clipboard-check" aria-hidden="true" style="font-size:16px;margin-right:6px"></i>Production page — delivery audit</h1>
+  <p>MD spec vs BACOVET CDC (v2.2) · Novacity API cross-check · June 2026</p>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="lbl">F-REQ covered</div><div class="val ok">26 / 28</div></div>
+  <div class="stat"><div class="lbl">API sources OK</div><div class="val ok">17 / 22</div></div>
+  <div class="stat"><div class="lbl">Critical blockers</div><div class="val err">4</div></div>
+  <div class="stat"><div class="lbl">Warnings</div><div class="val warn">3</div></div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('blockers')">🔴 Blockers (4)</button>
+  <button class="tab" onclick="switchTab('warnings')">🟡 Warnings (3)</button>
+  <button class="tab" onclick="switchTab('coverage')">Coverage map</button>
+  <button class="tab" onclick="switchTab('api')">API sources</button>
+  <button class="tab" onclick="switchTab('confirmed')">✅ Confirmed OK</button>
+</div>
+
+<div id="panel-blockers" class="panel active">
+  <div class="blocker">
+    <div class="bt">🔴 BR Bundling (F-REQ-106) — Novacity endpoints INACTIVE</div>
+    <div class="bd">The KPI card for BR Bundling exists and is wired correctly in the MD, but the Novacity API endpoints it depends on — <code>rejets_suite_inspection_paquet_jour_en_cours</code> (§3.20) and <code>inspections_paquet_jour_en_cours</code> (§3.21) — are both marked <strong>État: Inactif</strong>. BR Bundling will always return null / zero at runtime.</div>
+    <div class="bfix">Fix → Ask Novacity admin to activate §3.20 and §3.21, OR add a null-guard in <code>kpis()</code> that renders a "données non disponibles" grey card instead of a broken value.</div>
+  </div>
+  <div class="blocker">
+    <div class="bt">🔴 WIP Flux chart (F-REQ-206) — qte_engagement missing date column</div>
+    <div class="bd">The MD's <code>wip()</code> function groups <code>qte_engagement</code> by date over 30 days. But Novacity's <code>qte_engagement</code> (§3.15) returns only <code>commande · of · article · quantite_engagee</code> — no date field. The area chart cannot be rendered. The engagement axis will always be empty.</div>
+    <div class="bfix">Fix → Request Novacity to add a date column to <code>qte_engagement</code> (§3.15), or derive date from linked <code>of_fabrication.DtDebut</code> via a join in the backend query.</div>
+  </div>
+  <div class="blocker">
+    <div class="bt">🔴 Inline vs Endline chart (Row 9 Coupe) — quantity columns absent</div>
+    <div class="bd">Novacity's <code>vwInlineVSEndlineComparison</code> (§2.7) exposes only <code>LOGDATE · ShiftCode · SHORTNAME · OPERA</code> — no quantity, no count, no defect measure. The stacked bar chart in the MD requires a numeric Y-axis per operation per chain. The chart cannot render anything meaningful from these 4 columns.</div>
+    <div class="bfix">Fix → Request Novacity to extend §2.7 with at least one quantity column (e.g. <code>Qty</code> or <code>DefectCount</code>), or map this chart to <code>vwDefect</code> (§2.9) which already has <code>Qty + OpNo + ProdGroup</code>.</div>
+  </div>
+  <div class="blocker">
+    <div class="bt">🔴 GPRO Consulting data (SAM / SOT / effectif / BPD / EPD / EHD / cadence / objectif) — not in Novacity API</div>
+    <div class="bd">Chain card (Row 1) and coverage formulas (F-REQ-310, 311) require fields from <code>sync_gpro_article_master</code>, <code>sync_gpro_chain_planning</code>, and <code>sync_gpro_of_dates</code>. None of these tables are exposed in the Novacity API (neither §2 nor §3). The MD assumes they are synced to the dashboard's central DB by a separate mechanism — but this mechanism is unverified and undocumented.</div>
+    <div class="bfix">Fix → Document and test the GPRO Consulting sync job. Confirm <code>sync_gpro_*</code> tables are populated before delivery, with fallback null-handling in <code>chainInfo()</code> using the <code>metadata.missing_fields</code> response key already defined in the MD.</div>
+  </div>
+</div>
+
+<div id="panel-warnings" class="panel">
+  <div class="warning-item">
+    <div class="bt">🟡 BR Print (F-REQ-108) — Google Drive sync unverified</div>
+    <div class="bd">BR Print data source is Google Drive (as per CDC), not Novacity. The MD references a <code>sync_drive_br_print</code> table that must be populated by a separate Drive connector. This sync is not documented in either PDF and its status is unknown. If it fails silently, the BR Print KPI card will show stale or null data without any user-visible error.</div>
+    <div class="bfix">Fix → Verify Drive → DB sync is active. Add a <code>synced_at</code> freshness check: if last sync &gt; 6h ago (BR Print refreshes 4x/day), show a stale-data warning badge on the KPI card.</div>
+  </div>
+  <div class="warning-item">
+    <div class="bt">🟡 F-REQ-312 (Objectif par chaîne) — embedded only, not a KPI card</div>
+    <div class="bd">The CDC defines F-REQ-312 as a standalone "Big Number avec couleur" KPI. In the MD, the daily objective appears only as a small field (<code>QTÉ: 500</code>) inside the chain card (Row 1) — not as a dedicated KPI card. The Annexe 1 lists it for both Confection and Coupe.</div>
+    <div class="bfix">Consider: If the client has signed off on the chain card layout, the embedded display may be acceptable. If not, add a KPI card (·312) to Row 2 alongside the existing cards.</div>
+  </div>
+  <div class="warning-item">
+    <div class="bt">🟡 F-REQ-217 (Taux fiabilité données) — table only, no Gauge KPI</div>
+    <div class="bd">The main CDC body (§3.3) defines this as a Gauge Chart with 95% target. The MD implements it only as a tagging table in Row 9 (Coupe tab). However, Annexe 1 assigns F-REQ-217 to the <em>Méthodes</em> view (priority 2), not to the production view — so this omission may be intentional.</div>
+    <div class="bfix">Confirm: if the Méthodes view is a separate page, no change needed here. If it must also appear in Production, add a gauge KPI card (·217) to Row 2 for the Coupe tab.</div>
+  </div>
+</div>
+
+<div id="panel-coverage" class="panel">
+  <div class="block">
+    <table class="tbl">
+      <thead><tr><th>F-REQ</th><th>KPI name</th><th>Confection</th><th>Coupe</th><th>Sérigraphie</th><th>MD location</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">F-REQ-102</td><td>BR GTD</td><td>✓</td><td>✓</td><td>—</td><td>Row 2 KPI card</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-104</td><td>RFT Production</td><td>✓</td><td>✓</td><td>✓</td><td>Row 2 KPI card</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-106</td><td>BR Bundling</td><td>✓</td><td>✓</td><td>—</td><td>Row 2 KPI card</td><td><span class="badge b-err">✗ inactive API</span></td></tr>
+        <tr><td class="mono">F-REQ-108</td><td>BR Print</td><td>✓</td><td>✓</td><td>✓</td><td>Row 2 KPI card</td><td><span class="badge b-warn">⚠ Drive sync</span></td></tr>
+        <tr><td class="mono">F-REQ-201</td><td>Efficience par opérateur</td><td>✓</td><td>✓</td><td>—</td><td>Row 7</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-202</td><td>Efficience par chaîne</td><td>✓</td><td>✓</td><td>—</td><td>Row 3 gauge + KPI</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-203</td><td>Efficience cumulée</td><td>✓</td><td>✓</td><td>—</td><td>Row 8 line chart</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-204</td><td>OWE par chaîne</td><td>✓</td><td>✓</td><td>—</td><td>Row 2 KPI card</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-205</td><td>WIP par chaîne</td><td>✓</td><td>✓</td><td>—</td><td>Row 3 gauge + KPI</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-206</td><td>WIP Optimal (Flux)</td><td>✓</td><td>✓</td><td>—</td><td>Row 6 area chart</td><td><span class="badge b-err">✗ no date in API</span></td></tr>
+        <tr><td class="mono">F-REQ-207</td><td>Arrêts non planifiés</td><td>✓</td><td>✓</td><td>—</td><td>Row 3 timeline</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-208</td><td>Efficience Départage</td><td>✓</td><td>—</td><td>—</td><td>Row 6 (confection)</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-209</td><td>Efficience Vignettes</td><td>✓</td><td>—</td><td>—</td><td>Row 6 (confection)</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-210</td><td>Top opérateurs</td><td>✓</td><td>✓</td><td>—</td><td>Row 6 bar chart</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-211</td><td>SAM</td><td>✓</td><td>✓</td><td>—</td><td>Row 1 chain card</td><td><span class="badge b-warn">⚠ GPRO sync</span></td></tr>
+        <tr><td class="mono">F-REQ-212</td><td>SOT</td><td>✓</td><td>✓</td><td>—</td><td>Row 1 chain card</td><td><span class="badge b-warn">⚠ GPRO sync</span></td></tr>
+        <tr><td class="mono">F-REQ-213</td><td>Effectifs</td><td>✓</td><td>✓</td><td>—</td><td>Row 1 chain card</td><td><span class="badge b-warn">⚠ GPRO sync</span></td></tr>
+        <tr><td class="mono">F-REQ-214</td><td>Code article</td><td>✓</td><td>✓</td><td>—</td><td>Row 1 chain card</td><td><span class="badge b-warn">⚠ GPRO sync</span></td></tr>
+        <tr><td class="mono">F-REQ-215</td><td>Désignation article</td><td>✓</td><td>✓</td><td>—</td><td>Row 1 chain card</td><td><span class="badge b-warn">⚠ GPRO sync</span></td></tr>
+        <tr><td class="mono">F-REQ-216</td><td>Taux archivage</td><td>✓</td><td>✓</td><td>✓</td><td>Row 2 KPI + endpoint</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-217</td><td>Taux fiabilité données</td><td>—</td><td>⚠</td><td>—</td><td>Row 9 table only</td><td><span class="badge b-warn">⚠ no gauge KPI</span></td></tr>
+        <tr><td class="mono">F-REQ-218</td><td>Respect temps estimé</td><td>✓</td><td>✓</td><td>✓</td><td>Row 2 KPI + endpoint</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-219</td><td>Taux temps acceptés</td><td>✓</td><td>✓</td><td>✓</td><td>Row 2 KPI + endpoint</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-304</td><td>SO Progress</td><td>✓</td><td>✓</td><td>—</td><td>Row 5 bar chart</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-305</td><td>Taux avancement OF</td><td>✓</td><td>✓</td><td>—</td><td>Row 5 donut chart</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-309</td><td>Couverture Sérigraphie</td><td>—</td><td>—</td><td>✓</td><td>Row 4 + Row 9</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-310</td><td>Couverture chaîne</td><td>—</td><td>✓</td><td>✓</td><td>Row 4 bar chart</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-311</td><td>Couverture Coupe</td><td>—</td><td>✓</td><td>—</td><td>Row 4 big number</td><td><span class="badge b-ok">✓ done</span></td></tr>
+        <tr><td class="mono">F-REQ-312</td><td>Objectif par chaîne</td><td>✓</td><td>✓</td><td>—</td><td>Row 1 only (embedded)</td><td><span class="badge b-warn">⚠ not standalone</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="panel-api" class="panel">
+  <div class="block">
+    <table class="tbl">
+      <thead><tr><th>MD data source</th><th>Novacity ref</th><th>Type</th><th>Status</th><th>Issue</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">wip_chaine</td><td class="mono">§3.3</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">efficience_chaine</td><td class="mono">§3.6</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">check_pass_qte</td><td class="mono">§2.12</td><td>Endpoint</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">qte_depart_chaine_article_of</td><td class="mono">§3.13</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">etat_avancement</td><td class="mono">§3.5</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">of_fabrication</td><td class="mono">§2.15</td><td>Endpoint</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">vue_stock</td><td class="mono">§2.21</td><td>Endpoint</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">lost_time</td><td class="mono">§3.10</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">sortie_coupe</td><td class="mono">§3.16</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">qte_produite_indiv_jour</td><td class="mono">§3.17</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">minutes_presence</td><td class="mono">§3.7</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">taging_reel</td><td class="mono">§3.4</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">packets_rejetes</td><td class="mono">§3.2</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">qte_entree_serigraphie</td><td class="mono">§3.12</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">sortie_serigraphie</td><td class="mono">§3.14</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">pieces_ok_premier_coup</td><td class="mono">§3.18</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">pieces_produites_jour</td><td class="mono">§3.19</td><td>SQL query</td><td><span class="badge b-ok">Active</span></td><td>—</td></tr>
+        <tr><td class="mono">rejets_inspection_paquet</td><td class="mono">§3.20</td><td>SQL query</td><td><span class="badge b-err">INACTIVE</span></td><td>BR Bundling broken</td></tr>
+        <tr><td class="mono">inspections_paquet</td><td class="mono">§3.21</td><td>SQL query</td><td><span class="badge b-err">INACTIVE</span></td><td>BR Bundling broken</td></tr>
+        <tr><td class="mono">qte_engagement</td><td class="mono">§3.15</td><td>SQL query</td><td><span class="badge b-warn">Active — gap</span></td><td>No date column → WIP Flux broken</td></tr>
+        <tr><td class="mono">inline_vs_endline</td><td class="mono">§2.7</td><td>Endpoint</td><td><span class="badge b-warn">Active — gap</span></td><td>No quantity column → chart empty</td></tr>
+        <tr><td class="mono">sync_gpro_article_master</td><td>—</td><td>Not in Novacity</td><td><span class="badge b-err">No endpoint</span></td><td>SAM/SOT/effectif source</td></tr>
+        <tr><td class="mono">sync_gpro_chain_planning</td><td>—</td><td>Not in Novacity</td><td><span class="badge b-err">No endpoint</span></td><td>Cadence/objectif source</td></tr>
+        <tr><td class="mono">sync_gpro_of_dates</td><td>—</td><td>Not in Novacity</td><td><span class="badge b-err">No endpoint</span></td><td>BPD/EPD/EHD source</td></tr>
+        <tr><td class="mono">sync_drive_br_print</td><td>—</td><td>Not in Novacity</td><td><span class="badge b-warn">Unverified</span></td><td>BR Print source</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="panel-confirmed" class="panel">
+  <div class="grid2">
+    <div>
+      <div class="ok-block"><div class="bt">3-tab architecture</div><div class="bd">Confection · Coupe · Sérigraphie with correct visibility matrix implemented exactly per CDC Annexe 1.</div></div>
+      <div class="ok-block"><div class="bt">Row 1 — chain cards</div><div class="bd">All 13 fields (OF, article, désignation, SAM, SOT, effectif, eff, WIP, BPD, EPD, EHD, entree/sortie, BR GTD) present. Status dot + BR GTD color thresholds correct.</div></div>
+      <div class="ok-block"><div class="bt">Row 3 — gauges + stoppages</div><div class="bd">Efficience gauge, WIP gauge with inverted scale, stoppage timeline with color-coded motifs (MAINT/MATIERE/QUALITE). Confection + Coupe only. ✓</div></div>
+      <div class="ok-block"><div class="bt">Row 4 — couvertures</div><div class="bd">Couverture Coupe (F-REQ-311), Couverture Sérigraphie (F-REQ-309) and Chain Coverage (F-REQ-310) with correct formulas and correct tab visibility.</div></div>
+      <div class="ok-block"><div class="bt">Row 5 — OF donuts + SO progress</div><div class="bd">Donut per OF (F-REQ-305), stacked bar per chain (F-REQ-304). Confection + Coupe only. ✓</div></div>
+      <div class="ok-block"><div class="bt">Row 6 — Top ops + Départage</div><div class="bd">Top Operators horizontal bar (F-REQ-210), Efficience Départage (F-REQ-208) + Vignettes (F-REQ-209) for Confection only — correct per Annexe 1.</div></div>
+    </div>
+    <div>
+      <div class="ok-block"><div class="bt">Row 7 — all operators</div><div class="bd">ComposedChart (bar + line) for full operator efficiency list (F-REQ-201). Limit 1000. ✓</div></div>
+      <div class="ok-block"><div class="bt">Row 8 — efficience cumulée</div><div class="bd">LineChart from month start → today with 85% reference line (F-REQ-203). ✓</div></div>
+      <div class="ok-block"><div class="bt">Row 9 — coupe tables</div><div class="bd">Tagging table, OFs list (paginated 20/page), Qte Départage, Inline/Endline chart. Sérigraphie Flux + Rejets tables on sérigraphie tab. ✓</div></div>
+      <div class="ok-block"><div class="bt">KPI detail modal</div><div class="bd">28 KPI configs, 5 breakdown types, 6 mini-viz types, XLSX export (F-REQ-409). Correct per CDC.</div></div>
+      <div class="ok-block"><div class="bt">Color thresholds</div><div class="bd">BR ≤4% green / 4–5% orange / &gt;5% red. Efficience ≥85% green / 70–85% orange / &lt;70% red. WIP ≤½ cadence green. All match CDC exactly.</div></div>
+      <div class="ok-block"><div class="bt">Auto-refresh + tab reset</div><div class="bd">60-second setInterval across all active endpoints. Tab switch resets state and re-fetches. Satisfies NF-REQ-508. ✓</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>

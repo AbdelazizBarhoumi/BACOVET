@@ -77,8 +77,8 @@ class User extends Authenticatable
     public const PAGE_ROLES = [
         'admin' => ['it'],
         'quality' => ['it', 'direction', 'resp_production', 'resp_qualite', 'methodes'],
-        'production' => ['it', 'direction', 'resp_production', 'chef_atelier', 'methodes', 'coupe'],
-        'logistics' => ['it', 'direction', 'methodes', 'coupe'],
+        'production' => ['it', 'direction', 'resp_production', 'chef_atelier', 'methodes', 'planning_coupe'],
+        'logistics' => ['it', 'direction', 'methodes', 'planning_coupe'],
         'methods' => ['it', 'direction', 'methodes'],
         'development' => ['it', 'direction', 'methodes'],
     ];
@@ -90,6 +90,6 @@ class User extends Authenticatable
         'chef_atelier' => '/production',
         'resp_qualite' => '/quality',
         'methodes' => '/methods',
-        'coupe' => '/production',
+        'planning_coupe' => '/production',
     ];
 }

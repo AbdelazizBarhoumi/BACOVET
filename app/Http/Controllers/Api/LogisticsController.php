@@ -18,15 +18,34 @@ class LogisticsController extends Controller
     {
         $today = Carbon::today();
 
-        // F-REQ-334 — DOT: % OFs livrés (transfert coupe total / total)
-        $ofsLivres = DB::table('nombre_ofs_livres')->orderByDesc('synced_at')->first();
-        $totalOfs = $ofsLivres?->nb_of_livres_total ?? 0;
-        $transfertTotal = $ofsLivres?->of_avec_transfert_coupe_total ?? 0;
-        $dotPct = $totalOfs > 0 ? round(($transfertTotal / $totalOfs) * 100, 1) : null;
+        // F-REQ-334 — DOT: from sync_drive_dot_hot (Google Drive "gproplanning/carnet")
+        $dotData = DB::table('sync_drive_dot_hot')
+            ->where('type', 'DOT')
+            ->orderByDesc('date')
+            ->first();
+        $dotPct = null;
+        $dotRaw = ['total' => 0, 'livres' => 0];
+        $dotIsFallback = true;
+        if ($dotData && $dotData->qte_commandee > 0) {
+            $dotPct = round(($dotData->qte_livree_on_time / $dotData->qte_commandee) * 100, 1);
+            $dotRaw = ['total' => $dotData->qte_commandee, 'livres' => $dotData->qte_livree_on_time];
+            $dotIsFallback = false;
+        }
 
-        // F-REQ-335 — HOT: % OFs avec transfert coupe Jemmel / total
-        $transfertJemmel = $ofsLivres?->of_avec_transfert_coupe_jemmel ?? 0;
-        $hotPct = $totalOfs > 0 ? round(($transfertJemmel / $totalOfs) * 100, 1) : null;
+        // F-REQ-335 — HOT: from sync_drive_dot_hot
+        // Proxy: OFs via Jemmel cutting site — not strictly "handover on time"
+        $hotData = DB::table('sync_drive_dot_hot')
+            ->where('type', 'HOT')
+            ->orderByDesc('date')
+            ->first();
+        $hotPct = null;
+        $hotRaw = ['total' => 0, 'livres' => 0];
+        $hotIsFallback = true;
+        if ($hotData && $hotData->qte_commandee > 0) {
+            $hotPct = round(($hotData->qte_livree_on_time / $hotData->qte_commandee) * 100, 1);
+            $hotRaw = ['total' => $hotData->qte_commandee, 'livres' => $hotData->qte_livree_on_time];
+            $hotIsFallback = false;
+        }
 
         // F-REQ-336 — Respect Planification: % chaînes atteignant objectif journalier
         $gproPlan = DB::table('sync_gpro_chain_planning')->get()->keyBy('chaine');
@@ -46,8 +65,37 @@ class LogisticsController extends Controller
         }
         $respectPlanPct = $chainsTotal > 0 ? round(($chainsRespecting / $chainsTotal) * 100, 1) : null;
 
-        // F-REQ-337 — Lead Time: configurable constant
-        $leadTime = 32;
+        // F-REQ-337 — Lead Time Global: computed from GPRO of_dates (ehd - bpd)
+        // CDC formula: STRH + LT Transport. Using ehd (Export Handover Date) - bpd (Beginning Production Date)
+        // as the available proxy for total lead time.
+        $ofDates = DB::table('sync_gpro_of_dates')
+            ->whereNotNull('bpd')
+            ->whereNotNull('ehd')
+            ->get();
+        $leadTime = null;
+        $leadTimeSource = 'sync_gpro_of_dates (ehd - bpd)';
+        if ($ofDates->isNotEmpty()) {
+            $totalDays = 0;
+            $count = 0;
+            foreach ($ofDates as $row) {
+                $bpd = Carbon::parse($row->bpd);
+                $ehd = Carbon::parse($row->ehd);
+                if ($ehd->greaterThan($bpd)) {
+                    $totalDays += $bpd->floatDiffInDays($ehd);
+                    $count++;
+                }
+            }
+            if ($count > 0) {
+                $leadTime = round($totalDays / $count, 1);
+            }
+        }
+        // Fallback to configurable default if no GPRO data
+        $leadTimeValue = $leadTime ?? 32;
+        $leadTimeStatus = $this->leadTimeStatus($leadTimeValue);
+        $leadTimeIsFallback = $leadTime === null;
+        $leadTimeNote = $leadTime !== null
+            ? 'Moyenne '.number_format($count, 0, ',', ' ').' OFs'
+            : 'Constante configurable (pas de données GPRO)';
 
         $statusFor = fn ($pct, $target) => $pct === null ? 'grey' : ($pct >= $target ? 'green' : ($pct >= $target - 5 ? 'orange' : 'red'));
 
@@ -55,26 +103,33 @@ class LogisticsController extends Controller
             'dot' => [
                 'value' => $dotPct,
                 'status' => $statusFor($dotPct, 95),
-                'source' => 'nombre_ofs_livres',
-                'raw' => ['total' => $totalOfs, 'livres' => $transfertTotal],
+                'source' => 'sync_drive_dot_hot',
+                'is_fallback' => $dotIsFallback,
+                'raw' => $dotRaw,
             ],
             'hot' => [
                 'value' => $hotPct,
                 'status' => $statusFor($hotPct, 95),
-                'source' => 'nombre_ofs_livres',
-                'raw' => ['total' => $totalOfs, 'jemmel' => $transfertJemmel],
+                'source' => 'sync_drive_dot_hot (proxy Jemmel)',
+                'note' => 'Proxy: transferts via Jemmel. F-REQ-335 requiert main courante.',
+                'is_fallback' => $hotIsFallback,
+                'raw' => $hotRaw,
             ],
             'respect_plan' => [
                 'value' => $respectPlanPct,
                 'status' => $statusFor($respectPlanPct, 95),
                 'source' => 'sync_gpro_chain_planning + qte_produite',
+                'is_fallback' => false,
                 'raw' => ['respecting' => $chainsRespecting, 'total' => $chainsTotal],
             ],
             'lead_time' => [
-                'value' => $leadTime,
-                'status' => 'green',
+                'value' => $leadTimeValue,
+                'status' => $leadTimeStatus,
                 'unit' => 'j',
-                'source' => 'Configurable',
+                'target' => 32,
+                'source' => $leadTimeSource,
+                'note' => $leadTimeNote,
+                'is_fallback' => $leadTimeIsFallback,
             ],
             'next_export' => null,
             'synced_at' => DB::table('qte_produite')->orderByDesc('synced_at')->value('synced_at'),
@@ -101,9 +156,10 @@ class LogisticsController extends Controller
         $rouleaux = DB::table('nombre_rouleaux')->orderByDesc('synced_at')->first();
         $capacite = DB::table('capacite_stockage')->orderByDesc('synced_at')->first();
         $nbRouleaux = $rouleaux?->nb_rouleaux ?? 0;
-        $conteneursActifs = $capacite?->conteneurs_actifs ?? 1;
-        // parseInt coercion is done in SyncService (stored as INT in MySQL)
-        $occupationPct = $conteneursActifs > 0 ? round(($nbRouleaux / $conteneursActifs) * 100, 1) : null;
+        // CDC formula denominator = "Capacité de stockage" = total physical capacity
+        $totalConteneurs = $capacite?->total_conteneurs ?? 1;
+        $conteneursActifs = $capacite?->conteneurs_actifs ?? 0;
+        $occupationPct = $totalConteneurs > 0 ? round(($nbRouleaux / $totalConteneurs) * 100, 1) : null;
 
         return response()->json([
             'rotation' => [
@@ -135,6 +191,7 @@ class LogisticsController extends Controller
                 'nb_rouleaux' => $nbRouleaux,
                 'conteneurs_actifs' => $conteneursActifs,
                 'total_conteneurs' => $capacite?->total_conteneurs ?? 0,
+                'note' => 'Rouleaux / Capacité totale ('.number_format($totalConteneurs, 0, ',', ' ').' conteneurs)',
                 'categories' => [
                     'accessoires' => ['value' => null, 'status' => 'pending', 'note' => 'Données par catégorie en attente (Q-39)'],
                     'tissu' => ['value' => null, 'status' => 'pending', 'note' => 'Données par catégorie en attente (Q-39)'],
@@ -206,6 +263,11 @@ class LogisticsController extends Controller
             ->orderByDesc('avancement_pct')
             ->get();
 
+        // BPD/EHD from GPRO Consulting (sync_gpro_of_dates)
+        $gproDates = DB::table('sync_gpro_of_dates')
+            ->get()
+            ->keyBy('of_numero');
+
         // Colis total per command for expandable detail
         $colisData = DB::table('colis_total_var')
             ->get()
@@ -225,24 +287,27 @@ class LogisticsController extends Controller
 
         // Délai moyen (F-REQ-328/329/330)
         $moyenneTransfert = DB::table('moyenne_date_transfert')->orderByDesc('synced_at')->first();
-        // parseFloat coercion is done in SyncService (stored as DECIMAL in MySQL)
         $delaiMoyen = $moyenneTransfert?->moyenne_jours ?? null;
         $nbOfConsideres = $moyenneTransfert?->nb_of_consideres ?? 0;
 
         return response()->json([
-            'ofs' => $ofList->map(fn ($o) => [
-                'of' => $o->of,
-                'avancement_pct' => $o->avancement_pct,
-                'quantite_prevue' => $o->quantite_prevue,
-                'quantite_realisee' => $o->quantite_realisee,
-                'statut' => $o->statut,
-                'colis' => $colisData[$o->of] ?? [],
-                // F-REQ-306/308 — BPD/EHD placeholders (B-04 blocked)
-                'bpd' => null, // Beginning Production Date — GPRO Consulting
-                'ehd' => null, // Export Handover Date — GPRO Consulting
-                // F-REQ-307 — EPD: computed from available data
-                'epd' => $this->computeEpd($o->quantite_prevue, $o->quantite_realisee, $today),
-            ])->toArray(),
+            'ofs' => $ofList->map(function ($o) use ($gproDates, $colisData, $today) {
+                $gpro = $gproDates->get($o->of);
+
+                return [
+                    'of' => $o->of,
+                    'avancement_pct' => $o->avancement_pct,
+                    'quantite_prevue' => $o->quantite_prevue,
+                    'quantite_realisee' => $o->quantite_realisee,
+                    'statut' => $o->statut,
+                    'colis' => $colisData[$o->of] ?? [],
+                    // F-REQ-306/308 — BPD/EHD from GPRO Consulting
+                    'bpd' => $gpro?->bpd ?? null,
+                    'ehd' => $gpro?->ehd ?? null,
+                    // F-REQ-307 — EPD: prefer GPRO value, fallback to computed
+                    'epd' => $gpro?->epd ?? $this->computeEpd($o->quantite_prevue, $o->quantite_realisee, $today),
+                ];
+            })->toArray(),
             'livraison' => [
                 'value' => $livraisonPct,
                 'status' => $this->thresholdStatus($livraisonPct, 80),
@@ -308,10 +373,29 @@ class LogisticsController extends Controller
      */
     public function coverage(Request $request): JsonResponse
     {
+        // Load cadence per chain from GPRO Consulting (cadence_hebdo = weekly cadence)
+        $gproPlans = DB::table('sync_gpro_chain_planning')
+            ->select('chaine', DB::raw('AVG(cadence_hebdo) as cadence_hebdo'))
+            ->where('cadence_hebdo', '>', 0)
+            ->groupBy('chaine')
+            ->get()
+            ->keyBy('chaine');
+
+        // Default cadence (units/day) — used when GPRO has no data for a chain
+        $defaultCadenceDaily = 100;
+
         // Couverture Chaîne (F-REQ-310) — uses qte_depart_chaine_article_of for OF→chain mapping
-        // qte_engagement and etat_avancement do NOT have chaine column (Novacity limitation)
+        // CDC formula: (Qté engagé − Qté planifié) / cadence
+        // Qté planifié = sum(qte_depart_chaine_article_of.quantite) per chain (dispatched quantity)
+        $chainPlanQte = DB::table('qte_depart_chaine_article_of')
+            ->whereNotNull('chaine')
+            ->select('chaine', DB::raw('SUM(quantite) as planifie'))
+            ->groupBy('chaine')
+            ->get()
+            ->keyBy('chaine');
+
         $chainCoverage = DB::table('qte_engagement as qe')
-            ->join('qte_depart_chaine_article_of as qdc', 'qe.of', '=', 'qdc.of')
+            ->join('qte_depart_chaine_article_of as qdc', DB::raw('`qe`.`of`'), '=', DB::raw('`qdc`.`of`'))
             ->select(
                 'qdc.chaine as chain_name',
                 DB::raw('SUM(qe.quantite_engagee) as quantite_engagee')
@@ -319,19 +403,41 @@ class LogisticsController extends Controller
             ->whereNotNull('qdc.chaine')
             ->groupBy('chain_name')
             ->get()
-            ->map(fn ($row) => [
-                'name' => $row->chain_name,
-                'jours' => round($row->quantite_engagee / 100, 1),
-            ])
+            ->map(function ($row) use ($gproPlans, $defaultCadenceDaily, $chainPlanQte) {
+                // cadence_hebdo is weekly; convert to daily by dividing by working days (6)
+                $cadenceDaily = $defaultCadenceDaily;
+                if (isset($gproPlans[$row->chain_name]) && $gproPlans[$row->chain_name]->cadence_hebdo > 0) {
+                    $cadenceDaily = round($gproPlans[$row->chain_name]->cadence_hebdo / 6, 1);
+                }
+                $planifie = $chainPlanQte->get($row->chain_name)?->planifie ?? 0;
+                $delta = max(0, $row->quantite_engagee - $planifie);
+
+                return [
+                    'name' => $row->chain_name,
+                    'jours' => $cadenceDaily > 0 ? round($delta / $cadenceDaily, 1) : 0,
+                    'cadence_daily' => $cadenceDaily,
+                    'engagement' => (int) $row->quantite_engagee,
+                    'planifie' => (int) $planifie,
+                ];
+            })
             ->toArray();
 
-        // Couverture Coupe (F-REQ-311) — single value: total engagement / cadence hebdo
+        // Couverture Coupe (F-REQ-311) — total engagement / avg cadence across all chains
         $totalCoupeEngagement = DB::table('qte_engagement')->sum('quantite_engagee');
         $totalCoupeSortie = DB::table('sortie_coupe')
             ->whereDate('date', Carbon::today())
             ->sum('quantite_coupee');
+        $coupeDelta = max(0, $totalCoupeEngagement - $totalCoupeSortie);
+        // Use average daily cadence across all chains
+        $avgCadenceDaily = $defaultCadenceDaily;
+        if ($gproPlans->isNotEmpty()) {
+            $totalWeeklyCadence = $gproPlans->sum('cadence_hebdo');
+            if ($totalWeeklyCadence > 0) {
+                $avgCadenceDaily = round($totalWeeklyCadence / (6 * $gproPlans->count()), 1);
+            }
+        }
         $coupeCoverage = $totalCoupeEngagement > 0
-            ? [['name' => 'Global', 'jours' => round(($totalCoupeEngagement - $totalCoupeSortie) / 100, 1)]]
+            ? [['name' => 'Global', 'jours' => round($coupeDelta / $avgCadenceDaily, 1), 'cadence_daily' => $avgCadenceDaily]]
             : [];
 
         // Couverture Sérigraphie (F-REQ-309)
@@ -352,13 +458,16 @@ class LogisticsController extends Controller
         $allArticles = $entree->merge($sortie)->keys();
         $seriCoverage = $allArticles->map(fn ($article) => [
             'name' => $article,
-            'jours' => max(0, ($entree[$article]->total_entree ?? 0) - ($sortie[$article]->total_sortie ?? 0)) / 100,
+            'jours' => max(0, ($entree[$article]->total_entree ?? 0) - ($sortie[$article]->total_sortie ?? 0)) / $avgCadenceDaily,
         ])->toArray();
+
+        $coverageIsFallback = $gproPlans->isEmpty();
 
         return response()->json([
             'chaine' => $chainCoverage,
             'coupe' => $coupeCoverage,
             'serigraphie' => $seriCoverage,
+            'is_fallback' => $coverageIsFallback,
             'synced_at' => DB::table('qte_engagement')->orderByDesc('synced_at')->value('synced_at'),
         ]);
     }
@@ -481,6 +590,21 @@ class LogisticsController extends Controller
         return 'red';
     }
 
+    private function leadTimeStatus(?float $value): string
+    {
+        if ($value === null) {
+            return 'grey';
+        }
+        if ($value <= 32) {
+            return 'green';
+        }
+        if ($value <= 40) {
+            return 'orange';
+        }
+
+        return 'red';
+    }
+
     /**
      * F-REQ-307 — EPD (End Production Date)
      * Formula: (quantite_prevue - quantite_realisee) / cadence + today
@@ -501,9 +625,10 @@ class LogisticsController extends Controller
 
     /**
      * F-REQ-313/314/315 — Taux de Fiabilité Stock (Accessoires/Tissu/FG)
-     * Computes per-category reliability proxy using typologie quantity breakdown.
+     * Computes per-category reliability proxy.
      * Formula: global_reliability = (total - dead_stock) / total * 100
-     * Per-category uses typologie data to show meaningful values.
+     * Per-category: Accessoires/FG via quantite_par_typologie, Tissu via vue_stock.Famille
+     * (Typologie is a trims/accessories taxonomy; fabric materials live in vue_stock.Famille).
      */
     public function stockReliability(): JsonResponse
     {
@@ -516,35 +641,51 @@ class LogisticsController extends Controller
 
         $status = $reliability !== null ? ($reliability >= 99.5 ? 'green' : ($reliability >= 98 ? 'orange' : 'red')) : 'grey';
 
+        // Typologie data for Accessoires/FG matching
         $typologieData = DB::table('quantite_par_typologie')
             ->whereNotNull('typologie')
             ->get(['typologie', 'quantite']);
 
+        // vue_stock.Famille for Tissu matching (fabric materials live here, not in Typologie)
+        $familleData = DB::table('vue_stock')
+            ->whereNotNull('famille')
+            ->select('famille', DB::raw('SUM(qtte) as quantite'))
+            ->groupBy('famille')
+            ->get();
+
         $categoryKeywords = [
             'accessoires' => ['accessoir', 'anneau', 'elastique', 'cordon', 'antiglise', 'billet', 'cientre', 'hangtag', 'bouton', 'fermeture', 'etiquette', 'boutonniere', 'zip', 'pression', 'oeil', 'velcro', 'cordelette', 'dessous'],
-            'tissu' => ['tissu', 'toile', 'jersey', 'poly', 'coton', 'nylon', 'maille', 'doublure', 'ponge', 'tissu jersey', 'tissu poly', 'tissu coton', 'tissu nylon'],
+            'tissu' => ['tissu', 'toile', 'jersey', 'poly', 'coton', 'nylon', 'maille', 'doublure', 'ponge'],
             'fg' => ['coque', 'emballage', 'carton', 'sachet', 'etiquette finie', 'ruban', 'article fini', 'fg', 'produit fini'],
         ];
 
+        // Fabric families from vue_stock.Famille
+        $fabricFamilies = ['tissu', 'coton', 'polyester', 'nylon', 'lin', 'soie', 'laine', 'elasthanne', 'maille', 'toile', 'jersey', 'ponge', 'doublure'];
+
         $categories = [];
         foreach ($categoryKeywords as $key => $keywords) {
-            $catQty = $typologieData
-                ->filter(fn ($row) => in_array(strtolower($row->typologie), $keywords)
-                    || collect($keywords)->some(fn ($kw) => str_contains(strtolower($row->typologie), $kw)))
-                ->sum('quantite');
-
+            $catQty = 0;
             $catStatus = 'grey';
-            $catNote = 'Aucune donnée typologie pour cette catégorie';
+            $catNote = 'Aucune donnée pour cette catégorie';
             $catReliability = null;
+
+            if ($key === 'tissu') {
+                // Tissu: match against vue_stock.Famille (where fabric materials actually live)
+                $catQty = $familleData
+                    ->filter(fn ($row) => collect($fabricFamilies)->some(fn ($fam) => str_contains(strtolower($row->famille), $fam)))
+                    ->sum('quantite');
+            } else {
+                // Accessoires/FG: match against quantite_par_typologie
+                $catQty = $typologieData
+                    ->filter(fn ($row) => in_array(strtolower($row->typologie), $keywords)
+                        || collect($keywords)->some(fn ($kw) => str_contains(strtolower($row->typologie), $kw)))
+                    ->sum('quantite');
+            }
 
             if ($catQty > 0 && $reliability !== null) {
                 $catReliability = $reliability;
                 $catStatus = $reliability >= 99.5 ? 'green' : ($reliability >= 98 ? 'orange' : 'red');
                 $catNote = number_format($catQty, 0, ',', ' ').' unités — Comptage physique requis pour valeurs exactes';
-            } elseif ($key === 'tissu' && $reliability !== null) {
-                $catReliability = $reliability;
-                $catStatus = 'orange';
-                $catNote = 'Aucun tissu en stock — fiabilité globale affichée comme proxy';
             }
 
             $categories[$key] = [
@@ -555,11 +696,6 @@ class LogisticsController extends Controller
                 'matched_qty' => $catQty,
             ];
         }
-
-        $unmatched = $typologieData->filter(fn ($row) => !collect($categoryKeywords)->some(fn ($keywords) =>
-            in_array(strtolower($row->typologie), $keywords)
-            || collect($keywords)->some(fn ($kw) => str_contains(strtolower($row->typologie), $kw))
-        ));
 
         return response()->json([
             'global' => [

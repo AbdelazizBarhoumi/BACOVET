@@ -68,8 +68,8 @@ export type ProductionKpis = {
     total_wip: { value: number | null; status: string; target: string };
     total_lost_time: { value: number | null; status: string; target: string };
     br_gtd?: { value: number | null; status: string; target: string };
-    br_bundling?: { value: number | null; status: string; target: string };
-    br_print?: { value: number | null; status: string; target: string };
+    br_bundling?: { value: number | null; status: string; target: string; source_active?: boolean };
+    br_print?: { value: number | null; status: string; target: string; synced_at?: string | null };
     synced_at: string | null;
     metadata?: ApiMetadata;
 };

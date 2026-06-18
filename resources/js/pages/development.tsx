@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     CartesianGrid,
@@ -15,6 +15,8 @@ import { AppShell } from '@/components/app-shell';
 import type { DevKpiKey } from '@/components/development/devKpiDetailConfig';
 import DevKpiDetailModal from '@/components/development/DevKpiDetailModal';
 import { Panel, TrafficBadge } from '@/components/widgets';
+import { useFilters } from '@/context/FilterContext';
+import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchDevelopmentKpis,
     fetchDevelopmentTrend,
@@ -110,6 +112,7 @@ function KpiCard({
     status,
     target,
     targetKind,
+    unit,
     source,
     freq,
     onClick,
@@ -121,6 +124,7 @@ function KpiCard({
     status: string;
     target: number;
     targetKind: 'min' | 'max';
+    unit?: string;
     source?: string;
     freq?: string;
     onClick?: () => void;
@@ -128,6 +132,7 @@ function KpiCard({
 }) {
     if (isLoading) return <KpiCardSkeleton />;
 
+    const displayUnit = unit ?? '%';
     const barColor = status === 'green' ? 'bg-success'
         : status === 'orange' ? 'bg-warning'
         : status === 'red' ? 'bg-destructive'
@@ -150,12 +155,12 @@ function KpiCard({
                     <span className="font-mono text-4xl font-bold tabular-nums">
                         {value !== null ? value.toFixed(1) : '—'}
                     </span>
-                    <span className="font-mono text-lg text-muted-foreground">%</span>
+                    <span className="font-mono text-lg text-muted-foreground">{displayUnit}</span>
                 </div>
             </div>
             <div className="mt-auto">
                 <div className="mt-2 flex items-center justify-between font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                    <span>Cible: {targetKind === 'max' ? '<' : '≥'}{target}%</span>
+                    <span>Cible: {targetKind === 'max' ? '<' : '≥'}{target}{displayUnit}</span>
                     {freq && <span className="text-primary/80">Freq: {freq}</span>}
                 </div>
                 {source && (
@@ -176,19 +181,21 @@ export default function DevPage() {
     const [leadTime, setLeadTime] = useState<LeadTimeDevResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [lastSync, setLastSync] = useState<Date | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const [openModal, setOpenModal] = useState<DevKpiKey | null>(null);
+    const { getFilterParams } = useFilters();
+    const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
 
     const fetchData = useCallback(async () => {
         try {
+            const filters = getFilterParams();
             const [k, t, lt, rftT, livT] = await Promise.allSettled([
-                fetchDevelopmentKpis(),
-                fetchDevelopmentTrend(),
-                fetchLeadTimeDev(),
-                fetchDevelopmentTrendRft(),
-                fetchDevelopmentTrendLivraison(),
+                fetchDevelopmentKpis(filters),
+                fetchDevelopmentTrend(filters),
+                fetchLeadTimeDev(filters),
+                fetchDevelopmentTrendRft(filters),
+                fetchDevelopmentTrendLivraison(filters),
             ]);
 
             if (k.status === 'fulfilled') setKpis(k.value);
@@ -200,25 +207,26 @@ export default function DevPage() {
             const anyFailed = [k, t, lt, rftT, livT].some((r) => r.status === 'rejected');
             if (anyFailed && k.status === 'rejected') {
                 setError('Erreur de connexion au serveur');
+                recordFetchError();
             } else {
                 setError(null);
+                recordFetchSuccess();
             }
-
-            setLastSync(new Date());
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Erreur inconnue');
+            recordFetchError();
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [getFilterParams, recordFetchError, recordFetchSuccess]);
 
     useEffect(() => {
         fetchData();
-        intervalRef.current = setInterval(fetchData, 60000);
+        intervalRef.current = setInterval(fetchData, refreshIntervalSec * 1000);
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [fetchData]);
+    }, [fetchData, refreshIntervalSec]);
 
     const k = kpis?.kpis;
 
@@ -230,7 +238,7 @@ export default function DevPage() {
                 cible: `${v.target_kind === 'min' ? '≥' : '≤'}${v.target}%`,
             })),
             ...(leadTime ? [{
-                kpi: '334 Lead Time Dev',
+                kpi: '354 Lead Time Dev',
                 valeur: leadTime.value !== null ? `${leadTime.value}j` : '—',
                 cible: '≤0j',
             }] : []),
@@ -247,15 +255,6 @@ export default function DevPage() {
                 exportRows={exportRows}
                 exportFilename="BACOVET_Dev_S350"
             >
-                <div className="mb-4 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 font-mono text-xs">
-                    <span className="font-bold tracking-wider text-warning uppercase">
-                        Source manuelle :
-                    </span>{' '}
-                    <span className="text-foreground/90">
-                        KPIs Série 350 alimentés via Google Sheets (Drive). Connecteur Google Sheets à activer côté Cloud pour synchronisation automatique.
-                    </span>
-                </div>
-
                 {error && (
                     <div className="mb-4 flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive">
                         <AlertTriangle className="h-5 w-5 shrink-0" />
@@ -342,12 +341,7 @@ export default function DevPage() {
                             onClick={() => setOpenModal('dev_reclamations')}
                             isLoading={loading}
                         />
-                        <div className="flex items-start gap-1 rounded border border-warning/30 bg-warning/5 px-2 py-1">
-                            <Info className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
-                            <span className="font-mono text-[9px] text-muted-foreground">
-                                Dérogation B-05 : Scatter Plot (Nuage) requis — données par modèle non disponibles. Affichage agrégé validé par Direction/Méthodes.
-                            </span>
-                        </div>
+
                     </div>
                 </div>
 
@@ -357,13 +351,15 @@ export default function DevPage() {
                     <div className="space-y-2">
                         <KpiCard
                             label="Lead Time Dev"
-                            fReq="334"
+                            fReq="354"
                             value={leadTime?.value ?? null}
                             status={leadTime?.status ?? 'grey'}
                             target={0}
                             targetKind="max"
+                            unit="j"
                             source={leadTime?.source ?? 'sync_drive_development'}
                             freq="Mensuel"
+                            onClick={() => setOpenModal('dev_leadtime')}
                             isLoading={loading}
                         />
                         <div className="font-mono text-[9px] text-muted-foreground">
@@ -474,7 +470,7 @@ export default function DevPage() {
                                 })}
                                 {leadTime && (
                                     <tr className="border-b border-border/50">
-                                        <td className="py-2 text-primary">334</td>
+                                        <td className="py-2 text-primary">354</td>
                                         <td>Lead Time Dev</td>
                                         <td className="text-right tabular-nums">
                                             {leadTime.value !== null ? `${leadTime.value}j` : '—'}
@@ -491,16 +487,11 @@ export default function DevPage() {
                     </Panel>
                 ) : null}
 
-                {lastSync && (
-                    <div className="mt-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                        Dernière sync: <span className="text-foreground">{lastSync.toLocaleTimeString('fr-FR')}</span>
-                    </div>
-                )}
-
                 {/* KPI Detail Modal */}
                 <DevKpiDetailModal
                     kpiKey={openModal}
                     kpiData={kpis}
+                    leadTimeData={leadTime}
                     onClose={() => setOpenModal(null)}
                 />
             </AppShell>

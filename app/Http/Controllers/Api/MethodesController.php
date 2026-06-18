@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\ManualKpiValue;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -14,9 +13,14 @@ class MethodesController extends Controller
     {
         $today = Carbon::today();
         $chaine = request()->query('chaine');
+        $ofFilter = request()->query('of');
 
         // F-REQ-216: Taux d'Archivage — from sync_gpro_suivi_paquets
-        $suiviData = DB::table('sync_gpro_suivi_paquets')->get();
+        $suiviQuery = DB::table('sync_gpro_suivi_paquets');
+        if ($ofFilter && $ofFilter !== 'TOUS') {
+            $suiviQuery->where('of_numero', $ofFilter);
+        }
+        $suiviData = $suiviQuery->get();
         $totalSold = $suiviData->where('est_solde', true)->count();
         $archived = $suiviData->where('est_solde', true)->where('est_archive', true)->count();
         $archivagePct = $totalSold > 0 ? round(($archived / $totalSold) * 100, 1) : null;
@@ -43,9 +47,10 @@ class MethodesController extends Controller
         };
 
         // F-REQ-218: Respect Temps Estimé — from sync_drive_cotation
+        // CDC formula: Temps cotation − Temps prod ≥ 0 → production ≤ cotation = respected
         $cotationData = DB::table('sync_drive_cotation')->get();
         $totalCotation = $cotationData->count();
-        $respected = $cotationData->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
+        $respected = $cotationData->filter(fn ($r) => $r->temps_production_min <= $r->temps_cotation_min)->count();
         $respectPct = $totalCotation > 0 ? round(($respected / $totalCotation) * 100, 1) : null;
         $respectStatus = $respectPct !== null ? ($respectPct >= 90 ? 'green' : ($respectPct >= 80 ? 'orange' : 'red')) : 'grey';
 
@@ -80,7 +85,7 @@ class MethodesController extends Controller
                 'target' => 95,
                 'frequency' => 'Journalier',
                 'is_proxy' => true,
-                'proxy_note' => "Proxy intérimaire : écart tagging théorique vs réel (taging_reel). Comparaison GPRO ↔ Base suivi production en attente (B-05).",
+                'proxy_note' => 'Proxy intérimaire : écart tagging théorique vs réel (taging_reel). Comparaison GPRO ↔ Base suivi production en attente (B-05).',
                 'raw' => [
                     'avg_abs_ecart' => $taggingRows->isNotEmpty()
                         ? round($taggingRows->avg(fn ($r) => abs($r->ecart_pct ?? 0)), 2)
@@ -165,9 +170,10 @@ class MethodesController extends Controller
         }
 
         // F-REQ-218 — from sync_drive_cotation
+        // CDC formula: Temps cotation − Temps prod ≥ 0 → production ≤ cotation = respected
         $cotationData = DB::table('sync_drive_cotation')->get();
         $totalCotation = $cotationData->count();
-        $respected = $cotationData->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
+        $respected = $cotationData->filter(fn ($r) => $r->temps_production_min <= $r->temps_cotation_min)->count();
         $respectPct = $totalCotation > 0 ? round(($respected / $totalCotation) * 100, 1) : null;
 
         // F-REQ-219 — from sync_drive_gammes
@@ -216,9 +222,13 @@ class MethodesController extends Controller
 
     public function archivageDetail(): JsonResponse
     {
-        $data = DB::table('sync_gpro_suivi_paquets')
-            ->select('of_numero', 'est_solde', 'est_archive')
-            ->get();
+        $ofFilter = request()->query('of');
+        $query = DB::table('sync_gpro_suivi_paquets')
+            ->select('of_numero', 'est_solde', 'est_archive');
+        if ($ofFilter && $ofFilter !== 'TOUS') {
+            $query->where('of_numero', $ofFilter);
+        }
+        $data = $query->get();
 
         return response()->json(['data' => $data]);
     }
@@ -233,7 +243,7 @@ class MethodesController extends Controller
                 'temps_cotation' => $r->temps_cotation_min,
                 'temps_production' => $r->temps_production_min,
                 'difference' => round($r->temps_production_min - $r->temps_cotation_min, 2),
-                'est_respecte' => $r->temps_cotation_min <= $r->temps_production_min,
+                'est_respecte' => $r->temps_production_min <= $r->temps_cotation_min,
             ]);
 
         return response()->json(['data' => $data]);
@@ -248,6 +258,37 @@ class MethodesController extends Controller
                 'nb_gammes_total' => $r->nb_gammes_total,
                 'nb_acceptees_v1' => $r->nb_gammes_acceptees_v1,
                 'taux_pct' => $r->nb_gammes_total > 0 ? round(($r->nb_gammes_acceptees_v1 / $r->nb_gammes_total) * 100, 1) : null,
+            ]);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function fiabiliteDetail(): JsonResponse
+    {
+        $today = Carbon::today();
+        $chaine = request()->query('chaine');
+
+        $query = DB::table('taging_reel')
+            ->whereDate('date', $today);
+        if ($chaine && $chaine !== 'TOUS') {
+            $query->where('chaine', $chaine);
+        }
+        $data = $query
+            ->orderBy('chaine')
+            ->orderBy('shift')
+            ->get()
+            ->map(fn ($row) => [
+                'chaine' => $row->chaine,
+                'shift' => $row->shift,
+                'tag_theorique' => $row->tag_theorique,
+                'tag_reel' => $row->tag_reel,
+                'ecart_pct' => round($row->ecart_pct ?? 0, 2),
+                'ecart_abs' => round(abs($row->ecart_pct ?? 0), 2),
+                'status' => match (true) {
+                    abs($row->ecart_pct ?? 0) <= 2 => 'green',
+                    abs($row->ecart_pct ?? 0) <= 5 => 'orange',
+                    default => 'red',
+                },
             ]);
 
         return response()->json(['data' => $data]);

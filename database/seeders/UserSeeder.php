@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
         $qualRole = Role::where('slug', 'resp_qualite')->first();
         $chefRole = Role::where('slug', 'chef_atelier')->first();
         $methRole = Role::where('slug', 'methodes')->first();
-        $coupeRole = Role::where('slug', 'coupe')->first();
+        $coupeRole = Role::where('slug', 'planning_coupe')->first();
         $dirRole = Role::where('slug', 'direction')->first();
 
         $users = [

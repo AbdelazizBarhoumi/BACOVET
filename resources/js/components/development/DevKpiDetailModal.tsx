@@ -1,6 +1,6 @@
 import { X, Info } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import type { DevelopmentKpisResponse } from '@/services/developmentApi';
+import type { DevelopmentKpisResponse, LeadTimeDevResponse } from '@/services/developmentApi';
 import {
     DEV_KPI_CONFIG,
     type DevKpiKey,
@@ -10,6 +10,7 @@ import {
 interface DevKpiDetailModalProps {
     kpiKey: DevKpiKey | null;
     kpiData: DevelopmentKpisResponse | null;
+    leadTimeData?: LeadTimeDevResponse | null;
     onClose: () => void;
 }
 
@@ -39,6 +40,7 @@ function formatValue(value: number | null, unit: string): string {
 export default function DevKpiDetailModal({
     kpiKey,
     kpiData,
+    leadTimeData,
     onClose,
 }: DevKpiDetailModalProps) {
     const overlayRef = useRef<HTMLDivElement>(null);
@@ -59,7 +61,9 @@ export default function DevKpiDetailModal({
     if (!kpiKey || !kpiData) return null;
 
     const config: DevKpiDetailConfig = DEV_KPI_CONFIG[kpiKey];
-    const kpiValue = kpiData.kpis?.[kpiKey];
+    const kpiValue = kpiKey === 'dev_leadtime'
+        ? (leadTimeData ? { value: leadTimeData.value, target: leadTimeData.target, status: leadTimeData.status, frequency: leadTimeData.frequency, source: leadTimeData.source } : null)
+        : kpiData.kpis?.[kpiKey];
     const cardStatus = kpiValue?.status ?? 'grey';
     const borderColor = statusBorder(cardStatus);
     const valueColor = statusColor(cardStatus);
@@ -154,7 +158,7 @@ export default function DevKpiDetailModal({
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                 Formule de calcul
                             </h4>
-                            <div className="flex items-center gap-2 font-mono text-[10px]">
+                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
                                 <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
                                     <div className="truncate text-[8px] opacity-70">
                                         {config.formula.numerator.label}
@@ -214,8 +218,7 @@ export default function DevKpiDetailModal({
                                     </div>
                                     <div className="text-xs text-muted-foreground/80">
                                         Ces KPIs sont alimentés via Google Sheets. La synchronisation
-                                        est effectuée 4 fois par jour. Le connecteur Google Sheets doit
-                                        être activé côté Cloud pour la synchronisation automatique.
+                                        est effectuée 4 fois par jour.
                                     </div>
                                 </div>
                             </div>

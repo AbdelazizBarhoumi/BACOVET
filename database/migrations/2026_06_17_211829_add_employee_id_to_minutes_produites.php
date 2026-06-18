@@ -15,7 +15,7 @@ return new class extends Migration
             if (! Schema::hasColumn('minutes_produites', 'employee_id')) {
                 $table->string('employee_id', 50)->nullable()->after('date');
             }
-            
+
             // Add unique constraint for upsert consistency with minutes_presence
             $table->unique(['date', 'employee_id', 'chaine'], 'unique_min_prod_v2');
         });

@@ -16,7 +16,7 @@ export type Role =
     | 'chef_atelier'
     | 'resp_qualite'
     | 'methodes'
-    | 'coupe';
+    | 'planning_coupe';
 
 export type RolePage =
     | '/quality'
@@ -35,7 +35,7 @@ export const ROLE_LABEL: Record<Role, string> = {
     chef_atelier: "Chef d'Atelier",
     resp_qualite: 'Responsable Qualité',
     methodes: 'Méthodes / Planning',
-    coupe: 'Coupe',
+    planning_coupe: 'Planning / Coupe',
 };
 
 // Role -> pages allowed (from spec role matrix in Sprint 8.5 and section 0.5)
@@ -68,7 +68,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/development',
         '/unauthorized',
     ],
-    coupe: ['/production', '/logistics', '/unauthorized'],
+    planning_coupe: ['/production', '/logistics', '/unauthorized'],
 };
 
 export const DEMO_ACCOUNTS: Record<string, { name: string; role: Role }> = {
@@ -78,7 +78,7 @@ export const DEMO_ACCOUNTS: Record<string, { name: string; role: Role }> = {
     'P-2017': { name: 'M. Trabelsi', role: 'chef_atelier' },
     'Q-0210': { name: 'S. Karoui', role: 'resp_qualite' },
     'L-3308': { name: 'N. Saidi', role: 'methodes' },
-    'C-4421': { name: 'K. Hammami', role: 'coupe' },
+    'C-4421': { name: 'K. Hammami', role: 'planning_coupe' },
 };
 
 export const ROLE_HOME: Record<Role, RolePage> = {
@@ -88,7 +88,7 @@ export const ROLE_HOME: Record<Role, RolePage> = {
     chef_atelier: '/production',
     resp_qualite: '/quality',
     methodes: '/methods',
-    coupe: '/production',
+    planning_coupe: '/production',
 };
 
 export type Session = {
@@ -147,6 +147,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         previousUrl.current = page.url;
     }, [page.url, session]);
+
+    // CDC F-REQ-400 / NF-REQ-502: 30 min idle → force logout
+    useEffect(() => {
+        if (!session) return;
+
+        const TIMEOUT_MS = 30 * 60 * 1000;
+        let timer: ReturnType<typeof setTimeout>;
+
+        const resetTimer = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                toast.error('Session expirée par inactivité');
+                router.post('/auth/logout', { _token: csrf_token });
+            }, TIMEOUT_MS);
+        };
+
+        const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+        events.forEach((e) => document.addEventListener(e, resetTimer, { passive: true }));
+        resetTimer();
+
+        return () => {
+            clearTimeout(timer);
+            events.forEach((e) => document.removeEventListener(e, resetTimer));
+        };
+    }, [session, csrf_token]);
 
     const hasAccess = useMemo(
         () => (page: RolePage) => {

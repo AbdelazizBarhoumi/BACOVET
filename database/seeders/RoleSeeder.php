@@ -19,7 +19,7 @@ class RoleSeeder extends Seeder
             ['name' => 'Chef d\'Atelier',        'slug' => 'chef_atelier'],
             ['name' => 'Responsable Qualité',    'slug' => 'resp_qualite'],
             ['name' => 'Méthodes / Planning',    'slug' => 'methodes'],
-            ['name' => 'Coupe',                  'slug' => 'coupe'],
+            ['name' => 'Planning / Coupe',        'slug' => 'planning_coupe'],
         ];
 
         foreach ($roles as $role) {

@@ -60,7 +60,7 @@ class LogisticsTest extends TestCase
 
     public function test_coupe_can_access_logistics()
     {
-        $role = Role::firstOrCreate(['slug' => 'coupe'], ['name' => 'Coupe']);
+        $role = Role::firstOrCreate(['slug' => 'planning_coupe'], ['name' => 'Planning / Coupe']);
         $user = User::factory()->create(['role_id' => $role->id]);
 
         $this->seedLogisticsData();
@@ -91,6 +91,12 @@ class LogisticsTest extends TestCase
 
     public function test_kpis_respect_planification_computed_from_db()
     {
+        // Seed GPRO chain planning with objectives
+        DB::table('sync_gpro_chain_planning')->insert([
+            ['chaine' => 'CH1', 'of_numero' => 'OF-1', 'qte_of' => 500, 'objectif_journalier' => 700, 'cadence_moyenne' => 100, 'cadence_hebdo' => 600, 'synced_at' => now()],
+            ['chaine' => 'CH2', 'of_numero' => 'OF-2', 'qte_of' => 300, 'objectif_journalier' => 300, 'cadence_moyenne' => 50, 'cadence_hebdo' => 300, 'synced_at' => now()],
+        ]);
+
         // Seed qte_produite for today
         DB::table('qte_produite')->insert([
             ['date' => now()->toDateString(), 'chaine' => 'CH1', 'shift_code' => 'M', 'quantite' => 500, 'synced_at' => now()],
@@ -103,36 +109,51 @@ class LogisticsTest extends TestCase
         $response->assertStatus(200);
 
         $data = $response->json();
-        // 500+300+200 = 1000; 1000/1000*100 = 100%
+        // CH1: 500+200=700 >= 700 ✓, CH2: 300 >= 300 ✓ → 2/2 = 100%
         $this->assertEquals(100.0, $data['respect_plan']['value']);
         $this->assertEquals('green', $data['respect_plan']['status']);
-        $this->assertEquals(1000, $data['respect_plan']['raw']['qte_today']);
+        $this->assertEquals(2, $data['respect_plan']['raw']['respecting']);
     }
 
     public function test_kpis_respect_planification_orange_when_below_95()
     {
+        // Seed GPRO with 3 chains, one will miss
+        DB::table('sync_gpro_chain_planning')->insert([
+            ['chaine' => 'CH1', 'of_numero' => 'OF-1', 'qte_of' => 500, 'objectif_journalier' => 500, 'cadence_moyenne' => 100, 'cadence_hebdo' => 600, 'synced_at' => now()],
+            ['chaine' => 'CH2', 'of_numero' => 'OF-2', 'qte_of' => 300, 'objectif_journalier' => 300, 'cadence_moyenne' => 50, 'cadence_hebdo' => 300, 'synced_at' => now()],
+            ['chaine' => 'CH3', 'of_numero' => 'OF-3', 'qte_of' => 200, 'objectif_journalier' => 200, 'cadence_moyenne' => 30, 'cadence_hebdo' => 180, 'synced_at' => now()],
+        ]);
+
         DB::table('qte_produite')->insert([
             ['date' => now()->toDateString(), 'chaine' => 'CH1', 'shift_code' => 'M', 'quantite' => 930, 'synced_at' => now()],
+            // CH2 and CH3 have no production today → 0 < 300 and 0 < 200
         ]);
 
         $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
 
         $data = $response->json();
-        // 930/1000*100 = 93% → orange (>= 92)
-        $this->assertEquals(93.0, $data['respect_plan']['value']);
-        $this->assertEquals('orange', $data['respect_plan']['status']);
+        // CH1: 930 >= 500 ✓, CH2: 0 < 300 ✗, CH3: 0 < 200 ✗ → 1/3 = 33.3%
+        $this->assertEquals(33.3, $data['respect_plan']['value']);
+        $this->assertEquals('red', $data['respect_plan']['status']);
     }
 
     public function test_kpis_respect_planification_red_when_below_92()
     {
+        // Seed 2 chains: CH1 meets target, CH2 does not → 1/2 = 50%
+        DB::table('sync_gpro_chain_planning')->insert([
+            ['chaine' => 'CH1', 'of_numero' => 'OF-1', 'qte_of' => 500, 'objectif_journalier' => 500, 'cadence_moyenne' => 100, 'cadence_hebdo' => 600, 'synced_at' => now()],
+            ['chaine' => 'CH2', 'of_numero' => 'OF-2', 'qte_of' => 300, 'objectif_journalier' => 300, 'cadence_moyenne' => 50, 'cadence_hebdo' => 300, 'synced_at' => now()],
+        ]);
+
         DB::table('qte_produite')->insert([
-            ['date' => now()->toDateString(), 'chaine' => 'CH1', 'shift_code' => 'M', 'quantite' => 500, 'synced_at' => now()],
+            ['date' => now()->toDateString(), 'chaine' => 'CH1', 'shift_code' => 'M', 'quantite' => 600, 'synced_at' => now()],
+            // CH2 has no production today → 0 < 300
         ]);
 
         $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
 
         $data = $response->json();
-        // 500/1000*100 = 50% → red
+        // CH1: 600 >= 500 ✓, CH2: 0 < 300 ✗ → 1/2 = 50%
         $this->assertEquals(50.0, $data['respect_plan']['value']);
         $this->assertEquals('red', $data['respect_plan']['status']);
     }
@@ -146,13 +167,31 @@ class LogisticsTest extends TestCase
         $this->assertEquals('grey', $data['respect_plan']['status']);
     }
 
-    public function test_kpis_lead_time_is_32()
+    public function test_kpis_lead_time_fallback_when_no_gpro_data()
     {
+        // Without GPRO of_dates data, lead_time falls back to configurable default (32)
         $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
 
         $data = $response->json();
         $this->assertEquals(32, $data['lead_time']['value']);
         $this->assertEquals('j', $data['lead_time']['unit']);
+        $this->assertEquals('green', $data['lead_time']['status']);
+    }
+
+    public function test_kpis_lead_time_computed_from_gpro_of_dates()
+    {
+        // Seed GPRO of_dates with known bpd/ehd
+        DB::table('sync_gpro_of_dates')->insert([
+            ['of_numero' => 'OF-001', 'chaine' => 'CH1', 'bpd' => '2026-06-01', 'epd' => '2026-06-15', 'ehd' => '2026-06-18', 'synced_at' => now()],
+            ['of_numero' => 'OF-002', 'chaine' => 'CH2', 'bpd' => '2026-06-02', 'epd' => '2026-06-16', 'ehd' => '2026-06-20', 'synced_at' => now()],
+        ]);
+
+        $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
+
+        $data = $response->json();
+        // OF-001: ehd-bpd = 17 days, OF-002: ehd-bpd = 18 days, avg = 17.5
+        $this->assertEqualsWithDelta(17.5, $data['lead_time']['value'], 0.1);
+        $this->assertEquals('green', $data['lead_time']['status']); // 17.5 <= 32
     }
 
     // ─── STOCK KPIS (Section B) ────────────────────────────────────────────
@@ -212,9 +251,9 @@ class LogisticsTest extends TestCase
         $response = $this->actingAs($this->user)->getJson('/logistics/stock-kpis');
 
         $data = $response->json();
-        // 39031 / 42864 * 100 = 91.06% → orange (85-95)
-        $this->assertEqualsWithDelta(91.1, $data['occupation']['value'], 0.1);
-        $this->assertEquals('orange', $data['occupation']['status']);
+        // 39031 / 50000 * 100 = 78.06% → green (≤85)
+        $this->assertEqualsWithDelta(78.1, $data['occupation']['value'], 0.1);
+        $this->assertEquals('green', $data['occupation']['status']);
     }
 
     public function test_stock_kpis_occupation_green_when_below_85()
@@ -242,7 +281,7 @@ class LogisticsTest extends TestCase
     public function test_stock_kpis_occupation_red_when_above_95()
     {
         DB::table('nombre_rouleaux')->insert([
-            'nb_rouleaux' => 42000,
+            'nb_rouleaux' => 48000,
             'synced_at' => now(),
         ]);
 
@@ -257,7 +296,7 @@ class LogisticsTest extends TestCase
         $response = $this->actingAs($this->user)->getJson('/logistics/stock-kpis');
 
         $data = $response->json();
-        // 42000 / 42864 * 100 = 97.98% → red
+        // 48000 / 50000 * 100 = 96% → red (>95)
         $this->assertEquals('red', $data['occupation']['status']);
     }
 
@@ -462,22 +501,27 @@ class LogisticsTest extends TestCase
 
     public function test_coverage_chain_from_qte_engagement()
     {
-        DB::table('qte_engagement')->insert([
-            ['commande' => 'C1', 'date' => now()->toDateString(), 'chaine' => 'CH1', 'article' => 'A1', 'quantite_engagee' => 1200, 'synced_at' => now()],
-            ['commande' => 'C2', 'date' => now()->toDateString(), 'chaine' => 'CH1', 'article' => 'A2', 'quantite_engagee' => 800, 'synced_at' => now()],
-            ['commande' => 'C3', 'date' => now()->toDateString(), 'chaine' => 'CH2', 'article' => 'A1', 'quantite_engagee' => 1500, 'synced_at' => now()],
-        ]);
+        // Use raw DB statements to insert with `of` column (reserved word in SQLite)
+        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C1', 'C1', 'A1', 1200, '".now()->toDateString()."', '".now()."')");
+        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C2', 'C2', 'A2', 800, '".now()->toDateString()."', '".now()."')");
+        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C3', 'C3', 'A1', 1500, '".now()->toDateString()."', '".now()."')");
+
+        // Seed qte_depart_chaine_article_of with planifié quantities (different from engagement)
+        // CDC formula: (Qté engagé − Qté planifié) / cadence
+        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C1', 'CH1', 'A1', 200, '".now()->toDateString()."', '".now()."')");
+        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C2', 'CH1', 'A2', 100, '".now()->toDateString()."', '".now()."')");
+        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C3', 'CH2', 'A1', 300, '".now()->toDateString()."', '".now()."')");
 
         $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
 
         $data = $response->json();
         $this->assertCount(2, $data['chaine']);
-        // CH1: (1200+800)/100 = 20.0
+        // CH1: (1200+800) - (200+100) = 1700; 1700/100 = 17.0 (default cadence when no GPRO data)
         $ch1 = collect($data['chaine'])->firstWhere('name', 'CH1');
-        $this->assertEquals(20.0, $ch1['jours']);
-        // CH2: 1500/100 = 15.0
+        $this->assertEquals(17.0, $ch1['jours']);
+        // CH2: 1500 - 300 = 1200; 1200/100 = 12.0
         $ch2 = collect($data['chaine'])->firstWhere('name', 'CH2');
-        $this->assertEquals(15.0, $ch2['jours']);
+        $this->assertEquals(12.0, $ch2['jours']);
     }
 
     public function test_coverage_couple_from_sortie_coupe()
@@ -649,50 +693,80 @@ class LogisticsTest extends TestCase
 
     public function test_spec_freq_334_dot_card()
     {
-        // F-REQ-334: DOT (Delivery On Time) — from GPRO Planning
-        // Spec says: grey placeholder until GPRO Planning connected (B-04)
+        // F-REQ-334: DOT (Delivery On Time) — from sync_drive_dot_hot (Google Drive)
         $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
 
         $data = $response->json();
         $this->assertArrayHasKey('dot', $data);
-        $this->assertEquals('GPRO Planning', $data['dot']['source']);
-        $this->assertEquals('pending', $data['dot']['status']);
-        $this->assertNull($data['dot']['value']); // No value until B-04 resolved
-        $this->assertEquals('B-04', $data['dot']['blocker']);
+        $this->assertEquals('sync_drive_dot_hot', $data['dot']['source']);
+        // Without Drive data, value is null (grey)
+        $this->assertNull($data['dot']['value']);
+        $this->assertEquals('grey', $data['dot']['status']);
+    }
+
+    public function test_spec_freq_334_dot_from_drive_data()
+    {
+        // Seed DOT data from Google Drive
+        DB::table('sync_drive_dot_hot')->insert([
+            ['date' => now()->toDateString(), 'of' => 'OF-1', 'type' => 'DOT', 'qte_commandee' => 1000, 'qte_livree_on_time' => 960, 'synced_at' => now()],
+        ]);
+
+        $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
+
+        $data = $response->json();
+        // 960/1000*100 = 96% → green (>= 95)
+        $this->assertEquals(96.0, $data['dot']['value']);
+        $this->assertEquals('green', $data['dot']['status']);
     }
 
     public function test_spec_freq_335_hot_card()
     {
-        // F-REQ-335: HOT (Handover On Time) — from GPRO Planning
-        // Spec says: grey placeholder until GPRO Planning connected (B-04)
+        // F-REQ-335: HOT — from sync_drive_dot_hot (proxy Jemmel)
         $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
 
         $data = $response->json();
         $this->assertArrayHasKey('hot', $data);
-        $this->assertEquals('GPRO Planning', $data['hot']['source']);
-        $this->assertEquals('pending', $data['hot']['status']);
-        $this->assertNull($data['hot']['value']); // No value until B-04 resolved
-        $this->assertEquals('B-04', $data['hot']['blocker']);
+        $this->assertStringContainsString('sync_drive_dot_hot', $data['hot']['source']);
+        // Without Drive data, value is null (grey)
+        $this->assertNull($data['hot']['value']);
+        $this->assertEquals('grey', $data['hot']['status']);
+    }
+
+    public function test_spec_freq_335_hot_from_drive_data()
+    {
+        // Seed HOT data from Google Drive
+        DB::table('sync_drive_dot_hot')->insert([
+            ['date' => now()->toDateString(), 'of' => 'OF-1', 'type' => 'HOT', 'qte_commandee' => 500, 'qte_livree_on_time' => 470, 'synced_at' => now()],
+        ]);
+
+        $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
+
+        $data = $response->json();
+        // 470/500*100 = 94% → orange (>= 90, < 95)
+        $this->assertEquals(94.0, $data['hot']['value']);
+        $this->assertEquals('orange', $data['hot']['status']);
     }
 
     public function test_spec_freq_336_respect_planification()
     {
-        // F-REQ-336: Respect Planification — qte_produite / daily objective
+        // F-REQ-336: Respect Planification — qte_produite / daily objective from GPRO
         $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
 
         $data = $response->json();
         $this->assertArrayHasKey('respect_plan', $data);
-        $this->assertEquals('qte_produite', $data['respect_plan']['source']);
+        $this->assertEquals('sync_gpro_chain_planning + qte_produite', $data['respect_plan']['source']);
     }
 
     public function test_spec_freq_337_lead_time()
     {
-        // F-REQ-337: Lead Time Global — STRH + LT Transport = 32 jours
+        // F-REQ-337: Lead Time Global — computed from GPRO of_dates (ehd - bpd)
+        // Without GPRO data, falls back to configurable default (32 jours)
         $response = $this->actingAs($this->user)->getJson('/logistics/kpis');
 
         $data = $response->json();
         $this->assertEquals(32, $data['lead_time']['value']);
         $this->assertEquals('j', $data['lead_time']['unit']);
+        $this->assertEquals('green', $data['lead_time']['status']);
     }
 
     public function test_spec_freq_316_317_318_rotation_stock()
@@ -801,10 +875,9 @@ class LogisticsTest extends TestCase
 
     public function test_spec_freq_310_couverture_chaine()
     {
-        // F-REQ-310: Couverture Chaîne — from qte_engagement
-        DB::table('qte_engagement')->insert([
-            ['commande' => 'C1', 'date' => now()->toDateString(), 'chaine' => 'CH1', 'article' => 'A1', 'quantite_engagee' => 1200, 'synced_at' => now()],
-        ]);
+        // F-REQ-310: Couverture Chaîne — from qte_engagement + qte_depart_chaine_article_of
+        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C1', 'C1', 'A1', 1200, '".now()->toDateString()."', '".now()."')");
+        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C1', 'CH1', 'A1', 1200, '".now()->toDateString()."', '".now()."')");
 
         $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
 

@@ -136,6 +136,7 @@ export type AnnualTrendItem = {
     month: string;
     rft: number | null;
     br_gtd: number | null;
+    br_bundling: number | null;
     br_print: number | null;
     br_care_label: number | null;
     br_accessoires: number | null;

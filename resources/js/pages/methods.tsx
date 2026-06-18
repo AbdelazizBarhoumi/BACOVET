@@ -16,6 +16,7 @@ import type { MethodsKpiKey } from '@/components/methods/methodsKpiDetailConfig'
 import MethodsKpiDetailModal from '@/components/methods/MethodsKpiDetailModal';
 import { BigNumberCard, Panel, TrafficBadge } from '@/components/widgets';
 import { useFilters } from '@/context/FilterContext';
+import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchMethodesKpis,
     fetchMethodesTaggingChart,
@@ -23,12 +24,14 @@ import {
     fetchArchivageDetail,
     fetchRespectTempsDetail,
     fetchTempsAcceptesDetail,
+    fetchFiabiliteDetail,
     type MethodsKpisResponse,
     type TaggingChartItem,
     type DetailTableItem,
     type ArchivageDetailItem,
     type RespectTempsDetailItem,
     type TempsAcceptesDetailItem,
+    type FiabiliteDetailItem,
     type KpiStatus,
 } from '@/services/methodsApi';
 
@@ -183,26 +186,31 @@ export default function MethodsPage() {
     const [archivageDetail, setArchivageDetail] = useState<ArchivageDetailItem[]>([]);
     const [respectTempsDetail, setRespectTempsDetail] = useState<RespectTempsDetailItem[]>([]);
     const [tempsAcceptesDetail, setTempsAcceptesDetail] = useState<TempsAcceptesDetailItem[]>([]);
+    const [fiabiliteDetail, setFiabiliteDetail] = useState<FiabiliteDetailItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [lastSync, setLastSync] = useState<Date | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const [openModal, setOpenModal] = useState<MethodsKpiKey | null>(null);
 
     const { filters } = useFilters();
+    const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
     const ligneFilter = filters.ligne || '';
 
     const fetchData = useCallback(async () => {
-        const methodFilters = ligneFilter ? { chaine: ligneFilter } : undefined;
+        const methodFilters: Record<string, string> = {};
+        if (ligneFilter) methodFilters.chaine = ligneFilter;
+        if (filters.marque) methodFilters.marque = filters.marque;
+        if (filters.of) methodFilters.of = filters.of;
         try {
-            const [k, t, d, arch, resp, temps] = await Promise.allSettled([
+            const [k, t, d, arch, resp, temps, fiab] = await Promise.allSettled([
                 fetchMethodesKpis(methodFilters),
                 fetchMethodesTaggingChart(methodFilters),
                 fetchMethodesDetailTable(),
                 fetchArchivageDetail(),
                 fetchRespectTempsDetail(),
                 fetchTempsAcceptesDetail(),
+                fetchFiabiliteDetail(methodFilters),
             ]);
 
             if (k.status === 'fulfilled') setKpis(k.value);
@@ -211,29 +219,31 @@ export default function MethodsPage() {
             if (arch.status === 'fulfilled') setArchivageDetail(arch.value.data);
             if (resp.status === 'fulfilled') setRespectTempsDetail(resp.value.data);
             if (temps.status === 'fulfilled') setTempsAcceptesDetail(temps.value.data);
+            if (fiab.status === 'fulfilled') setFiabiliteDetail(fiab.value.data);
 
-            const anyFailed = [k, t, d, arch, resp, temps].some((r) => r.status === 'rejected');
+            const anyFailed = [k, t, d, arch, resp, temps, fiab].some((r) => r.status === 'rejected');
             if (anyFailed && k.status === 'rejected') {
                 setError('Erreur de connexion au serveur');
+                recordFetchError();
             } else {
                 setError(null);
+                recordFetchSuccess();
             }
-
-            setLastSync(new Date());
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Erreur inconnue');
+            recordFetchError();
         } finally {
             setLoading(false);
         }
-    }, [ligneFilter]);
+    }, [ligneFilter, filters.marque, filters.of, recordFetchError, recordFetchSuccess]);
 
     useEffect(() => {
         fetchData();
-        intervalRef.current = setInterval(fetchData, 60000);
+        intervalRef.current = setInterval(fetchData, refreshIntervalSec * 1000);
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [fetchData]);
+    }, [fetchData, refreshIntervalSec]);
 
     const exportRows = kpis
         ? [
@@ -431,16 +441,17 @@ export default function MethodsPage() {
                     )}
                 </Panel>
 
-                {lastSync && (
-                    <div className="mt-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                        Dernière sync: <span className="text-foreground">{lastSync.toLocaleTimeString('fr-FR')}</span>
-                    </div>
-                )}
-
                 {/* KPI Detail Modal */}
                 <MethodsKpiDetailModal
                     kpiKey={openModal}
                     kpiData={kpis}
+                    detailData={
+                        openModal === 'f_req_216' ? archivageDetail
+                        : openModal === 'f_req_217' ? fiabiliteDetail
+                        : openModal === 'f_req_218' ? respectTempsDetail
+                        : openModal === 'f_req_219' ? tempsAcceptesDetail
+                        : null
+                    }
                     onClose={() => setOpenModal(null)}
                 />
             </AppShell>

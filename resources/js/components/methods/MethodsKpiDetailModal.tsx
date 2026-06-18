@@ -1,6 +1,14 @@
 import { X, Info } from 'lucide-react';
-import { useEffect, useRef } from 'react';
-import type { MethodsKpisResponse } from '@/services/methodsApi';
+import { useEffect, useRef, useState } from 'react';
+import type { MethodsKpisResponse, FiabiliteDetailItem, ArchivageDetailItem, RespectTempsDetailItem, TempsAcceptesDetailItem } from '@/services/methodsApi';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from '@/components/ui/pagination';
 import {
     METHODS_KPI_CONFIG,
     type MethodsKpiKey,
@@ -10,6 +18,7 @@ import {
 interface MethodsKpiDetailModalProps {
     kpiKey: MethodsKpiKey | null;
     kpiData: MethodsKpisResponse | null;
+    detailData?: (FiabiliteDetailItem | ArchivageDetailItem | RespectTempsDetailItem | TempsAcceptesDetailItem)[] | null;
     onClose: () => void;
 }
 
@@ -39,6 +48,7 @@ function formatValue(value: number | null, unit: string): string {
 export default function MethodsKpiDetailModal({
     kpiKey,
     kpiData,
+    detailData,
     onClose,
 }: MethodsKpiDetailModalProps) {
     const overlayRef = useRef<HTMLDivElement>(null);
@@ -56,6 +66,13 @@ export default function MethodsKpiDetailModal({
         };
     }, [kpiKey, onClose]);
 
+    const [detailPage, setDetailPage] = useState(1);
+    const DETAIL_PAGE_SIZE = 10;
+
+    useEffect(() => {
+        setDetailPage(1);
+    }, [kpiKey]);
+
     if (!kpiKey || !kpiData) return null;
 
     const config: MethodsKpiDetailConfig = METHODS_KPI_CONFIG[kpiKey];
@@ -67,6 +84,9 @@ export default function MethodsKpiDetailModal({
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (e.target === overlayRef.current) onClose();
     };
+
+    const totalPages = detailData ? Math.ceil(detailData.length / DETAIL_PAGE_SIZE) : 0;
+    const pagedData = detailData?.slice((detailPage - 1) * DETAIL_PAGE_SIZE, detailPage * DETAIL_PAGE_SIZE);
 
     return (
         <div
@@ -117,6 +137,17 @@ export default function MethodsKpiDetailModal({
                         {config.description}
                     </p>
 
+                    {/* Proxy disclaimer for F-REQ-217 */}
+                    {(kpiKey === 'f_req_217' && (kpiValue as { is_proxy?: boolean; proxy_note?: string })?.is_proxy) && (
+                        <div className="mb-5 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2">
+                            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                            <div className="font-mono text-[10px]">
+                                <span className="font-bold tracking-wider text-warning uppercase">Proxy : </span>
+                                <span className="text-foreground/80">{(kpiValue as { proxy_note?: string }).proxy_note}</span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Top stat boxes */}
                     <div className="mb-6 grid grid-cols-3 gap-3">
                         <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
@@ -154,7 +185,7 @@ export default function MethodsKpiDetailModal({
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                 Formule de calcul
                             </h4>
-                            <div className="flex items-center gap-2 font-mono text-[10px]">
+                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
                                 <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
                                     <div className="truncate text-[8px] opacity-70">
                                         {config.formula.numerator.label}
@@ -222,6 +253,168 @@ export default function MethodsKpiDetailModal({
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Detail drill-down table */}
+                    {detailData && detailData.length > 0 && kpiKey && (
+                        <div className="mb-6">
+                            <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                Données détaillées
+                            </h4>
+                            <div className="rounded-md border border-border">
+                                <table className="w-full text-[10px] font-mono">
+                                    <thead className="bg-secondary/50">
+                                        <tr className="border-b border-border text-muted-foreground uppercase tracking-wider">
+                                            {kpiKey === 'f_req_217' && (
+                                                <>
+                                                    <th className="px-2 py-1.5 text-left">Chaîne</th>
+                                                    <th className="px-2 py-1.5 text-left">Shift</th>
+                                                    <th className="px-2 py-1.5 text-right">Tag Théo.</th>
+                                                    <th className="px-2 py-1.5 text-right">Tag Réel</th>
+                                                    <th className="px-2 py-1.5 text-right">Écart %</th>
+                                                    <th className="px-2 py-1.5 text-right">|Écart|</th>
+                                                    <th className="px-2 py-1.5 text-right">Statut</th>
+                                                </>
+                                            )}
+                                            {kpiKey === 'f_req_216' && (
+                                                <>
+                                                    <th className="px-2 py-1.5 text-left">OF Numéro</th>
+                                                    <th className="px-2 py-1.5 text-center">Soldé</th>
+                                                    <th className="px-2 py-1.5 text-center">Archivé</th>
+                                                </>
+                                            )}
+                                            {kpiKey === 'f_req_218' && (
+                                                <>
+                                                    <th className="px-2 py-1.5 text-left">Article</th>
+                                                    <th className="px-2 py-1.5 text-right">Cotation</th>
+                                                    <th className="px-2 py-1.5 text-right">Production</th>
+                                                    <th className="px-2 py-1.5 text-right">Diff.</th>
+                                                    <th className="px-2 py-1.5 text-right">Respecté</th>
+                                                </>
+                                            )}
+                                            {kpiKey === 'f_req_219' && (
+                                                <>
+                                                    <th className="px-2 py-1.5 text-left">Article</th>
+                                                    <th className="px-2 py-1.5 text-right">Total</th>
+                                                    <th className="px-2 py-1.5 text-right">Acceptées V1</th>
+                                                    <th className="px-2 py-1.5 text-right">Taux %</th>
+                                                </>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {kpiKey === 'f_req_217' && (pagedData as FiabiliteDetailItem[] | undefined)?.map((row, i) => (
+                                            <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
+                                                <td className="px-2 py-1">{row.chaine}</td>
+                                                <td className="px-2 py-1">{row.shift}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.tag_theorique}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.tag_reel}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.ecart_pct}%</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.ecart_abs}%</td>
+                                                <td className="px-2 py-1 text-right">
+                                                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                                                        row.status === 'green' ? 'bg-green-500' : row.status === 'orange' ? 'bg-orange-400' : 'bg-red-500'
+                                                    }`} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {kpiKey === 'f_req_216' && (pagedData as ArchivageDetailItem[] | undefined)?.map((row, i) => (
+                                            <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
+                                                <td className="px-2 py-1">{row.of_numero}</td>
+                                                <td className="px-2 py-1 text-center">{row.est_solde ? '✓' : '—'}</td>
+                                                <td className="px-2 py-1 text-center">{row.est_archive ? '✓' : '—'}</td>
+                                            </tr>
+                                        ))}
+                                        {kpiKey === 'f_req_218' && (pagedData as RespectTempsDetailItem[] | undefined)?.map((row, i) => (
+                                            <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
+                                                <td className="px-2 py-1">{row.article}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.temps_cotation} min</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.temps_production} min</td>
+                                                <td className={`px-2 py-1 text-right tabular-nums ${row.difference > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                                    {row.difference > 0 ? '+' : ''}{row.difference}
+                                                </td>
+                                                <td className="px-2 py-1 text-right">
+                                                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${row.est_respecte ? 'bg-green-500' : 'bg-red-500'}`} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {kpiKey === 'f_req_219' && (pagedData as TempsAcceptesDetailItem[] | undefined)?.map((row, i) => (
+                                            <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
+                                                <td className="px-2 py-1">{row.article}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.nb_gammes_total}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.nb_acceptees_v1}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.taux_pct ?? '—'}%</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {totalPages > 1 && (
+                                <div className="mt-3 flex items-center justify-between">
+                                    <span className="text-[10px] text-muted-foreground">
+                                        {detailPage} / {totalPages} pages ({detailData.length} lignes)
+                                    </span>
+                                    <Pagination>
+                                        <PaginationContent>
+                                            <PaginationItem>
+                                                <PaginationPrevious
+                                                    href="#"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setDetailPage((p) => Math.max(1, p - 1));
+                                                    }}
+                                                    className={detailPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                                                />
+                                            </PaginationItem>
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                .filter((p) => {
+                                                    if (totalPages <= 7) return true;
+                                                    if (p === 1 || p === totalPages) return true;
+                                                    if (Math.abs(p - detailPage) <= 1) return true;
+                                                    return false;
+                                                })
+                                                .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                                                    if (idx > 0 && typeof arr[idx - 1] === 'number' && p - (arr[idx - 1] as number) > 1) {
+                                                        acc.push('ellipsis');
+                                                    }
+                                                    acc.push(p);
+                                                    return acc;
+                                                }, [])
+                                                .map((item, idx) =>
+                                                    item === 'ellipsis' ? (
+                                                        <PaginationItem key={`e-${idx}`}>
+                                                            <span className="px-2 text-muted-foreground">...</span>
+                                                        </PaginationItem>
+                                                    ) : (
+                                                        <PaginationItem key={item}>
+                                                            <PaginationLink
+                                                                href="#"
+                                                                isActive={item === detailPage}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setDetailPage(item);
+                                                                }}
+                                                            >
+                                                                {item}
+                                                            </PaginationLink>
+                                                        </PaginationItem>
+                                                    ),
+                                                )}
+                                            <PaginationItem>
+                                                <PaginationNext
+                                                    href="#"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setDetailPage((p) => Math.min(totalPages, p + 1));
+                                                    }}
+                                                    className={detailPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                                                />
+                                            </PaginationItem>
+                                        </PaginationContent>
+                                    </Pagination>
+                                </div>
+                            )}
                         </div>
                     )}
 

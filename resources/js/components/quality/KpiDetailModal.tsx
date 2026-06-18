@@ -155,6 +155,12 @@ export default function KpiDetailModal({
                 .filter((v): v is number => v !== null)
                 .slice(-7);
         }
+        if (kpiKey === 'br_bundling_jour' || kpiKey === 'br_bundling_annee') {
+            return trendData
+                .map((d) => d.br_bundling)
+                .filter((v): v is number => v !== null)
+                .slice(-7);
+        }
         if (kpiKey === 'br_print_dda') {
             return trendData
                 .map((d) => d.br_print)
@@ -288,7 +294,7 @@ export default function KpiDetailModal({
                                 <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                     Formule de calcul
                                 </h4>
-                                <div className="flex items-center gap-2 font-mono text-[10px]">
+                                <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
                                     <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
                                         <div className="truncate text-[8px] opacity-70">
                                             {config.formula.numerator.label}
@@ -419,28 +425,17 @@ export default function KpiDetailModal({
                                     .toISOString()
                                     .slice(0, 10);
                                 const wb = XLSX.utils.book_new();
-                                const exportRows =
-                                    config.breakdownAvailable &&
-                                        brChartData.length > 0
-                                        ? brChartData.map((item) => ({
-                                            Étape: item.stage,
-                                            Valeur:
-                                                item.defect_pct != null
-                                                    ? `${item.defect_pct.toFixed(2)}%`
-                                                    : '—',
-                                            Statut: item.status,
-                                        }))
-                                        : [
-                                            {
-                                                KPI: config.label,
-                                                Valeur:
-                                                    card.value != null
-                                                        ? `${card.value.toFixed(1)}%`
-                                                        : '—',
-                                                Statut: card.status,
-                                                Cible: `${config.target.operator}${config.target.value}%`,
-                                            },
-                                        ];
+                                const exportRows = [
+                                    {
+                                        KPI: config.label,
+                                        Valeur:
+                                            card.value != null
+                                                ? `${card.value.toFixed(1)}%`
+                                                : '—',
+                                        Statut: card.status,
+                                        Cible: `${config.target.operator}${config.target.value}%`,
+                                    },
+                                ];
                                 const ws = XLSX.utils.json_to_sheet(exportRows);
                                 XLSX.utils.book_append_sheet(wb, ws, 'Data');
                                 XLSX.writeFile(

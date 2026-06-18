@@ -4,7 +4,7 @@
 
 | Endpoint | Backend Method | Returns |
 |---|---|---|
-| `GET /quality/kpis` | `QualityController::kpis()` | 16 KPI cards + synced_at |
+| `GET /quality/kpis` | `QualityController::kpis()` | 15 KPI cards + synced_at |
 | `GET /quality/br-chart` | `QualityController::brChart()` | 6 stages with defect data |
 | `GET /quality/annual-trend` | `QualityController::annualTrend()` | Monthly RFT + BR GTD |
 | `GET /quality/qp-teams` | `QualityController::qpTeams()` | Best/worst teams |
@@ -36,14 +36,14 @@
 | `app/Http/Controllers/Api/QualityController.php` | Backend — all 7 endpoints |
 | `resources/js/services/qualityApi.ts` | Frontend API fetch + TypeScript types |
 | `resources/js/pages/quality.tsx` | Main page — all sections |
-| `resources/js/components/quality/kpiDetailConfig.ts` | 16 KPI configs (formula, source, thresholds) |
+| `resources/js/components/quality/kpiDetailConfig.ts` | 15 KPI configs (formula, source, thresholds) |
 | `resources/js/components/quality/KpiDetailModal.tsx` | Detail modal overlay |
 | `resources/js/components/QpTeamPodium.tsx` | Podium component |
 | `resources/css/app.css` | Flash animation CSS |
 
 ---
 
-# Section A: KPI Cards (16 cards, 4×4 grid)
+# Section A: KPI Cards (15 cards, 4×4 grid)
 
 ## How It Works (end-to-end)
 
@@ -113,7 +113,6 @@ GET /quality/kpis →
   "br_accessoires_dda":  { "value": 3.1,  "status": "green", "source": "sync_drive_br_accessoires" },
   "br_compo_jour":       { "value": 1.2,  "status": "green", "source": "sync_drive_br_compo" },
   "br_compo_dda":        { "value": 1.8,  "status": "green", "source": "sync_drive_br_compo" },
-  "br_commande":         { "value": 3.2,  "status": "green", "source": "sync_drive_inspection_commande" },
   "synced_at": "2026-06-18T10:30:00.000000Z"
 }
 ```
@@ -148,7 +147,7 @@ Each card rendered via `<KpiCard>` which wraps `<BigNumberCard>`:
 Row 1: BR CGL (DDA)       | BR GTD (Ce jour)  | RFT (Ce jour)     | BR Bundling (Ce jour)
 Row 2: BR GTD DDA          | RFT DDA            | BR Bundling DDA   | BR Print (Ce jour)
 Row 3: BR Print DDA        | BR Care Label      | BR Care Label DDA | BR Accessoires
-Row 4: BR Accessoires DDA  | BR Compo           | BR Compo DDA      | BR Commande (DDA)
+Row 4: BR Accessoires DDA  | BR Compo           | BR Compo DDA      | (empty)
 ```
 
 ---
@@ -199,7 +198,6 @@ Row 4: BR Accessoires DDA  | BR Compo           | BR Compo DDA      | BR Command
 │ [Exporter XLSX]                            [Fermer]     │
 └─────────────────────────────────────────────────────────┘
 ```
-
 ### 3. Trend Selection Logic
 
 ```typescript
@@ -210,6 +208,21 @@ trendValues = (() => {
     }
     if (kpiKey === 'br_gtd_jour' || kpiKey === 'br_gtd_dda') {
         return trendData.map(d => d.br_gtd).filter(v => v !== null).slice(-7);
+    }
+    if (kpiKey === 'br_bundling_jour' || kpiKey === 'br_bundling_annee') {
+        return trendData.map(d => d.br_bundling).filter(v => v !== null).slice(-7);
+    }
+    if (kpiKey === 'br_print_dda') {
+        return trendData.map(d => d.br_print).filter(v => v !== null).slice(-7);
+    }
+    if (kpiKey === 'br_care_label_dda') {
+        return trendData.map(d => d.br_care_label).filter(v => v !== null).slice(-7);
+    }
+    if (kpiKey === 'br_accessoires_dda') {
+        return trendData.map(d => d.br_accessoires).filter(v => v !== null).slice(-7);
+    }
+    if (kpiKey === 'br_compo_dda') {
+        return trendData.map(d => d.br_compo).filter(v => v !== null).slice(-7);
     }
     return [];
 })();
@@ -223,10 +236,16 @@ trendValues = (() => {
 | `rft_annee` | annualTrend → monthly RFT | `d.rft` |
 | `br_gtd_jour` | annualTrend → monthly BR GTD | `d.br_gtd` |
 | `br_gtd_dda` | annualTrend → monthly BR GTD | `d.br_gtd` |
+| `br_bundling_jour` | annualTrend → monthly BR Bundling | `d.br_bundling` |
+| `br_bundling_annee` | annualTrend → monthly BR Bundling | `d.br_bundling` |
+| `br_print_dda` | annualTrend → monthly Drive BR Print | `d.br_print` |
+| `br_care_label_dda` | annualTrend → monthly Drive BR Care Label | `d.br_care_label` |
+| `br_accessoires_dda` | annualTrend → monthly Drive BR Accessoires | `d.br_accessoires` |
+| `br_compo_dda` | annualTrend → monthly Drive BR Compo | `d.br_compo` |
 
 ### 5. Formula Display
 
-Hidden when numerator/denominator fields are `'—'` (Drive-sourced KPIs without granular field names). KPIs that show formula: `br_cgl`, `br_gtd_jour`, `rft_jour`, `br_bundling_jour`, `br_gtd_dda`, `rft_annee`, `br_bundling_annee`, `br_commande`.
+Hidden when numerator/denominator fields are `'—'` (Drive-sourced KPIs without granular field names). KPIs that show formula: `br_cgl`, `br_gtd_jour`, `rft_jour`, `br_bundling_jour`, `br_gtd_dda`, `rft_annee`, `br_bundling_annee`.
 
 ---
 
@@ -380,7 +399,7 @@ QualityController::qpTeams()
 └─ For each chain, compute CDC formula:
    ┌─────────────────────────────────────────────────────────────┐
    │ score = (br_ok × 5) + (br_in_ok × 3) + (br_gtd_ok × 3) + (rft_ok × 1) │
-   │ max_score = 12                                               │
+   │ max_score = 7 (br_ok unavailable → always 0)                │
    │                                                              │
    │ br_gtd_ok = (chain_avg_defect_pct ≤ 5)                     │
    │ br_in_ok  = (bundling_br ≤ 5)                               │
@@ -397,19 +416,19 @@ QualityController::qpTeams()
 GET /quality/qp-teams →
 {
   "best": [
-    { "chain": "CH3", "score": 10, "max_score": 12, "rft_ok": true, "rft_pct": 98.5,
+    { "chain": "CH3", "score": 7, "max_score": 7, "rft_ok": true, "rft_pct": 98.5,
       "br_in_ok": true, "br_gtd_ok": true, "br_ok": false, "defect_pct": 2.1, "partial_score": false },
-    { "chain": "CH1", "score": 9, "max_score": 12, "rft_ok": true, "rft_pct": 98.5,
+    { "chain": "CH1", "score": 4, "max_score": 7, "rft_ok": true, "rft_pct": 98.5,
       "br_in_ok": true, "br_gtd_ok": false, "br_ok": false, "defect_pct": 3.2, "partial_score": false },
-    { "chain": "CH5", "score": 7, "max_score": 12, "rft_ok": true, "rft_pct": 98.5,
+    { "chain": "CH5", "score": 4, "max_score": 7, "rft_ok": true, "rft_pct": 98.5,
       "br_in_ok": false, "br_gtd_ok": true, "br_ok": false, "defect_pct": 4.0, "partial_score": false }
   ],
   "worst": [
-    { "chain": "CH7", "score": 4, "max_score": 12, "rft_ok": true, "rft_pct": 98.5,
+    { "chain": "CH7", "score": 1, "max_score": 7, "rft_ok": true, "rft_pct": 98.5,
       "br_in_ok": false, "br_gtd_ok": false, "br_ok": false, "defect_pct": 6.8, "partial_score": false },
-    { "chain": "CH2", "score": 4, "max_score": 12, "rft_ok": true, "rft_pct": 98.5,
+    { "chain": "CH2", "score": 1, "max_score": 7, "rft_ok": true, "rft_pct": 98.5,
       "br_in_ok": false, "br_gtd_ok": false, "br_ok": false, "defect_pct": 5.9, "partial_score": false },
-    { "chain": "CH8", "score": 3, "max_score": 12, "rft_ok": false, "rft_pct": 97.0,
+    { "chain": "CH8", "score": 0, "max_score": 7, "rft_ok": false, "rft_pct": 97.0,
       "br_in_ok": false, "br_gtd_ok": false, "br_ok": false, "defect_pct": 7.2, "partial_score": false }
   ],
   "is_partial": false
@@ -427,12 +446,12 @@ fetchQualityQpTeams(filters) → mapTeam(team, rank) → setQpTeams({ best, wors
 ```
 ┌──────────────────────┬──────────────────────┐
 │ 🏆 Meilleure Équipe  │ ⚠️ Équipe à Améliorer│
-│ Score max: 12/12     │ Score max: 12/12     │
+│ Score max: 7/7       │ Score max: 7/7       │
 ├───────┬──────┬───────┼───────┬──────┬───────┤
 │   2nd │  1st │  3rd  │  2nd  │ 1st  │  3rd  │
 │       │  🏆  │       │       │  ⚠️  │       │
 │  CH1  │ CH3  │  CH5  │  CH2  │ CH7  │  CH8  │
-│ 9/12  │10/12 │ 7/12  │ 4/12  │ 4/12 │ 3/12  │
+│ 4/7   │ 7/7  │ 4/7   │ 1/7   │ 1/7  │ 0/7   │
 │BR:3.2%│BR:2.1│BR:4.0%│BR:5.9%│BR:6.8│BR:7.2%│
 │       │      │       │       │      │       │
 │ ☑ RFT │ ☑ RFT│ ☑ RFT │ ☑ RFT │ ☑ RFT│ ☒ RFT │
@@ -600,8 +619,7 @@ Panel "Synthèse des indicateurs Qualité"
 │     ├─ BR Accessoires (jour)│2.7% │ ≤ 5%  │ 🟢
 │     ├─ BR Accessoires DDA │ 3.1%  │ ≤ 5%  │ 🟢
 │     ├─ BR Compo (jour)    │ 1.2%  │ ≤ 5%  │ 🟢
-│     ├─ BR Compo DDA       │ 1.8%  │ ≤ 5%  │ 🟢
-│     └─ BR Commande (DDA)  │ 3.2%  │ ≤ 5%  │ 🟢
+│     └─ BR Compo DDA       │ 1.8%  │ ≤ 5%  │ 🟢
 │
 └─ footer: "Dernière sync: 10:30" (from kpis.synced_at)
 ```
@@ -624,10 +642,20 @@ QualityController::annualTrend()
   │    ->groupBy('month')
   │    → SUM(first_pass_today) / SUM(produced_today) × 100 = rft
   │
-  └─ BR GTD trend:
-     DB::table('check_pass_qte')->whereYear('log_date', year)
-       ->groupBy('month')
-       → AVG(defect_pct) = br_gtd
+  ├─ BR GTD trend:
+  │  DB::table('check_pass_qte')->whereYear('log_date', year)
+  │    ->groupBy('month')
+  │    → AVG(defect_pct) = br_gtd
+  │
+  ├─ BR Bundling trend:
+  │  DB::table('rejets_inspection_paquet')->where('period', 'jour')
+  │    ->whereYear('date', year)->where('is_active', true)
+  │    ->groupBy(DATE_FORMAT(date, '%Y-%m'))
+  │    → SUM(bundle_reject) / SUM(bundle_inspected) × 100 = br_bundling
+  │  Note: filtered by is_active=true (B-01 inactive endpoints excluded)
+  │
+  └─ Drive-sourced trends (br_print, br_care_label, br_accessoires, br_compo):
+     Each: SUM(nb_rejets) / SUM(nb_inspections) × 100 per month
 
   Merge by month → sorted array
 ```
@@ -638,12 +666,12 @@ QualityController::annualTrend()
 GET /quality/annual-trend →
 {
   "data": [
-    { "month": "2026-01", "rft": 97.8, "br_gtd": 4.2 },
-    { "month": "2026-02", "rft": 98.1, "br_gtd": 3.9 },
-    { "month": "2026-03", "rft": 97.5, "br_gtd": 4.5 },
-    { "month": "2026-04", "rft": 98.3, "br_gtd": 3.7 },
-    { "month": "2026-05", "rft": 98.0, "br_gtd": 4.0 },
-    { "month": "2026-06", "rft": 97.5, "br_gtd": 3.8 }
+    { "month": "2026-01", "rft": 97.8, "br_gtd": 4.2, "br_bundling": 2.1, "br_print": 2.1, "br_care_label": 3.5, "br_accessoires": 1.8, "br_compo": 1.2 },
+    { "month": "2026-02", "rft": 98.1, "br_gtd": 3.9, "br_bundling": 1.8, "br_print": 1.9, "br_care_label": 3.8, "br_accessoires": 2.0, "br_compo": 1.1 },
+    { "month": "2026-03", "rft": 97.5, "br_gtd": 4.5, "br_bundling": 2.5, "br_print": 2.3, "br_care_label": 4.1, "br_accessoires": 2.5, "br_compo": 1.5 },
+    { "month": "2026-04", "rft": 98.3, "br_gtd": 3.7, "br_bundling": 1.6, "br_print": 1.8, "br_care_label": 3.2, "br_accessoires": 1.6, "br_compo": 0.9 },
+    { "month": "2026-05", "rft": 98.0, "br_gtd": 4.0, "br_bundling": 2.1, "br_print": 2.0, "br_care_label": 3.6, "br_accessoires": 2.1, "br_compo": 1.3 },
+    { "month": "2026-06", "rft": 97.5, "br_gtd": 3.8, "br_bundling": 1.9, "br_print": 2.2, "br_care_label": 3.4, "br_accessoires": 1.9, "br_compo": 1.0 }
   ]
 }
 ```
@@ -651,7 +679,12 @@ GET /quality/annual-trend →
 ## 3. Usage
 
 - `br_gtd_jour` / `br_gtd_dda` cards → sparkline shows `br_gtd` monthly values
+- `br_bundling_jour` / `br_bundling_annee` cards → sparkline shows `br_bundling` monthly values
 - `rft_jour` / `rft_annee` cards → sparkline shows `rft` monthly values
+- `br_print_dda` card → sparkline shows `br_print` monthly values
+- `br_care_label_dda` card → sparkline shows `br_care_label` monthly values
+- `br_accessoires_dda` card → sparkline shows `br_accessoires` monthly values
+- `br_compo_dda` card → sparkline shows `br_compo` monthly values
 - Detail modal trend section → last 7 months of the relevant metric
 
 ---

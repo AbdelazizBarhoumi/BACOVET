@@ -26,6 +26,7 @@ import {
     TrafficBadge,
 } from '@/components/widgets';
 import { useFilters } from '@/context/FilterContext';
+import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchLogisticsKpis,
     fetchLogisticsStockKpis,
@@ -134,10 +135,10 @@ export default function LogisticsPage() {
         useState<StockReliability | null>(null);
     const [loading, setLoading] = useState(true);
     const [_error, setError] = useState<string | null>(null);
-    const [_lastSync, setLastSync] = useState<Date | null>(null);
     const [openModal, setOpenModal] = useState<KpiKey | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { getFilterParams } = useFilters();
+    const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
 
     const fetchData = useCallback(async () => {
         try {
@@ -190,25 +191,26 @@ export default function LogisticsPage() {
 
             if (anyFailed && kpisRes.status === 'rejected') {
                 setError('Erreur de connexion au serveur');
+                recordFetchError();
             } else {
                 setError(null);
+                recordFetchSuccess();
             }
-
-            setLastSync(new Date());
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Erreur inconnue');
+            recordFetchError();
         } finally {
             setLoading(false);
         }
-    }, [q, searchPage, getFilterParams]);
+    }, [q, searchPage, getFilterParams, recordFetchError, recordFetchSuccess]);
 
     useEffect(() => {
         fetchData();
-        intervalRef.current = setInterval(fetchData, 60000);
+        intervalRef.current = setInterval(fetchData, refreshIntervalSec * 1000);
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [fetchData]);
+    }, [fetchData, refreshIntervalSec]);
 
     const exportRows = stockRows.map((s) => ({
         code: s.code_mp,
@@ -250,6 +252,11 @@ export default function LogisticsPage() {
                                     source={kpis?.dot?.source ?? 'GPRO Planning'}
                                     onClick={() => setOpenModal('dot')}
                                 />
+                                {kpis?.dot?.is_fallback && (
+                                    <div className="mt-0.5 rounded bg-muted/50 px-1.5 py-0.5 text-center font-mono text-[8px] font-bold tracking-wider text-muted-foreground uppercase">
+                                        Estimé — pas de données Drive
+                                    </div>
+                                )}
                             </div>
                             <div className={toStatus(kpis?.hot?.status) === 'red' || toStatus(kpis?.hot?.status) === 'orange' ? 'animate-flash-alert' : ''}>
                                 <BigNumberCard
@@ -260,6 +267,16 @@ export default function LogisticsPage() {
                                     source={kpis?.hot?.source ?? 'GPRO Planning'}
                                     onClick={() => setOpenModal('hot')}
                                 />
+                                {kpis?.hot?.is_fallback && (
+                                    <div className="mt-0.5 rounded bg-muted/50 px-1.5 py-0.5 text-center font-mono text-[8px] font-bold tracking-wider text-muted-foreground uppercase">
+                                        Estimé — pas de données Drive
+                                    </div>
+                                )}
+                                {kpis?.hot?.note && (
+                                    <div className="mt-1 font-mono text-[9px] text-muted-foreground/70 px-1">
+                                        {kpis.hot.note}
+                                    </div>
+                                )}
                             </div>
                             <div className={toStatus(kpis?.respect_plan?.status) === 'red' || toStatus(kpis?.respect_plan?.status) === 'orange' ? 'animate-flash-alert' : ''}>
                                 <BigNumberCard
@@ -278,11 +295,21 @@ export default function LogisticsPage() {
                                     label="Lead Time Global ·337"
                                     value={kpis?.lead_time?.value ?? '—'}
                                     unit="j"
-                                    target="32 j"
-                                    status={toStatus(kpis?.lead_time?.status) ?? 'green' as const}
-                                    source="STRH + LT Transport"
+                                    target="≤ 32 j"
+                                    status={toStatus(kpis?.lead_time?.status)}
+                                    source={kpis?.lead_time?.source ?? 'sync_gpro_of_dates'}
                                     onClick={() => setOpenModal('lead_time')}
                                 />
+                                {kpis?.lead_time?.is_fallback && (
+                                    <div className="mt-0.5 rounded bg-muted/50 px-1.5 py-0.5 text-center font-mono text-[8px] font-bold tracking-wider text-muted-foreground uppercase">
+                                        Estimé — constante 32j
+                                    </div>
+                                )}
+                                {kpis?.lead_time?.note && (
+                                    <div className="mt-1 font-mono text-[9px] text-muted-foreground/70 px-1">
+                                        {kpis.lead_time.note}
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}
@@ -310,7 +337,7 @@ export default function LogisticsPage() {
                         </>
                     ) : (
                         <>
-                            <Panel title="Taux de Rotation Stock ·316/317/318">
+                            <Panel title="Stock Moyen ·316/317/318">
                                 <div className="pt-2">
                                     <div className="mb-2 text-center font-mono text-2xl font-bold tabular-nums">
                                         {stockKpis?.rotation?.stock_moyen?.toLocaleString(
@@ -318,7 +345,7 @@ export default function LogisticsPage() {
                                         ) ?? '—'}
                                     </div>
                                     <div className="mb-1 text-center font-mono text-[10px] text-muted-foreground uppercase">
-                                        Valeur stock moyen
+                                        Quantité totale en stock
                                     </div>
                                     {stockKpis?.rotation?.note && (
                                         <div className="text-center font-mono text-[9px] text-muted-foreground/70">
@@ -373,8 +400,8 @@ export default function LogisticsPage() {
                                         ) ?? '—'}
                                     </div>
                                     <div className="font-mono text-[10px] text-muted-foreground">
-                                        Conteneurs actifs:{' '}
-                                        {stockKpis?.occupation?.conteneurs_actifs?.toLocaleString(
+                                        Capacité totale:{' '}
+                                        {stockKpis?.occupation?.total_conteneurs?.toLocaleString(
                                             'fr-FR',
                                         ) ?? '—'}
                                     </div>
@@ -457,8 +484,8 @@ export default function LogisticsPage() {
                                                 <Tooltip
                                                     contentStyle={tt}
                                                     cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                                    labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                                    itemStyle={{ fontSize: 11 }}
+                                                    labelStyle={{ color: 'var(--muted-foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                                    itemStyle={{ color: 'var(--muted-foreground)', fontSize: 11 }}
                                                 />
                                                 <Legend
                                                     content={({ payload }) => (

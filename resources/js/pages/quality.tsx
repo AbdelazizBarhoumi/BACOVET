@@ -24,6 +24,7 @@ import KpiDetailModal from '@/components/quality/KpiDetailModal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { BigNumberCard, Panel, TrafficBadge } from '@/components/widgets';
 import { useFilters } from '@/context/FilterContext';
+import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchQualityKpis,
     fetchQualityBrChart,
@@ -315,10 +316,10 @@ export default function QualityPage() {
     const [paretoFg, setParetoFg] = useState<ParetoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [lastSync, setLastSync] = useState<Date | null>(null);
     const [openModal, setOpenModal] = useState<KpiKey | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { getFilterParams } = useFilters();
+    const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
 
     const fetchData = useCallback(async () => {
         try {
@@ -382,25 +383,26 @@ export default function QualityPage() {
 
             if (anyFailed && kpisRes.status === 'rejected') {
                 setError('Erreur de connexion au serveur');
+                recordFetchError();
             } else {
                 setError(null);
+                recordFetchSuccess();
             }
-
-            setLastSync(new Date());
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Erreur inconnue');
+            recordFetchError();
         } finally {
             setLoading(false);
         }
-    }, [getFilterParams]);
+    }, [getFilterParams, recordFetchError, recordFetchSuccess]);
 
     useEffect(() => {
         fetchData();
-        intervalRef.current = setInterval(fetchData, 60000);
+        intervalRef.current = setInterval(fetchData, refreshIntervalSec * 1000);
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [fetchData]);
+    }, [fetchData, refreshIntervalSec]);
 
     const alerts = generateAlerts(kpis, brChart);
 
@@ -547,6 +549,9 @@ export default function QualityPage() {
                         target="≤ 5%"
                         source="GPRO"
                         onClick={() => setOpenModal('br_bundling_jour')}
+                        trend={trend
+                            .map((d) => d.br_bundling)
+                            .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
                 </div>
@@ -591,6 +596,9 @@ export default function QualityPage() {
                         target="≤ 5%"
                         source="GPRO"
                         onClick={() => setOpenModal('br_bundling_annee')}
+                        trend={trend
+                            .map((d) => d.br_bundling)
+                            .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
                     <KpiCard
@@ -645,6 +653,9 @@ export default function QualityPage() {
                         target="≤ 5%"
                         source="Google Drive"
                         onClick={() => setOpenModal('br_care_label_dda')}
+                        trend={trend
+                            .map((d) => d.br_care_label)
+                            .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
                     <KpiCard
@@ -673,6 +684,9 @@ export default function QualityPage() {
                         target="≤ 5%"
                         source="Google Drive"
                         onClick={() => setOpenModal('br_accessoires_dda')}
+                        trend={trend
+                            .map((d) => d.br_accessoires)
+                            .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
                     <KpiCard
@@ -699,6 +713,9 @@ export default function QualityPage() {
                         target="≤ 5%"
                         source="Google Drive"
                         onClick={() => setOpenModal('br_compo_dda')}
+                        trend={trend
+                            .map((d) => d.br_compo)
+                            .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
                 </div>
@@ -762,12 +779,6 @@ export default function QualityPage() {
                                         ) => {
                                             const original =
                                                 props.payload?.defect_pct;
-                                            const status = props.payload?.status;
-                                            const color =
-                                                status === 'green' ? 'var(--success)' :
-                                                status === 'orange' ? 'var(--warning)' :
-                                                status === 'red' ? 'var(--destructive)' :
-                                                'var(--muted-foreground)';
                                             return [
                                                 original != null
                                                     ? `${original}%`
@@ -1219,14 +1230,6 @@ export default function QualityPage() {
                                 ))}
                             </tbody>
                         </table>
-                        {lastSync && (
-                            <div className="mt-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                Dernière sync:{' '}
-                                <span className="text-foreground">
-                                    {lastSync.toLocaleTimeString('fr-FR')}
-                                </span>
-                            </div>
-                        )}
                     </Panel>
                 ) : null}
 

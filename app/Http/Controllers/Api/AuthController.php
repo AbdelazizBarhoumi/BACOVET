@@ -38,7 +38,7 @@ class AuthController extends Controller
             RateLimiter::hit($key);
             AuditLog::create([
                 'user_id' => null,
-                'action_type' => 'WARN',
+                'action_type' => 'LOGIN_FAILED',
                 'message' => "Échec connexion — Matricule: {$request->matricule}",
                 'ip_address' => $request->ip(),
             ]);
@@ -66,7 +66,7 @@ class AuthController extends Controller
 
         AuditLog::create([
             'user_id' => $user->id,
-            'action_type' => 'USER',
+            'action_type' => 'LOGIN',
             'message' => "Connexion utilisateur: {$user->matricule} depuis {$request->ip()}",
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
@@ -90,10 +90,20 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        $user = $request->user();
+        $sessionDuration = null;
+        if ($user && $user->last_login_at) {
+            $sessionDuration = $user->last_login_at->diffInSeconds(now());
+        }
+
         AuditLog::create([
-            'user_id' => $request->user()?->id,
-            'action_type' => 'USER',
-            'message' => "Déconnexion: {$request->user()?->matricule}",
+            'user_id' => $user?->id,
+            'action_type' => 'LOGOUT',
+            'message' => sprintf(
+                'Déconnexion: %s (durée session: %ds)',
+                $user?->matricule ?? 'unknown',
+                $sessionDuration ?? 0,
+            ),
             'ip_address' => $request->ip(),
         ]);
 

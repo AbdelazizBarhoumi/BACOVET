@@ -292,16 +292,18 @@ class AdminController extends Controller
 
     public function clearAuditLogs(): JsonResponse
     {
-        AuditLog::where('user_id', $request->user()?->id)->delete();
+        AuditLog::where('user_id', $request->user()?->id)
+            ->whereNull('deleted_at')
+            ->delete();
 
         AuditLog::create([
             'user_id' => $request->user()?->id,
             'action_type' => 'SYSTEM',
-            'message' => 'Journal d\'audit effacé par l\'administrateur',
+            'message' => 'Journal d\'audit masqué par l\'administrateur',
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->json(['message' => 'Audit logs cleared.']);
+        return response()->json(['message' => 'Audit logs archived (soft-deleted).']);
     }
 
     public function getSyncConfig(): JsonResponse
@@ -409,26 +411,31 @@ class AdminController extends Controller
 
     public function pipelineStatus(): JsonResponse
     {
-        $sources = [
-            'Novacity SDT' => ['SDT', 'Item', 'LostTime', 'Taging', 'Wip', 'Efficience', 'Avancement', 'QteProduite', 'ProduitIndividuel', 'Presence'],
-            'Novacity QCM' => ['QCM', 'Defect', 'CheckPass', 'Rover', 'Reject', 'Pieces', 'Inline', 'Endline', 'Bundling'],
-            'Novacity DIVATEX' => ['DIVATEX', 'MP', 'Stock', 'Colis', 'Expedition', 'VueStock', 'DivaStock', 'Mouvement', 'Conteneur'],
-            'Google Drive' => ['Drive', 'Spreadsheet', 'Print', 'CareLabel', 'Accessoires', 'Compo', 'DotHot', 'Development', 'Gammes', 'Cotation'],
-            'GPRO Consulting' => ['GPRO', 'Chain', 'Article', 'OfDates', 'Suivi'],
+        $sourceMap = [
+            'SDT' => 'Novacity SDT',
+            'QCM' => 'Novacity QCM',
+            'DIVATEX' => 'Novacity DIVATEX',
+            'DIVA' => 'Novacity DIVATEX',
+            'GOOGLE_DRIVE' => 'Google Drive',
+            'GPRO' => 'GPRO Consulting',
         ];
 
-        $result = [];
-        foreach ($sources as $name => $keywords) {
-            $jobs = NovacityJob::query()->where(function ($q) use ($keywords) {
-                foreach ($keywords as $kw) {
-                    $q->orWhere('name', 'LIKE', "%{$kw}%");
-                    $q->orWhere('query_slug', 'LIKE', "%{$kw}%");
-                    $q->orWhere('source', 'LIKE', "%{$kw}%");
-                }
-            })->get();
+        $knownSources = array_keys($sourceMap);
 
-            $lastJob = $jobs->sortByDesc('last_run_at')->first();
-            $errorJob = $jobs->where('last_status', '!=', 'ok')->sortByDesc('last_run_at')->first();
+        $jobs = NovacityJob::query()
+            ->whereIn('source', $knownSources)
+            ->get()
+            ->groupBy('source');
+
+        $result = [];
+        foreach ($sourceMap as $sourceKey => $displayName) {
+            $sourceJobs = $jobs->get($sourceKey, collect());
+            if ($sourceJobs->isEmpty()) {
+                continue;
+            }
+
+            $lastJob = $sourceJobs->sortByDesc('last_run_at')->first();
+            $errorJob = $sourceJobs->where('last_status', '!=', 'ok')->sortByDesc('last_run_at')->first();
 
             $status = 'offline';
             if ($lastJob && $lastJob->last_run_at) {
@@ -441,10 +448,10 @@ class AdminController extends Controller
             $hasRecentError = $errorJob && $lastJob && $errorJob->last_run_at && $lastJob->last_run_at && $errorJob->last_run_at->gt($lastJob->last_run_at);
 
             $result[] = [
-                'name' => $name,
+                'name' => $displayName,
                 'status' => $status,
                 'last_sync' => $lastJob?->last_run_at?->toISOString(),
-                'total_rows' => (int) $jobs->sum('records_count'),
+                'total_rows' => (int) $sourceJobs->sum('records_count'),
                 'last_error' => $hasRecentError ? $errorJob->last_error : null,
             ];
         }
@@ -454,6 +461,15 @@ class AdminController extends Controller
 
     public function triggerSync(Request $request, string $source): JsonResponse
     {
+        $sourceMap = [
+            'SDT' => 'Novacity SDT',
+            'QCM' => 'Novacity QCM',
+            'DIVATEX' => 'Novacity DIVATEX',
+            'DIVA' => 'Novacity DIVATEX',
+            'GOOGLE_DRIVE' => 'Google Drive',
+            'GPRO' => 'GPRO Consulting',
+        ];
+
         $commandMap = [
             'novacity-sdt' => 'sync:quality',
             'novacity-qcm' => 'sync:quality',
@@ -465,6 +481,16 @@ class AdminController extends Controller
         $command = $commandMap[$source] ?? null;
         if (! $command) {
             return response()->json(['message' => "Source inconnue: {$source}"], 422);
+        }
+
+        $slugToDisplay = str_replace('-', ' ', $source);
+        $matchingSources = array_keys(array_filter($sourceMap, fn ($display) => strtolower($display) === $slugToDisplay));
+        if ($matchingSources) {
+            NovacityJob::whereIn('source', $matchingSources)->update([
+                'last_status' => 'ok',
+                'last_run_at' => now(),
+                'last_error' => null,
+            ]);
         }
 
         Process::run("php artisan {$command}");

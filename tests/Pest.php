@@ -29,7 +29,7 @@ function seedRoles(): void
 {
     $roles = [
         'it' => 'IT', 'direction' => 'Direction', 'resp_production' => 'Responsable Production',
-        'chef_atelier' => 'Chef Atelier', 'resp_qualite' => 'Responsable Qualite', 'methodes' => 'Methodes', 'coupe' => 'Coupe',
+        'chef_atelier' => 'Chef Atelier', 'resp_qualite' => 'Responsable Qualite', 'methodes' => 'Methodes', 'planning_coupe' => 'Planning / Coupe',
     ];
     foreach ($roles as $slug => $name) {
         \App\Models\Role::factory()->create(['slug' => $slug, 'name' => $name]);

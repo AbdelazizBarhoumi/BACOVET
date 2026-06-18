@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
 use App\Http\Controllers\Api\LogisticsController;
@@ -83,6 +84,13 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         Route::post('/pipeline/sync-all', [AdminController::class, 'triggerSyncAll']);
     });
 
+    // ── DATA SNAPSHOTS ─────────────────────────────────────────────────
+    Route::prefix('data-snapshots')->middleware('role:it')->group(function () {
+        Route::get('/', [DataSnapshotController::class, 'index']);
+        Route::get('/{tableName}', [DataSnapshotController::class, 'show']);
+        Route::get('/snapshot/{id}', [DataSnapshotController::class, 'snapshot']);
+    });
+
     // ── QUALITY ──────────────────────────────────────────────────────────
     Route::prefix('quality')
         ->middleware('role:it,direction,resp_production,resp_qualite,methodes')
@@ -100,7 +108,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
     // ── PRODUCTION ───────────────────────────────────────────────────────
     Route::prefix('production')
-        ->middleware('role:it,direction,resp_production,chef_atelier,methodes,coupe')
+        ->middleware('role:it,direction,resp_production,chef_atelier,methodes,planning_coupe')
         ->group(function () {
             Route::get('/chain-info', [ProductionController::class, 'chainInfo']);
             Route::get('/kpis', [ProductionController::class, 'kpis']);
@@ -134,7 +142,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
     // ── LOGISTICS ────────────────────────────────────────────────────────
     Route::prefix('logistics')
-        ->middleware('role:it,direction,methodes,coupe')
+        ->middleware('role:it,direction,methodes,planning_coupe')
         ->group(function () {
             Route::get('/kpis', [LogisticsController::class, 'kpis']);
             Route::get('/stock-kpis', [LogisticsController::class, 'stockKpis']);
@@ -153,6 +161,10 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/kpis', [MethodesController::class, 'kpis']);
             Route::get('/tagging-chart', [MethodesController::class, 'taggingChart']);
             Route::get('/detail-table', [MethodesController::class, 'detailTable']);
+            Route::get('/archivage-detail', [MethodesController::class, 'archivageDetail']);
+            Route::get('/respect-temps-detail', [MethodesController::class, 'respectTempsDetail']);
+            Route::get('/temps-acceptes-detail', [MethodesController::class, 'tempsAcceptesDetail']);
+            Route::get('/fiabilite-detail', [MethodesController::class, 'fiabiliteDetail']);
         });
 
     // ── DEVELOPMENT ──────────────────────────────────────────────────────
@@ -161,6 +173,9 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         ->group(function () {
             Route::get('/kpis', [DevelopmentController::class, 'kpis']);
             Route::get('/trend', [DevelopmentController::class, 'trend']);
+            Route::get('/lead-time', [DevelopmentController::class, 'leadTimeDev']);
+            Route::get('/trend-rft', [DevelopmentController::class, 'trendRft']);
+            Route::get('/trend-livraison', [DevelopmentController::class, 'trendLivraison']);
         });
 
     // ── FILTERS ──────────────────────────────────────────────────────────

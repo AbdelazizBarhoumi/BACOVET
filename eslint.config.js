@@ -72,7 +72,7 @@ export default [
         },
     },
     {
-        files: ['novacity-mock/**/*.js'],
+        files: ['novacity-mock/**/*.js', 'google-drive-mock/**/*.js', 'gpro-consulting-mock/**/*.js'],
         languageOptions: {
             globals: {
                 ...globals.node,
@@ -81,6 +81,7 @@ export default [
         rules: {
             '@typescript-eslint/no-require-imports': 'off',
             'no-undef': 'off',
+            '@typescript-eslint/no-unused-vars': 'off',
         },
     },
     {

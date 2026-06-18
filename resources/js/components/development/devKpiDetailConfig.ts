@@ -2,7 +2,8 @@ export type DevKpiKey =
     | 'dev_rft'
     | 'dev_livraison'
     | 'dev_nomenclature'
-    | 'dev_reclamations';
+    | 'dev_reclamations'
+    | 'dev_leadtime';
 
 export interface DevKpiDetailConfig {
     id: string;
@@ -51,8 +52,8 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
         target: { value: 95, operator: '>=' },
         thresholds: {
             green: '≥ 95%',
-            orange: '90% – 95%',
-            red: '< 90%',
+            orange: '92% – 95%',
+            red: '< 92%',
         },
         source: {
             system: 'Google Drive / Google Sheets',
@@ -83,8 +84,8 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
         target: { value: 95, operator: '>=' },
         thresholds: {
             green: '≥ 95%',
-            orange: '90% – 95%',
-            red: '< 90%',
+            orange: '92% – 95%',
+            red: '< 92%',
         },
         source: {
             system: 'Google Drive / Google Sheets',
@@ -153,6 +154,38 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
         source: {
             system: 'Google Drive / Google Sheets',
             mysqlTable: 'manual_kpi_values (dev_reclamations)',
+            frequency: 'Mensuelle',
+            status: 'google_drive',
+        },
+        period: 'Mensuelle',
+    },
+
+    dev_leadtime: {
+        id: '354',
+        label: 'Lead Time Développement',
+        description:
+            "Délai moyen entre la date de livraison prévue et la date de livraison réelle des modèles en développement. Valeur positive = retard, négative = en avance.",
+        formula: {
+            numerator: {
+                label: 'Somme des écarts (jours)',
+                field: 'SUM(date_livraison_reelle - date_livraison_prevue)',
+            },
+            denominator: {
+                label: 'Nombre de modèles livrés',
+                field: 'COUNT(both dates not null)',
+            },
+            multiplier: 1,
+            resultUnit: 'j',
+        },
+        target: { value: 0, operator: '<=' },
+        thresholds: {
+            green: '≤ 0j (en avance ou à temps)',
+            orange: '1 – 7j de retard',
+            red: '> 7j de retard',
+        },
+        source: {
+            system: 'Google Drive / Google Sheets',
+            mysqlTable: 'sync_drive_development',
             frequency: 'Mensuelle',
             status: 'google_drive',
         },

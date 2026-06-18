@@ -81,11 +81,11 @@ export type TrendItem = {
 
 // ─── API Functions ──────────────────────────────────────────────────────────
 
-export const fetchDevelopmentKpis = () =>
-    apiGet<DevelopmentKpisResponse>('/kpis');
+export const fetchDevelopmentKpis = (filters?: Record<string, string>) =>
+    apiGet<DevelopmentKpisResponse>('/kpis', filters);
 
-export const fetchDevelopmentTrend = () =>
-    apiGet<{ data: TrendItem[] }>('/trend');
+export const fetchDevelopmentTrend = (filters?: Record<string, string>) =>
+    apiGet<{ data: TrendItem[] }>('/trend', filters);
 
 export type LeadTimeDevResponse = {
     value: number | null;
@@ -97,11 +97,11 @@ export type LeadTimeDevResponse = {
     source?: string;
 };
 
-export const fetchLeadTimeDev = () =>
-    apiGet<LeadTimeDevResponse>('/lead-time');
+export const fetchLeadTimeDev = (filters?: Record<string, string>) =>
+    apiGet<LeadTimeDevResponse>('/lead-time', filters);
 
-export const fetchDevelopmentTrendRft = () =>
-    apiGet<{ data: TrendItem[] }>('/trend-rft');
+export const fetchDevelopmentTrendRft = (filters?: Record<string, string>) =>
+    apiGet<{ data: TrendItem[] }>('/trend-rft', filters);
 
-export const fetchDevelopmentTrendLivraison = () =>
-    apiGet<{ data: TrendItem[] }>('/trend-livraison');
+export const fetchDevelopmentTrendLivraison = (filters?: Record<string, string>) =>
+    apiGet<{ data: TrendItem[] }>('/trend-livraison', filters);

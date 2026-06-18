@@ -228,6 +228,7 @@ class SyncService
         private NovacityService $novacity,
         private GoogleDriveService $drive,
         private GproConsultingService $gpro,
+        private DataSnapshotService $snapshots,
     ) {}
 
     public function syncQuality(): void
@@ -240,6 +241,7 @@ class SyncService
         $this->syncTable('pieces_ok_annee', fn () => $this->novacity->fetchQuery('pieces_ok_annee'));
         $this->syncTable('pieces_produites_annee', fn () => $this->novacity->fetchQuery('pieces_produites_annee'));
         $this->syncBundlingData();
+        $this->snapshotQuality();
     }
 
     /**
@@ -335,6 +337,7 @@ class SyncService
         $this->syncTable('minutes_presence', fn () => $this->novacity->fetchQuery('minutes_presence'));
         $this->syncTable('minutes_produites', fn () => $this->novacity->fetchQuery('minutes_produites'));
         $this->syncTable('temps_operation', fn () => $this->novacity->fetchQuery('temps_operation'));
+        $this->snapshotProduction();
     }
 
     public function syncLogistics(): void
@@ -353,6 +356,7 @@ class SyncService
         $this->syncTable('quantite_par_typologie', fn () => $this->novacity->fetchQuery('quantite_par_typologie'));
         $this->syncTable('expeditions', fn () => $this->novacity->fetchEndpoint('expeditions'));
         $this->syncTable('colis_total_var', fn () => $this->novacity->fetchQuery('colis_total_var'));
+        $this->snapshotLogistics();
     }
 
     public function syncGoogleDrive(): void
@@ -366,6 +370,7 @@ class SyncService
         $this->syncTable('sync_drive_development', fn () => $this->drive->fetchSheet('development'));
         $this->syncTable('sync_drive_gammes', fn () => $this->drive->fetchSheet('gammes'));
         $this->syncTable('sync_drive_cotation', fn () => $this->drive->fetchSheet('cotation'));
+        $this->snapshotGoogleDrive();
     }
 
     public function syncGproConsulting(): void
@@ -374,6 +379,62 @@ class SyncService
         $this->syncTable('sync_gpro_article_master', fn () => $this->gpro->fetchData('article_master'));
         $this->syncTable('sync_gpro_of_dates', fn () => $this->gpro->fetchData('of_dates'));
         $this->syncTable('sync_gpro_suivi_paquets', fn () => $this->gpro->fetchData('suivi_paquets'));
+        $this->snapshotGpro();
+    }
+
+    // ── Snapshot Helpers ────────────────────────────────────────────────────
+
+    private function snapshotQuality(): void
+    {
+        $this->snapshots->snapshotTables([
+            'check_pass_qte', 'vw_defects', 'qcm_defect_trx',
+            'pieces_ok_jour', 'pieces_produites_jour',
+            'pieces_ok_annee', 'pieces_produites_annee',
+            'rejets_inspection_paquet',
+        ]);
+    }
+
+    private function snapshotProduction(): void
+    {
+        $this->snapshots->snapshotTables([
+            'item_trx_enq', 'wip_chaine', 'etat_avancement',
+            'efficience_chaine', 'qte_produite', 'lost_time',
+            'taging_reel', 'packets_rejetes', 'sortie_coupe',
+            'qte_engagement', 'qte_entree_serigraphie', 'sortie_serigraphie',
+            'of_fabrication', 'inline_vs_endline_comparison',
+            'qte_produit_individuel_jour', 'qte_depart_chaine_article_of',
+            'minutes_presence', 'minutes_produites', 'temps_operation',
+        ]);
+    }
+
+    private function snapshotLogistics(): void
+    {
+        $this->snapshots->snapshotTables([
+            'vue_stock', 'diva_stock', 'stock_moyen',
+            'articles_sans_mouvement', 'quantite_totale_stock',
+            'capacite_stockage', 'nombre_rouleaux', 'nombre_ofs_livres',
+            'moyenne_date_transfert', 'quantite_par_provenance',
+            'quantite_par_famille', 'quantite_par_typologie',
+            'expeditions', 'colis_total_var', 'detail_colis', 'articles_colis',
+        ]);
+    }
+
+    private function snapshotGoogleDrive(): void
+    {
+        $this->snapshots->snapshotTables([
+            'sync_drive_br_print', 'sync_drive_br_care_label',
+            'sync_drive_br_accessoires', 'sync_drive_br_compo',
+            'sync_drive_inspection_commande', 'sync_drive_dot_hot',
+            'sync_drive_development', 'sync_drive_gammes', 'sync_drive_cotation',
+        ]);
+    }
+
+    private function snapshotGpro(): void
+    {
+        $this->snapshots->snapshotTables([
+            'sync_gpro_chain_planning', 'sync_gpro_article_master',
+            'sync_gpro_of_dates', 'sync_gpro_suivi_paquets',
+        ]);
     }
 
     private function syncTable(string $table, callable $fetcher): void

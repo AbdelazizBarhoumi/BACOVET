@@ -40,15 +40,15 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         id: '334',
         label: 'DOT — Delivery On Time',
         description:
-            "Pourcentage de commandes livrées à la date promise au client",
+            "Pourcentage de commandes livrées à la date promise au client (source: Google Drive DOT/HOT)",
         formula: {
             numerator: {
-                label: 'Commandes livrées à temps',
-                field: 'commandes_a_temps',
+                label: 'Quantité livrée à temps',
+                field: 'qte_livree_on_time',
             },
             denominator: {
-                label: 'Total commandes',
-                field: 'total_commandes',
+                label: 'Quantité commandée',
+                field: 'qte_commandee',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -60,11 +60,11 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '< 90%',
         },
         source: {
-            system: 'GPRO Planning',
+            system: 'Google Drive (gproplanning/carnet)',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_dot_hot',
             frequency: 'Quotidien',
-            status: 'pending',
+            status: 'live',
         },
         period: 'jour',
     },
@@ -72,15 +72,15 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         id: '335',
         label: 'HOT — Handover On Time',
         description:
-            "Pourcentage de transferts effectués à la date prévue (main courante)",
+            "Proxy: transferts via Jemmel. F-REQ-335 requiert main courante (livraison au transporteur dans le délai convenu).",
         formula: {
             numerator: {
-                label: 'Transferts à temps',
-                field: 'transferts_a_temps',
+                label: 'Transferts à temps (proxy Jemmel)',
+                field: 'qte_livree_on_time',
             },
             denominator: {
                 label: 'Total transferts',
-                field: 'total_transferts',
+                field: 'qte_commandee',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -92,11 +92,11 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '< 90%',
         },
         source: {
-            system: 'GPRO Planning',
+            system: 'Google Drive (proxy Jemmel)',
             novacityEndpoint: null,
-            mysqlTable: null,
+            mysqlTable: 'sync_drive_dot_hot',
             frequency: 'Quotidien',
-            status: 'pending',
+            status: 'live',
         },
         period: 'jour',
     },
@@ -136,15 +136,15 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         id: '337',
         label: 'Lead Time Global',
         description:
-            'Délai total entre réception matière et expédition (STRH + LT Transport)',
+            'Délai total entre réception matière et expédition (STRH + LT Transport). Calculé depuis GPRO of_dates (ehd − bpd).',
         formula: {
             numerator: {
-                label: 'STRH + LT Transport',
-                field: 'configurable',
+                label: 'Moyenne (ehd − bpd) par OF',
+                field: 'sync_gpro_of_dates.ehd - sync_gpro_of_dates.bpd',
             },
             denominator: {
-                label: '(Constante)',
-                field: '32',
+                label: '(Moyenne — pas un ratio)',
+                field: 'nb_ofs_consideres',
             },
             multiplier: 1,
             resultUnit: ' j',
@@ -156,10 +156,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '> 40 jours',
         },
         source: {
-            system: 'Configurable',
+            system: 'GPRO Consulting',
             novacityEndpoint: null,
-            mysqlTable: null,
-            frequency: 'Constante',
+            mysqlTable: 'sync_gpro_of_dates',
+            frequency: 'Sync GPRO',
             status: 'live',
         },
         period: 'jour',

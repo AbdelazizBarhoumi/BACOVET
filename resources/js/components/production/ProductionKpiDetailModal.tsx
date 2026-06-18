@@ -1,4 +1,4 @@
-import { X, Info, Download, Award } from 'lucide-react';
+import { X, Download, Award } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import {
     ResponsiveContainer,
@@ -207,6 +207,56 @@ function DonutViz({ value, status }: { value: number; status: string }) {
                         <Cell fill="var(--muted-foreground)" />
                     </Pie>
                 </PieChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
+
+function TimelineViz({ data, status }: { data: BreakdownRow[]; status: string }) {
+    if (!data || data.length === 0)
+        return (
+            <div className="flex h-10 items-center justify-center text-[10px] text-muted-foreground">
+                Pas assez de données
+            </div>
+        );
+    const color =
+        status === 'green'
+            ? '#16a34a'
+            : status === 'orange'
+              ? '#ea580c'
+              : '#dc2626';
+
+    const chartData = data.map((d) => ({
+        name: `${d.chaine} — ${d.motif}`,
+        minutes: Number(d.minutes_perdues ?? (d.duration != null ? Number(d.duration) * 60 : 0)),
+    }));
+
+    return (
+        <div className="h-24 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                    data={chartData}
+                    margin={{ left: -20, right: 10, top: 0, bottom: 0 }}
+                >
+                    <XAxis
+                        dataKey="name"
+                        type="category"
+                        fontSize={8}
+                        tickLine={false}
+                        axisLine={false}
+                        interval={0}
+                        angle={-45}
+                        textAnchor="end"
+                        height={40}
+                    />
+                    <YAxis fontSize={8} tickLine={false} axisLine={false} />
+                    <Bar
+                        dataKey="minutes"
+                        fill={color}
+                        radius={[2, 2, 0, 0]}
+                        barSize={14}
+                    />
+                </BarChart>
             </ResponsiveContainer>
         </div>
     );
@@ -619,7 +669,7 @@ export default function ProductionKpiDetailModal({
                                             config.formula.numerator.field}
                                     </div>
                                 ) : (
-                                    <div className="flex items-center gap-2 font-mono text-[10px]">
+                                    <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
                                         <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
                                             <div className="truncate text-[8px] opacity-70">
                                                 {config.formula.numerator.label}
@@ -731,6 +781,12 @@ export default function ProductionKpiDetailModal({
                                         {config.miniVizType === 'donut' && (
                                             <DonutViz
                                                 value={Number(card.value) || 0}
+                                                status={cardStatus}
+                                            />
+                                        )}
+                                        {config.miniVizType === 'timeline' && (
+                                            <TimelineViz
+                                                data={breakdownData?.rows || []}
                                                 status={cardStatus}
                                             />
                                         )}

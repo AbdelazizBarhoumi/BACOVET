@@ -6,11 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\ManualKpiValue;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class DevelopmentController extends Controller
 {
-    public function kpis(): JsonResponse
+    public function kpis(Request $request): JsonResponse
     {
         $keys = [
             'dev_rft' => ['target' => 95, 'target_kind' => 'min', 'frequency' => 'Mensuel'],
@@ -20,7 +21,13 @@ class DevelopmentController extends Controller
         ];
 
         // Compute from sync_drive_development (primary source)
-        $devData = DB::table('sync_drive_development')->get();
+        $query = DB::table('sync_drive_development');
+
+        if ($request->filled('marque')) {
+            $query->where('modele', 'like', '%'.$request->input('marque').'%');
+        }
+
+        $devData = $query->get();
         $computed = $this->computeDevKpis($devData);
 
         $kpis = [];
@@ -99,13 +106,19 @@ class DevelopmentController extends Controller
         ];
     }
 
-    public function trend(): JsonResponse
+    public function trend(Request $request): JsonResponse
     {
         // Try sync_drive_development first, fallback to manual_kpi_history
-        $driveData = DB::table('sync_drive_development')
-            ->whereNotNull('date')
+        $query = DB::table('sync_drive_development')
+            ->whereNotNull('date');
+
+        if ($request->filled('marque')) {
+            $query->where('modele', 'like', '%'.$request->input('marque').'%');
+        }
+
+        $driveData = $query
             ->selectRaw("DATE_FORMAT(date, '%Y-%m') as mois")
-            ->selectRaw("COUNT(CASE WHEN nomenclature_valide = 1 THEN 1 END) as ok_count")
+            ->selectRaw('COUNT(CASE WHEN nomenclature_valide = 1 THEN 1 END) as ok_count')
             ->selectRaw('COUNT(*) as total')
             ->groupBy('mois')
             ->orderBy('mois')
@@ -198,7 +211,7 @@ class DevelopmentController extends Controller
             ->whereNotNull('date_livraison_reelle')
             ->whereNotNull('date_livraison_prevue')
             ->selectRaw("DATE_FORMAT(date, '%Y-%m') as mois")
-            ->selectRaw("COUNT(CASE WHEN date_livraison_reelle <= date_livraison_prevue THEN 1 END) as ontime")
+            ->selectRaw('COUNT(CASE WHEN date_livraison_reelle <= date_livraison_prevue THEN 1 END) as ontime')
             ->selectRaw('COUNT(*) as total')
             ->groupBy('mois')
             ->orderBy('mois')

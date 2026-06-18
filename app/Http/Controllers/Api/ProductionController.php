@@ -120,9 +120,15 @@ class ProductionController extends Controller
             $ofDates = $gproOfDates->get($of)?->first();
             $ehd = $ofDates?->ehd ?? $w->ehd ?? 'N/A';
 
-            if ($sam === 'N/A') $missingFields[] = 'SAM (F-REQ-211)';
-            if ($sot === 'N/A') $missingFields[] = 'SOT (F-REQ-212)';
-            if ($effectif === 'N/A') $missingFields[] = 'Effectif (F-REQ-213)';
+            if ($sam === 'N/A') {
+                $missingFields[] = 'SAM (F-REQ-211)';
+            }
+            if ($sot === 'N/A') {
+                $missingFields[] = 'SOT (F-REQ-212)';
+            }
+            if ($effectif === 'N/A') {
+                $missingFields[] = 'Effectif (F-REQ-213)';
+            }
 
             return [
                 'id' => $ch,
@@ -186,6 +192,7 @@ class ProductionController extends Controller
             ->where('period', 'jour')
             ->first();
         $brBundling = null;
+        $brBundlingActive = $bundlingRow && isset($bundlingRow->is_active) ? (bool) $bundlingRow->is_active : false;
         if ($bundlingRow && $bundlingRow->bundle_inspected > 0) {
             $brBundling = round(($bundlingRow->bundle_reject / $bundlingRow->bundle_inspected) * 100, 1);
         }
@@ -257,13 +264,15 @@ class ProductionController extends Controller
             ],
             'br_bundling' => [
                 'value' => $brBundling,
-                'status' => $brBundling !== null ? $this->kpi->brStatus($brBundling) : 'grey',
+                'status' => $brBundlingActive ? ($brBundling !== null ? $this->kpi->brStatus($brBundling) : 'grey') : 'inactive',
                 'target' => '≤ 5%',
+                'source_active' => $brBundlingActive,
             ],
             'br_print' => [
                 'value' => $this->computeBrPrint($today),
                 'status' => $this->kpi->brStatus($this->computeBrPrint($today)),
                 'target' => '≤ 5%',
+                'synced_at' => $this->getBrPrintSyncedAt($today),
             ],
         ]);
     }
@@ -291,6 +300,16 @@ class ProductionController extends Controller
         }
 
         return round(($row->nb_rejets / $row->nb_inspections) * 100, 1);
+    }
+
+    private function getBrPrintSyncedAt(Carbon $today): ?string
+    {
+        $row = DB::table('sync_drive_br_print')
+            ->whereDate('date', $today)
+            ->select('synced_at')
+            ->first();
+
+        return $row?->synced_at ? Carbon::parse($row->synced_at)->toIso8601String() : null;
     }
 
     /**
@@ -445,16 +464,31 @@ class ProductionController extends Controller
     /**
      * F-REQ-206: Route: wip
      * Flux Coupe & Engagement (Trend)
+     * Engagement date is derived from of_fabrication.DtDebut when qte_engagement.date is null,
+     * because Novacity's qte_engagement query does not include a date column (B-02).
      */
     public function wip(Request $request): JsonResponse
     {
         $start = Carbon::now()->subDays(30);
 
-        $engQuery = DB::table('qte_engagement');
-        $this->applyFilters($engQuery, $request);
-        $eng = $engQuery->where('date', '>=', $start)
-            ->select('date', DB::raw('SUM(quantite_engagee) as engagement'))
-            ->groupBy('date')->get()->keyBy('date');
+        // Engagement: derive date from of_fabrication.DtDebut when qte_engagement.date is null.
+        // NOTE: applyFilters() not used here — see B-02 mitigation. The effective date is a
+        // COALESCE expression, so line/atelier filters are applied manually below.
+        $engQuery = DB::table('qte_engagement as qe')
+            ->leftJoin('of_fabrication as of', 'qe.of', '=', 'of.of_number')
+            ->select(
+                DB::raw('COALESCE(qe.date, DATE(of.dt_debut)) as date'),
+                DB::raw('SUM(qe.quantite_engagee) as engagement')
+            );
+        if ($request->filled('line')) {
+            $engQuery->where('qe.chaine', $request->line);
+        }
+        if ($request->filled('atelier')) {
+            $engQuery->where('qe.atelier', $request->atelier);
+        }
+        $eng = $engQuery->where(DB::raw('COALESCE(qe.date, DATE(of.dt_debut))'), '>=', $start)
+            ->groupBy(DB::raw('COALESCE(qe.date, DATE(of.dt_debut))'))
+            ->get()->keyBy('date');
 
         $coupeQuery = DB::table('sortie_coupe');
         $this->applyFilters($coupeQuery, $request);
@@ -585,6 +619,7 @@ class ProductionController extends Controller
                 ->get()
                 ->map(function ($r) use ($avgSam, $avgSot) {
                     $owe = ($avgSam > 0) ? round(($r->efficience_pct * $avgSot) / $avgSam, 1) : null;
+
                     return [
                         'chaine' => $r->chaine,
                         'value' => $owe,
@@ -613,6 +648,7 @@ class ProductionController extends Controller
                 ->map(function ($r) use ($target) {
                     $wip = (int) $r->en_cours;
                     $status = $wip <= $target ? 'green' : ($wip <= $target * 2 ? 'orange' : 'red');
+
                     return [
                         'chaine' => $r->chaine,
                         'value' => $wip,
@@ -686,15 +722,18 @@ class ProductionController extends Controller
                 $br = round(($row->bundle_reject / $row->bundle_inspected) * 100, 1);
             }
 
+            $isActive = $row && isset($row->is_active) ? (bool) $row->is_active : false;
+
             return response()->json([
                 'kpi_key' => $kpiKey,
                 'period' => 'jour',
                 'rows' => [[
                     'chaine' => 'Global',
                     'value' => $br,
-                    'status' => $br !== null ? $this->kpi->brStatus($br) : 'grey',
+                    'status' => $isActive ? ($br !== null ? $this->kpi->brStatus($br) : 'grey') : 'inactive',
                     'ecart' => $br !== null ? round($br - 5, 1) : null,
                 ]],
+                'source_active' => $isActive,
                 'synced_at' => now()->toIso8601String(),
             ]);
         }
@@ -719,7 +758,7 @@ class ProductionController extends Controller
                     'status' => $br !== null ? $this->kpi->brStatus($br) : 'grey',
                     'ecart' => $br !== null ? round($br - 5, 1) : null,
                 ]],
-                'synced_at' => now()->toIso8601String(),
+                'synced_at' => $row?->synced_at ? Carbon::parse($row->synced_at)->toIso8601String() : null,
             ]);
         }
 
@@ -754,6 +793,7 @@ class ProductionController extends Controller
                 $total = $items->count();
                 $archived = $items->where('est_archive', true)->count();
                 $pct = $total > 0 ? round(($archived / $total) * 100, 1) : null;
+
                 return [
                     'chaine' => $ch,
                     'value' => $pct,
@@ -792,6 +832,7 @@ class ProductionController extends Controller
                 $total = $items->count();
                 $respected = $items->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
                 $pct = $total > 0 ? round(($respected / $total) * 100, 1) : null;
+
                 return [
                     'chaine' => $ch,
                     'value' => $pct,
@@ -830,6 +871,7 @@ class ProductionController extends Controller
                 $total = $items->sum('nb_gammes_total');
                 $accepted = $items->sum('nb_gammes_acceptees_v1');
                 $pct = $total > 0 ? round(($accepted / $total) * 100, 1) : null;
+
                 return [
                     'chaine' => $ch,
                     'value' => $pct,
@@ -865,6 +907,11 @@ class ProductionController extends Controller
         ]);
     }
 
+    /**
+     * F-REQ: Route: inline-endline
+     * Inline vs Endline comparison chart. Falls back to vw_defects (§2.9) when
+     * inline_vs_endline_comparison has no quantity column (B-03).
+     */
     public function inlineEndline(Request $request): JsonResponse
     {
         $today = Carbon::today();
@@ -883,13 +930,41 @@ class ProductionController extends Controller
             }
         }
 
+        // Fallback: vw_defects has qty column; inline_vs_endline_comparison does not
+        if ($rows->isEmpty()) {
+            $defectQuery = DB::table('vw_defects');
+            if ($request->filled('line')) {
+                $defectQuery->where('prod_group', $request->line);
+            }
+            $defects = $defectQuery->whereDate('log_date', $today)
+                ->select('prod_group as chaine', 'op_no as opera', DB::raw('SUM(qty) as count'))
+                ->groupBy('prod_group', 'op_no')
+                ->get();
+
+            if ($defects->isEmpty()) {
+                $latestDefectDate = DB::table('vw_defects')->max('log_date');
+                if ($latestDefectDate) {
+                    $defects = DB::table('vw_defects')
+                        ->whereDate('log_date', $latestDefectDate)
+                        ->select('prod_group as chaine', 'op_no as opera', DB::raw('SUM(qty) as count'))
+                        ->groupBy('prod_group', 'op_no')
+                        ->get();
+                }
+            }
+
+            return response()->json([
+                'data' => $defects->values(),
+                'source' => 'vw_defects',
+            ]);
+        }
+
         $data = $rows->map(fn ($r) => [
             'chaine' => $r->shortname,
             'opera' => $r->opera,
             'count' => (int) ($r->count ?? 1),
         ])->values();
 
-        return response()->json(['data' => $data]);
+        return response()->json(['data' => $data, 'source' => 'inline_vs_endline_comparison']);
     }
 
     // ── COUPE ────────────────────────────────────────────────────────────
@@ -1113,7 +1188,7 @@ class ProductionController extends Controller
         $query = DB::table('packets_rejetes')->whereDate('date_rejet', Carbon::today());
         $this->applyFilters($query, $request, 'date_rejet');
 
-        return response()->json(['data' => $query->get(), 'metadata' => ['br_print_note' => 'F-REQ-108: BR Print (Google Drive) sync pending.']]);
+        return response()->json(['data' => $query->get()]);
     }
 
     public function alerts(Request $request): JsonResponse

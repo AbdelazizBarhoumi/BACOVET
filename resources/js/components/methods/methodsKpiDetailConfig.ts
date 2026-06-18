@@ -49,13 +49,12 @@ export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> =
             green: '≥ 85%',
             orange: '70% – 85%',
             red: '< 70%',
-            grey: 'En attente — Base suivi production non connectée (B-05)',
         },
         source: {
             system: 'Base suivi production',
-            mysqlTable: null,
+            mysqlTable: 'sync_gpro_suivi_paquets',
             frequency: 'Journalière',
-            status: 'inactive',
+            status: 'live',
         },
         period: 'Quotidienne',
     },
@@ -96,7 +95,7 @@ export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> =
         id: '218',
         label: 'Taux de Respect du Temps Estimé par Article',
         description:
-            "Pourcentage d'articles dont le temps réel de production est inférieur ou égal au temps estimé (cotation). Source: Base rendement + Logiciel Cotation (Excel).",
+            "Pourcentage d'articles dont le temps réel de production est inférieur ou égal au temps estimé (cotation). Temps cotation − Temps prod ≥ 0. Source: Base rendement + Logiciel Cotation (Excel).",
         formula: {
             numerator: {
                 label: 'Articles respectant le temps estimé',
@@ -117,9 +116,9 @@ export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> =
         },
         source: {
             system: 'Base rendement + Logiciel Cotation',
-            mysqlTable: 'manual_kpi_values (f_req_218)',
+            mysqlTable: 'sync_drive_cotation',
             frequency: 'Au démarrage de chaque nouveau lancement',
-            status: 'pending',
+            status: 'live',
         },
         period: 'Par lancement',
     },
@@ -149,9 +148,9 @@ export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> =
         },
         source: {
             system: 'Fichier déchiffrage + Logiciel Cotation',
-            mysqlTable: 'manual_kpi_values (f_req_219)',
+            mysqlTable: 'sync_drive_gammes',
             frequency: 'Fichier déchiffrage',
-            status: 'pending',
+            status: 'live',
         },
         period: 'Par fichier déchiffrage',
     },

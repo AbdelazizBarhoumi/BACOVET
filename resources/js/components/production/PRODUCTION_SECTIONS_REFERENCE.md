@@ -117,7 +117,7 @@ GET /production/chain-info →
       "sortie_jour": 80
     }
   ],
-  "metadata": { "missing_fields": [] }
+  "metadata": { "missing_fields": ["SAM (F-REQ-211)", "SOT (F-REQ-212)"] }
 }
 ```
 
@@ -141,6 +141,8 @@ GET /production/chain-info →
 
 **Styling:** 4-column grid (`md:grid-cols-4`), each card `rounded-lg border border-border bg-card p-3`. Status dot: green/orange/red/grey. BR GTD color: green(≤4), orange(≤5), red(>5).
 
+**GPRO Data Warning:** When `metadata.missing_fields` is non-empty (e.g. SAM, SOT, Effectif unavailable from GPRO Consulting sync), an amber warning banner is displayed above the chain cards: "Données GPRO Consulting indisponibles : {fields} — sync en attente de vérification." The banner uses `AlertTriangle` icon and `border-amber-300 bg-amber-50` styling.
+
 ---
 
 # Row 2: KPI Cards
@@ -160,7 +162,12 @@ kpis()
   ├─ Lost Time: SUM(minutes_perdues) from lost_time (today)
   ├─ BR GTD: AVG(defect_pct) from check_pass_qte (today)
   ├─ BR Bundling: (bundle_reject / bundle_inspected) × 100 from rejets_inspection_paquet
-  └─ BR Print: (nb_rejets / nb_inspections) × 100 from sync_drive_br_print
+  │   → source_active = rejets_inspection_paquet.is_active (false when Novacity §3.20/§3.21 inactive)
+  │   → status = 'inactive' when source_active=false (B-01 blocker)
+  ├─ BR Print: (nb_rejets / nb_inspections) × 100 from sync_drive_br_print
+  │   → synced_at from sync_drive_br_print (Google Drive freshness check)
+  │   → Frontend shows stale badge if synced_at > 6h ago (BR Print refreshes 4×/day)
+  └─ ...
 ```
 
 ### 2. API Response
@@ -174,8 +181,8 @@ GET /production/kpis →
   "total_wip": { "value": 450, "status": "green", "target": "≤ ½ cadence" },
   "total_lost_time": { "value": 25, "status": "red", "target": "< 10 min" },
   "br_gtd": { "value": 3.8, "status": "green", "target": "≤ 5%" },
-  "br_bundling": { "value": 2.1, "status": "green", "target": "≤ 5%" },
-  "br_print": { "value": 1.8, "status": "green", "target": "≤ 5%" },
+  "br_bundling": { "value": 2.1, "status": "green", "target": "≤ 5%", "source_active": true },
+  "br_print": { "value": 1.8, "status": "green", "target": "≤ 5%", "synced_at": "2026-06-18T10:30:00.000000Z" },
   "synced_at": "2026-06-18T10:30:00.000000Z"
 }
 ```
@@ -186,6 +193,7 @@ Wraps `<BigNumberCard>` with click handler → opens `<ProductionKpiDetailModal>
 
 **Cards per tab:**
 - **Confection + Coupe:** Efficience Chaîne ·202, OWE Chaîne ·204, RFT Production ·104, WIP Total ·205, Arrêts Non Planifiés ·207, BR GTD ·102, BR Bundling ·106, BR Print ·108, Taux Archivage ·216, Respect Temps Estimé ·218, Temps Acceptés V1 ·219
+  - **BR Bundling inactive handling:** When `source_active=false` (Novacity §3.20/§3.21 INACTIVE), the card shows `— Indisponible` instead of the value. Status is `grey`/`inactive`.
 - **Sérigraphie:** RFT Production ·104, BR Print ·108, Taux Archivage ·216, Respect Temps Estimé ·218, Temps Acceptés V1 ·219
 
 ---
@@ -533,10 +541,14 @@ Panel "Top Opérateurs (Aujourd'hui) ·210"
 
 ```
 wip()
-  ├─ qte_engagement (last 30 days) → group by date → SUM(quantite_engagee)
+  ├─ qte_engagement LEFT JOIN of_fabrication (on qe.of = of.of_number)
+  │   → COALESCE(qe.date, DATE(of.dt_debut)) as date  ← derives date when Novacity doesn't provide it (B-02)
+  │   → (last 30 days) → group by date → SUM(quantite_engagee)
   └─ sortie_coupe (last 30 days) → group by date → SUM(quantite_coupee)
      → merge by date → engagement, sortie, wip = sortie - engagement
 ```
+
+**Note:** `qte_engagement` from Novacity does not include a date column. The backend derives it from `of_fabrication.DtDebut` via the `of` column. Filters (`line`, `atelier`) are applied manually since `applyFilters()` cannot work with the COALESCE expression.
 
 ### API Response
 
@@ -650,8 +662,11 @@ Panel "Efficience Cumulée ·203"
 ### Inline vs Endline (F-REQ-007)
 
 **Server:** `inlineEndline()` → `inline_vs_endline_comparison` (today, fallback to latest date)
+**Fallback:** When `inline_vs_endline_comparison` is empty, falls back to `vw_defects` (§2.9) which has a `qty` column. The fallback queries `prod_group as chaine`, `op_no as opera`, `SUM(qty) as count`, grouped by prod_group + op_no.
 
-**View:** Stacked BarChart — each opera as a colored bar segment per chain
+**API Response:** Returns `source` field (`'inline_vs_endline_comparison'` or `'vw_defects'`) to indicate which data source was used.
+
+**View:** Stacked BarChart — each opera as a colored bar segment per chain. When `source === 'vw_defects'`, a subtle amber note is shown below the chart title: "Source: données défauts (substitut)". Empty state: "Aucune données opérations".
 
 ---
 
@@ -718,7 +733,7 @@ Panel "Efficience Cumulée ·203"
 
 | Type | KPIs | Server Endpoint |
 |---|---|---|
-| `per_chain` | efficience_chaine, owe_chaine, wip_chaine, br_gtd, br_bundling, br_print, rft_production, taux_archivage, respect_temps_estime, temps_acceptes | `GET /production/breakdown/{key}` |
+| `per_chain` | efficience_chaine, owe_chaine, wip_chaine, br_gtd, br_bundling, br_print, rft_production, taux_archivage, respect_temps_estime, temps_acceptes | `GET /production/breakdown/{key}` — br_bundling also returns `source_active` field |
 | `per_operator` | efficience_operateur, efficience_depart, efficience_vignettes | `GET /production/breakdown/{key}` |
 | `timeline` | arrets_non_planifies | `GET /production/breakdown/{key}` |
 | `per_of` | wip_optimal | `GET /production/breakdown/{key}` |
@@ -744,6 +759,7 @@ Panel "Efficience Cumulée ·203"
 | `green` | ≥ 85% | < 4% | ≤ ½ cadence | 0 stops | Green left border |
 | `orange` | 70–85% | 4–5% | ½–1× cadence | 1 stop ≤10min | Orange left border + flash |
 | `red` | < 70% | > 5% | > 1× cadence | >1 stop or >10min | Red left border + flash |
+| `inactive` | — | Novacity endpoint inactive | — | — | Grey, "— Indisponible" text |
 | `grey` | null | null | null | null | Grey left border |
 
 ---
@@ -778,3 +794,14 @@ Panel "Efficience Cumulée ·203"
 | `fetchRespectTempsEstime()` | `respectTempsEstime` | Row 2 |
 | `fetchTauxTempsAcceptes()` | `tauxTempsAcceptes` | Row 2 |
 | `fetchProductionBreakdown(key, filters)` | `breakdownData` | Modal |
+
+---
+
+# Known Blockers & Mitigations
+
+| ID | Blocker | Impact | Mitigation |
+|---|---|---|---|
+| B-01 | BR Bundling Novacity queries §3.20/§3.21 INACTIVE | `rejets_inspection_paquet` always has null values | `kpis()` returns `source_active=false`, `status='inactive'`. Frontend shows `— Indisponible`. Sync inserts placeholder rows with `is_active=false`. |
+| B-02 | `qte_engagement` (§3.15) has no date column | WIP Flux area chart cannot render engagement trend | `wip()` left-joins `of_fabrication` and uses `COALESCE(qe.date, DATE(of.dt_debut))` to derive date. |
+| B-03 | `inline_vs_endline_comparison` (§2.7) has no quantity column | Inline vs Endline chart would be empty | `inlineEndline()` falls back to `vw_defects` (§2.9) which has `qty` column. Returns `source` field. |
+| B-04 | `sync_gpro_*` tables unverified | SAM/SOT/Effectif may show N/A | `chainInfo()` tracks `missing_fields` in metadata. Frontend shows amber warning banner when fields are missing. |
