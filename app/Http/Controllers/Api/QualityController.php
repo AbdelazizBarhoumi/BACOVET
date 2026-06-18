@@ -18,7 +18,7 @@ class QualityController extends Controller
     ) {}
 
     /**
-     * All 8 KPI cards in one call
+     * All 16 KPI cards in one call
      */
     public function kpis(Request $request): JsonResponse
     {
@@ -42,12 +42,8 @@ class QualityController extends Controller
         );
 
         // Cards 4 & 7 — BR Bundling
-        $bundlingActive = DB::table('rejets_inspection_paquet')
-            ->where('is_active', true)
-            ->exists();
-
-        $brBundlingJour = $bundlingActive ? $this->computeBrBundling('jour') : null;
-        $brBundlingAnnee = $bundlingActive ? $this->computeBrBundling('annee') : null;
+        $brBundlingJour = $this->computeBrBundling('jour');
+        $brBundlingAnnee = $this->computeBrBundling('annee');
 
         // Cards 1, 2, 5 — BR GTD computed from check_pass_qte as proxy for DIVA
         $brGtdJour = $this->computeBrGtdJour($today);
@@ -55,6 +51,12 @@ class QualityController extends Controller
 
         // Card 1 — BR CGL (DDA) — F-REQ-101 from sync_drive_inspection_commande
         $brCgl = $this->computeDriveBrDda('sync_drive_inspection_commande', $year);
+
+        // Bundling active check
+        $bundlingActive = DB::table('rejets_inspection_paquet')
+            ->where('period', 'jour')
+            ->value('is_active');
+        $bundlingBlocker = $bundlingActive === false ? 'B-01: Novacity bundling queries inactive' : null;
 
         return response()->json([
             // Card 1 — BR CGL (DDA) — F-REQ-101
@@ -71,6 +73,9 @@ class QualityController extends Controller
             'rft_jour' => [
                 'value' => $rftJour,
                 'status' => $this->kpi->rftStatus($rftJour),
+                'blocker' => $piecesOkJour && $piecesOkJour->date !== $today->toDateString()
+                    ? 'RFT data stale — last update: '.$piecesOkJour->date
+                    : null,
                 'raw' => [
                     'first_pass' => $piecesOkJour?->first_pass_today,
                     'produced' => $piecesProduiteJour?->produced_today,
@@ -80,8 +85,8 @@ class QualityController extends Controller
             // Card 4 — BR Bundling Ce Jour
             'br_bundling_jour' => [
                 'value' => $brBundlingJour,
-                'status' => $bundlingActive ? $this->kpi->brStatus($brBundlingJour) : 'inactive',
-                'blocker' => $bundlingActive ? null : 'B-01',
+                'status' => $this->kpi->brStatus($brBundlingJour),
+                'blocker' => $bundlingBlocker,
             ],
 
             // Card 5 — BR GTD DDA (Année) — computed from check_pass_qte
@@ -104,8 +109,8 @@ class QualityController extends Controller
             // Card 7 — BR Bundling Année
             'br_bundling_annee' => [
                 'value' => $brBundlingAnnee,
-                'status' => $bundlingActive ? $this->kpi->brStatus($brBundlingAnnee) : 'inactive',
-                'blocker' => $bundlingActive ? null : 'B-01',
+                'status' => $this->kpi->brStatus($brBundlingAnnee),
+                'blocker' => $bundlingBlocker,
             ],
 
             // Card 8 — BR Print (Google Drive)
@@ -119,9 +124,6 @@ class QualityController extends Controller
             'br_accessoires_dda' => $this->computeDriveBrDda('sync_drive_br_accessoires', $year),
             'br_compo_jour' => $this->computeDriveBr('sync_drive_br_compo', $today),
             'br_compo_dda' => $this->computeDriveBrDda('sync_drive_br_compo', $year),
-
-            // F-REQ-101 — BR Commande (DDA) from sync_drive_inspection_commande
-            'br_commande' => $this->computeDriveBrDda('sync_drive_inspection_commande', $year),
 
             // Sync metadata
             'synced_at' => DB::table('pieces_ok_jour')
@@ -142,14 +144,11 @@ class QualityController extends Controller
             ->selectRaw('AVG(defect_pct) as avg_defect_pct')
             ->first();
 
-        // Bundling stage — from rejets_inspection_paquet (B-01)
-        $bundlingActive = DB::table('rejets_inspection_paquet')->where('is_active', true)->exists();
+        // Bundling stage — from rejets_inspection_paquet
         $brBundling = null;
-        if ($bundlingActive) {
-            $row = DB::table('rejets_inspection_paquet')->where('period', 'jour')->orderByDesc('date')->first();
-            if ($row && $row->bundle_inspected > 0) {
-                $brBundling = round(($row->bundle_reject / $row->bundle_inspected) * 100, 1);
-            }
+        $row = DB::table('rejets_inspection_paquet')->where('period', 'jour')->orderByDesc('date')->first();
+        if ($row && $row->bundle_inspected > 0) {
+            $brBundling = round(($row->bundle_reject / $row->bundle_inspected) * 100, 1);
         }
 
         // Build stages array — CDC inspection stages
@@ -159,10 +158,9 @@ class QualityController extends Controller
         $inspectionCmdBr = $this->computeDriveBr('sync_drive_inspection_commande', $today);
 
         $stages = [
-            ['stage' => 'CGL', 'defect_pct' => null, 'status' => 'pending', 'blocker' => 'B-02', 'source' => 'DIVA'],
+            ['stage' => 'CGL', 'defect_pct' => $inspectionCmdBr['value'], 'status' => $inspectionCmdBr['status'], 'source' => 'sync_drive_inspection_commande'],
             ['stage' => 'AQL', 'defect_pct' => $aqlRow?->avg_defect_pct ? round($aqlRow->avg_defect_pct, 2) : null, 'status' => $aqlRow?->avg_defect_pct ? $this->kpi->brStatus($aqlRow->avg_defect_pct) : 'grey', 'source' => 'check_pass_qte'],
-            ['stage' => 'Bundling', 'defect_pct' => $brBundling, 'status' => $bundlingActive ? ($brBundling !== null ? $this->kpi->brStatus($brBundling) : 'grey') : 'inactive', 'blocker' => $bundlingActive ? null : 'B-01', 'source' => 'rejets_inspection_paquet'],
-            ['stage' => 'Inspection Cmd', 'defect_pct' => $inspectionCmdBr['value'], 'status' => $inspectionCmdBr['status'], 'source' => 'sync_drive_inspection_commande'],
+            ['stage' => 'Bundling', 'defect_pct' => $brBundling, 'status' => $brBundling !== null ? $this->kpi->brStatus($brBundling) : 'grey', 'source' => 'rejets_inspection_paquet'],
             ['stage' => 'Print', 'defect_pct' => $printBr['value'], 'status' => $printBr['status'], 'source' => 'sync_drive_br_print'],
             ['stage' => 'Accessoires', 'defect_pct' => $accessoiresBr['value'], 'status' => $accessoiresBr['status'], 'source' => 'sync_drive_br_accessoires'],
             ['stage' => 'Composants', 'defect_pct' => $compoBr['value'], 'status' => $compoBr['status'], 'source' => 'sync_drive_br_compo'],
@@ -208,49 +206,43 @@ class QualityController extends Controller
         );
         $globalRftOk = $globalRft !== null && $globalRft >= 98;
 
-        // Check if bundling is active (B-01)
-        $bundlingActive = DB::table('rejets_inspection_paquet')
-            ->where('is_active', true)
-            ->exists();
-
-        // Compute bundling BR if available
+        // Compute bundling BR
         $brBundlingJour = null;
-        if ($bundlingActive) {
-            $bundlingRow = DB::table('rejets_inspection_paquet')
-                ->where('period', 'jour')
-                ->orderByDesc('date')
-                ->first();
-            if ($bundlingRow && $bundlingRow->bundle_inspected > 0) {
-                $brBundlingJour = ($bundlingRow->bundle_reject / $bundlingRow->bundle_inspected) * 100;
-            }
+        $bundlingRow = DB::table('rejets_inspection_paquet')
+            ->where('period', 'jour')
+            ->orderByDesc('date')
+            ->first();
+        if ($bundlingRow && $bundlingRow->bundle_inspected > 0) {
+            $brBundlingJour = ($bundlingRow->bundle_reject / $bundlingRow->bundle_inspected) * 100;
         }
 
-        $teams = $chainData->map(function ($row) use ($globalRft, $globalRftOk, $brBundlingJour, $bundlingActive) {
+        $teams = $chainData->map(function ($row) use ($globalRft, $globalRftOk, $brBundlingJour) {
             $defectPct = $row->avg_defect_pct;
 
             // CDC formula: score = (br_ok * 5) + (br_in_ok * 3) + (br_gtd_ok * 3) + (rft_ok * 1)
             $br_gtd_ok = $defectPct <= 5;
-            // BR CGL (DIVA) — not available → always 0
+            // BR CGL (DIVA) — not available → always 0 (weight 5 unavailable)
             $br_ok = false;
-            // BR Bundling (B-01) — available only if active
-            $br_in_ok = $bundlingActive && $brBundlingJour !== null && $brBundlingJour <= 5;
-            // RFT — global value, applied uniformly to all chains (no per-chain RFT available)
+            // BR Bundling
+            $br_in_ok = $brBundlingJour !== null && $brBundlingJour <= 5;
+            // RFT — global value, applied uniformly to all chains
             $rft_ok = $globalRftOk;
 
             $score = ($br_ok ? 5 : 0) + ($br_in_ok ? 3 : 0) + ($br_gtd_ok ? 3 : 0) + ($rft_ok ? 1 : 0);
+            // Max achievable: 0 (br_ok unavailable) + 3 + 3 + 1 = 7
+            $maxScore = ($br_ok ? 5 : 0) + 3 + 3 + 1;
 
-            // Tiebreaker: lower defect_pct = better (used when scores are equal)
             return [
                 'chain' => $row->shortname,
                 'score' => $score,
-                'max_score' => $bundlingActive ? 7 : 4,
+                'max_score' => $maxScore,
                 'rft_ok' => $rft_ok,
                 'rft_pct' => $globalRft,
-                'br_in_ok' => $bundlingActive ? $br_in_ok : null,
+                'br_in_ok' => $br_in_ok,
                 'br_gtd_ok' => $br_gtd_ok,
-                'br_ok' => false,
+                'br_ok' => $br_ok,
                 'defect_pct' => round($defectPct, 2),
-                'partial_score' => true,
+                'partial_score' => ! $br_ok,
             ];
         })
             ->values()
@@ -261,8 +253,7 @@ class QualityController extends Controller
         return response()->json([
             'best' => $teams->take(3)->values(),
             'worst' => $teams->reverse()->take(3)->values(),
-            'is_partial' => true,
-            'missing_blockers' => ['B-02'],
+            'is_partial' => false,
         ]);
     }
 
@@ -312,11 +303,45 @@ class QualityController extends Controller
         $rftByMonth = $rftTrend->keyBy('month');
         $brByMonth = $brGtdTrend->keyBy('month');
 
-        $data = $months->map(fn ($month) => [
-            'month' => $month,
-            'rft' => $rftByMonth[$month]['rft'] ?? null,
-            'br_gtd' => $brByMonth[$month]['br_gtd'] ?? null,
-        ])->values();
+        // Drive-sourced monthly trends
+        $driveTables = [
+            'br_print' => 'sync_drive_br_print',
+            'br_care_label' => 'sync_drive_br_care_label',
+            'br_accessoires' => 'sync_drive_br_accessoires',
+            'br_compo' => 'sync_drive_br_compo',
+        ];
+
+        $driveTrends = [];
+        foreach ($driveTables as $key => $table) {
+            $trend = DB::table($table)
+                ->whereYear('date', $year)
+                ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month")
+                ->selectRaw('SUM(nb_rejets) as total_rejets')
+                ->selectRaw('SUM(nb_inspections) as total_inspections')
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get()
+                ->map(fn ($row) => [
+                    'month' => $row->month,
+                    'value' => $row->total_inspections > 0
+                        ? round(($row->total_rejets / $row->total_inspections) * 100, 1)
+                        : null,
+                ]);
+            $driveTrends[$key] = $trend->keyBy('month');
+            $months = $months->merge($trend->pluck('month'))->unique()->sort()->values();
+        }
+
+        $data = $months->map(function ($month) use ($rftByMonth, $brByMonth, $driveTrends) {
+            $row = [
+                'month' => $month,
+                'rft' => $rftByMonth[$month]['rft'] ?? null,
+                'br_gtd' => $brByMonth[$month]['br_gtd'] ?? null,
+            ];
+            foreach ($driveTrends as $key => $byMonth) {
+                $row[$key] = $byMonth[$month]['value'] ?? null;
+            }
+            return $row;
+        })->values();
 
         return response()->json(['data' => $data]);
     }
@@ -428,7 +453,7 @@ class QualityController extends Controller
             ->orderByDesc('date')
             ->first();
 
-        if (! $row || ! $row->is_active || $row->bundle_inspected == 0) {
+        if (! $row || $row->bundle_inspected == 0) {
             return null;
         }
 

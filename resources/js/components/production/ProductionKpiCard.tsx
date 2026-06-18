@@ -16,14 +16,11 @@ export function ProductionKpiCard({
     onClick,
     ...props
 }: ProductionKpiCardProps) {
+    const flash = props.status === 'red' || props.status === 'orange';
     return (
         <div
             onClick={onClick}
-            className={
-                onClick
-                    ? 'group h-full cursor-pointer transition-all'
-                    : 'h-full'
-            }
+            className={`h-full ${onClick ? 'group cursor-pointer transition-all' : ''} ${flash ? 'animate-flash-alert' : ''}`}
         >
             <BigNumberCard {...props} />
         </div>

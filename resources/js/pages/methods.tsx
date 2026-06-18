@@ -35,7 +35,11 @@ import {
 const tooltipStyle = {
     backgroundColor: 'var(--card)',
     border: '1px solid var(--border)',
+    borderRadius: 8,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    padding: '8px 12px',
     fontSize: 12,
+    fontFamily: 'var(--font-mono)',
 };
 
 function KpiCardSkeleton() {
@@ -108,7 +112,7 @@ function KpiCard({
 
     return (
         <div
-            className="flex h-full flex-col cursor-pointer rounded-lg transition-all"
+            className={`flex h-full flex-col cursor-pointer rounded-lg transition-all ${status === 'red' || status === 'orange' ? 'animate-flash-alert' : ''}`}
             onClick={onClick}
         >
             <BigNumberCard
@@ -399,7 +403,13 @@ export default function MethodsPage() {
                                     tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
                                     label={{ value: 'Écart %', angle: -90, position: 'insideLeft', fontSize: 10 }}
                                 />
-                                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value}%`, 'Écart']} />
+                                <Tooltip
+                                    contentStyle={tooltipStyle}
+                                    cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                    labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                    itemStyle={{ fontSize: 11 }}
+                                    formatter={(value: number) => [`${value}%`, 'Écart']}
+                                />
                                 <ReferenceLine y={0} stroke="var(--success)" strokeDasharray="4 4" />
                                 <ReferenceLine y={5} stroke="var(--destructive)" strokeDasharray="4 4" />
                                 <ReferenceLine y={-5} stroke="var(--destructive)" strokeDasharray="4 4" />

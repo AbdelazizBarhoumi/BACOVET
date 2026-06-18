@@ -24,7 +24,6 @@ import { AppShell } from '@/components/app-shell';
 import { ProductionKpiCard } from '@/components/production/ProductionKpiCard';
 import type { ProductionKpiKey } from '@/components/production/productionKpiDetailConfig';
 import ProductionKpiDetailModal from '@/components/production/ProductionKpiDetailModal';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Pagination,
     PaginationContent,
@@ -33,6 +32,7 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from '@/components/ui/pagination';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Gauge, Panel, TrafficBadge } from '@/components/widgets';
 import { useFilters } from '@/context/FilterContext';
 import type { Status } from '@/lib/mock';
@@ -123,7 +123,11 @@ type ExtraData = {
 const tt = {
     backgroundColor: 'var(--card)',
     border: '1px solid var(--border)',
+    borderRadius: 8,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    padding: '8px 12px',
     fontSize: 12,
+    fontFamily: 'var(--font-mono)',
 };
 
 function KpiCardSkeleton() {
@@ -337,7 +341,7 @@ function ProductionTab({
                                     </span>
                                 </div>
                             )}
-                            {c.designation && (
+                            {c.designation && c.designation !== 'N/A' && (
                                 <div className="mt-2 truncate border-t border-border/50 pt-2 text-[9px] text-muted-foreground uppercase">
                                     {c.designation}
                                 </div>
@@ -499,7 +503,7 @@ function ProductionTab({
                 />
                 <ProductionKpiCard
                     label="Respect Temps Estimé ·218"
-                    value={extraData.respectTempsEstime?.value !== null ? `${extraData.respectTempsEstime?.value}%` : 'N/A'}
+                    value={extraData.respectTempsEstime?.value != null ? `${extraData.respectTempsEstime.value}%` : 'N/A'}
                     target={`≥ ${extraData.respectTempsEstime?.target ?? 90}%`}
                     status={extraData.respectTempsEstime?.status as Status}
                     source="Drive Cotation"
@@ -508,7 +512,7 @@ function ProductionTab({
                 />
                 <ProductionKpiCard
                     label="Temps Acceptés V1 ·219"
-                    value={extraData.tauxTempsAcceptes?.value !== null ? `${extraData.tauxTempsAcceptes?.value}%` : 'N/A'}
+                    value={extraData.tauxTempsAcceptes?.value != null ? `${extraData.tauxTempsAcceptes.value}%` : 'N/A'}
                     target={`≥ ${extraData.tauxTempsAcceptes?.target ?? 80}%`}
                     status={extraData.tauxTempsAcceptes?.status as Status}
                     source="Drive Gammes"
@@ -729,36 +733,59 @@ function ProductionTab({
 
                 {(workshop === 'confection' || workshop === 'coupe') && (
                     <Panel title="Couverture Chaîne ·310">
-                        <ResponsiveContainer width="100%" height={200}>
-                            <BarChart
-                                data={coupeChainCoverage?.breakdown ?? []}
-                                layout="vertical"
-                                margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
-                            >
-                                <CartesianGrid
-                                    stroke="var(--border)"
-                                    strokeDasharray="3 3"
-                                />
-                                <XAxis type="number" hide />
-                                <YAxis
-                                    dataKey="chaine"
-                                    type="category"
-                                    width={60}
-                                    tick={{
-                                        fill: 'var(--muted-foreground)',
-                                        fontSize: 10,
-                                    }}
-                                />
-                                <Tooltip />
-                                <Bar
-                                    dataKey="value"
-                                    name="Jours"
-                                    fill="var(--primary)"
-                                    radius={[0, 4, 4, 0]}
-                                    barSize={20}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        {(coupeChainCoverage?.breakdown ?? []).length > 0 ? (
+                            <ResponsiveContainer width="100%" height={200}>
+                                <BarChart
+                                    data={coupeChainCoverage?.breakdown ?? []}
+                                    layout="vertical"
+                                    margin={{ left: 20, right: 40, top: 10, bottom: 10 }}
+                                >
+                                    <CartesianGrid
+                                        stroke="var(--border)"
+                                        strokeDasharray="3 3"
+                                    />
+                                    <XAxis
+                                        type="number"
+                                        tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                                        label={{ value: 'Jours', position: 'insideBottomRight', offset: -5, fontSize: 10, fill: 'var(--muted-foreground)' }}
+                                    />
+                                    <YAxis
+                                        dataKey="chaine"
+                                        type="category"
+                                        width={60}
+                                        tick={{
+                                            fill: 'var(--muted-foreground)',
+                                            fontSize: 10,
+                                        }}
+                                    />
+                                    <Tooltip
+                                        contentStyle={tt}
+                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                        labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                        itemStyle={{ fontSize: 11 }}
+                                        formatter={(val: number, _name: string, props: { payload?: { engagement?: number; planifie?: number } }) => {
+                                            const eng = props.payload?.engagement ?? 0;
+                                            const plan = props.payload?.planifie ?? 0;
+                                            return [
+                                                `${val} jours (Eng: ${eng} / Plan: ${plan})`,
+                                                'Couverture',
+                                            ];
+                                        }}
+                                    />
+                                    <Bar
+                                        dataKey="value"
+                                        name="Jours"
+                                        fill="var(--primary)"
+                                        radius={[0, 4, 4, 0]}
+                                        barSize={20}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex h-[200px] items-center justify-center font-mono text-xs text-muted-foreground">
+                                Aucune donnée couverture chaîne
+                            </div>
+                        )}
                     </Panel>
                 )}
             </div>
@@ -792,7 +819,7 @@ function ProductionTab({
                                                                 : 'var(--chart-4)'
                                                         }
                                                     />
-                                                    <Cell key="remaining" fill="var(--muted)" />
+                                                    <Cell key="remaining" fill="var(--muted-foreground)" />
                                                 </Pie>
                                             </PieChart>
                                         </ResponsiveContainer>
@@ -829,7 +856,12 @@ function ProductionTab({
                                     width={80}
                                     tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                                 />
-                                <Tooltip contentStyle={tt} />
+                                <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{fontSize: 11 }}
+                                        />
                                 <Legend wrapperStyle={{ fontSize: 11 }} />
                                 <Bar
                                     dataKey="realise"
@@ -841,7 +873,7 @@ function ProductionTab({
                                     dataKey="restant"
                                     name="Restant"
                                     stackId="a"
-                                    fill="var(--muted)"
+                                    fill="var(--muted-foreground)"
                                 />
                             </BarChart>
                         </ResponsiveContainer>
@@ -855,54 +887,76 @@ function ProductionTab({
                     {workshop === 'confection' && (
                         <>
                             <Panel title="Efficience Départage ·208">
-                                <ResponsiveContainer width="100%" height={220}>
-                                    <BarChart data={departage}>
-                                        <CartesianGrid
-                                            stroke="var(--border)"
-                                            strokeDasharray="3 3"
+                                {departage.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={220}>
+                                        <BarChart data={departage}>
+                                            <CartesianGrid
+                                                stroke="var(--border)"
+                                                strokeDasharray="3 3"
+                                            />
+                                            <XAxis
+                                                dataKey="employe"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
+                                            />
+                                            <YAxis
+                                                unit="%"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                            />
+                                            <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
                                         />
-                                        <XAxis
-                                            dataKey="employe"
-                                            tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
-                                        />
-                                        <YAxis
-                                            unit="%"
-                                            tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                                        />
-                                        <Tooltip contentStyle={tt} />
-                                        <Bar
-                                            dataKey="eff"
-                                            name="Efficience"
-                                            fill="var(--chart-1)"
-                                            radius={[4, 4, 0, 0]}
-                                        />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                            <Bar
+                                                dataKey="eff"
+                                                name="Efficience"
+                                                fill="var(--chart-1)"
+                                                radius={[4, 4, 0, 0]}
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex h-[220px] items-center justify-center font-mono text-xs text-muted-foreground">
+                                        Aucune donnée départage pour aujourd'hui
+                                    </div>
+                                )}
                             </Panel>
                             <Panel title="Efficience Vignettes ·209">
-                                <ResponsiveContainer width="100%" height={220}>
-                                    <BarChart data={vignettes}>
-                                        <CartesianGrid
-                                            stroke="var(--border)"
-                                            strokeDasharray="3 3"
+                                {vignettes.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={220}>
+                                        <BarChart data={vignettes}>
+                                            <CartesianGrid
+                                                stroke="var(--border)"
+                                                strokeDasharray="3 3"
+                                            />
+                                            <XAxis
+                                                dataKey="employe"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
+                                            />
+                                            <YAxis
+                                                unit="%"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                            />
+                                            <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
                                         />
-                                        <XAxis
-                                            dataKey="employe"
-                                            tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
-                                        />
-                                        <YAxis
-                                            unit="%"
-                                            tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                                        />
-                                        <Tooltip contentStyle={tt} />
-                                        <Bar
-                                            dataKey="eff"
-                                            name="Efficience"
-                                            fill="var(--chart-2)"
-                                            radius={[4, 4, 0, 0]}
-                                        />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                            <Bar
+                                                dataKey="eff"
+                                                name="Efficience"
+                                                fill="var(--chart-2)"
+                                                radius={[4, 4, 0, 0]}
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex h-[220px] items-center justify-center font-mono text-xs text-muted-foreground">
+                                        Aucune donnée vignettes pour aujourd'hui
+                                    </div>
+                                )}
                             </Panel>
                         </>
                     )}
@@ -925,7 +979,12 @@ function ProductionTab({
                                     width={80}
                                     tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                                 />
-                                <Tooltip contentStyle={tt} />
+                                <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
                                 <ReferenceLine
                                     x={90}
                                     stroke="var(--success)"
@@ -955,7 +1014,12 @@ function ProductionTab({
                                 <YAxis
                                     tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                                 />
-                                <Tooltip contentStyle={tt} />
+                                <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
                                 <Legend wrapperStyle={{ fontSize: 11 }} />
                                 <Area
                                     type="monotone"
@@ -1003,7 +1067,12 @@ function ProductionTab({
                                     unit="m"
                                     tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                                 />
-                                <Tooltip contentStyle={tt} />
+                                <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
                                 <Legend wrapperStyle={{ fontSize: 11 }} />
                                 <Bar
                                     yAxisId="left"
@@ -1030,29 +1099,40 @@ function ProductionTab({
             {/* Row 7 — Trend */}
             {workshop !== 'serigraphie' && (
                 <Panel title="Efficience Cumulée ·203">
-                    <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={trend}>
-                            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-                            <XAxis
-                                dataKey="jour"
-                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                            />
-                            <YAxis
-                                domain={[0, 100]}
-                                unit="%"
-                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                            />
-                            <Tooltip contentStyle={tt} />
-                            <ReferenceLine y={85} stroke="var(--success)" strokeDasharray="4 4" />
-                            <Line
-                                type="monotone"
-                                dataKey="eff"
-                                stroke="var(--primary)"
-                                strokeWidth={2}
-                                dot={false}
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
+                    {trend.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={trend}>
+                                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                                <XAxis
+                                    dataKey="jour"
+                                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                />
+                                <YAxis
+                                    domain={[0, 100]}
+                                    unit="%"
+                                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                />
+                                <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
+                                <ReferenceLine y={85} stroke="var(--success)" strokeDasharray="4 4" />
+                                <Line
+                                    type="monotone"
+                                    dataKey="eff"
+                                    stroke="var(--primary)"
+                                    strokeWidth={2}
+                                    dot={false}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex h-[220px] items-center justify-center font-mono text-xs text-muted-foreground">
+                            Aucune donnée tendance pour ce mois
+                        </div>
+                    )}
                 </Panel>
             )}
 
@@ -1270,35 +1350,48 @@ function ProductionTab({
                         </div>
                     </Panel>
 
-                    <Panel title="Comparaison Inline vs Endline" className="lg:col-span-2">
-                        <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={inlineEndlineData}>
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    vertical={false}
-                                    stroke="var(--border)"
-                                />
-                                <XAxis
-                                    dataKey="chaine"
-                                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                                />
-                                <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-                                <Tooltip contentStyle={tt} />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
-                                <Bar
-                                    dataKey="inline"
-                                    name="Inline"
-                                    fill="var(--chart-1)"
-                                    radius={[4, 4, 0, 0]}
-                                />
-                                <Bar
-                                    dataKey="endline"
-                                    name="Endline"
-                                    fill="var(--chart-3)"
-                                    radius={[4, 4, 0, 0]}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <Panel title="Opérations par Chaîne" className="lg:col-span-2">
+                        {inlineEndlineData.length > 0 ? (() => {
+                            const operaKeys = Object.keys(inlineEndlineData[0] ?? {}).filter((k) => k !== 'chaine');
+                            const colors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
+                            return (
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <BarChart data={inlineEndlineData}>
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            vertical={false}
+                                            stroke="var(--border)"
+                                        />
+                                        <XAxis
+                                            dataKey="chaine"
+                                            tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                                        />
+                                        <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                                        <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
+                                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                                        {operaKeys.map((op, i) => (
+                                            <Bar
+                                                key={op}
+                                                dataKey={op}
+                                                name={op}
+                                                fill={colors[i % colors.length]}
+                                                radius={[4, 4, 0, 0]}
+                                                stackId="ops"
+                                            />
+                                        ))}
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            );
+                        })() : (
+                            <div className="flex h-[250px] items-center justify-center font-mono text-xs text-muted-foreground">
+                                Aucune donnée opérations
+                            </div>
+                        )}
                     </Panel>
                 </div>
             )}
@@ -1325,6 +1418,9 @@ function ProductionTab({
                                 <YAxis tick={{ fontSize: 10 }} />
                                 <Tooltip
                                     contentStyle={tt}
+                                    cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                    labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                    itemStyle={{ fontSize: 11 }}
                                     formatter={(value: number, name: string, props: { payload?: Record<string, unknown> }) => {
                                         const couleur = props.payload?.couleur;
                                         return [
@@ -1596,17 +1692,23 @@ export default function ProductionPage() {
                 if (ofsRes.status        === 'fulfilled') setCoupeOfs((ofsRes.value as { data: BreakdownRow[] }).data);
                 if (qteDepRes.status     === 'fulfilled') setCoupeQteDepartage((qteDepRes.value as { data: BreakdownRow[] }).data);
                 if (inlineEndRes.status  === 'fulfilled') {
-                    const raw = (inlineEndRes.value as { data: Record<string, unknown>[] }).data;
-                    const grouped = new Map<string, { chaine: string; inline: number; endline: number }>();
+                    const raw = (inlineEndRes.value as { data: { chaine: string; opera: string; count: number }[] }).data;
+                    const byOpera = new Map<string, Record<string, number>>();
                     for (const row of raw) {
-                        const chaine = String(row.shortname ?? row.chaine ?? '');
-                        if (!grouped.has(chaine)) grouped.set(chaine, { chaine, inline: 0, endline: 0 });
-                        const g = grouped.get(chaine)!;
-                        const count = Number(row.count ?? 0);
-                        if (row.opera === 'inline') g.inline += count;
-                        else if (row.opera === 'endline') g.endline += count;
+                        if (!byOpera.has(row.opera)) byOpera.set(row.opera, {});
+                        const chainMap = byOpera.get(row.opera)!;
+                        chainMap[row.chaine] = (chainMap[row.chaine] ?? 0) + row.count;
                     }
-                    setInlineEndlineData([...grouped.values()]);
+                    const chains = [...new Set(raw.map((r) => r.chaine))];
+                    const operaKeys = [...byOpera.keys()];
+                    const chartData = chains.map((ch) => {
+                        const row: Record<string, string | number> = { chaine: ch };
+                        for (const op of operaKeys) {
+                            row[op] = byOpera.get(op)?.[ch] ?? 0;
+                        }
+                        return row;
+                    });
+                    setInlineEndlineData(chartData as BreakdownRow[]);
                 }
             } else if (activeTab === 'serigraphie') {
                 const seriCovRes    = nextResult();

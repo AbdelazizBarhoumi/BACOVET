@@ -29,7 +29,11 @@ import {
 const tooltipStyle = {
     backgroundColor: 'var(--card)',
     border: '1px solid var(--border)',
+    borderRadius: 8,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    padding: '8px 12px',
     fontSize: 12,
+    fontFamily: 'var(--font-mono)',
 };
 
 const KPI_META: Record<string, { label: string; fReq: string }> = {
@@ -131,7 +135,7 @@ function KpiCard({
 
     return (
         <div
-            className="relative flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card p-4 cursor-pointer transition-all hover:ring-2 hover:ring-primary/30"
+            className={`relative flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card p-4 cursor-pointer transition-all hover:ring-2 hover:ring-primary/30 ${status === 'red' || status === 'orange' ? 'animate-flash-alert' : ''}`}
             onClick={onClick}
         >
             <div className={`absolute top-0 left-0 h-full w-1 ${barColor}`} />
@@ -308,7 +312,12 @@ export default function DevPage() {
                                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                                     <XAxis dataKey="mois" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
                                     <YAxis domain={[92, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
-                                    <Tooltip contentStyle={tooltipStyle} />
+                                    <Tooltip
+                                        contentStyle={tooltipStyle}
+                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                        labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                        itemStyle={{ fontSize: 11 }}
+                                    />
                                     <ReferenceLine y={98} stroke="var(--success)" strokeDasharray="4 4" />
                                     <Line type="monotone" dataKey="valeur" stroke="var(--primary)" strokeWidth={2} dot={{ r: 2 }} />
                                 </LineChart>
@@ -374,7 +383,12 @@ export default function DevPage() {
                                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                                     <XAxis dataKey="mois" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
                                     <YAxis domain={[80, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
-                                    <Tooltip contentStyle={tooltipStyle} />
+                                    <Tooltip
+                                        contentStyle={tooltipStyle}
+                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                        labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                        itemStyle={{ fontSize: 11 }}
+                                    />
                                     <ReferenceLine y={95} stroke="var(--success)" strokeDasharray="4 4" label={{ value: 'Cible 95%', fill: 'var(--success)', fontSize: 10 }} />
                                     <Line type="monotone" dataKey="valeur" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} name="RFT %" />
                                 </LineChart>
@@ -394,7 +408,12 @@ export default function DevPage() {
                                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                                     <XAxis dataKey="mois" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
                                     <YAxis domain={[80, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
-                                    <Tooltip contentStyle={tooltipStyle} />
+                                    <Tooltip
+                                        contentStyle={tooltipStyle}
+                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                        labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                        itemStyle={{ fontSize: 11 }}
+                                    />
                                     <ReferenceLine y={95} stroke="var(--success)" strokeDasharray="4 4" label={{ value: 'Cible 95%', fill: 'var(--success)', fontSize: 10 }} />
                                     <Line type="monotone" dataKey="valeur" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} name="Livraison %" />
                                 </LineChart>

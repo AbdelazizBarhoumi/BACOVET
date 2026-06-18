@@ -85,7 +85,6 @@ export type QualityKpis = {
     br_accessoires_dda: KpiCard;
     br_compo_jour: KpiCard;
     br_compo_dda: KpiCard;
-    br_commande: KpiCard;
     synced_at: string | null;
 };
 
@@ -125,7 +124,6 @@ export type QpTeamsResponse = {
     best: QpTeam[];
     worst: QpTeam[];
     is_partial: boolean;
-    missing_blockers: string[];
 };
 
 export type Alert = {
@@ -138,6 +136,10 @@ export type AnnualTrendItem = {
     month: string;
     rft: number | null;
     br_gtd: number | null;
+    br_print: number | null;
+    br_care_label: number | null;
+    br_accessoires: number | null;
+    br_compo: number | null;
 };
 
 export type ParetoItem = {

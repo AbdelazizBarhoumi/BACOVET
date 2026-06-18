@@ -100,8 +100,6 @@ class ProductionController extends Controller
             $fb = $fabrication->get($of);
             $bpd = $fb?->dt_debut ?? $w->bpd ?? 'N/A';
             $epd = $fb?->dt_fin ?? $w->epd ?? 'N/A';
-
-            // Resolve Designation via stock table (Novacity source)
             $designation = $stock->get($article) ?? 'N/A';
             if ($designation === 'N/A') {
                 $articleSuffix = substr($article, strpos($article, '-') + 1);
@@ -118,9 +116,9 @@ class ProductionController extends Controller
             $sot = $gproArt?->sot_min ?? 'N/A';
             $effectif = $gproArt?->effectif_requis ?? $gproPlan?->objectif_journalier ?? 'N/A';
 
-            // EHD from GPRO of_dates
+            // EHD from GPRO of_dates, fallback to wip_chaine
             $ofDates = $gproOfDates->get($of)?->first();
-            $ehd = $ofDates?->ehd ?? 'N/A';
+            $ehd = $ofDates?->ehd ?? $w->ehd ?? 'N/A';
 
             if ($sam === 'N/A') $missingFields[] = 'SAM (F-REQ-211)';
             if ($sot === 'N/A') $missingFields[] = 'SOT (F-REQ-212)';
@@ -173,28 +171,20 @@ class ProductionController extends Controller
             DB::raw('SUM(heures_prod) as total_prod')
         )->first();
 
-        // 2. RFT Production
-        // Note: pieces_ok_jour and pieces_produites_jour don't have chaine/atelier usually,
-        // but we apply filters just in case they are expanded later.
-        $piecesOkQuery = DB::table('pieces_ok_jour')->whereDate('date', $today);
-        $this->applyFilters($piecesOkQuery, $request);
-        $piecesOkJour = $piecesOkQuery->first();
-
-        $piecesProdQuery = DB::table('pieces_produites_jour')->whereDate('date', $today);
-        $this->applyFilters($piecesProdQuery, $request);
-        $piecesProduiteJour = $piecesProdQuery->first();
+        // 2. RFT Production — global daily totals, not per-chain (no atelier filter)
+        $piecesOkJour = DB::table('pieces_ok_jour')->whereDate('date', $today)->first();
+        $piecesProduiteJour = DB::table('pieces_produites_jour')->whereDate('date', $today)->first();
 
         $rftJour = $this->kpi->computeRft($piecesOkJour?->first_pass_today, $piecesProduiteJour?->produced_today);
 
         // 3. BR GTD (Card 2 proxy)
         $brGtdJour = $this->computeBrGtdJour($today, $request);
 
-        // 4. BR Bundling
-        $bundlingQuery = DB::table('rejets_inspection_paquet')
+        // 4. BR Bundling — global daily total, no per-chain filter
+        $bundlingRow = DB::table('rejets_inspection_paquet')
             ->whereDate('date', $today)
-            ->where('period', 'jour');
-        $this->applyFilters($bundlingQuery, $request);
-        $bundlingRow = $bundlingQuery->first();
+            ->where('period', 'jour')
+            ->first();
         $brBundling = null;
         if ($bundlingRow && $bundlingRow->bundle_inspected > 0) {
             $brBundling = round(($bundlingRow->bundle_reject / $bundlingRow->bundle_inspected) * 100, 1);
@@ -384,25 +374,27 @@ class ProductionController extends Controller
     {
         $startOfMonth = Carbon::now()->startOfMonth();
 
-        $prodQuery = DB::table('minutes_produites')->where('date', '>=', $startOfMonth);
-        $this->applyFilters($prodQuery, $request);
-        $prod = $prodQuery->select('date', DB::raw('SUM(minutes_produites) as total_prod'))
-            ->groupBy('date')->get()->keyBy('date');
+        $query = DB::table('qte_produit_individuel_jour as q')
+            ->leftJoin('minutes_presence as p', function ($join) {
+                $join->on('q.employee_id', '=', 'p.employee_id')
+                    ->on('q.date', '=', 'p.date');
+            })
+            ->whereDate('q.date', '>=', $startOfMonth);
 
-        $presQuery = DB::table('minutes_presence')->where('date', '>=', $startOfMonth);
-        $this->applyFilters($presQuery, $request);
-        $pres = $presQuery->select('date', DB::raw('SUM(minutes_presence) as total_pres'))
-            ->groupBy('date')->get()->keyBy('date');
+        $this->applyFilters($query, $request, 'q.date', 'q.chaine');
 
-        $data = $prod->keys()->merge($pres->keys())->unique()->sort()->map(function ($date) use ($prod, $pres) {
-            $p = $prod->get($date);
-            $presVal = $pres->get($date);
-
-            return [
-                'jour' => substr($date, 5),
-                'eff' => $presVal && $presVal->total_pres > 0 ? round((($p?->total_prod ?? 0) / $presVal->total_pres) * 100, 1) : 0,
-            ];
-        })->values();
+        $data = $query->select(
+            'q.date',
+            DB::raw('SUM(q.minutes_produites) as total_prod'),
+            DB::raw('SUM(IFNULL(p.minutes_presence, q.minutes_presence)) as total_pres')
+        )
+            ->groupBy('q.date')
+            ->orderBy('q.date')
+            ->get()
+            ->map(fn ($row) => [
+                'jour' => substr($row->date, 5),
+                'eff' => $row->total_pres > 0 ? round(($row->total_prod / $row->total_pres) * 100, 1) : 0,
+            ]);
 
         return response()->json(['data' => $data]);
     }
@@ -560,8 +552,303 @@ class ProductionController extends Controller
                     'chaine' => $r->chaine,
                     'value' => (float) $r->value,
                     'status' => $this->kpi->efficienceStatus($r->value),
-                    'ecart' => round($r->value - 85, 1), // 85% target
+                    'ecart' => round($r->value - 85, 1),
                 ]);
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => $data,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-204: OWE per chain ──────────────────────────────────────
+        if ($kpiKey === 'owe_chaine') {
+            $query = DB::table('efficience_chaine')
+                ->whereDate('date', $today);
+            $this->applyFilters($query, $request);
+
+            $currentOfs = DB::table('qte_depart_chaine_article_of')
+                ->select('article')->distinct()->pluck('article');
+
+            $gproQuery = DB::table('sync_gpro_article_master')
+                ->where('sam_min', '>', 0);
+            if ($currentOfs->isNotEmpty()) {
+                $gproQuery->whereIn('code_article', $currentOfs);
+            }
+            $gproArts = $gproQuery->get()->keyBy('code_article');
+            $avgSam = $gproArts->avg('sam_min');
+            $avgSot = $gproArts->avg('sot_min');
+
+            $data = $query->select('chaine', 'efficience_pct')
+                ->get()
+                ->map(function ($r) use ($avgSam, $avgSot) {
+                    $owe = ($avgSam > 0) ? round(($r->efficience_pct * $avgSot) / $avgSam, 1) : null;
+                    return [
+                        'chaine' => $r->chaine,
+                        'value' => $owe,
+                        'status' => $owe !== null ? $this->kpi->oweStatus($owe) : 'grey',
+                        'ecart' => $owe !== null ? round($owe - 70, 1) : null,
+                    ];
+                });
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => $data,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-205: WIP per chain ──────────────────────────────────────
+        if ($kpiKey === 'wip_chaine') {
+            $query = DB::table('wip_chaine');
+            $this->applyFilters($query, $request);
+
+            $target = self::DEFAULT_CADENCE / 2;
+
+            $data = $query->select('chaine', 'en_cours')
+                ->get()
+                ->map(function ($r) use ($target) {
+                    $wip = (int) $r->en_cours;
+                    $status = $wip <= $target ? 'green' : ($wip <= $target * 2 ? 'orange' : 'red');
+                    return [
+                        'chaine' => $r->chaine,
+                        'value' => $wip,
+                        'status' => $status,
+                        'ecart' => $wip - $target,
+                    ];
+                });
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => $data,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-207: Arrêts non planifiés (timeline) ────────────────────
+        if ($kpiKey === 'arrets_non_planifies') {
+            $query = DB::table('lost_time')->whereDate('date', $today);
+            $this->applyFilters($query, $request);
+
+            $data = $query->get()->map(fn ($r, $i) => [
+                'chaine' => $r->chaine,
+                'motif' => $r->motif,
+                'duration' => $r->minutes_perdues / 60,
+                'start' => 8 + ($i * 0.5),
+                'minutes_perdues' => (int) $r->minutes_perdues,
+            ]);
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => $data,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-102: BR GTD ────────────────────────────────────────────
+        if ($kpiKey === 'br_gtd') {
+            $query = DB::table('check_pass_qte')
+                ->whereDate('log_date', $today);
+            $this->applyFilters($query, $request, 'log_date', 'shortname');
+
+            $data = $query->select('shortname as chaine', 'defect_pct as value')
+                ->get()
+                ->map(fn ($r) => [
+                    'chaine' => $r->chaine,
+                    'value' => round((float) $r->value, 1),
+                    'status' => $this->kpi->brStatus($r->value),
+                    'ecart' => round((float) $r->value - 5, 1),
+                ]);
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => $data,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-106: BR Bundling ────────────────────────────────────────
+        if ($kpiKey === 'br_bundling') {
+            $query = DB::table('rejets_inspection_paquet')
+                ->whereDate('date', $today)
+                ->where('period', 'jour');
+            $this->applyFilters($query, $request);
+
+            $row = $query->first();
+            $br = null;
+            if ($row && $row->bundle_inspected > 0) {
+                $br = round(($row->bundle_reject / $row->bundle_inspected) * 100, 1);
+            }
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => [[
+                    'chaine' => 'Global',
+                    'value' => $br,
+                    'status' => $br !== null ? $this->kpi->brStatus($br) : 'grey',
+                    'ecart' => $br !== null ? round($br - 5, 1) : null,
+                ]],
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-108: BR Print ───────────────────────────────────────────
+        if ($kpiKey === 'br_print') {
+            $row = DB::table('sync_drive_br_print')
+                ->whereDate('date', $today)
+                ->first();
+
+            $br = null;
+            if ($row && $row->nb_inspections > 0) {
+                $br = round(($row->nb_rejets / $row->nb_inspections) * 100, 1);
+            }
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => [[
+                    'chaine' => 'Global',
+                    'value' => $br,
+                    'status' => $br !== null ? $this->kpi->brStatus($br) : 'grey',
+                    'ecart' => $br !== null ? round($br - 5, 1) : null,
+                ]],
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-104: RFT Production ─────────────────────────────────────
+        if ($kpiKey === 'rft_production') {
+            $piecesOk = DB::table('pieces_ok_jour')->whereDate('date', $today)->first();
+            $piecesProd = DB::table('pieces_produites_jour')->whereDate('date', $today)->first();
+            $rft = $this->kpi->computeRft($piecesOk?->first_pass_today, $piecesProd?->produced_today);
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => [[
+                    'chaine' => 'Global',
+                    'value' => $rft,
+                    'status' => $this->kpi->rftStatus($rft),
+                    'ecart' => $rft !== null ? round($rft - 98, 1) : null,
+                ]],
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-216: Taux Archivage per chain ──────────────────────────
+        if ($kpiKey === 'taux_archivage') {
+            $rows = DB::table('sync_gpro_suivi_paquets')
+                ->where('est_solde', true)
+                ->get();
+
+            $grouped = $rows->groupBy('chaine');
+
+            $data = $grouped->map(function ($items, $ch) {
+                $total = $items->count();
+                $archived = $items->where('est_archive', true)->count();
+                $pct = $total > 0 ? round(($archived / $total) * 100, 1) : null;
+                return [
+                    'chaine' => $ch,
+                    'value' => $pct,
+                    'status' => $pct !== null ? ($pct >= 85 ? 'green' : ($pct >= 70 ? 'orange' : 'red')) : 'grey',
+                    'ecart' => $pct !== null ? round($pct - 85, 1) : null,
+                ];
+            })->values();
+
+            if ($data->isEmpty()) {
+                $total = $rows->count();
+                $archived = $rows->where('est_archive', true)->count();
+                $pct = $total > 0 ? round(($archived / $total) * 100, 1) : null;
+                $data = collect([[
+                    'chaine' => 'Global',
+                    'value' => $pct,
+                    'status' => $pct !== null ? ($pct >= 85 ? 'green' : ($pct >= 70 ? 'orange' : 'red')) : 'grey',
+                    'ecart' => $pct !== null ? round($pct - 85, 1) : null,
+                ]]);
+            }
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => $data,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-218: Respect Temps Estimé per chain ────────────────────
+        if ($kpiKey === 'respect_temps_estime') {
+            $rows = DB::table('sync_drive_cotation')->get();
+
+            $grouped = $rows->groupBy(fn ($r) => $r->chaine ?? 'Global');
+
+            $data = $grouped->map(function ($items, $ch) {
+                $total = $items->count();
+                $respected = $items->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
+                $pct = $total > 0 ? round(($respected / $total) * 100, 1) : null;
+                return [
+                    'chaine' => $ch,
+                    'value' => $pct,
+                    'status' => $pct !== null ? ($pct >= 90 ? 'green' : ($pct >= 80 ? 'orange' : 'red')) : 'grey',
+                    'ecart' => $pct !== null ? round($pct - 90, 1) : null,
+                ];
+            })->values();
+
+            if ($data->isEmpty()) {
+                $total = $rows->count();
+                $respected = $rows->filter(fn ($r) => $r->temps_cotation_min <= $r->temps_production_min)->count();
+                $pct = $total > 0 ? round(($respected / $total) * 100, 1) : null;
+                $data = collect([[
+                    'chaine' => 'Global',
+                    'value' => $pct,
+                    'status' => $pct !== null ? ($pct >= 90 ? 'green' : ($pct >= 80 ? 'orange' : 'red')) : 'grey',
+                    'ecart' => $pct !== null ? round($pct - 90, 1) : null,
+                ]]);
+            }
+
+            return response()->json([
+                'kpi_key' => $kpiKey,
+                'period' => 'jour',
+                'rows' => $data,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        // ── F-REQ-219: Temps Acceptés per chain ──────────────────────────
+        if ($kpiKey === 'temps_acceptes') {
+            $rows = DB::table('sync_drive_gammes')->get();
+
+            $grouped = $rows->groupBy(fn ($r) => $r->chaine ?? 'Global');
+
+            $data = $grouped->map(function ($items, $ch) {
+                $total = $items->sum('nb_gammes_total');
+                $accepted = $items->sum('nb_gammes_acceptees_v1');
+                $pct = $total > 0 ? round(($accepted / $total) * 100, 1) : null;
+                return [
+                    'chaine' => $ch,
+                    'value' => $pct,
+                    'status' => $pct !== null ? ($pct >= 80 ? 'green' : ($pct >= 60 ? 'orange' : 'red')) : 'grey',
+                    'ecart' => $pct !== null ? round($pct - 80, 1) : null,
+                ];
+            })->values();
+
+            if ($data->isEmpty()) {
+                $total = $rows->sum('nb_gammes_total');
+                $accepted = $rows->sum('nb_gammes_acceptees_v1');
+                $pct = $total > 0 ? round(($accepted / $total) * 100, 1) : null;
+                $data = collect([[
+                    'chaine' => 'Global',
+                    'value' => $pct,
+                    'status' => $pct !== null ? ($pct >= 80 ? 'green' : ($pct >= 60 ? 'orange' : 'red')) : 'grey',
+                    'ecart' => $pct !== null ? round($pct - 80, 1) : null,
+                ]]);
+            }
 
             return response()->json([
                 'kpi_key' => $kpiKey,
@@ -580,25 +867,29 @@ class ProductionController extends Controller
 
     public function inlineEndline(Request $request): JsonResponse
     {
+        $today = Carbon::today();
+
         $rows = DB::table('inline_vs_endline_comparison')
-            ->whereDate('log_date', Carbon::today())
+            ->whereDate('log_date', $today)
             ->get();
 
-        $grouped = [];
-        foreach ($rows as $row) {
-            $chaine = $row->shortname;
-            if (!isset($grouped[$chaine])) {
-                $grouped[$chaine] = ['chaine' => $chaine, 'inline' => 0, 'endline' => 0];
-            }
-            $opera = strtolower(trim($row->opera));
-            if ($opera === 'inline') {
-                $grouped[$chaine]['inline'] += $row->count;
-            } elseif ($opera === 'endline') {
-                $grouped[$chaine]['endline'] += $row->count;
+        if ($rows->isEmpty()) {
+            $latestDate = DB::table('inline_vs_endline_comparison')
+                ->max('log_date');
+            if ($latestDate) {
+                $rows = DB::table('inline_vs_endline_comparison')
+                    ->whereDate('log_date', $latestDate)
+                    ->get();
             }
         }
 
-        return response()->json(['data' => array_values($grouped)]);
+        $data = $rows->map(fn ($r) => [
+            'chaine' => $r->shortname,
+            'opera' => $r->opera,
+            'count' => (int) ($r->count ?? 1),
+        ])->values();
+
+        return response()->json(['data' => $data]);
     }
 
     // ── COUPE ────────────────────────────────────────────────────────────
@@ -643,21 +934,26 @@ class ProductionController extends Controller
         $this->applyFilters($planQuery, $request);
         $plan = $planQuery->select('chaine', DB::raw('SUM(quantite) as qte'))->groupBy('chaine')->get()->keyBy('chaine');
 
-        $data = $eng->map(function ($e, $ch) use ($plan) {
-            $p = $plan->get($ch)?->qte ?? 0;
-            // Read cadence from GPRO chain planning if available
+        $allChains = $eng->keys()->merge($plan->keys())->unique();
+
+        $data = $allChains->map(function ($ch) use ($eng, $plan) {
+            $engQte = (int) ($eng->get($ch)?->qte ?? 0);
+            $planQte = (int) ($plan->get($ch)?->qte ?? 0);
+
             $gproPlan = DB::table('sync_gpro_chain_planning')
                 ->where('chaine', $ch)
                 ->latest('synced_at')
                 ->first();
             $cadence = $gproPlan?->cadence_hebdo ?? self::DEFAULT_CADENCE_HEBDO;
 
-            $diff = max(0, $e->qte - $p);
+            $diff = max(0, $engQte - $planQte);
             $jours = $cadence > 0 ? round($diff / $cadence, 1) : 0;
 
             return [
                 'chaine' => $ch,
                 'value' => $jours,
+                'engagement' => $engQte,
+                'planifie' => $planQte,
             ];
         })->values();
 
@@ -709,7 +1005,8 @@ class ProductionController extends Controller
             ->whereDate('q.date', Carbon::today())
             ->where(function ($q) use ($posteId, $posteAlt) {
                 $q->where('q.poste', $posteId)
-                    ->orWhere('q.poste', $posteAlt);
+                    ->orWhere('q.poste', $posteAlt)
+                    ->orWhereNull('q.poste');
             });
 
         $this->applyFilters($query, $request, 'q.date', 'q.chaine');

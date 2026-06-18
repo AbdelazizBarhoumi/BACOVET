@@ -44,6 +44,7 @@ export function BigNumberCard({
     source,
     trend,
     freq,
+    isLoading,
     onClick,
 }: {
     label: string;
@@ -55,10 +56,21 @@ export function BigNumberCard({
     trend?: 'up' | 'down' | 'flat';
     freq?: string;
     isLoading?: boolean;
-    error?: string | null;
     onClick?: () => void;
 }) {
-    // ... keep isLoading and error branches unchanged ...
+    if (isLoading) {
+        return (
+            <div className="relative h-full animate-pulse overflow-hidden rounded-lg border border-border bg-card p-4">
+                <div className="absolute top-0 left-0 h-full w-1 bg-muted" />
+                <div className="mb-2 h-3 w-24 rounded bg-muted" />
+                <div className="mb-2 h-8 w-20 rounded bg-muted" />
+                <div className="mt-auto">
+                    <div className="mt-2 h-3 w-16 rounded bg-muted" />
+                    <div className="mt-1 h-2 w-28 rounded bg-muted" />
+                </div>
+            </div>
+        );
+    }
 
     const bar =
         status === 'green'

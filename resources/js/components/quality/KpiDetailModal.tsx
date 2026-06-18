@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import type {
     QualityKpis,
     KpiCard as KpiCardType,
-    BrChartItem,
     AnnualTrendItem,
 } from '@/services/qualityApi';
 import { KPI_DETAIL_CONFIG, type KpiKey } from './kpiDetailConfig';
@@ -13,7 +12,6 @@ import { KPI_DETAIL_CONFIG, type KpiKey } from './kpiDetailConfig';
 interface KpiDetailModalProps {
     kpiKey: KpiKey | null;
     kpiData: QualityKpis | null;
-    brChartData: BrChartItem[];
     trendData: AnnualTrendItem[];
     onClose: () => void;
 }
@@ -41,19 +39,6 @@ function statusBorder(status: string) {
             return 'border-l-red-500';
         default:
             return 'border-l-gray-400';
-    }
-}
-
-function statusDot(status: string) {
-    switch (status) {
-        case 'green':
-            return 'bg-green-500';
-        case 'orange':
-            return 'bg-orange-400';
-        case 'red':
-            return 'bg-red-500';
-        default:
-            return 'bg-gray-400';
     }
 }
 
@@ -101,78 +86,9 @@ function Sparkline({ data, status }: { data: number[]; status: string }) {
     );
 }
 
-function BrBreakdownTable({
-    brChartData,
-    target,
-}: {
-    brChartData: BrChartItem[];
-    target: number;
-}) {
-    if (brChartData.length === 0) return null;
-    const sorted = [...brChartData].sort(
-        (a, b) => (b.defect_pct ?? 0) - (a.defect_pct ?? 0),
-    );
-    const top = sorted.slice(0, 10);
-
-    return (
-        <table className="w-full font-mono text-xs">
-            <thead>
-                <tr className="border-b border-border text-[10px] tracking-wider text-muted-foreground uppercase">
-                    <th className="py-1 text-left">Étape/Chaîne</th>
-                    <th className="text-right">Valeur</th>
-                    <th className="w-16 text-center">Statut</th>
-                    <th className="text-right">Écart</th>
-                </tr>
-            </thead>
-            <tbody>
-                {top.map((item) => {
-                    const diff =
-                        item.defect_pct != null
-                            ? item.defect_pct - target
-                            : null;
-                    const diffStr =
-                        diff != null
-                            ? diff > 0
-                                ? `+${diff.toFixed(1)}`
-                                : `${diff.toFixed(1)}`
-                            : '—';
-                    const diffColor =
-                        diff != null
-                            ? diff > 0
-                                ? 'text-red-600'
-                                : 'text-green-600'
-                            : 'text-muted-foreground';
-                    return (
-                        <tr
-                            key={item.stage}
-                            className="border-b border-border/50"
-                        >
-                            <td className="py-1.5 font-bold">{item.stage}</td>
-                            <td className="text-right tabular-nums">
-                                {item.defect_pct != null
-                                    ? `${item.defect_pct.toFixed(1)}%`
-                                    : '—'}
-                            </td>
-                            <td className="text-center">
-                                <span
-                                    className={`inline-block h-2 w-2 rounded-full ${statusDot(item.status)}`}
-                                />
-                            </td>
-                            <td className={`text-right ${diffColor}`}>
-                                {diffStr}
-                            </td>
-                        </tr>
-                    );
-                })}
-            </tbody>
-        </table>
-    );
-}
-
 export default function KpiDetailModal({
     kpiKey,
     kpiData,
-    brChartData,
     trendData,
     onClose,
 }: KpiDetailModalProps) {
@@ -211,7 +127,6 @@ export default function KpiDetailModal({
         br_accessoires_dda: 'br_accessoires_dda',
         br_compo_jour: 'br_compo_jour',
         br_compo_dda: 'br_compo_dda',
-        br_commande: 'br_commande',
     };
 
     const card = kpiData[kpiKeyMap[kpiKey]] as KpiCardType | undefined;
@@ -226,10 +141,46 @@ export default function KpiDetailModal({
         if (e.target === overlayRef.current) onClose();
     };
 
-    const trendValues = trendData
-        .map((d) => (kpiKey.includes('rft') ? d.rft : d.br_gtd))
-        .filter((v): v is number => v !== null)
-        .slice(-7);
+    const trendValues = (() => {
+        if (!config.trendAvailable) return [];
+        if (kpiKey === 'rft_jour' || kpiKey === 'rft_annee') {
+            return trendData
+                .map((d) => d.rft)
+                .filter((v): v is number => v !== null)
+                .slice(-7);
+        }
+        if (kpiKey === 'br_gtd_jour' || kpiKey === 'br_gtd_dda') {
+            return trendData
+                .map((d) => d.br_gtd)
+                .filter((v): v is number => v !== null)
+                .slice(-7);
+        }
+        if (kpiKey === 'br_print_dda') {
+            return trendData
+                .map((d) => d.br_print)
+                .filter((v): v is number => v !== null)
+                .slice(-7);
+        }
+        if (kpiKey === 'br_care_label_dda') {
+            return trendData
+                .map((d) => d.br_care_label)
+                .filter((v): v is number => v !== null)
+                .slice(-7);
+        }
+        if (kpiKey === 'br_accessoires_dda') {
+            return trendData
+                .map((d) => d.br_accessoires)
+                .filter((v): v is number => v !== null)
+                .slice(-7);
+        }
+        if (kpiKey === 'br_compo_dda') {
+            return trendData
+                .map((d) => d.br_compo)
+                .filter((v): v is number => v !== null)
+                .slice(-7);
+        }
+        return [];
+    })();
 
     return (
         <div
@@ -399,36 +350,19 @@ export default function KpiDetailModal({
                         </div>
                     </div>
 
-                    {/* Breakdown & Viz — only show if at least one is available */}
-                    {isLive && (config.breakdownAvailable || config.trendAvailable) && (
-                        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-                            {config.breakdownAvailable && (
-                                <div className="md:col-span-2">
-                                    <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                        Ventilation par étape
-                                    </h4>
+                    {/* Trend — only show if available */}
+                    {isLive && config.trendAvailable && trendValues.length >= 2 && (
+                        <div className="mb-6">
+                            <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                Tendance
+                            </h4>
 
-                                    <BrBreakdownTable
-                                        brChartData={brChartData}
-                                        target={config.target.value}
-                                    />
-                                </div>
-                            )}
-
-                            {config.trendAvailable && trendValues.length >= 2 && (
-                                <div className="border-l border-border pl-6">
-                                    <h4 className="mb-2 text-center text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                        Tendance
-                                    </h4>
-
-                                    <div className="flex h-full min-h-[100px] items-center justify-center">
-                                        <Sparkline
-                                            data={trendValues}
-                                            status={cardStatus}
-                                        />
-                                    </div>
-                                </div>
-                            )}
+                            <div className="flex h-full min-h-[100px] items-center justify-center">
+                                <Sparkline
+                                    data={trendValues}
+                                    status={cardStatus}
+                                />
+                            </div>
                         </div>
                     )}
 

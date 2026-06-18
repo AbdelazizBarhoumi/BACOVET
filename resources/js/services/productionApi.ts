@@ -168,11 +168,10 @@ export const fetchProductionWip = (filters?: Record<string, string>) =>
     apiGet<{ data: WipAreaItem[] }>('/wip', filters);
 
 import type { BreakdownData, BreakdownRow } from '../types/production';
-// ...
+
 export const fetchProductionSoProgress = (filters?: Record<string, string>) =>
     apiGet<{ data: BreakdownRow[] }>('/so-progress', filters);
 
-// ...
 export const fetchDepartage = (
     poste: string,
     filters?: Record<string, string>,
@@ -183,9 +182,6 @@ export const fetchProductionBreakdown = (
     filters?: Record<string, string>,
 ) =>
     apiGet<BreakdownData>(`/breakdown/${kpiKey}`, filters);
-
-// ... existing exports
-export const fetchProductionAlerts = () => apiGet<{ alerts: BreakdownRow[] }>('/alerts');
 
 export const fetchCoupeCoverage = (filters?: Record<string, string>) =>
     apiGet<{ value: number | null; status: string; unit?: string; delta_pcs?: number }>('/coupe/coverage', filters);

@@ -44,7 +44,11 @@ import {
 const tooltipStyle = {
     backgroundColor: 'var(--card)',
     border: '1px solid var(--border)',
+    borderRadius: 8,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    padding: '8px 12px',
     fontSize: 12,
+    fontFamily: 'var(--font-mono)',
 };
 
 function barFill(status: KpiStatus): string {
@@ -116,7 +120,6 @@ function KpiCard({
     kpi: {
         value: number | null;
         status: KpiStatus;
-        blocker?: string | null;
         source?: string;
     };
     unit?: string;
@@ -131,47 +134,9 @@ function KpiCard({
         return <KpiCardSkeleton />;
     }
 
-    if (kpi.status === 'pending' || kpi.status === 'inactive') {
-        const msg =
-            kpi.blocker === 'B-02'
-                ? 'En attente API DIVA'
-                : kpi.blocker === 'B-01'
-                  ? 'Activation requise (B-01)'
-                  : kpi.source === 'google_drive'
-                    ? 'Source: Google Drive — Données mises à jour 4×/jour'
-                    : 'Données indisponibles';
-        return (
-            <div
-                className={`relative flex h-full flex-col justify-center overflow-hidden rounded-lg border border-border bg-card p-4 ${onClick ? 'cursor-pointer transition-all hover:ring-2 hover:ring-primary/30' : ''}`}
-                onClick={onClick}
-            >
-                <div className="absolute top-0 left-0 h-full w-1 bg-status-grey" />
-                <div className="mb-2 font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
-                    {label}
-                </div>
-                <div className="mb-1 font-mono text-2xl font-bold text-muted-foreground tabular-nums">
-                    —
-                </div>
-                <div className="font-mono text-[10px] text-muted-foreground/70">
-                    {msg}
-                </div>
-                {target && (
-                    <div className="mt-2 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                        Cible: {target}
-                    </div>
-                )}
-                {source && (
-                    <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/70">
-                        src: {source}
-                    </div>
-                )}
-            </div>
-        );
-    }
-
     return (
         <div
-            className={`flex h-full flex-col ${onClick ? 'cursor-pointer rounded-lg transition-all' : ''}`}
+            className={`flex h-full flex-col ${onClick ? 'cursor-pointer rounded-lg transition-all' : ''} ${kpi.status === 'red' || kpi.status === 'orange' ? 'animate-flash-alert' : ''}`}
             onClick={onClick}
         >
             <BigNumberCard
@@ -254,6 +219,56 @@ function generateAlerts(
         );
     }
 
+    const brPrint = kpis.br_print.value;
+    if (brPrint !== null) {
+        push(brPrint > 5, 'BR PRINT CRITIQUE — Dépassement du seuil', 'red');
+        push(
+            brPrint > 4 && brPrint <= 5,
+            'BR PRINT VIGILANCE — Approche du seuil',
+            'orange',
+        );
+    }
+
+    const brPrintDda = kpis.br_print_dda.value;
+    if (brPrintDda !== null) {
+        push(brPrintDda > 5, 'BR PRINT DDA CRITIQUE — Dépassement du seuil', 'red');
+        push(
+            brPrintDda > 4 && brPrintDda <= 5,
+            'BR PRINT DDA VIGILANCE — Approche du seuil',
+            'orange',
+        );
+    }
+
+    const brCareLabel = kpis.br_care_label_jour.value;
+    if (brCareLabel !== null) {
+        push(brCareLabel > 5, 'BR CARE LABEL CRITIQUE — Dépassement du seuil', 'red');
+        push(
+            brCareLabel > 4 && brCareLabel <= 5,
+            'BR CARE LABEL VIGILANCE — Approche du seuil',
+            'orange',
+        );
+    }
+
+    const brAccessoires = kpis.br_accessoires_jour.value;
+    if (brAccessoires !== null) {
+        push(brAccessoires > 5, 'BR ACCESSOIRES CRITIQUE — Dépassement du seuil', 'red');
+        push(
+            brAccessoires > 4 && brAccessoires <= 5,
+            'BR ACCESSOIRES VIGILANCE — Approche du seuil',
+            'orange',
+        );
+    }
+
+    const brCompo = kpis.br_compo_jour.value;
+    if (brCompo !== null) {
+        push(brCompo > 5, 'BR COMPO CRITIQUE — Dépassement du seuil', 'red');
+        push(
+            brCompo > 4 && brCompo <= 5,
+            'BR COMPO VIGILANCE — Approche du seuil',
+            'orange',
+        );
+    }
+
     // Check stages from brChart — only alert on stages with actual data
     brChart.forEach((item) => {
         if (item.defect_pct !== null) {
@@ -290,11 +305,9 @@ export default function QualityPage() {
     const [qpTeams, setQpTeams] = useState<{
         best: PodiumTeam[];
         worst: PodiumTeam[];
-        is_partial: boolean;
     }>({
         best: [],
         worst: [],
-        is_partial: true,
     });
     const [trend, setTrend] = useState<AnnualTrendItem[]>([]);
     const [paretoRft, setParetoRft] = useState<ParetoItem[]>([]);
@@ -347,7 +360,6 @@ export default function QualityPage() {
                 setQpTeams({
                     best: t.best.map((team, i) => mapTeam(team, i + 1)),
                     worst: t.worst.map((team, i) => mapTeam(team, i + 1)),
-                    is_partial: t.is_partial,
                 });
             }
             if (trendRes.status === 'fulfilled') setTrend(trendRes.value.data);
@@ -469,11 +481,6 @@ export default function QualityPage() {
                   valeur: kpis.br_compo_dda.value ?? '—',
                   cible: '≤ 5%',
               },
-              {
-                  kpi: 'BR Commande (DDA)',
-                  valeur: kpis.br_commande.value ?? '—',
-                  cible: '≤ 5%',
-              },
               ...brChart.map((s) => ({
                   kpi: `BR ${s.stage}`,
                   valeur: s.defect_pct ?? '—',
@@ -507,7 +514,7 @@ export default function QualityPage() {
                         label="BR CGL (DDA)"
                         kpi={kpis?.br_cgl ?? { value: null, status: 'grey' }}
                         target="≤ 5%"
-                        source="DIVA"
+                        source="Google Drive"
                         onClick={() => setOpenModal('br_cgl')}
                         isLoading={loading}
                     />
@@ -609,6 +616,9 @@ export default function QualityPage() {
                         target="≤ 5%"
                         source="Google Drive"
                         onClick={() => setOpenModal('br_print_dda')}
+                        trend={trend
+                            .map((d) => d.br_print)
+                            .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
                     <KpiCard
@@ -691,19 +701,6 @@ export default function QualityPage() {
                         onClick={() => setOpenModal('br_compo_dda')}
                         isLoading={loading}
                     />
-                    <KpiCard
-                        label="BR Commande (DDA)"
-                        kpi={
-                            kpis?.br_commande ?? {
-                                value: null,
-                                status: 'grey',
-                            }
-                        }
-                        target="≤ 5%"
-                        source="Google Drive"
-                        onClick={() => setOpenModal('br_commande')}
-                        isLoading={loading}
-                    />
                 </div>
 
                 {/* Section B — BR Bar Chart + Alerts */}
@@ -747,6 +744,17 @@ export default function QualityPage() {
                                     />
                                     <Tooltip
                                         contentStyle={tooltipStyle}
+                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                        labelStyle={{
+                                            color: 'var(--foreground)',
+                                            fontWeight: 700,
+                                            fontSize: 11,
+                                            marginBottom: 4,
+                                        }}
+                                        itemStyle={{
+                                            color: 'var(--muted-foreground)',
+                                            fontSize: 11,
+                                        }}
                                         formatter={(
                                             value: unknown,
                                             _name: string,
@@ -754,11 +762,17 @@ export default function QualityPage() {
                                         ) => {
                                             const original =
                                                 props.payload?.defect_pct;
+                                            const status = props.payload?.status;
+                                            const color =
+                                                status === 'green' ? 'var(--success)' :
+                                                status === 'orange' ? 'var(--warning)' :
+                                                status === 'red' ? 'var(--destructive)' :
+                                                'var(--muted-foreground)';
                                             return [
                                                 original != null
                                                     ? `${original}%`
-                                                    : 'Données non disponibles',
-                                                'BR',
+                                                    : 'N/A',
+                                                `BR`,
                                             ];
                                         }}
                                     />
@@ -829,18 +843,13 @@ export default function QualityPage() {
                         variant="best"
                         isLoading={loading}
                     />
-                    <QpTeamPodium
-                        title="Équipe à Améliorer"
-                        teams={qpTeams.worst}
-                        variant="worst"
-                        isLoading={loading}
-                    />
+                <QpTeamPodium
+                    title="Équipe à Améliorer"
+                    teams={qpTeams.worst}
+                    variant="worst"
+                    isLoading={loading}
+                />
                 </div>
-                {qpTeams.is_partial && (
-                    <div className="-mt-2 mb-4 text-center font-mono text-[10px] text-muted-foreground">
-                        Score partiel — données DIVA + DRIVE en attente
-                    </div>
-                )}
 
                 {/* Section D — Pareto Tabs */}
                 <Panel title="Pareto des défauts">
@@ -856,13 +865,13 @@ export default function QualityPage() {
                                 value="colis"
                                 className="text-xs tracking-wider uppercase"
                             >
-                                Pareto Inspection Colis
+                                Pareto Inspection AQL
                             </TabsTrigger>
                             <TabsTrigger
                                 value="fg"
                                 className="text-xs tracking-wider uppercase"
                             >
-                                Pareto FG (Colis)
+                                Pareto Défauts FG
                             </TabsTrigger>
                         </TabsList>
                         <TabsContent value="rft">
@@ -898,7 +907,12 @@ export default function QualityPage() {
                                                 fontSize: 11,
                                             }}
                                         />
-                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Tooltip
+                                            contentStyle={tooltipStyle}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
                                         <Legend
                                             wrapperStyle={{ fontSize: 11 }}
                                         />
@@ -959,7 +973,12 @@ export default function QualityPage() {
                                                 fontSize: 11,
                                             }}
                                         />
-                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Tooltip
+                                            contentStyle={tooltipStyle}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
                                         <Legend
                                             wrapperStyle={{ fontSize: 11 }}
                                         />
@@ -1015,7 +1034,12 @@ export default function QualityPage() {
                                                 fontSize: 11,
                                             }}
                                         />
-                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Tooltip
+                                            contentStyle={tooltipStyle}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
                                         <Legend
                                             wrapperStyle={{ fontSize: 11 }}
                                         />
@@ -1067,8 +1091,7 @@ export default function QualityPage() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                    <th className="py-2 text-left">KPI ID</th>
-                                    <th className="text-left">Indicateur</th>
+                                    <th className="py-2 text-left">Indicateur</th>
                                     <th className="text-right">Valeur</th>
                                     <th className="text-right">Cible</th>
                                     <th className="text-right">Statut</th>
@@ -1078,13 +1101,11 @@ export default function QualityPage() {
                                 {[
                                     [
                                         'BR CGL (DDA)',
-                                        'BR CGL (DDA)',
                                         kpis.br_cgl.value,
                                         '≤ 5%',
                                         kpis.br_cgl.status,
                                     ],
                                     [
-                                        'BR GTD (jour)',
                                         'BR GTD (jour)',
                                         kpis.br_gtd_jour.value,
                                         '≤ 5%',
@@ -1092,13 +1113,11 @@ export default function QualityPage() {
                                     ],
                                     [
                                         'BR GTD DDA (année)',
-                                        'BR GTD DDA (année)',
                                         kpis.br_gtd_annee.value,
                                         '≤ 5%',
                                         kpis.br_gtd_annee.status,
                                     ],
                                     [
-                                        'RFT Prod (jour)',
                                         'RFT Prod (jour)',
                                         kpis.rft_jour.value,
                                         '≥ 98%',
@@ -1106,13 +1125,11 @@ export default function QualityPage() {
                                     ],
                                     [
                                         'RFT DDA (année)',
-                                        'RFT DDA (année)',
                                         kpis.rft_annee.value,
                                         '≥ 98%',
                                         kpis.rft_annee.status,
                                     ],
                                     [
-                                        'BR Bundling (jour)',
                                         'BR Bundling (jour)',
                                         kpis.br_bundling_jour.value,
                                         '≤ 5%',
@@ -1120,13 +1137,11 @@ export default function QualityPage() {
                                     ],
                                     [
                                         'BR Bundling DDA',
-                                        'BR Bundling DDA',
                                         kpis.br_bundling_annee.value,
                                         '≤ 5%',
                                         kpis.br_bundling_annee.status,
                                     ],
                                     [
-                                        'BR Print (jour)',
                                         'BR Print (jour)',
                                         kpis.br_print.value,
                                         '≤ 5%',
@@ -1134,13 +1149,11 @@ export default function QualityPage() {
                                     ],
                                     [
                                         'BR Print DDA',
-                                        'BR Print DDA',
                                         kpis.br_print_dda.value,
                                         '≤ 5%',
                                         kpis.br_print_dda.status,
                                     ],
                                     [
-                                        'BR Care Label (jour)',
                                         'BR Care Label (jour)',
                                         kpis.br_care_label_jour.value,
                                         '≤ 5%',
@@ -1148,13 +1161,11 @@ export default function QualityPage() {
                                     ],
                                     [
                                         'BR Care Label DDA',
-                                        'BR Care Label DDA',
                                         kpis.br_care_label_dda.value,
                                         '≤ 5%',
                                         kpis.br_care_label_dda.status,
                                     ],
                                     [
-                                        'BR Accessoires (jour)',
                                         'BR Accessoires (jour)',
                                         kpis.br_accessoires_jour.value,
                                         '≤ 5%',
@@ -1162,13 +1173,11 @@ export default function QualityPage() {
                                     ],
                                     [
                                         'BR Accessoires DDA',
-                                        'BR Accessoires DDA',
                                         kpis.br_accessoires_dda.value,
                                         '≤ 5%',
                                         kpis.br_accessoires_dda.status,
                                     ],
                                     [
-                                        'BR Compo (jour)',
                                         'BR Compo (jour)',
                                         kpis.br_compo_jour.value,
                                         '≤ 5%',
@@ -1176,17 +1185,9 @@ export default function QualityPage() {
                                     ],
                                     [
                                         'BR Compo DDA',
-                                        'BR Compo DDA',
                                         kpis.br_compo_dda.value,
                                         '≤ 5%',
                                         kpis.br_compo_dda.status,
-                                    ],
-                                    [
-                                        'BR Commande (DDA)',
-                                        'BR Commande (DDA)',
-                                        kpis.br_commande.value,
-                                        '≤ 5%',
-                                        kpis.br_commande.status,
                                     ],
                                 ].map((r, i) => (
                                     <tr
@@ -1196,26 +1197,21 @@ export default function QualityPage() {
                                         <td className="py-2 text-primary">
                                             {r[0] as string}
                                         </td>
-                                        <td>{r[1] as string}</td>
                                         <td className="text-right tabular-nums">
-                                            {r[2] != null
-                                                ? `${(r[2] as number).toFixed(1)}%`
+                                            {r[1] != null
+                                                ? `${(r[1] as number).toFixed(1)}%`
                                                 : '—'}
                                         </td>
                                         <td className="text-right text-muted-foreground">
-                                            {r[3] as string}
+                                            {r[2] as string}
                                         </td>
                                         <td className="text-right">
                                             <TrafficBadge
                                                 status={
-                                                    r[4] === 'inactive' ||
-                                                    r[4] === 'pending' ||
-                                                    r[4] === 'grey'
-                                                        ? 'grey'
-                                                        : (r[4] as
-                                                              | 'green'
-                                                              | 'orange'
-                                                              | 'red')
+                                                    (r[3] as
+                                                          | 'green'
+                                                          | 'orange'
+                                                          | 'red')
                                                 }
                                             />
                                         </td>
@@ -1237,7 +1233,6 @@ export default function QualityPage() {
                 <KpiDetailModal
                     kpiKey={openModal}
                     kpiData={kpis}
-                    brChartData={brChart}
                     trendData={trend}
                     onClose={() => setOpenModal(null)}
                 />

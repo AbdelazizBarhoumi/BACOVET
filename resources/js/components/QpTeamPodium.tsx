@@ -19,9 +19,7 @@ export interface QpTeamPodiumProps {
     title: string;
     teams: QpTeam[];
     variant: 'best' | 'worst';
-    maxScore?: number;
     isLoading?: boolean;
-    error?: string | null;
 }
 
 const TrophySvg = ({
@@ -270,9 +268,7 @@ const QpTeamPodium = ({
     title,
     teams,
     variant,
-    maxScore,
     isLoading,
-    error,
 }: QpTeamPodiumProps) => {
     if (isLoading) {
         return (
@@ -287,7 +283,7 @@ const QpTeamPodium = ({
         );
     }
 
-    if (error || !teams || teams.length === 0) {
+    if (!teams || teams.length === 0) {
         return (
             <Card className="flex h-[340px] flex-col items-center justify-center border-dashed bg-secondary/20 p-5 text-center">
                 <AlertCircle className="mb-3 h-8 w-8 text-muted-foreground" />
@@ -295,11 +291,8 @@ const QpTeamPodium = ({
                     {title}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                    Données DIVA + DRIVE requises
+                    Aucune donnée disponible
                 </p>
-                {error && (
-                    <p className="mt-2 text-[10px] text-destructive">{error}</p>
-                )}
             </Card>
         );
     }
@@ -323,7 +316,7 @@ const QpTeamPodium = ({
         },
     }[variant];
 
-    const effectiveMax = maxScore || first?.max_score || 4;
+    const effectiveMax = first?.max_score || 4;
 
     return (
         <Card className="flex h-[360px] flex-col p-5 shadow-sm">

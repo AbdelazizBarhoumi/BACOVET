@@ -38,7 +38,7 @@ export interface ProductionKpiDetailConfig {
         multiplier?: number;
         operator?: 'subtraction' | 'ratio' | 'comparison';
         resultUnit: string;
-        type?: 'raw value' | 'categorical' | 'comparison';
+        type?: 'raw value' | 'categorical' | 'comparison' | 'computed';
         field?: string;
         field_a?: string;
         field_b?: string;
@@ -59,7 +59,7 @@ export interface ProductionKpiDetailConfig {
         novacityEndpoint: string | null;
         mysqlTable: string | null;
         frequency: string;
-        status: 'live' | 'pending' | 'inactive' | 'google_drive';
+        status: 'live' | 'pending' | 'inactive' | 'google_drive' | 'blocked';
     };
     view: 'confection' | 'coupe' | 'serigraphie' | 'all';
     breakdownType:
@@ -792,20 +792,21 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     },
     br_gtd: {
         kpiKey: 'br_gtd',
-        id: 'F-REQ-107',
+        id: 'F-REQ-102',
         label: "BR GTD (Aujourd'hui)",
-        description: 'Bon à Retirer - GTD',
+        description:
+            "Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production × 100 (ce jour : jour en cours).",
         formula: {
             type: 'raw value',
             field: 'br_gtd',
             resultUnit: '%',
-            numerator: { label: 'BR GTD', field: 'br_gtd' },
-            denominator: { label: 'N/A', field: 'N/A' },
+            numerator: { label: 'Nombre de rejets contrôle', field: 'nb_rejets' },
+            denominator: { label: 'Nombre de contrôles', field: 'nb_controles' },
         },
         target: { value: 5, operator: '≤' },
         thresholds: { green: '≤ 5%', orange: '5% – 10%', red: '> 10%' },
         source: {
-            system: 'Quality',
+            system: 'DIVA / GPRO',
             novacityEndpoint: null,
             mysqlTable: 'check_pass_qte',
             frequency: 'Instantané',
@@ -820,7 +821,8 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         kpiKey: 'br_bundling',
         id: 'F-REQ-106',
         label: 'BR Bundling',
-        description: 'Bon à Retirer - Bundling',
+        description:
+            "Nombre de rejet suite inspection Paquet / Nombre d'inspection Paquet × 100 (ce jour : jour en cours).",
         formula: {
             type: 'raw value',
             field: 'br_bundling',
@@ -831,7 +833,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         target: { value: 5, operator: '≤' },
         thresholds: { green: '≤ 5%', orange: '5% – 10%', red: '> 10%' },
         source: {
-            system: 'Quality',
+            system: 'GPRO Prod',
             novacityEndpoint: null,
             mysqlTable: 'rejets_inspection_paquet',
             frequency: 'Instantané',
@@ -846,7 +848,8 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         kpiKey: 'br_print',
         id: 'F-REQ-108',
         label: "BR Print (Aujourd'hui)",
-        description: 'Bon à Retirer - Print',
+        description:
+            "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (ce jour : jour en cours).",
         formula: {
             type: 'raw value',
             field: 'br_print',

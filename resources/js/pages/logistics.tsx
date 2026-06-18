@@ -100,7 +100,11 @@ function TableSkeleton({ rows = 5 }: { rows?: number }) {
 const tt = {
     backgroundColor: 'var(--card)',
     border: '1px solid var(--border)',
+    borderRadius: 8,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    padding: '8px 12px',
     fontSize: 12,
+    fontFamily: 'var(--font-mono)',
 };
 const PIE_COLORS = [
     'var(--chart-1)',
@@ -237,41 +241,49 @@ export default function LogisticsPage() {
                         </>
                     ) : (
                         <>
-                            <BigNumberCard
-                                label="DOT ·334"
-                                value={kpis?.dot?.value ?? '—'}
-                                target="≥ 95%"
-                                status={toStatus(kpis?.dot?.status)}
-                                source={kpis?.dot?.source ?? 'GPRO Planning'}
-                                onClick={() => setOpenModal('dot')}
-                            />
-                            <BigNumberCard
-                                label="HOT ·335"
-                                value={kpis?.hot?.value ?? '—'}
-                                target="≥ 95%"
-                                status={toStatus(kpis?.hot?.status)}
-                                source={kpis?.hot?.source ?? 'GPRO Planning'}
-                                onClick={() => setOpenModal('hot')}
-                            />
-                            <BigNumberCard
-                                label="Respect Planification ·336"
-                                value={kpis?.respect_plan?.value ?? '—'}
-                                target="≥ 95%"
-                                status={toStatus(kpis?.respect_plan?.status)}
-                                source={
-                                    kpis?.respect_plan?.source ?? 'qte_produite'
-                                }
-                                onClick={() => setOpenModal('respect_plan')}
-                            />
-                            <BigNumberCard
-                                label="Lead Time Global ·337"
-                                value={kpis?.lead_time?.value ?? '—'}
-                                unit="j"
-                                target="32 j"
-                                status={toStatus(kpis?.lead_time?.status) ?? 'green' as const}
-                                source="STRH + LT Transport"
-                                onClick={() => setOpenModal('lead_time')}
-                            />
+                            <div className={toStatus(kpis?.dot?.status) === 'red' || toStatus(kpis?.dot?.status) === 'orange' ? 'animate-flash-alert' : ''}>
+                                <BigNumberCard
+                                    label="DOT ·334"
+                                    value={kpis?.dot?.value ?? '—'}
+                                    target="≥ 95%"
+                                    status={toStatus(kpis?.dot?.status)}
+                                    source={kpis?.dot?.source ?? 'GPRO Planning'}
+                                    onClick={() => setOpenModal('dot')}
+                                />
+                            </div>
+                            <div className={toStatus(kpis?.hot?.status) === 'red' || toStatus(kpis?.hot?.status) === 'orange' ? 'animate-flash-alert' : ''}>
+                                <BigNumberCard
+                                    label="HOT ·335"
+                                    value={kpis?.hot?.value ?? '—'}
+                                    target="≥ 95%"
+                                    status={toStatus(kpis?.hot?.status)}
+                                    source={kpis?.hot?.source ?? 'GPRO Planning'}
+                                    onClick={() => setOpenModal('hot')}
+                                />
+                            </div>
+                            <div className={toStatus(kpis?.respect_plan?.status) === 'red' || toStatus(kpis?.respect_plan?.status) === 'orange' ? 'animate-flash-alert' : ''}>
+                                <BigNumberCard
+                                    label="Respect Planification ·336"
+                                    value={kpis?.respect_plan?.value ?? '—'}
+                                    target="≥ 95%"
+                                    status={toStatus(kpis?.respect_plan?.status)}
+                                    source={
+                                        kpis?.respect_plan?.source ?? 'qte_produite'
+                                    }
+                                    onClick={() => setOpenModal('respect_plan')}
+                                />
+                            </div>
+                            <div className={toStatus(kpis?.lead_time?.status) === 'red' || toStatus(kpis?.lead_time?.status) === 'orange' ? 'animate-flash-alert' : ''}>
+                                <BigNumberCard
+                                    label="Lead Time Global ·337"
+                                    value={kpis?.lead_time?.value ?? '—'}
+                                    unit="j"
+                                    target="32 j"
+                                    status={toStatus(kpis?.lead_time?.status) ?? 'green' as const}
+                                    source="STRH + LT Transport"
+                                    onClick={() => setOpenModal('lead_time')}
+                                />
+                            </div>
                         </>
                     )}
                 </div>
@@ -442,9 +454,26 @@ export default function LogisticsPage() {
                                                         />
                                                     ))}
                                                 </Pie>
-                                                <Tooltip contentStyle={tt} />
+                                                <Tooltip
+                                                    contentStyle={tt}
+                                                    cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                                    labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                                    itemStyle={{ fontSize: 11 }}
+                                                />
                                                 <Legend
-                                                    wrapperStyle={{ fontSize: 10 }}
+                                                    content={({ payload }) => (
+                                                        <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 pt-1">
+                                                            {payload?.map((entry, i) => (
+                                                                <div key={i} className="flex items-center gap-1 font-mono text-[10px] text-foreground/80">
+                                                                    <span
+                                                                        className="inline-block h-2 w-2 rounded-full"
+                                                                        style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                                                                    />
+                                                                    {entry.value}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 />
                                             </PieChart>
                                         </ResponsiveContainer>

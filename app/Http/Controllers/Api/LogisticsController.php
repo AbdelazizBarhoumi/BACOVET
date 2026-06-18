@@ -18,48 +18,64 @@ class LogisticsController extends Controller
     {
         $today = Carbon::today();
 
-        // Respect Planification — BLOCKED: F-REQ-312 (objectif par chaîne) missing
-        // Cannot compute correctly without per-chain daily objectives
-        // Previous formula was wrong: summed ALL chains/shifts against a single constant
-        $respectPlan = null;
+        // F-REQ-334 — DOT: % OFs livrés (transfert coupe total / total)
+        $ofsLivres = DB::table('nombre_ofs_livres')->orderByDesc('synced_at')->first();
+        $totalOfs = $ofsLivres?->nb_of_livres_total ?? 0;
+        $transfertTotal = $ofsLivres?->of_avec_transfert_coupe_total ?? 0;
+        $dotPct = $totalOfs > 0 ? round(($transfertTotal / $totalOfs) * 100, 1) : null;
 
-        // Lead Time — configurable constant (STRH + LT Transport)
-        $leadTime = 32; // jours
+        // F-REQ-335 — HOT: % OFs avec transfert coupe Jemmel / total
+        $transfertJemmel = $ofsLivres?->of_avec_transfert_coupe_jemmel ?? 0;
+        $hotPct = $totalOfs > 0 ? round(($transfertJemmel / $totalOfs) * 100, 1) : null;
+
+        // F-REQ-336 — Respect Planification: % chaînes atteignant objectif journalier
+        $gproPlan = DB::table('sync_gpro_chain_planning')->get()->keyBy('chaine');
+        $todayProd = DB::table('qte_produite')->whereDate('date', $today)
+            ->select('chaine', DB::raw('SUM(quantite) as total_qte'))
+            ->groupBy('chaine')->get()->keyBy('chaine');
+
+        $chainsWithObjective = $gproPlan->filter(fn ($p) => ($p->objectif_journalier ?? 0) > 0);
+        $chainsRespecting = 0;
+        $chainsTotal = $chainsWithObjective->count();
+
+        foreach ($chainsWithObjective as $ch => $plan) {
+            $actual = $todayProd->get($ch)?->total_qte ?? 0;
+            if ($actual >= $plan->objectif_journalier) {
+                $chainsRespecting++;
+            }
+        }
+        $respectPlanPct = $chainsTotal > 0 ? round(($chainsRespecting / $chainsTotal) * 100, 1) : null;
+
+        // F-REQ-337 — Lead Time: configurable constant
+        $leadTime = 32;
+
+        $statusFor = fn ($pct, $target) => $pct === null ? 'grey' : ($pct >= $target ? 'green' : ($pct >= $target - 5 ? 'orange' : 'red'));
 
         return response()->json([
-            // F-REQ-334 — DOT: GPRO Planning not connected (B-04) → grey placeholder
             'dot' => [
-                'value' => null,
-                'status' => 'pending',
-                'source' => 'GPRO Planning',
-                'blocker' => 'B-04',
-                'note' => 'Données GPRO Planning en attente de connexion',
+                'value' => $dotPct,
+                'status' => $statusFor($dotPct, 95),
+                'source' => 'nombre_ofs_livres',
+                'raw' => ['total' => $totalOfs, 'livres' => $transfertTotal],
             ],
-            // F-REQ-335 — HOT: GPRO Planning not connected (B-04) → grey placeholder
             'hot' => [
-                'value' => null,
-                'status' => 'pending',
-                'source' => 'GPRO Planning',
-                'blocker' => 'B-04',
-                'note' => 'Données GPRO Planning en attente de connexion',
+                'value' => $hotPct,
+                'status' => $statusFor($hotPct, 95),
+                'source' => 'nombre_ofs_livres',
+                'raw' => ['total' => $totalOfs, 'jemmel' => $transfertJemmel],
             ],
-            // F-REQ-336 — Respect Planification: PENDING — F-REQ-312 (objectif par chaîne) not available
             'respect_plan' => [
-                'value' => null,
-                'status' => 'pending',
-                'source' => 'GPRO Consulting',
-                'blocker' => 'B-04',
-                'note' => 'Objectif journalier par chaîne requis (F-REQ-312) — sans cette donnée, le calcul par chaîne est impossible. L\'ancienne formule globale (qtéToday/1000) produisait des résultats erronés (ex: 33598%).',
+                'value' => $respectPlanPct,
+                'status' => $statusFor($respectPlanPct, 95),
+                'source' => 'sync_gpro_chain_planning + qte_produite',
+                'raw' => ['respecting' => $chainsRespecting, 'total' => $chainsTotal],
             ],
-            // F-REQ-337 — Lead Time Global: configurable constant
             'lead_time' => [
                 'value' => $leadTime,
                 'status' => 'green',
                 'unit' => 'j',
                 'source' => 'Configurable',
-                'note' => 'STRH + LT Transport — constante configurable',
             ],
-            // Export alert: no live data source → placeholder
             'next_export' => null,
             'synced_at' => DB::table('qte_produite')->orderByDesc('synced_at')->value('synced_at'),
         ]);
@@ -137,19 +153,36 @@ class LogisticsController extends Controller
         $provenance = DB::table('quantite_par_provenance')
             ->whereNotNull('provenance')
             ->orderByDesc('quantite')
-            ->get(['provenance as name', 'quantite as value', 'nb_articles'])
+            ->get()
+            ->map(fn ($r) => [
+                'name' => $r->provenance,
+                'value' => (float) $r->quantite,
+                'nb_articles' => (int) ($r->nb_articles ?? 0),
+            ])
+            ->values()
             ->toArray();
 
         $famille = DB::table('quantite_par_famille')
             ->whereNotNull('famille_fg')
             ->orderByDesc('quantite')
-            ->get(['famille_fg as name', 'quantite as value'])
+            ->get()
+            ->map(fn ($r) => [
+                'name' => $r->famille_fg,
+                'value' => (float) $r->quantite,
+            ])
+            ->values()
             ->toArray();
 
         $typologie = DB::table('quantite_par_typologie')
             ->whereNotNull('typologie')
             ->orderByDesc('quantite')
-            ->get(['typologie as name', 'quantite as value', 'nb_articles'])
+            ->get()
+            ->map(fn ($r) => [
+                'name' => $r->typologie,
+                'value' => (float) $r->quantite,
+                'nb_articles' => (int) ($r->nb_articles ?? 0),
+            ])
+            ->values()
             ->toArray();
 
         return response()->json([
@@ -488,15 +521,16 @@ class LogisticsController extends Controller
             ->get(['typologie', 'quantite']);
 
         $categoryKeywords = [
-            'accessoires' => ['Accessoire', 'Accessoires', 'Bouton', 'Fermeture', 'Etiquette', 'Autre accessoire', 'Boutonniere', 'Elastique', 'Cordon', 'Cordelette', 'Dessous de bras'],
-            'tissu' => ['Tissu', 'Tissu Jersey', 'Tissu Poly', 'Tissu Coton', 'Tissu Nylon', 'Toile'],
-            'fg' => ['Article fini', 'FG', 'Produit fini', 'Emballage', 'Coque'],
+            'accessoires' => ['accessoir', 'anneau', 'elastique', 'cordon', 'antiglise', 'billet', 'cientre', 'hangtag', 'bouton', 'fermeture', 'etiquette', 'boutonniere', 'zip', 'pression', 'oeil', 'velcro', 'cordelette', 'dessous'],
+            'tissu' => ['tissu', 'toile', 'jersey', 'poly', 'coton', 'nylon', 'maille', 'doublure', 'ponge', 'tissu jersey', 'tissu poly', 'tissu coton', 'tissu nylon'],
+            'fg' => ['coque', 'emballage', 'carton', 'sachet', 'etiquette finie', 'ruban', 'article fini', 'fg', 'produit fini'],
         ];
 
         $categories = [];
         foreach ($categoryKeywords as $key => $keywords) {
             $catQty = $typologieData
-                ->filter(fn ($row) => in_array($row->typologie, $keywords))
+                ->filter(fn ($row) => in_array(strtolower($row->typologie), $keywords)
+                    || collect($keywords)->some(fn ($kw) => str_contains(strtolower($row->typologie), $kw)))
                 ->sum('quantite');
 
             $catStatus = 'grey';
@@ -507,6 +541,10 @@ class LogisticsController extends Controller
                 $catReliability = $reliability;
                 $catStatus = $reliability >= 99.5 ? 'green' : ($reliability >= 98 ? 'orange' : 'red');
                 $catNote = number_format($catQty, 0, ',', ' ').' unités — Comptage physique requis pour valeurs exactes';
+            } elseif ($key === 'tissu' && $reliability !== null) {
+                $catReliability = $reliability;
+                $catStatus = 'orange';
+                $catNote = 'Aucun tissu en stock — fiabilité globale affichée comme proxy';
             }
 
             $categories[$key] = [
@@ -514,15 +552,21 @@ class LogisticsController extends Controller
                 'status' => $catStatus,
                 'target' => 99.5,
                 'note' => $catNote,
+                'matched_qty' => $catQty,
             ];
         }
+
+        $unmatched = $typologieData->filter(fn ($row) => !collect($categoryKeywords)->some(fn ($keywords) =>
+            in_array(strtolower($row->typologie), $keywords)
+            || collect($keywords)->some(fn ($kw) => str_contains(strtolower($row->typologie), $kw))
+        ));
 
         return response()->json([
             'global' => [
                 'value' => $reliability,
                 'status' => $status,
                 'target' => 99.5,
-                'note' => 'Proxy: (stock_total - articles_sans_mvt) / stock_total. Comptage physique requis pour valeurs exactes.',
+                'note' => 'Proxy: (stock_total - articles_sans_mvt) / stock_total.',
             ],
             'accessoires' => $categories['accessoires'],
             'tissu' => $categories['tissu'],

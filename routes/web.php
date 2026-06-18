@@ -95,6 +95,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/annual-trend', [QualityController::class, 'annualTrend']);
             Route::get('/pareto/rft', [QualityController::class, 'paretoRft']);
             Route::get('/pareto/inspection', [QualityController::class, 'paretoInspection']);
+            Route::get('/pareto/fg', [QualityController::class, 'paretoFg']);
         });
 
     // ── PRODUCTION ───────────────────────────────────────────────────────
@@ -113,6 +114,10 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/so-progress', [ProductionController::class, 'soProgress']);
             Route::get('/breakdown/{kpiKey}', [ProductionController::class, 'breakdown']);
             Route::get('/inline-endline', [ProductionController::class, 'inlineEndline']);
+            // Methods KPIs (F-REQ-216, 218, 219)
+            Route::get('/taux-archivage', [ProductionController::class, 'tauxArchivage']);
+            Route::get('/respect-temps-estime', [ProductionController::class, 'respectTempsEstime']);
+            Route::get('/taux-temps-acceptes', [ProductionController::class, 'tauxTempsAcceptes']);
             // Coupe
             Route::get('/coupe/coverage', [ProductionController::class, 'coupeCoverage']);
             Route::get('/coupe/chain-coverage', [ProductionController::class, 'coupeChainCoverage']);

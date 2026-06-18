@@ -104,7 +104,7 @@ class SyncService
             'minutes_presence' => 'minutes_presence', 'chaine' => 'chaine',
         ],
         'minutes_produites' => [
-            'date' => 'date', 'chaine' => 'chaine',
+            'employe' => 'employee_id', 'date' => 'date', 'chaine' => 'chaine',
             'minutes_produites' => 'minutes_produites',
         ],
         'temps_operation' => [
@@ -206,7 +206,7 @@ class SyncService
         'qte_produite' => ['date', 'chaine', 'shift_code'],
         'qte_produit_individuel_jour' => ['date', 'employee_id', 'chaine', 'poste'],
         'minutes_presence' => ['date', 'employee_id', 'chaine'],
-        'minutes_produites' => ['date', 'chaine'],
+        'minutes_produites' => ['date', 'employee_id', 'chaine'],
         'temps_operation' => ['date', 'operation_code', 'chaine'],
         'item_trx_enq' => ['transaction_id'],
         'of_fabrication' => ['of_number'],
@@ -502,6 +502,13 @@ class SyncService
                             }
                             if (isset($mapped['nb_of_consideres']) && is_string($mapped['nb_of_consideres'])) {
                                 $mapped['nb_of_consideres'] = (int) $mapped['nb_of_consideres'];
+                            }
+                        }
+                        if (str_starts_with($table, 'quantite_par_') || $table === 'quantite_totale_stock') {
+                            foreach (['quantite', 'nb_articles', 'stock_moyen', 'nb_lignes_stock'] as $numField) {
+                                if (isset($mapped[$numField]) && is_string($mapped[$numField])) {
+                                    $mapped[$numField] = (float) $mapped[$numField];
+                                }
                             }
                         }
 

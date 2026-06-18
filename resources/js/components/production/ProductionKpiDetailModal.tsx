@@ -28,7 +28,6 @@ interface ProductionKpiDetailModalProps {
         respectTempsEstime?: { value: number | null; status: string; target: number } | null;
         tauxTempsAcceptes?: { value: number | null; status: string; target: number } | null;
     } | null;
-    trendData?: BreakdownRow[];
     breakdownData?: BreakdownData | null;
     onClose: () => void;
 }
@@ -205,7 +204,7 @@ function DonutViz({ value, status }: { value: number; status: string }) {
                         endAngle={-270}
                     >
                         <Cell fill={color} />
-                        <Cell fill="var(--muted)" />
+                        <Cell fill="var(--muted-foreground)" />
                     </Pie>
                 </PieChart>
             </ResponsiveContainer>
@@ -383,6 +382,34 @@ function BreakdownTable({
                 </table>
             );
         }
+        case 'timeline': {
+            return (
+                <div className="space-y-2 font-mono text-xs">
+                    {rows.map((item, i) => (
+                        <div
+                            key={i}
+                            className="flex items-center justify-between border-b border-border/50 py-1.5"
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="w-8 font-bold text-primary">
+                                    {String(item.chaine)}
+                                </span>
+                                <span className="text-muted-foreground">
+                                    {String(item.motif)}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="tabular-nums">
+                                    {item.minutes_perdues ?? item.duration
+                                        ? `${Math.round(Number(item.minutes_perdues ?? (Number(item.duration) * 60)))} min`
+                                        : '—'}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
         default:
             return null;
     }
@@ -421,6 +448,16 @@ export default function ProductionKpiDetailModal({
         });
         return null;
     }
+
+    const seriesNum = parseInt(config.id.replace('F-REQ-', ''));
+    const series =
+        seriesNum < 200
+            ? 'Série 100 — Performance Qualité'
+            : seriesNum < 300
+              ? 'Série 200 — Performance Production & Flux'
+              : seriesNum < 350
+                ? 'Série 300 — Logistique & Planning'
+                : 'Série 350 — Développement';
 
     // Find the KPI card in the response.
     // Map our kpiKey to what's in the ProductionKpis response
@@ -489,7 +526,7 @@ export default function ProductionKpiDetailModal({
                                 {config.id}
                             </span>
                             <span className="font-mono text-[10px] text-muted-foreground uppercase">
-                                Série 200/300 — Performance Production
+                                {series}
                             </span>
                         </div>
                         <h2 className="text-sm font-bold tracking-wider text-foreground uppercase">
@@ -630,12 +667,14 @@ export default function ProductionKpiDetailModal({
                                     </span>{' '}
                                     {config.source.system}
                                 </div>
-                                <div className="truncate">
-                                    <span className="text-muted-foreground">
-                                        Source:
-                                    </span>{' '}
-                                    {config.source.novacityEndpoint || config.source.mysqlTable || 'N/A'}
-                                </div>
+                                {(config.source.novacityEndpoint || config.source.mysqlTable) && (
+                                    <div className="truncate">
+                                        <span className="text-muted-foreground">
+                                            Source:
+                                        </span>{' '}
+                                        {config.source.novacityEndpoint || config.source.mysqlTable}
+                                    </div>
+                                )}
                                 <div>
                                     <span className="text-muted-foreground">
                                         Fréquence:
@@ -656,50 +695,54 @@ export default function ProductionKpiDetailModal({
                         </div>
                     </div>
 
-                    {/* Breakdown & Viz */}
-                    {isLive && (
+                    {/* Breakdown & Viz — hide entirely when both are 'none' */}
+                    {(config.breakdownType !== 'none' || config.miniVizType !== 'none') && (
                         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-                            <div className="md:col-span-2">
-                                <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                    Ventilation
-                                </h4>
-                                <BreakdownTable
-                                    type={config.breakdownType}
-                                    rows={breakdownData?.rows || []}
-                                    target={config.target.value}
-                                />
-                            </div>
-                            <div className="border-l border-border pl-6">
-                                <h4 className="mb-2 text-center text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                    Visualisation
-                                </h4>
-                                <div className="flex h-full min-h-[100px] items-center justify-center">
-                                    {config.miniVizType === 'gauge' && (
-                                        <GaugeViz
-                                            value={Number(card.value) || 0}
-                                            status={cardStatus}
-                                        />
-                                    )}
-                                    {config.miniVizType === 'sparkline' && (
-                                        <SparklineViz
-                                            data={breakdownData?.trend || []}
-                                            status={cardStatus}
-                                        />
-                                    )}
-                                    {config.miniVizType === 'donut' && (
-                                        <DonutViz
-                                            value={Number(card.value) || 0}
-                                            status={cardStatus}
-                                        />
-                                    )}
-                                    {config.miniVizType ===
-                                        'horizontal_bar' && (
-                                        <HorizontalBarViz
-                                            data={breakdownData?.rows || []}
-                                        />
-                                    )}
+                            {config.breakdownType !== 'none' && (
+                                <div className={config.miniVizType !== 'none' ? 'md:col-span-2' : 'md:col-span-3'}>
+                                    <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                        Ventilation
+                                    </h4>
+                                    <BreakdownTable
+                                        type={config.breakdownType}
+                                        rows={breakdownData?.rows || []}
+                                        target={config.target.value}
+                                    />
                                 </div>
-                            </div>
+                            )}
+                            {config.miniVizType !== 'none' && (
+                                <div className={config.breakdownType !== 'none' ? 'border-l border-border pl-6' : ''}>
+                                    <h4 className="mb-2 text-center text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                        Visualisation
+                                    </h4>
+                                    <div className="flex h-full min-h-[100px] items-center justify-center">
+                                        {config.miniVizType === 'gauge' && (
+                                            <GaugeViz
+                                                value={Number(card.value) || 0}
+                                                status={cardStatus}
+                                            />
+                                        )}
+                                        {config.miniVizType === 'sparkline' && (
+                                            <SparklineViz
+                                                data={breakdownData?.trend || []}
+                                                status={cardStatus}
+                                            />
+                                        )}
+                                        {config.miniVizType === 'donut' && (
+                                            <DonutViz
+                                                value={Number(card.value) || 0}
+                                                status={cardStatus}
+                                            />
+                                        )}
+                                        {config.miniVizType ===
+                                            'horizontal_bar' && (
+                                            <HorizontalBarViz
+                                                data={breakdownData?.rows || []}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

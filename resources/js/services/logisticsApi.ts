@@ -224,12 +224,3 @@ export const fetchLogisticsStockSearch = (params?: Record<string, string>) =>
     apiGet<StockSearchResult>('/stock-search', params);
 export const fetchLogisticsStockReliability = () =>
     apiGet<StockReliability>('/stock-reliability');
-
-export type DotHotTrendItem = {
-    month: string;
-    type: string;
-    pct: number | null;
-};
-
-export const fetchLogisticsDotHotTrend = () =>
-    apiGet<{ data: DotHotTrendItem[] }>('/dot-hot-trend');
