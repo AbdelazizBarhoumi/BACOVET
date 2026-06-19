@@ -1,15 +1,9 @@
 /.phpunit.cache
-/bootstrap/ssr
 /node_modules
-/public/build
 /public/hot
 /public/storage
 /storage/*.key
 /storage/pail
-/resources/js/actions
-/resources/js/routes
-/resources/js/wayfinder
-/vendor
 .DS_Store
 .env
 .env.backup
@@ -26,6 +20,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-novacity-mock/node_modules
-gpro-consulting-mock/node_modules
-google-drive-mock/node_modules
+novacity-mock
+gpro-consulting-mock
+google-drive-mock

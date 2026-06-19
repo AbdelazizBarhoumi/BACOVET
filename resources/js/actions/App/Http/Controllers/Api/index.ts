@@ -1,0 +1,24 @@
+import NovacityProxyController from './NovacityProxyController'
+import AuthController from './AuthController'
+import AdminController from './AdminController'
+import DataSnapshotController from './DataSnapshotController'
+import QualityController from './QualityController'
+import ProductionController from './ProductionController'
+import LogisticsController from './LogisticsController'
+import MethodesController from './MethodesController'
+import DevelopmentController from './DevelopmentController'
+import FilterController from './FilterController'
+const Api = {
+    NovacityProxyController: Object.assign(NovacityProxyController, NovacityProxyController),
+AuthController: Object.assign(AuthController, AuthController),
+AdminController: Object.assign(AdminController, AdminController),
+DataSnapshotController: Object.assign(DataSnapshotController, DataSnapshotController),
+QualityController: Object.assign(QualityController, QualityController),
+ProductionController: Object.assign(ProductionController, ProductionController),
+LogisticsController: Object.assign(LogisticsController, LogisticsController),
+MethodesController: Object.assign(MethodesController, MethodesController),
+DevelopmentController: Object.assign(DevelopmentController, DevelopmentController),
+FilterController: Object.assign(FilterController, FilterController),
+}
+
+export default Api

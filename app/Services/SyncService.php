@@ -252,6 +252,7 @@ class SyncService
     private function syncBundlingData(): void
     {
         $start = microtime(true);
+        $historyEnabled = config('sync.history_enabled');
         try {
             $today = now()->toDateString();
 
@@ -288,16 +289,21 @@ class SyncService
 
             $status = $jourActive || $anneeActive ? 'ok' : 'inactive';
             $this->updateJobStatus('rejets_inspection_paquet', $status, 2, microtime(true) - $start);
-            SyncLog::record('syncBundlingData', 'rejets_inspection_paquet', 2, $status === 'inactive' ? 'skipped' : 'ok', $status === 'inactive' ? 'B-01 queries inactive' : null, (int) ((microtime(true) - $start) * 1000));
 
-            if (! $jourActive && ! $anneeActive) {
-                AuditLog::warn('Sync rejets_inspection_paquet — queries INACTIVE (B-01), placeholders inserted');
-            } else {
-                AuditLog::info('Sync rejets_inspection_paquet réussie — 2 enregistrements');
+            if ($historyEnabled) {
+                SyncLog::record('syncBundlingData', 'rejets_inspection_paquet', 2, $status === 'inactive' ? 'skipped' : 'ok', $status === 'inactive' ? 'B-01 queries inactive' : null, (int) ((microtime(true) - $start) * 1000));
+
+                if (! $jourActive && ! $anneeActive) {
+                    AuditLog::warn('Sync rejets_inspection_paquet — queries INACTIVE (B-01), placeholders inserted');
+                } else {
+                    AuditLog::info('Sync rejets_inspection_paquet réussie — 2 enregistrements');
+                }
             }
         } catch (\Throwable $e) {
             $this->updateJobStatus('rejets_inspection_paquet', 'error', 0, 0, $e->getMessage());
-            AuditLog::error("Sync rejets_inspection_paquet échouée — {$e->getMessage()}");
+            if ($historyEnabled) {
+                AuditLog::error("Sync rejets_inspection_paquet échouée — {$e->getMessage()}");
+            }
             Log::error("SyncService [rejets_inspection_paquet]: {$e->getMessage()}");
         }
     }
@@ -440,6 +446,7 @@ class SyncService
     private function syncTable(string $table, callable $fetcher): void
     {
         $start = microtime(true);
+        $historyEnabled = config('sync.history_enabled');
         try {
             $rows = $fetcher();
             if (! empty($rows)) {
@@ -447,7 +454,7 @@ class SyncService
                 $upsertKeys = self::UPSERT_CONFIGS[$table] ?? null;
                 $hasAtelier = Schema::hasColumn($table, 'atelier');
 
-                if ($upsertKeys === null) {
+                if (! $historyEnabled || $upsertKeys === null) {
                     DB::table($table)->truncate();
                 }
 
@@ -609,7 +616,7 @@ class SyncService
                         return $mapped;
                     }, $chunk);
 
-                    if ($upsertKeys !== null) {
+                    if ($upsertKeys !== null && $historyEnabled) {
                         // Use upsert to preserve history
                         DB::table($table)->upsert($insert, $upsertKeys);
                     } else {
@@ -618,12 +625,16 @@ class SyncService
                 }
             }
             $this->updateJobStatus($table, 'ok', count($rows), microtime(true) - $start);
-            AuditLog::info("Sync {$table} réussie — ".count($rows).' enregistrements');
-            SyncLog::record('syncTable', $table, count($rows), 'ok', null, (int) ((microtime(true) - $start) * 1000));
+            if ($historyEnabled) {
+                AuditLog::info("Sync {$table} réussie — ".count($rows).' enregistrements');
+                SyncLog::record('syncTable', $table, count($rows), 'ok', null, (int) ((microtime(true) - $start) * 1000));
+            }
         } catch (\Throwable $e) {
             $this->updateJobStatus($table, 'error', 0, 0, $e->getMessage());
-            AuditLog::error("Sync {$table} échouée — {$e->getMessage()}");
-            SyncLog::record('syncTable', $table, 0, 'error', $e->getMessage(), (int) ((microtime(true) - $start) * 1000));
+            if ($historyEnabled) {
+                AuditLog::error("Sync {$table} échouée — {$e->getMessage()}");
+                SyncLog::record('syncTable', $table, 0, 'error', $e->getMessage(), (int) ((microtime(true) - $start) * 1000));
+            }
             Log::error("SyncService [{$table}]: {$e->getMessage()}");
         }
     }

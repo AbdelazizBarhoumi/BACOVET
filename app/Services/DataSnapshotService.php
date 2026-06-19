@@ -13,6 +13,10 @@ class DataSnapshotService
      */
     public function snapshotTable(string $tableName): bool
     {
+        if (! config('sync.history_enabled')) {
+            return false;
+        }
+
         if (! Schema::hasTable($tableName)) {
             return false;
         }
