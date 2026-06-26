@@ -29,31 +29,31 @@ if (! function_exists('isSyncDue')) {
 }
 
 Schedule::command('sync:quality')
-    ->when(fn () => isSyncDue('quality_interval_seconds'))
+    ->when(fn () => config('sync.sources.novacity_quality') && isSyncDue('quality_interval_seconds'))
     ->everyMinute()
     ->name('sync-quality')
     ->withoutOverlapping(5);
 
 Schedule::command('sync:production')
-    ->when(fn () => isSyncDue('production_interval_seconds'))
+    ->when(fn () => config('sync.sources.novacity_production') && isSyncDue('production_interval_seconds'))
     ->everyMinute()
     ->name('sync-production')
     ->withoutOverlapping(5);
 
 Schedule::command('sync:logistics')
-    ->when(fn () => isSyncDue('logistics_interval_seconds'))
+    ->when(fn () => config('sync.sources.novacity_logistics') && isSyncDue('logistics_interval_seconds'))
     ->everyMinute()
     ->name('sync-logistics')
     ->withoutOverlapping(10);
 
 Schedule::command('sync:drive')
-    ->when(fn () => isSyncDue('drive_interval_seconds'))
+    ->when(fn () => config('sync.sources.google_drive') && isSyncDue('drive_interval_seconds'))
     ->everyMinute()
     ->name('sync-drive')
     ->withoutOverlapping(10);
 
 Schedule::command('sync:gpro')
-    ->when(fn () => isSyncDue('gpro_interval_seconds'))
+    ->when(fn () => config('sync.sources.gpro') && isSyncDue('gpro_interval_seconds'))
     ->everyMinute()
     ->name('sync-gpro')
     ->withoutOverlapping(5);
