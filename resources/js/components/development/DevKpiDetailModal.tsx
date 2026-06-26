@@ -1,6 +1,6 @@
 import { X, Info } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import type { DevelopmentKpisResponse, LeadTimeDevResponse } from '@/services/developmentApi';
+import type { DevelopmentKpisResponse } from '@/services/developmentApi';
 import {
     DEV_KPI_CONFIG,
     type DevKpiKey,
@@ -10,7 +10,6 @@ import {
 interface DevKpiDetailModalProps {
     kpiKey: DevKpiKey | null;
     kpiData: DevelopmentKpisResponse | null;
-    leadTimeData?: LeadTimeDevResponse | null;
     onClose: () => void;
 }
 
@@ -40,7 +39,6 @@ function formatValue(value: number | null, unit: string): string {
 export default function DevKpiDetailModal({
     kpiKey,
     kpiData,
-    leadTimeData,
     onClose,
 }: DevKpiDetailModalProps) {
     const overlayRef = useRef<HTMLDivElement>(null);
@@ -61,9 +59,7 @@ export default function DevKpiDetailModal({
     if (!kpiKey || !kpiData) return null;
 
     const config: DevKpiDetailConfig = DEV_KPI_CONFIG[kpiKey];
-    const kpiValue = kpiKey === 'dev_leadtime'
-        ? (leadTimeData ? { value: leadTimeData.value, target: leadTimeData.target, status: leadTimeData.status, frequency: leadTimeData.frequency, source: leadTimeData.source } : null)
-        : kpiData.kpis?.[kpiKey];
+    const kpiValue = kpiData.kpis?.[kpiKey];
     const cardStatus = kpiValue?.status ?? 'grey';
     const borderColor = statusBorder(cardStatus);
     const valueColor = statusColor(cardStatus);
@@ -117,10 +113,6 @@ export default function DevKpiDetailModal({
 
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto px-5 py-4">
-                    <p className="mb-5 text-xs text-muted-foreground">
-                        {config.description}
-                    </p>
-
                     {/* Top stat boxes */}
                     <div className="mb-6 grid grid-cols-3 gap-3">
                         <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
@@ -154,31 +146,25 @@ export default function DevKpiDetailModal({
 
                     {/* Formula & Source */}
                     <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <div>
-                            <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                Formule de calcul
-                            </h4>
-                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
-                                <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                    <div className="truncate text-[8px] opacity-70">
-                                        {config.formula.numerator.label}
+                        <div className="group/info relative">
+                            <div className="mb-2 flex items-center gap-1.5">
+                                <h4 className="text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                    Formule de calcul
+                                </h4>
+                                {config.formula.numerator.field !== '—' && config.formula.denominator.field !== '—' && (
+                                    <div className="relative">
+                                        <Info className="h-3 w-3 cursor-help text-muted-foreground/60 transition-colors hover:text-muted-foreground" />
+                                        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-md border border-border bg-card p-3 text-[10px] font-mono leading-relaxed normal-case tracking-normal text-muted-foreground shadow-lg opacity-0 transition-opacity duration-150 group-hover/info:pointer-events-auto group-hover/info:opacity-100">
+                                            <span className="font-sans text-[11px] font-bold text-foreground">Champs technique :</span>
+                                            <br />
+                                            {config.formula.numerator.field} ÷ {config.formula.denominator.field} × {config.formula.multiplier}
+                                        </div>
                                     </div>
-                                    <div className="truncate font-bold">
-                                        {config.formula.numerator.field}
-                                    </div>
-                                </div>
-                                <div className="text-muted-foreground">÷</div>
-                                <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                    <div className="truncate text-[8px] opacity-70">
-                                        {config.formula.denominator.label}
-                                    </div>
-                                    <div className="truncate font-bold">
-                                        {config.formula.denominator.field}
-                                    </div>
-                                </div>
-                                <div className="text-muted-foreground">×</div>
-                                <div className="font-bold">{config.formula.multiplier}</div>
+                                )}
                             </div>
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                                {config.description}
+                            </p>
                         </div>
                         <div>
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">

@@ -70,7 +70,7 @@ export type KpiCard = {
 };
 
 export type QualityKpis = {
-    br_cgl: KpiCard;
+    br_commande: KpiCard;
     br_gtd_jour: KpiCard;
     rft_jour: KpiCard;
     br_bundling_jour: KpiCard;
@@ -85,6 +85,8 @@ export type QualityKpis = {
     br_accessoires_dda: KpiCard;
     br_compo_jour: KpiCard;
     br_compo_dda: KpiCard;
+    br_in_jour: KpiCard;
+    br_in_dda: KpiCard;
     synced_at: string | null;
 };
 

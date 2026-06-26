@@ -79,7 +79,7 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     kpis.form = kpisForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::brChart
- * @see app/Http/Controllers/Api/QualityController.php:135
+ * @see app/Http/Controllers/Api/QualityController.php:153
  * @route '/quality/br-chart'
  */
 export const brChart = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ brChart.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::brChart
- * @see app/Http/Controllers/Api/QualityController.php:135
+ * @see app/Http/Controllers/Api/QualityController.php:153
  * @route '/quality/br-chart'
  */
 brChart.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ brChart.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::brChart
- * @see app/Http/Controllers/Api/QualityController.php:135
+ * @see app/Http/Controllers/Api/QualityController.php:153
  * @route '/quality/br-chart'
  */
 brChart.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -112,7 +112,7 @@ brChart.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::brChart
- * @see app/Http/Controllers/Api/QualityController.php:135
+ * @see app/Http/Controllers/Api/QualityController.php:153
  * @route '/quality/br-chart'
  */
 brChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -122,7 +122,7 @@ brChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::brChart
- * @see app/Http/Controllers/Api/QualityController.php:135
+ * @see app/Http/Controllers/Api/QualityController.php:153
  * @route '/quality/br-chart'
  */
     const brChartForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -132,7 +132,7 @@ brChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::brChart
- * @see app/Http/Controllers/Api/QualityController.php:135
+ * @see app/Http/Controllers/Api/QualityController.php:153
  * @route '/quality/br-chart'
  */
         brChartForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -141,7 +141,7 @@ brChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::brChart
- * @see app/Http/Controllers/Api/QualityController.php:135
+ * @see app/Http/Controllers/Api/QualityController.php:153
  * @route '/quality/br-chart'
  */
         brChartForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -157,7 +157,7 @@ brChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     brChart.form = brChartForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::defectChart
- * @see app/Http/Controllers/Api/QualityController.php:172
+ * @see app/Http/Controllers/Api/QualityController.php:190
  * @route '/quality/defect-chart'
  */
 export const defectChart = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -172,7 +172,7 @@ defectChart.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::defectChart
- * @see app/Http/Controllers/Api/QualityController.php:172
+ * @see app/Http/Controllers/Api/QualityController.php:190
  * @route '/quality/defect-chart'
  */
 defectChart.url = (options?: RouteQueryOptions) => {
@@ -181,7 +181,7 @@ defectChart.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::defectChart
- * @see app/Http/Controllers/Api/QualityController.php:172
+ * @see app/Http/Controllers/Api/QualityController.php:190
  * @route '/quality/defect-chart'
  */
 defectChart.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -190,7 +190,7 @@ defectChart.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::defectChart
- * @see app/Http/Controllers/Api/QualityController.php:172
+ * @see app/Http/Controllers/Api/QualityController.php:190
  * @route '/quality/defect-chart'
  */
 defectChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -200,7 +200,7 @@ defectChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::defectChart
- * @see app/Http/Controllers/Api/QualityController.php:172
+ * @see app/Http/Controllers/Api/QualityController.php:190
  * @route '/quality/defect-chart'
  */
     const defectChartForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -210,7 +210,7 @@ defectChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::defectChart
- * @see app/Http/Controllers/Api/QualityController.php:172
+ * @see app/Http/Controllers/Api/QualityController.php:190
  * @route '/quality/defect-chart'
  */
         defectChartForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -219,7 +219,7 @@ defectChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::defectChart
- * @see app/Http/Controllers/Api/QualityController.php:172
+ * @see app/Http/Controllers/Api/QualityController.php:190
  * @route '/quality/defect-chart'
  */
         defectChartForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -235,7 +235,7 @@ defectChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     defectChart.form = defectChartForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::qpTeams
- * @see app/Http/Controllers/Api/QualityController.php:187
+ * @see app/Http/Controllers/Api/QualityController.php:205
  * @route '/quality/qp-teams'
  */
 export const qpTeams = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -250,7 +250,7 @@ qpTeams.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::qpTeams
- * @see app/Http/Controllers/Api/QualityController.php:187
+ * @see app/Http/Controllers/Api/QualityController.php:205
  * @route '/quality/qp-teams'
  */
 qpTeams.url = (options?: RouteQueryOptions) => {
@@ -259,7 +259,7 @@ qpTeams.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::qpTeams
- * @see app/Http/Controllers/Api/QualityController.php:187
+ * @see app/Http/Controllers/Api/QualityController.php:205
  * @route '/quality/qp-teams'
  */
 qpTeams.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -268,7 +268,7 @@ qpTeams.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::qpTeams
- * @see app/Http/Controllers/Api/QualityController.php:187
+ * @see app/Http/Controllers/Api/QualityController.php:205
  * @route '/quality/qp-teams'
  */
 qpTeams.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -278,7 +278,7 @@ qpTeams.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::qpTeams
- * @see app/Http/Controllers/Api/QualityController.php:187
+ * @see app/Http/Controllers/Api/QualityController.php:205
  * @route '/quality/qp-teams'
  */
     const qpTeamsForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -288,7 +288,7 @@ qpTeams.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::qpTeams
- * @see app/Http/Controllers/Api/QualityController.php:187
+ * @see app/Http/Controllers/Api/QualityController.php:205
  * @route '/quality/qp-teams'
  */
         qpTeamsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -297,7 +297,7 @@ qpTeams.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::qpTeams
- * @see app/Http/Controllers/Api/QualityController.php:187
+ * @see app/Http/Controllers/Api/QualityController.php:205
  * @route '/quality/qp-teams'
  */
         qpTeamsForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -313,7 +313,7 @@ qpTeams.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     qpTeams.form = qpTeamsForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::alerts
- * @see app/Http/Controllers/Api/QualityController.php:260
+ * @see app/Http/Controllers/Api/QualityController.php:278
  * @route '/quality/alerts'
  */
 export const alerts = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -328,7 +328,7 @@ alerts.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::alerts
- * @see app/Http/Controllers/Api/QualityController.php:260
+ * @see app/Http/Controllers/Api/QualityController.php:278
  * @route '/quality/alerts'
  */
 alerts.url = (options?: RouteQueryOptions) => {
@@ -337,7 +337,7 @@ alerts.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::alerts
- * @see app/Http/Controllers/Api/QualityController.php:260
+ * @see app/Http/Controllers/Api/QualityController.php:278
  * @route '/quality/alerts'
  */
 alerts.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -346,7 +346,7 @@ alerts.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::alerts
- * @see app/Http/Controllers/Api/QualityController.php:260
+ * @see app/Http/Controllers/Api/QualityController.php:278
  * @route '/quality/alerts'
  */
 alerts.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -356,7 +356,7 @@ alerts.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::alerts
- * @see app/Http/Controllers/Api/QualityController.php:260
+ * @see app/Http/Controllers/Api/QualityController.php:278
  * @route '/quality/alerts'
  */
     const alertsForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -366,7 +366,7 @@ alerts.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::alerts
- * @see app/Http/Controllers/Api/QualityController.php:260
+ * @see app/Http/Controllers/Api/QualityController.php:278
  * @route '/quality/alerts'
  */
         alertsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -375,7 +375,7 @@ alerts.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::alerts
- * @see app/Http/Controllers/Api/QualityController.php:260
+ * @see app/Http/Controllers/Api/QualityController.php:278
  * @route '/quality/alerts'
  */
         alertsForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -391,7 +391,7 @@ alerts.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     alerts.form = alertsForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::annualTrend
- * @see app/Http/Controllers/Api/QualityController.php:267
+ * @see app/Http/Controllers/Api/QualityController.php:285
  * @route '/quality/annual-trend'
  */
 export const annualTrend = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -406,7 +406,7 @@ annualTrend.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::annualTrend
- * @see app/Http/Controllers/Api/QualityController.php:267
+ * @see app/Http/Controllers/Api/QualityController.php:285
  * @route '/quality/annual-trend'
  */
 annualTrend.url = (options?: RouteQueryOptions) => {
@@ -415,7 +415,7 @@ annualTrend.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::annualTrend
- * @see app/Http/Controllers/Api/QualityController.php:267
+ * @see app/Http/Controllers/Api/QualityController.php:285
  * @route '/quality/annual-trend'
  */
 annualTrend.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -424,7 +424,7 @@ annualTrend.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::annualTrend
- * @see app/Http/Controllers/Api/QualityController.php:267
+ * @see app/Http/Controllers/Api/QualityController.php:285
  * @route '/quality/annual-trend'
  */
 annualTrend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -434,7 +434,7 @@ annualTrend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::annualTrend
- * @see app/Http/Controllers/Api/QualityController.php:267
+ * @see app/Http/Controllers/Api/QualityController.php:285
  * @route '/quality/annual-trend'
  */
     const annualTrendForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -444,7 +444,7 @@ annualTrend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::annualTrend
- * @see app/Http/Controllers/Api/QualityController.php:267
+ * @see app/Http/Controllers/Api/QualityController.php:285
  * @route '/quality/annual-trend'
  */
         annualTrendForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -453,7 +453,7 @@ annualTrend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::annualTrend
- * @see app/Http/Controllers/Api/QualityController.php:267
+ * @see app/Http/Controllers/Api/QualityController.php:285
  * @route '/quality/annual-trend'
  */
         annualTrendForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -469,7 +469,7 @@ annualTrend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     annualTrend.form = annualTrendForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoRft
- * @see app/Http/Controllers/Api/QualityController.php:375
+ * @see app/Http/Controllers/Api/QualityController.php:393
  * @route '/quality/pareto/rft'
  */
 export const paretoRft = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -484,7 +484,7 @@ paretoRft.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoRft
- * @see app/Http/Controllers/Api/QualityController.php:375
+ * @see app/Http/Controllers/Api/QualityController.php:393
  * @route '/quality/pareto/rft'
  */
 paretoRft.url = (options?: RouteQueryOptions) => {
@@ -493,7 +493,7 @@ paretoRft.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoRft
- * @see app/Http/Controllers/Api/QualityController.php:375
+ * @see app/Http/Controllers/Api/QualityController.php:393
  * @route '/quality/pareto/rft'
  */
 paretoRft.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -502,7 +502,7 @@ paretoRft.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoRft
- * @see app/Http/Controllers/Api/QualityController.php:375
+ * @see app/Http/Controllers/Api/QualityController.php:393
  * @route '/quality/pareto/rft'
  */
 paretoRft.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -512,7 +512,7 @@ paretoRft.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::paretoRft
- * @see app/Http/Controllers/Api/QualityController.php:375
+ * @see app/Http/Controllers/Api/QualityController.php:393
  * @route '/quality/pareto/rft'
  */
     const paretoRftForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -522,7 +522,7 @@ paretoRft.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::paretoRft
- * @see app/Http/Controllers/Api/QualityController.php:375
+ * @see app/Http/Controllers/Api/QualityController.php:393
  * @route '/quality/pareto/rft'
  */
         paretoRftForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -531,7 +531,7 @@ paretoRft.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::paretoRft
- * @see app/Http/Controllers/Api/QualityController.php:375
+ * @see app/Http/Controllers/Api/QualityController.php:393
  * @route '/quality/pareto/rft'
  */
         paretoRftForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -547,7 +547,7 @@ paretoRft.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     paretoRft.form = paretoRftForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoInspection
- * @see app/Http/Controllers/Api/QualityController.php:396
+ * @see app/Http/Controllers/Api/QualityController.php:414
  * @route '/quality/pareto/inspection'
  */
 export const paretoInspection = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -562,7 +562,7 @@ paretoInspection.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoInspection
- * @see app/Http/Controllers/Api/QualityController.php:396
+ * @see app/Http/Controllers/Api/QualityController.php:414
  * @route '/quality/pareto/inspection'
  */
 paretoInspection.url = (options?: RouteQueryOptions) => {
@@ -571,7 +571,7 @@ paretoInspection.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoInspection
- * @see app/Http/Controllers/Api/QualityController.php:396
+ * @see app/Http/Controllers/Api/QualityController.php:414
  * @route '/quality/pareto/inspection'
  */
 paretoInspection.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -580,7 +580,7 @@ paretoInspection.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => 
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoInspection
- * @see app/Http/Controllers/Api/QualityController.php:396
+ * @see app/Http/Controllers/Api/QualityController.php:414
  * @route '/quality/pareto/inspection'
  */
 paretoInspection.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -590,7 +590,7 @@ paretoInspection.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::paretoInspection
- * @see app/Http/Controllers/Api/QualityController.php:396
+ * @see app/Http/Controllers/Api/QualityController.php:414
  * @route '/quality/pareto/inspection'
  */
     const paretoInspectionForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -600,7 +600,7 @@ paretoInspection.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::paretoInspection
- * @see app/Http/Controllers/Api/QualityController.php:396
+ * @see app/Http/Controllers/Api/QualityController.php:414
  * @route '/quality/pareto/inspection'
  */
         paretoInspectionForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -609,7 +609,7 @@ paretoInspection.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::paretoInspection
- * @see app/Http/Controllers/Api/QualityController.php:396
+ * @see app/Http/Controllers/Api/QualityController.php:414
  * @route '/quality/pareto/inspection'
  */
         paretoInspectionForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -625,7 +625,7 @@ paretoInspection.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
     paretoInspection.form = paretoInspectionForm
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoFg
- * @see app/Http/Controllers/Api/QualityController.php:410
+ * @see app/Http/Controllers/Api/QualityController.php:428
  * @route '/quality/pareto/fg'
  */
 export const paretoFg = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -640,7 +640,7 @@ paretoFg.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoFg
- * @see app/Http/Controllers/Api/QualityController.php:410
+ * @see app/Http/Controllers/Api/QualityController.php:428
  * @route '/quality/pareto/fg'
  */
 paretoFg.url = (options?: RouteQueryOptions) => {
@@ -649,7 +649,7 @@ paretoFg.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoFg
- * @see app/Http/Controllers/Api/QualityController.php:410
+ * @see app/Http/Controllers/Api/QualityController.php:428
  * @route '/quality/pareto/fg'
  */
 paretoFg.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -658,7 +658,7 @@ paretoFg.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\QualityController::paretoFg
- * @see app/Http/Controllers/Api/QualityController.php:410
+ * @see app/Http/Controllers/Api/QualityController.php:428
  * @route '/quality/pareto/fg'
  */
 paretoFg.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -668,7 +668,7 @@ paretoFg.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\QualityController::paretoFg
- * @see app/Http/Controllers/Api/QualityController.php:410
+ * @see app/Http/Controllers/Api/QualityController.php:428
  * @route '/quality/pareto/fg'
  */
     const paretoFgForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -678,7 +678,7 @@ paretoFg.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\QualityController::paretoFg
- * @see app/Http/Controllers/Api/QualityController.php:410
+ * @see app/Http/Controllers/Api/QualityController.php:428
  * @route '/quality/pareto/fg'
  */
         paretoFgForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -687,7 +687,7 @@ paretoFg.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\QualityController::paretoFg
- * @see app/Http/Controllers/Api/QualityController.php:410
+ * @see app/Http/Controllers/Api/QualityController.php:428
  * @route '/quality/pareto/fg'
  */
         paretoFgForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

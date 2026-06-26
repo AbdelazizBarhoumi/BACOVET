@@ -1,5 +1,5 @@
 export type KpiKey =
-    | 'br_cgl'
+'br_commande'
     | 'br_gtd_jour'
     | 'rft_jour'
     | 'br_bundling_jour'
@@ -13,7 +13,9 @@ export type KpiKey =
     | 'br_accessoires_jour'
     | 'br_accessoires_dda'
     | 'br_compo_jour'
-    | 'br_compo_dda';
+    | 'br_compo_dda'
+    | 'br_in_jour'
+    | 'br_in_dda';
 
 export interface KpiDetailConfig {
     id: string;
@@ -33,7 +35,7 @@ export interface KpiDetailConfig {
         grey?: string;
     };
     source: {
-        system: 'DIVA' | 'QCM' | 'DRIVE' | 'N/A';
+        system: 'DIVA' | 'gpro-prod' | 'DRIVE' | 'N/A';
         novacityEndpoint: string | null;
         mysqlTable: string | null;
         frequency: string;
@@ -46,72 +48,21 @@ export interface KpiDetailConfig {
 }
 
 export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
-    br_cgl: {
-    id: '101',
-    label: 'BR CGL — Inspection Commande (Annuel)',
-    description:
-        "Taux de pièces rejetées lors du contrôle final de commande depuis le début de l'année. Source: Google Drive Inspection Commande.",
 
-    formula: {
-        numerator: {
-            label: 'Nombre de rejets inspection commande annuel',
-            field: 'nb_rejets',
-        },
-
-        denominator: {
-            label: "Nombre d'inspections commande annuel",
-            field: 'nb_inspections',
-        },
-
-        multiplier: 100,
-        resultUnit: '%',
-    },
-
-    target: {
-        value: 5,
-        operator: '<=',
-    },
-
-    thresholds: {
-        green: '< 4%',
-        orange: '4% – 5%',
-        red: '> 5%',
-    },
-
-    source: {
-        system: 'DRIVE',
-        novacityEndpoint: null,
-        mysqlTable: 'sync_drive_inspection_commande',
-        frequency: '4×/jour',
-        status: 'live',
-    },
-
-    breakdownAvailable: false,
-    trendAvailable: false,
-    period: 'annee',
-
-    exportFields: [
-        'date',
-        'nb_rejets',
-        'nb_inspections',
-    ],
-},
-
-    br_gtd_jour: {
-        id: '102',
-        label: "BR GTD — Contrôle fin de ligne (Aujourd'hui)",
-        description:
-        'Taux de pièces rejetées au contrôle fin de ligne ce jour, par chaîne de production',
+    br_commande: {
+        id: '101',
+        label: 'BR Commande',
+        description: "Nombre de rejet suite inspection commande / Nombre d'inspection commande × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {
-                label: 'Rejets contrôle GTD',
-                field: 'avg_defect_pct',
+                label: "Nombre de rejet suite inspection commande",
+                field: 'Non mappé',
             },
             denominator: {
-                label: '(Moyenne — pas un ratio)',
-                field: 'AVG(defect_pct)',
+                label: "Nombre d'inspection commande",
+                field: 'Non mappé',
             },
-            multiplier: 1,
+            multiplier: 100,
             resultUnit: '%',
         },
         target: { value: 5, operator: '<=' },
@@ -121,9 +72,45 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '> 5%',
         },
         source: {
-            system: 'QCM',
-            novacityEndpoint: 'checkpassqte',
-            mysqlTable: 'check_pass_qte',
+            system: 'DIVA',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_drive_inspection_commande',
+            frequency: 'Temps réel',
+            status: 'live',
+        },
+        breakdownAvailable: false,
+        trendAvailable: false,
+        period: 'annee',
+        exportFields: ['date', 'nb_rejets', 'nb_inspections'],
+    },
+
+    br_gtd_jour: {
+        id: '102',
+        label: 'BR GTD (Jour)',
+        description:
+        "Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production × 100 (ce jour : jour en cours)",
+        formula: {
+            numerator: {
+                label: 'Nombre de rejet suite contrôle par chaîne de production',
+                field: 'qtte',
+            },
+            denominator: {
+                label: 'Nombre de contrôle par chaîne de production',
+                field: 'total_colis',
+            },
+            multiplier: 100,
+            resultUnit: '%',
+        },
+        target: { value: 5, operator: '<=' },
+        thresholds: {
+            green: '< 4%',
+            orange: '4% – 5%',
+            red: '> 5%',
+        },
+        source: {
+            system: 'DIVA',
+            novacityEndpoint: '/api/data/q/packets_rejetes + /api/data/q/colis_total_3var',
+            mysqlTable: 'packets_rejetes + colis_total_var',
             frequency: 'Temps réel',
             status: 'live',
         },
@@ -135,17 +122,17 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     rft_jour: {
         id: '104',
-        label: "RFT — Right First Time (Aujourd'hui)",
+        label: 'RFT (Jour)',
         description:
-        'Pourcentage de pièces conformes produites du premier coup ce jour',
+        "Nombre des pièces Ok de premier coup par chaîne de production / Nombre des pièces produites par chaîne de production × 100 (ce jour : jour en cours)",
         formula: {
             numerator: {
-                label: 'Pièces OK premier coup',
-                field: 'first_pass_today',
+                label: 'Nombre des pièces Ok de premier coup',
+                field: 'FirstPassToday',
             },
             denominator: {
-                label: 'Pièces produites',
-                field: 'produced_today',
+                label: 'Nombre des pièces produites',
+                field: 'ProducedToday',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -157,9 +144,9 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '< 95%',
         },
         source: {
-            system: 'QCM',
+            system: 'gpro-prod',
             novacityEndpoint:
-            'pieces_ok_de_premier_coup_jour_en_cours + pieces_produites_jour_en_cours',
+            '/api/data/q/pieces_ok_de_premier_coup_jour_en_cours + /api/data/q/pieces_produites_jour_en_cours',
             mysqlTable: 'pieces_ok_jour + pieces_produites_jour',
             frequency: 'Temps réel',
             status: 'live',
@@ -172,17 +159,17 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_bundling_jour: {
         id: '106',
-        label: "BR Bundling — Inspection Paquet (Aujourd'hui)",
+        label: 'BR Bundling (Jour)',
         description:
-            "Taux de paquets rejetés lors de l'inspection bundling ce jour",
+            "Nombre de rejet suite inspection Paquet / Nombre d'inspection Paquet × 100 (ce jour : le jour en cours)",
         formula: {
             numerator: {
-                label: 'Rejets inspection paquet',
-                field: 'bundle_reject',
+                label: "Nombre de rejet suite inspection Paquet",
+                field: 'BundleRejectToday',
             },
             denominator: {
-                label: 'Inspections paquet',
-                field: 'bundle_inspected',
+                label: "Nombre d'inspection Paquet",
+                field: 'BundleInspectedToday',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -194,9 +181,9 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '> 5%',
         },
         source: {
-            system: 'QCM',
+            system: 'gpro-prod',
             novacityEndpoint:
-                'rejets_suite_inspection_paquet_jour_en_cours + inspections_paquet_jour_en_cours',
+                '/api/data/q/rejets_suite_inspection_paquet_jour_en_cours + /api/data/q/inspections_paquet_jour_en_cours',
             mysqlTable: 'rejets_inspection_paquet (period=jour)',
             frequency: 'Temps réel',
             status: 'live',
@@ -209,19 +196,19 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_gtd_dda: {
         id: '103',
-        label: 'BR GTD DDA — Contrôle fin de ligne (Annuel)',
+        label: 'BR GTD DDA',
         description:
-        "Taux de rejet fin de ligne cumulé depuis le début de l'année par chaîne",
+        "Nombre de rejet suite contrôle RFID colis / Nombre de contrôle RFID colis annuel × 100 (par chaîne de production, dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {
-                label: "Rejets GTD (depuis début d'année)",
-                field: 'avg_defect_pct_year',
+                label: "Nombre de rejet suite contrôle RFID colis",
+                field: 'qtte',
             },
             denominator: {
-                label: '(Moyenne annuelle — pas un ratio)',
-                field: 'AVG(defect_pct) YEAR',
+                label: "Nombre de contrôle RFID colis annuel",
+                field: 'total_colis',
             },
-            multiplier: 1,
+            multiplier: 100,
             resultUnit: '%',
         },
         target: { value: 5, operator: '<=' },
@@ -231,11 +218,11 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '> 5%',
         },
         source: {
-            system: 'QCM',
-            novacityEndpoint: 'checkpassqte (filtre YEAR)',
+            system: 'DIVA',
+            novacityEndpoint: null,
             mysqlTable: 'check_pass_qte',
             frequency: 'Temps réel',
-            status: 'live',
+            status: 'inactive',
         },
         breakdownAvailable: false,
         trendAvailable: true,
@@ -245,17 +232,17 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     rft_annee: {
         id: '105',
-        label: 'RFT DDA — Right First Time (Annuel)',
+        label: 'RFT DDA',
         description:
-        "Pourcentage de pièces conformes du premier coup depuis le début de l'année",
+        "Nombre des pièces Ok de premier coup par chaîne de production / Nombre des pièces produites par chaîne de production × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {
-                label: 'Pièces OK premier coup (année)',
-                field: 'first_pass_year',
+                label: 'Nombre des pièces Ok de premier coup',
+                field: 'FirstPassYear',
             },
             denominator: {
-                label: 'Pièces produites (année)',
-                field: 'produced_year',
+                label: 'Nombre des pièces produites',
+                field: 'ProducedYear',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -267,9 +254,9 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '< 95%',
         },
         source: {
-            system: 'QCM',
+            system: 'gpro-prod',
             novacityEndpoint:
-            'pieces_ok_de_premier_coup_annee_en_cours + pieces_produites_annee_en_cours',
+            '/api/data/q/pieces_ok_de_premier_coup_annee_en_cours + /api/data/q/pieces_produites_annee_en_cours',
             mysqlTable: 'pieces_ok_annee + pieces_produites_annee',
             frequency: 'Temps réel',
             status: 'live',
@@ -282,16 +269,16 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_bundling_annee: {
         id: '107',
-        label: 'BR Bundling DDA — Inspection Paquet (Annuel)',
-        description: "Taux de paquets rejetés depuis le début de l'année",
+        label: 'BR Bundling DDA',
+        description: "Nombre de rejet suite inspection Paquet / Nombre d'inspection Paquet × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {
-                label: 'Rejets inspection paquet (année)',
-                field: 'bundle_reject_year',
+                label: "Nombre de rejet suite inspection Paquet",
+                field: 'BundleRejectYear',
             },
             denominator: {
-                label: 'Inspections paquet (année)',
-                field: 'bundle_inspected_year',
+                label: "Nombre d'inspection Paquet",
+                field: 'BundleInspectedYear',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -303,8 +290,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '> 5%',
         },
         source: {
-            system: 'QCM',
-            novacityEndpoint: 'rejets_suite_inspection_paquet_annee_en_cours + inspections_paquet_annee_en_cours',
+            system: 'gpro-prod',
+            novacityEndpoint: '/api/data/q/rejets_suite_inspection_paquet_annee_en_cours + /api/data/q/inspections_paquet_annee_en_cours',
             mysqlTable: 'rejets_inspection_paquet (period=annee)',
             frequency: 'Temps réel',
             status: 'live',
@@ -317,16 +304,16 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_print: {
         id: '108',
-        label: "BR Print — Inspection Livraison Sérigraphie (Aujourd'hui)",
+        label: 'BR Print (Jour)',
         description:
-        "Taux de rejet lors de l'inspection de livraison sérigraphie ce jour",
+        "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (ce jour : le jour en cours)",
         formula: {
             numerator: {
-                label: 'Rejets inspection sérigraphie',
+                label: "Nombre de rejet suite inspection livraison sérigraphie",
                 field: '—',
             },
             denominator: {
-                label: 'Inspections sérigraphie',
+                label: "Nombre d'inspection livraison sérigraphie",
                 field: '—',
             },
             multiplier: 100,
@@ -353,16 +340,16 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_print_dda: {
         id: '109',
-        label: 'BR Print DDA — Inspection Sérigraphie (Annuel)',
+        label: 'BR Print DDA',
         description:
-        "Taux de rejet sérigraphie cumulé depuis le début de l'année",
+        "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {
-                label: 'Rejets inspection sérigraphie (année)',
+                label: "Nombre de rejet suite inspection livraison sérigraphie",
                 field: '—',
             },
             denominator: {
-                label: 'Inspections sérigraphie (année)',
+                label: "Nombre d'inspection livraison sérigraphie",
                 field: '—',
             },
             multiplier: 100,
@@ -389,11 +376,11 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_care_label_jour: {
         id: '110',
-        label: "BR Care Label — Inspection Étiquette (Aujourd'hui)",
-        description: "Taux de rejet lors de l'inspection care label ce jour",
+        label: 'BR Care Label (Jour)',
+        description: "Nombre de rejet suite inspection livraison vignettes / Nombre d'inspection livraison vignettes × 100 (ce jour : le jour en cours)",
         formula: {
-            numerator: { label: 'Rejets care label', field: '—' },
-            denominator: { label: 'Inspections care label', field: '—' },
+            numerator: { label: "Nombre de rejet suite inspection livraison vignettes", field: '—' },
+            denominator: { label: "Nombre d'inspection livraison vignettes", field: '—' },
             multiplier: 100,
             resultUnit: '%',
         },
@@ -418,13 +405,13 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_care_label_dda: {
         id: '111',
-        label: 'BR Care Label DDA — Inspection Étiquette (Annuel)',
+        label: 'BR Care Label DDA',
         description:
-        "Taux de rejet care label cumulé depuis le début de l'année",
+        "Nombre de rejet suite inspection livraison vignettes / Nombre d'inspection livraison vignettes × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
-            numerator: { label: 'Rejets care label (année)', field: '—' },
+            numerator: { label: "Nombre de rejet suite inspection livraison vignettes", field: '—' },
             denominator: {
-                label: 'Inspections care label (année)',
+                label: "Nombre d'inspection livraison vignettes",
                 field: '—',
             },
             multiplier: 100,
@@ -451,11 +438,11 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_accessoires_jour: {
         id: '112',
-        label: "BR Accessoires — Inspection Accessoires (Aujourd'hui)",
-        description: "Taux de rejet lors de l'inspection accessoires ce jour",
+        label: 'BR Accessoires (Jour)',
+        description: "Nombre de rejet suite inspection livraison accessoires / Nombre d'inspection livraison accessoires × 100 (ce jour : le jour en cours)",
         formula: {
-            numerator: { label: 'Rejets accessoires', field: '—' },
-            denominator: { label: 'Inspections accessoires', field: '—' },
+            numerator: { label: "Nombre de rejet suite inspection livraison accessoires", field: '—' },
+            denominator: { label: "Nombre d'inspection livraison accessoires", field: '—' },
             multiplier: 100,
             resultUnit: '%',
         },
@@ -480,13 +467,13 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_accessoires_dda: {
         id: '113',
-        label: 'BR Accessoires DDA — Inspection Accessoires (Annuel)',
+        label: 'BR Accessoires DDA',
         description:
-        "Taux de rejet accessoires cumulé depuis le début de l'année",
+        "Nombre de rejet suite inspection livraison accessoires / Nombre d'inspection livraison accessoires × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
-            numerator: { label: 'Rejets accessoires (année)', field: '—' },
+            numerator: { label: "Nombre de rejet suite inspection livraison accessoires", field: '—' },
             denominator: {
-                label: 'Inspections accessoires (année)',
+                label: "Nombre d'inspection livraison accessoires",
                 field: '—',
             },
             multiplier: 100,
@@ -513,11 +500,11 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_compo_jour: {
         id: '114',
-        label: "BR Compo — Inspection Composants (Aujourd'hui)",
-        description: "Taux de rejet lors de l'inspection composants ce jour",
+        label: 'BR Compo (Jour)',
+        description: "Nombre de rejet suite inspection livraison Compo / Nombre d'inspection livraison Compo × 100 (ce jour : le jour en cours)",
         formula: {
-            numerator: { label: 'Rejets composants', field: '—' },
-            denominator: { label: 'Inspections composants', field: '—' },
+            numerator: { label: "Nombre de rejet suite inspection livraison Compo", field: '—' },
+            denominator: { label: "Nombre d'inspection livraison Compo", field: '—' },
             multiplier: 100,
             resultUnit: '%',
         },
@@ -542,13 +529,13 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_compo_dda: {
         id: '115',
-        label: 'BR Compo DDA — Inspection Composants (Annuel)',
+        label: 'BR Compo DDA',
         description:
-        "Taux de rejet composants cumulé depuis le début de l'année",
+        "Nombre de rejet suite inspection livraison Compo / Nombre d'inspection livraison Compo × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
-            numerator: { label: 'Rejets composants (année)', field: '—' },
+            numerator: { label: "Nombre de rejet suite inspection livraison Compo", field: '—' },
             denominator: {
-                label: 'Inspections composants (année)',
+                label: "Nombre d'inspection livraison Compo",
                 field: '—',
             },
             multiplier: 100,
@@ -571,5 +558,75 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         trendAvailable: true,
         period: 'annee',
         exportFields: ['date', 'nb_rejets', 'nb_inspections'],
+    },
+
+    br_in_jour: {
+        id: '120',
+        label: 'BR IN (Jour)',
+        description: "Nombre de rejet suite inspection colis / Nombre d'inspection colis × 100 (ce jour : jour en cours)",
+        formula: {
+            numerator: {
+                label: "Nombre de rejet suite inspection colis",
+                field: '—',
+            },
+            denominator: {
+                label: "Nombre d'inspection colis",
+                field: '—',
+            },
+            multiplier: 100,
+            resultUnit: '%',
+        },
+        target: { value: 5, operator: '<=' },
+        thresholds: {
+            green: '< 4%',
+            orange: '4% – 5%',
+            red: '> 5%',
+        },
+        source: {
+            system: 'DIVA',
+            novacityEndpoint: null,
+            mysqlTable: null,
+            frequency: '4×/jour',
+            status: 'inactive',
+        },
+        breakdownAvailable: false,
+        trendAvailable: false,
+        period: 'jour',
+        exportFields: [],
+    },
+
+    br_in_dda: {
+        id: '121',
+        label: 'BR IN DDA',
+        description: "Nombre de rejet suite inspection AQL colis / Nombre d'inspection AQL colis × 100 (dès le début de l'année jusqu'à présent)",
+        formula: {
+            numerator: {
+                label: "Nombre de rejet suite inspection AQL colis",
+                field: '—',
+            },
+            denominator: {
+                label: "Nombre d'inspection AQL colis",
+                field: '—',
+            },
+            multiplier: 100,
+            resultUnit: '%',
+        },
+        target: { value: 5, operator: '<=' },
+        thresholds: {
+            green: '< 4%',
+            orange: '4% – 5%',
+            red: '> 5%',
+        },
+        source: {
+            system: 'DIVA',
+            novacityEndpoint: null,
+            mysqlTable: null,
+            frequency: '4×/jour',
+            status: 'inactive',
+        },
+        breakdownAvailable: false,
+        trendAvailable: false,
+        period: 'annee',
+        exportFields: [],
     },
 };

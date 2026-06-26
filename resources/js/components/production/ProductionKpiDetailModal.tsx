@@ -1,4 +1,4 @@
-import { X, Download, Award } from 'lucide-react';
+import { X, Download, Award, Info } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import {
     ResponsiveContainer,
@@ -607,10 +607,6 @@ export default function ProductionKpiDetailModal({
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto px-5 py-4">
-                    <p className="mb-5 text-xs text-muted-foreground">
-                        {config.description}
-                    </p>
-
                     {/* Top stats */}
                     <div className="mb-6 grid grid-cols-3 gap-3">
                         <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
@@ -657,7 +653,33 @@ export default function ProductionKpiDetailModal({
 
                     {/* Formula & Source */}
                     <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                        {config.formula.numerator.field !== 'N/A' && config.formula.denominator.field !== 'N/A' && (
+                        {config.formula.numerator.field !== 'N/A' && config.formula.denominator.field !== 'N/A' ? (
+                            <div className="group/info relative">
+                                <div className="mb-2 flex items-center gap-1.5">
+                                    <h4 className="text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                        Formule de calcul
+                                    </h4>
+                                    {config.formula.numerator.field !== '—' && config.formula.denominator.field !== '—' && (
+                                        <div className="relative">
+                                            <Info className="h-3 w-3 cursor-help text-muted-foreground/60 transition-colors hover:text-muted-foreground" />
+                                            <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-md border border-border bg-card p-3 text-[10px] font-mono leading-relaxed normal-case tracking-normal text-muted-foreground shadow-lg opacity-0 transition-opacity duration-150 group-hover/info:pointer-events-auto group-hover/info:opacity-100">
+                                                <span className="font-sans text-[11px] font-bold text-foreground">Champs technique :</span>
+                                                <br />
+                                                {config.formula.type === 'raw value'
+                                                    ? `Valeur brute: ${config.formula.field || config.formula.numerator.field}`
+                                                    : config.formula.operator === 'subtraction'
+                                                        ? `${config.formula.numerator.field} − ${config.formula.denominator.field}`
+                                                        : `${config.formula.numerator.field} ÷ ${config.formula.denominator.field}${config.formula.multiplier ? ` × ${config.formula.multiplier}` : ''}`
+                                                }
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="text-xs leading-relaxed text-muted-foreground">
+                                    {config.description}
+                                </p>
+                            </div>
+                        ) : (
                             <div>
                                 <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                     Formule de calcul

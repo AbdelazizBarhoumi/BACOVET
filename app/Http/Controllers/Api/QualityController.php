@@ -58,9 +58,13 @@ class QualityController extends Controller
             ->value('is_active');
         $bundlingBlocker = $bundlingActive === false ? 'B-01: Novacity bundling queries inactive' : null;
 
+        // Cards 16 & 17 — BR IN (inspection colis) — no data source yet
+        $brInJour = null;
+        $brInDda = null;
+
         return response()->json([
-            // Card 1 — BR CGL (DDA) — F-REQ-101
-            'br_cgl' => $brCgl,
+            // Card 1 — BR Commande (DDA) — F-REQ-101
+            'br_commande' => $brCgl,
 
             // Card 2 — BR GTD Ce Jour — computed from check_pass_qte (proxy for DIVA)
             'br_gtd_jour' => [
@@ -124,6 +128,20 @@ class QualityController extends Controller
             'br_accessoires_dda' => $this->computeDriveBrDda('sync_drive_br_accessoires', $year),
             'br_compo_jour' => $this->computeDriveBr('sync_drive_br_compo', $today),
             'br_compo_dda' => $this->computeDriveBrDda('sync_drive_br_compo', $year),
+
+            // Card 16 — BR IN (jour) — F-REQ-120
+            'br_in_jour' => [
+                'value' => $brInJour,
+                'status' => 'grey',
+                'source' => 'N/A',
+            ],
+
+            // Card 17 — BR IN DDA — F-REQ-121
+            'br_in_dda' => [
+                'value' => $brInDda,
+                'status' => 'grey',
+                'source' => 'N/A',
+            ],
 
             // Sync metadata
             'synced_at' => DB::table('pieces_ok_jour')

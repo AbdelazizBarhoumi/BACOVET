@@ -2,8 +2,7 @@ export type DevKpiKey =
     | 'dev_rft'
     | 'dev_livraison'
     | 'dev_nomenclature'
-    | 'dev_reclamations'
-    | 'dev_leadtime';
+    | 'dev_reclamations';
 
 export interface DevKpiDetailConfig {
     id: string;
@@ -34,9 +33,9 @@ export interface DevKpiDetailConfig {
 export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
     dev_rft: {
         id: '350',
-        label: 'RFT Développement (Right First Time)',
+        label: 'RFT (RIGHT FIRST TIME)',
         description:
-            "Pourcentage de modèles validés dès le premier échantillon lors de la phase de développement.",
+            "Nb des modèles validé de 1er coup / Total des modèles envoyées",
         formula: {
             numerator: {
                 label: 'Modèles validés 1er coup',
@@ -56,7 +55,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
             red: '< 92%',
         },
         source: {
-            system: 'Google Drive / Google Sheets',
+            system: 'DRIVE',
             mysqlTable: 'manual_kpi_values (dev_rft)',
             frequency: 'Mensuelle',
             status: 'google_drive',
@@ -66,9 +65,9 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
 
     dev_livraison: {
         id: '351',
-        label: 'Respect Livraison à Date',
+        label: 'Taux de respect de livraison a date',
         description:
-            "Capacité du service Développement à livrer les modèles dans les délais convenus.",
+            "Nb des modèles env a date / totales des modèles env",
         formula: {
             numerator: {
                 label: 'Modèles livrés à date',
@@ -88,7 +87,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
             red: '< 92%',
         },
         source: {
-            system: 'Google Drive / Google Sheets',
+            system: 'DRIVE',
             mysqlTable: 'manual_kpi_values (dev_livraison)',
             frequency: 'Mensuelle',
             status: 'google_drive',
@@ -98,9 +97,9 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
 
     dev_nomenclature: {
         id: '352',
-        label: 'Fiabilité Nomenclature',
+        label: 'Taux de fiabilité de nomenclature',
         description:
-            "Pourcentage de nomenclatures valides et fiables par rapport au total des nomenclatures traitées.",
+            "Nb des nomenclatures validé et fiable / totales",
         formula: {
             numerator: {
                 label: 'Nomenclatures fiables',
@@ -120,7 +119,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
             red: '< 95%',
         },
         source: {
-            system: 'Google Drive / Google Sheets',
+            system: 'DRIVE',
             mysqlTable: 'manual_kpi_values (dev_nomenclature)',
             frequency: 'Mensuelle',
             status: 'google_drive',
@@ -130,9 +129,9 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
 
     dev_reclamations: {
         id: '353',
-        label: '% Réclamations Production',
+        label: '%réclamations de la production',
         description:
-            "Pourcentage de modèles réclamés par la production par rapport au total des modèles traités.",
+            "Nb des modèles réclamés / totales des modèles",
         formula: {
             numerator: {
                 label: 'Modèles réclamés',
@@ -152,44 +151,11 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
             red: '> 3%',
         },
         source: {
-            system: 'Google Drive / Google Sheets',
+            system: 'DRIVE',
             mysqlTable: 'manual_kpi_values (dev_reclamations)',
             frequency: 'Mensuelle',
             status: 'google_drive',
         },
         period: 'Mensuelle',
     },
-
-    dev_leadtime: {
-        id: '354',
-        label: 'Lead Time Développement',
-        description:
-            "Délai moyen entre la date de livraison prévue et la date de livraison réelle des modèles en développement. Valeur positive = retard, négative = en avance.",
-        formula: {
-            numerator: {
-                label: 'Somme des écarts (jours)',
-                field: 'SUM(date_livraison_reelle - date_livraison_prevue)',
-            },
-            denominator: {
-                label: 'Nombre de modèles livrés',
-                field: 'COUNT(both dates not null)',
-            },
-            multiplier: 1,
-            resultUnit: 'j',
-        },
-        target: { value: 0, operator: '<=' },
-        thresholds: {
-            green: '≤ 0j (en avance ou à temps)',
-            orange: '1 – 7j de retard',
-            red: '> 7j de retard',
-        },
-        source: {
-            system: 'Google Drive / Google Sheets',
-            mysqlTable: 'sync_drive_development',
-            frequency: 'Mensuelle',
-            status: 'google_drive',
-        },
-        period: 'Mensuelle',
-    },
-
 };

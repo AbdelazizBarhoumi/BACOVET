@@ -25,7 +25,9 @@ export type ProductionKpiKey =
     | 'sam'
     | 'sot'
     | 'effectifs'
-    | 'objectif';
+    | 'objectif'
+    | 'code_article'
+    | 'designation_article';
 
 export interface ProductionKpiDetailConfig {
     id: string;
@@ -83,20 +85,64 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     ProductionKpiKey,
     ProductionKpiDetailConfig
 > = {
+    efficience_operateur: {
+        id: 'F-REQ-201',
+        kpiKey: 'efficience_operateur',
+        label: 'Efficience par OPERATEUR par chaine',
+        description:
+            '(Minutes produites / minutes présence) × 100',
+        formula: {
+            numerator: {
+                label: 'Minutes produites',
+                field: 'minutes_produites',
+            },
+            denominator: {
+                label: 'Minutes présence',
+                field: 'minutes_presence',
+            },
+            multiplier: 100,
+            resultUnit: '%',
+        },
+        target: { value: 90, operator: '≥' },
+        thresholds: {
+            green: '≥ 90%',
+            orange: '80% – 90%',
+            red: '< 80%',
+        },
+        source: {
+            system: 'G.PRO',
+            novacityEndpoint:
+                'GET /api/data/q/minutes_presence + GET /api/data/q/minutes_produites',
+            mysqlTable: 'minutes_presence + minutes_produites',
+            frequency: 'Instantané',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_operator',
+        miniVizType: 'horizontal_bar',
+        exportFields: [
+            'employe',
+            'chaine',
+            'date',
+            'minutes_presence',
+            'minutes_produites',
+            'efficience_pct',
+        ],
+    },
     efficience_chaine: {
         id: 'F-REQ-202',
         kpiKey: 'efficience_chaine',
-        label: 'Efficience par Chaîne',
+        label: 'Efficience PAR CHAINE',
         description:
-            'Taux d\'efficience de la chaîne de production basé sur les heures standards et les heures produites.',
+            '[(Quantité déclaré par chaine × SOT) / (Effectif de la chaine × minutes présence)] × 100',
         formula: {
             numerator: {
-                label: 'Heures standards',
-                field: 'heures_standards',
+                label: 'Quantité déclarée',
+                field: 'quantite',
             },
             denominator: {
-                label: 'Heures produites',
-                field: 'heures_prod',
+                label: 'Minutes présence',
+                field: 'minutes_presence',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -108,9 +154,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 85%',
         },
         source: {
-            system: 'SDT',
-            novacityEndpoint: 'GET /api/data/q/efficience_chaine',
-            mysqlTable: 'efficience_chaine',
+            system: 'G.PRO + GPRO consulting',
+            novacityEndpoint: 'GET /api/data/q/qte_produite + GET /api/data/q/minutes_presence',
+            mysqlTable: 'qte_produite + minutes_presence',
             frequency: 'Instantané',
             status: 'live',
         },
@@ -128,17 +174,17 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     efficience_cumulee: {
         id: 'F-REQ-203',
         kpiKey: 'efficience_cumulee',
-        label: 'Efficience Cumulée — Mois en cours',
+        label: 'Efficience Cumulée chaine',
         description:
-            'Ratio cumulé des minutes produites sur les minutes de présence depuis le début du mois en cours',
+            '(Somme des minutes produites pour le mois en cours / Somme des minutes présence pour le mois en cours) × 100',
         formula: {
             numerator: {
-                label: 'Σ minutes produites (mois)',
-                field: 'total_minutes_produites',
+                label: 'Minutes produites (mois)',
+                field: 'minutes_produites',
             },
             denominator: {
-                label: 'Σ minutes présence (mois)',
-                field: 'total_minutes_presence',
+                label: 'Minutes présence (mois)',
+                field: 'minutes_presence',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -150,10 +196,10 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 80%',
         },
         source: {
-            system: 'SDT (G.PRO + GPRO consulting)',
+            system: 'G.PRO + GPRO consulting',
             novacityEndpoint:
-                'GET /api/data/q/minutes_presence + GET /api/data/q/minutes_produites',
-            mysqlTable: 'minutes_presence + minutes_produites',
+                'GET /api/data/q/minutes_produites + GET /api/data/q/minutes_presence',
+            mysqlTable: 'minutes_produites + minutes_presence',
             frequency: 'Instantané',
             status: 'live',
         },
@@ -171,9 +217,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     owe_chaine: {
         id: 'F-REQ-204',
         kpiKey: 'owe_chaine',
-        label: 'OWE — Overall Workforce Effectiveness par Chaîne',
+        label: 'OWE par chaine',
         description:
-            "Taux d'efficience globale basé sur SAM et temps de production par chaîne.",
+            '[(Quantité déclaré par chaine × SAM) / (Effectif de la chaine × minutes présence)] × 100',
         formula: {
             numerator: {
                 label: 'Quantité déclarée × SAM',
@@ -193,7 +239,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 70%',
         },
         source: {
-            system: 'GPRO + Novacity',
+            system: 'G.PRO + GPRO consulting',
             novacityEndpoint: 'GET /api/data/rovereffectiveness',
             mysqlTable: 'efficience_chaine + sync_gpro_article_master',
             frequency: 'Instantané',
@@ -207,13 +253,13 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     wip_chaine: {
         id: 'F-REQ-205',
         kpiKey: 'wip_chaine',
-        label: 'WIP — Work In Progress par Chaîne',
+        label: 'WIP par chaine',
         description:
-            'WIP par chaîne — Quantité sortie moins quantité engagée. Cible : ≤ ½ cadence.',
+            '(Quantité engagement par chaine) − (Quantité Sortie par chaine poste 93)',
         formula: {
             numerator: {
                 label: 'Quantité sortie (poste 93)',
-                field: 'sortie_post93',
+                field: 'sortie_jour',
             },
             denominator: {
                 label: 'Quantité engagée (chaine)',
@@ -229,7 +275,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '> 1× cadence',
         },
         source: {
-            system: 'SDT',
+            system: 'G.PRO',
             novacityEndpoint: 'GET /api/data/q/wip_chaine + GET /api/data/q/qte_engagement',
             mysqlTable: 'wip_chaine + qte_engagement',
             frequency: 'Instantané',
@@ -244,9 +290,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     wip_optimal: {
         id: 'F-REQ-206',
         kpiKey: 'wip_optimal',
-        label: 'WIP Optimal — Coupe vers Confection (par OF / Article)',
+        label: 'WIP OPTIMAL',
         description:
-            'Écart entre la quantité sortie coupe et la quantité engagée par chaîne, article et OF — doit couvrir au moins 1,5× la cadence',
+            'Quantité engagement (par chaine par article par OF) − Quantité Sortie coupe',
         formula: {
             numerator: {
                 label: 'Quantité sortie coupe',
@@ -266,7 +312,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 1× cadence',
         },
         source: {
-            system: 'SDT',
+            system: 'G.PRO',
             novacityEndpoint:
                 'GET /api/data/q/sortie_coupe + GET /api/data/q/qte_engagement + GET /api/data/q/qte_depart_chaine_article_of',
             mysqlTable:
@@ -289,9 +335,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     arrets_non_planifies: {
         id: 'F-REQ-207',
         kpiKey: 'arrets_non_planifies',
-        label: 'Arrêts Non Planifiés par Chaîne',
+        label: 'Arrêts non planifiés par chaine',
         description:
-            'Durée et motif de chaque arrêt non planifié enregistré ce jour par chaîne de production',
+            'Lost time',
         formula: {
             type: 'raw value',
             field: 'minutes_perdues per motif',
@@ -306,7 +352,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '> 1 arrêt ou durée > 10 min',
         },
         source: {
-            system: 'SDT',
+            system: 'G.PRO',
             novacityEndpoint: 'GET /api/data/q/lost_time',
             mysqlTable: 'lost_time',
             frequency: 'Instantané',
@@ -318,56 +364,12 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         exportFields: ['date', 'chaine', 'motif', 'minutes_perdues'],
         note: 'Breakdown table shows ALL motifs as a sortable list. Timeline shows events today on a horizontal time axis. Include LostType lookup from GET /api/data/losttype for human-readable motif descriptions.',
     },
-    efficience_operateur: {
-        id: 'F-REQ-201',
-        kpiKey: 'efficience_operateur',
-        label: 'Efficience par Opérateur par Chaîne',
-        description:
-            'Ratio des minutes produites sur les minutes de présence individuel — classement opérateurs par chaîne',
-        formula: {
-            numerator: {
-                label: 'Minutes produites (individu)',
-                field: 'minutes_produites',
-            },
-            denominator: {
-                label: 'Minutes présence (individu)',
-                field: 'minutes_presence',
-            },
-            multiplier: 100,
-            resultUnit: '%',
-        },
-        target: { value: 90, operator: '≥' },
-        thresholds: {
-            green: '≥ 90%',
-            orange: '80% – 90%',
-            red: '< 80%',
-        },
-        source: {
-            system: 'SDT',
-            novacityEndpoint:
-                'GET /api/data/q/minutes_presence + GET /api/data/q/minutes_produites',
-            mysqlTable: 'minutes_presence + minutes_produites',
-            frequency: 'Instantané',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_operator',
-        miniVizType: 'horizontal_bar',
-        exportFields: [
-            'employe',
-            'chaine',
-            'date',
-            'minutes_presence',
-            'minutes_produites',
-            'efficience_pct',
-        ],
-    },
     efficience_depart: {
         id: 'F-REQ-208',
         kpiKey: 'efficience_depart',
-        label: 'Efficience Départage par Opératrice (Poste 221)',
+        label: 'Efficience Départage PAR OPERATRICE',
         description:
-            'Efficience individuelle au poste de départage (poste 221) — ratio minutes produites poste 221 sur présence',
+            '(Minutes produites poste 221 / Minutes présence) × 100',
         formula: {
             numerator: {
                 label: 'Minutes produites poste 221',
@@ -387,7 +389,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 80%',
         },
         source: {
-            system: 'SDT (G.PRO)',
+            system: 'G.PRO',
             novacityEndpoint:
                 'GET /api/data/q/minutes_produites (filter OpNo=221) + GET /api/data/q/minutes_presence',
             mysqlTable:
@@ -410,8 +412,8 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     efficience_vignettes: {
         id: 'F-REQ-209',
         kpiKey: 'efficience_vignettes',
-        label: 'Efficience Vignettes par Opératrice (Poste 213)',
-        description: 'Efficience individuelle au poste vignettes (poste 213)',
+        label: 'Efficience Vignettes PAR OPERATRICE',
+        description: '(Minutes produites poste 213 / Minutes présence) × 100',
         formula: {
             numerator: {
                 label: 'Minutes produites poste 213',
@@ -431,7 +433,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 80%',
         },
         source: {
-            system: 'SDT (G.PRO)',
+            system: 'G.PRO',
             novacityEndpoint:
                 'GET /api/data/q/minutes_produites (filter OpNo=213) + GET /api/data/q/minutes_presence',
             mysqlTable:
@@ -454,9 +456,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     top_operateurs: {
         id: 'F-REQ-210',
         kpiKey: 'top_operateurs',
-        label: 'Top Opérateurs — Coupe',
+        label: 'Top opérateurs coupe',
         description:
-            "Efficience des opérateurs à un poste spécifique (départage ou vignettes).",
+            '[(Quantité produite indiv × temps d\'opération) / minute présence déclaré)] × 100',
         formula: {
             numerator: {
                 label: 'Quantité produite indiv × Temps opération',
@@ -476,7 +478,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 80%',
         },
         source: {
-            system: 'SDT',
+            system: 'G.PRO',
             novacityEndpoint:
                 'GET /api/data/q/qte_produite_indiv_jour + GET /api/data/q/temps_operation + GET /api/data/q/minutes_presence',
             mysqlTable:
@@ -497,99 +499,277 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         ],
         note: 'Breakdown shows ranked list — top 10 operators, best to worst. Gold/silver/bronze badges for top 3.',
     },
-    taux_avancement_of: {
-        id: 'F-REQ-305',
-        kpiKey: 'taux_avancement_of',
-        label: "Taux d'Avancement OF par Chaîne",
+    sam: {
+        kpiKey: 'sam',
+        id: 'F-REQ-211',
+        label: 'SAM (Temps standard alloué) par chaine',
         description:
-            "Pourcentage d'avancement de l'ordre de fabrication en cours — quantité déclarée vs quantité OF totale",
+            'Temps standard alloué',
         formula: {
-            numerator: {
-                label: 'Quantité produite déclarée',
-                field: 'quantite_realisee',
-            },
-            denominator: {
-                label: 'Quantité OF totale',
-                field: 'quantite_prevue',
-            },
-            multiplier: 100,
-            resultUnit: '%',
-        },
-        target: {
-            value: 'On schedule',
-            label: 'On schedule (EPD not exceeded)',
-        },
-        thresholds: {
-            green: '≥ 80% et EPD non dépassée',
-            orange: '50% – 80% ou EPD proche',
-            red: '< 50% ou EPD dépassée',
-        },
-        source: {
-            system: 'SDT',
-            novacityEndpoint: 'GET /api/data/q/etat_avancement',
-            mysqlTable: 'etat_avancement',
-            frequency: 'Instantané',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_of',
-        miniVizType: 'donut',
-        exportFields: [
-            'of',
-            'avancement_pct',
-            'quantite_prevue',
-            'quantite_realisee',
-            'statut',
-        ],
-        note: 'Breakdown lists all active OFs. Donut shows single OF completion if one selected, or aggregate if multiple.',
-    },
-    so_progress: {
-        id: 'F-REQ-304',
-        kpiKey: 'so_progress',
-        label: 'SO Progress — Avancement par Point de Contrôle',
-        description:
-            "État d'avancement de la commande à chaque point de contrôle de la chaîne de production",
-        formula: {
-            type: 'categorical',
-            field: 'checkpoint_status per SONo',
-            resultUnit: 'Status',
-            numerator: {
-                label: 'Checkpoint status',
-                field: 'checkpoint_status',
-            },
+            type: 'raw value',
+            resultUnit: 'min',
+            numerator: { label: 'N/A', field: 'N/A' },
             denominator: { label: 'N/A', field: 'N/A' },
         },
-        target: { value: 'All green', label: 'All checkpoints green' },
-        thresholds: {
-            green: 'Tous les checkpoints validés',
-            orange: 'Un ou plusieurs checkpoints en attente',
-            red: 'Checkpoint bloqué',
-        },
+        target: { value: 0 },
+        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
         source: {
-            system: 'SDT',
-            novacityEndpoint: 'GET /api/data/itemtrxenq',
-            mysqlTable: 'item_trx_enq',
+            system: 'GPRO consulting',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_gpro_article_master',
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
-        breakdownType: 'per_of',
+        view: 'confection',
+        breakdownType: 'none',
         miniVizType: 'none',
+        exportFields: [],
+    },
+    sot: {
+        kpiKey: 'sot',
+        id: 'F-REQ-212',
+        label: 'SOT (Temps article fournisseur) par chaine',
+        description:
+            'Le temps d\'article de fournisseur',
+        formula: {
+            type: 'raw value',
+            resultUnit: 'min',
+            numerator: { label: 'N/A', field: 'N/A' },
+            denominator: { label: 'N/A', field: 'N/A' },
+        },
+        target: { value: 0 },
+        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
+        source: {
+            system: 'GPRO consulting',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_gpro_article_master',
+            frequency: 'Instantané',
+            status: 'live',
+        },
+        view: 'confection',
+        breakdownType: 'none',
+        miniVizType: 'none',
+        exportFields: [],
+    },
+    effectifs: {
+        kpiKey: 'effectifs',
+        id: 'F-REQ-213',
+        label: 'Effectifs par chaine',
+        description:
+            'Nombre d\'opérateurs exigé',
+        formula: {
+            type: 'raw value',
+            resultUnit: 'pers',
+            numerator: { label: 'N/A', field: 'N/A' },
+            denominator: { label: 'N/A', field: 'N/A' },
+        },
+        target: { value: 0 },
+        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
+        source: {
+            system: 'GPRO consulting',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_gpro_article_master',
+            frequency: 'Instantané',
+            status: 'live',
+        },
+        view: 'confection',
+        breakdownType: 'none',
+        miniVizType: 'none',
+        exportFields: [],
+    },
+    code_article: {
+        kpiKey: 'code_article',
+        id: 'F-REQ-214',
+        label: 'Code article par chaine',
+        description:
+            'Code conception de l\'article',
+        formula: {
+            type: 'raw value',
+            resultUnit: '',
+            numerator: { label: 'N/A', field: 'N/A' },
+            denominator: { label: 'N/A', field: 'N/A' },
+        },
+        target: { value: 0 },
+        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
+        source: {
+            system: 'GPRO consulting',
+            novacityEndpoint: 'GET /api/data/ofabrication',
+            mysqlTable: 'ofabrication',
+            frequency: 'Instantané',
+            status: 'live',
+        },
+        view: 'confection',
+        breakdownType: 'none',
+        miniVizType: 'none',
+        exportFields: ['IDOFabrication'],
+    },
+    designation_article: {
+        kpiKey: 'designation_article',
+        id: 'F-REQ-215',
+        label: 'Designation d\'article par chaine',
+        description:
+            'Description',
+        formula: {
+            type: 'raw value',
+            resultUnit: '',
+            numerator: { label: 'N/A', field: 'N/A' },
+            denominator: { label: 'N/A', field: 'N/A' },
+        },
+        target: { value: 0 },
+        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
+        source: {
+            system: 'GPRO consulting',
+            novacityEndpoint: 'GET /api/data/mp',
+            mysqlTable: 'sync_gpro_article_master',
+            frequency: 'Instantané',
+            status: 'live',
+        },
+        view: 'confection',
+        breakdownType: 'none',
+        miniVizType: 'none',
+        exportFields: ['Description'],
+    },
+    taux_archivage: {
+        kpiKey: 'taux_archivage',
+        id: 'F-REQ-216',
+        label: "Taux d'archivage suivi paquets par chaine",
+        description:
+            "(Nbre des OF soldés archivés / nbr des Ofs soldés) × 100",
+        formula: {
+            type: 'computed',
+            resultUnit: '%',
+            numerator: { label: 'OF archivés', field: 'OFabrication' },
+            denominator: { label: 'OFs soldés', field: 'of (statut=termine)' },
+            multiplier: 100,
+        },
+        target: { value: 85, operator: '≥' },
+        thresholds: {
+            green: '≥ 85%',
+            orange: '70% – 85%',
+            red: '< 70%',
+        },
+        source: {
+            system: 'Base suivi production',
+            novacityEndpoint: 'GET /api/data/ofabrication + GET /api/data/q/etat_avancement',
+            mysqlTable: 'ofabrication + etat_avancement',
+            frequency: 'Journalière',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_chain',
+        miniVizType: 'gauge',
+        exportFields: ['of_numero', 'est_solde', 'est_archive'],
+    },
+    taux_fiabilite_systeme: {
+        kpiKey: 'taux_fiabilite_systeme',
+        id: 'F-REQ-217',
+        label: 'Taux de fiabilité des donnés sur système par OF',
+        description:
+            'Différence entre tagging réel et sortie fin chaine',
+        formula: {
+            type: 'comparison',
+            field_a: 'tag_reel',
+            field_b: 'sortie_jour',
+            resultUnit: '%',
+            numerator: { label: 'Tag réel', field: 'tag_reel' },
+            denominator: { label: 'Sortie fin chaine', field: 'sortie_jour' },
+        },
+        target: {
+            value: 95,
+            operator: '≥',
+            label: '≥ 95% fiabilité (ecart_pct within ±5%)',
+        },
+        thresholds: {
+            green: '|ecart_pct| ≤ 2%',
+            orange: '|ecart_pct| 2% – 5%',
+            red: '|ecart_pct| > 5%',
+        },
+        source: {
+            system: 'GPRO',
+            novacityEndpoint: 'GET /api/data/q/taging_reel',
+            mysqlTable: 'taging_reel',
+            frequency: 'Journalière',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_chain',
+        miniVizType: 'sparkline',
         exportFields: [
-            'so_no',
-            'item_no',
-            'op_no',
-            'transaction_id',
-            'is_split',
+            'chaine',
+            'shift',
+            'tag_theorique',
+            'tag_reel',
+            'ecart_pct',
         ],
-        note: 'Breakdown renders as a horizontal progress stepper — each OpNo is a step, colored by validation status.',
+    },
+    respect_temps_estime: {
+        kpiKey: 'respect_temps_estime',
+        id: 'F-REQ-218',
+        label: 'Taux de respect du temps estimé par ARTICLE',
+        description:
+            "Temps cotation − Temps prod = / > 0 minute",
+        formula: {
+            type: 'computed',
+            resultUnit: '%',
+            numerator: { label: 'Articles respectant le temps estimé', field: 'respect_count' },
+            denominator: { label: 'Temps production', field: 'heures_prod' },
+            multiplier: 100,
+        },
+        target: { value: 90, operator: '≥' },
+        thresholds: {
+            green: '≥ 90%',
+            orange: '80% – 90%',
+            red: '< 80%',
+        },
+        source: {
+            system: 'Base rendement + Logiciel Cotation',
+            novacityEndpoint: 'GET /api/data/q/efficience_chaine',
+            mysqlTable: 'efficience_chaine',
+            frequency: 'Journalière',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_chain',
+        miniVizType: 'gauge',
+        exportFields: ['article', 'temps_cotation_min', 'temps_production_min'],
+    },
+    temps_acceptes: {
+        kpiKey: 'temps_acceptes',
+        id: 'F-REQ-219',
+        label: 'Taux des temps acceptés dès la première version par ARTICLE',
+        description:
+            "(Nbr des demandes de négociation − Nbr des gammes déchiffrage) × 100",
+        formula: {
+            type: 'computed',
+            resultUnit: '%',
+            numerator: { label: 'Gammes acceptées V1', field: 'nb_gammes_acceptees_v1' },
+            denominator: { label: 'Total gammes', field: 'nb_gammes_total' },
+            multiplier: 100,
+        },
+        target: { value: 80, operator: '≥' },
+        thresholds: {
+            green: '≥ 80%',
+            orange: '60% – 80%',
+            red: '< 60%',
+        },
+        source: {
+            system: 'Fichier déchiffrage + logiciel cotation',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_drive_gammes',
+            frequency: 'Hebdomadaire',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_chain',
+        miniVizType: 'gauge',
+        exportFields: ['article', 'nb_gammes_total', 'nb_gammes_acceptees_v1'],
     },
     couverture_serigraphie: {
         id: 'F-REQ-309',
         kpiKey: 'couverture_serigraphie',
-        label: 'Couverture Sérigraphie — Stock Disponible',
+        label: 'COUVERTURE Sérigraphie',
         description:
-            'Quantité disponible en entrée sérigraphie moins la quantité déjà produite — représente le stock tampon',
+            'Quantité entrée sérigraphie 236 − quantité produite 239',
         formula: {
             numerator: {
                 label: 'Quantité entrée sérigraphie (poste 236)',
@@ -613,7 +793,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: 'Rupture (valeur négative)',
         },
         source: {
-            system: 'SDT',
+            system: 'G.PRO',
             novacityEndpoint:
                 'GET /api/data/q/qte_entree_serigraphie + GET /api/data/q/sortie_serigraphie',
             mysqlTable: 'qte_entree_serigraphie + sortie_serigraphie',
@@ -635,25 +815,25 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     couverture_chaine: {
         kpiKey: 'couverture_chaine',
         id: 'F-REQ-310',
-        label: 'Couverture Chaîne',
+        label: 'Couverture chaine',
         description:
-            'Quantités lancées en chaîne moins les quantités déjà produites, rapportées à la cadence moyenne',
+            '(Qté engagé − Qté planifié) / cadence moyenne',
         formula: {
-            numerator: { label: 'Quantité lancée', field: 'qte_lancee' },
-            denominator: { label: 'Quantité produite', field: 'qte_produite' },
+            numerator: { label: 'Quantité engagée', field: 'quantite_engagee' },
+            denominator: { label: 'Cadence moyenne', field: 'Non mappé' },
             operator: 'subtraction',
             resultUnit: 'jours de couverture',
         },
-        target: { value: 5, operator: '>=', label: '≥ 5 jours de couverture' },
+        target: { value: 10, operator: '>', label: '> 10 jours de couverture' },
         thresholds: {
             green: '≥ 5 jours de couverture',
             orange: '2 – 5 jours',
             red: '< 2 jours',
         },
         source: {
-            system: 'SDT',
-            novacityEndpoint: 'GET /api/data/q/couverture_chaine',
-            mysqlTable: 'couverture_chaine',
+            system: 'GPRO consulting',
+            novacityEndpoint: 'GET /api/data/q/qte_engagement',
+            mysqlTable: 'qte_engagement',
             frequency: 'Instantané',
             status: 'live',
         },
@@ -671,13 +851,13 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     couverture_coupe: {
         kpiKey: 'couverture_coupe',
         id: 'F-REQ-311',
-        label: 'Couverture Coupe — Stock Disponible Confection',
+        label: 'Couverture Coupe',
         description:
-            'Quantités lancées en coupe moins les quantités déjà coupées, rapportées à la cadence hebdomadaire',
+            '(Qté lancé − Qté coupé) / cadence hebdomadaire moyenne',
         formula: {
             numerator: {
                 label: 'Quantité lancée (coupe)',
-                field: 'qte_lancee',
+                field: 'quantite_engagee',
             },
             denominator: { label: 'Quantité coupée', field: 'quantite_coupee' },
             operator: 'subtraction',
@@ -694,9 +874,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 2 jours (risque rupture)',
         },
         source: {
-            system: 'SDT + DIVATEX (GPRO consulting)',
+            system: 'DIVA / GPRO consulting',
             novacityEndpoint:
-                'GET /api/data/q/sortie_coupe + GET /api/data/ofabrication (DIVATEX)',
+                'GET /api/data/q/sortie_coupe + GET /api/data/ofabrication',
             mysqlTable: 'sortie_coupe + ofabrication',
             frequency: 'Instantané',
             status: 'live',
@@ -711,47 +891,118 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             'couverture_jours',
         ],
     },
-    taux_fiabilite_systeme: {
-        kpiKey: 'taux_fiabilite_systeme',
-        id: 'F-REQ-217',
-        label: 'Taux de Fiabilité des Données Système par OF',
+    objectif: {
+        kpiKey: 'objectif',
+        id: 'F-REQ-312',
+        label: 'Objectif par chaine',
         description:
-            'Écart entre le tagging réel constaté et la sortie fin de chaîne enregistrée dans le système',
+            'Objectif prévu journalier',
         formula: {
-            type: 'comparison',
-            field_a: 'tag_reel',
-            field_b: 'tag_theorique',
-            resultUnit: '%',
-            numerator: { label: 'Tag réel', field: 'tag_reel' },
-            denominator: { label: 'Tag théorique', field: 'tag_theorique' },
+            type: 'raw value',
+            resultUnit: 'pcs',
+            numerator: { label: 'N/A', field: 'N/A' },
+            denominator: { label: 'N/A', field: 'N/A' },
         },
-        target: {
-            value: 95,
-            operator: '≥',
-            label: '≥ 95% fiabilité (ecart_pct within ±5%)',
+        target: { value: 0 },
+        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
+        source: {
+            system: 'GPRO consulting',
+            novacityEndpoint: null,
+            mysqlTable: 'sync_gpro_chain_planning',
+            frequency: 'Instantané',
+            status: 'live',
         },
+        view: 'confection',
+        breakdownType: 'none',
+        miniVizType: 'none',
+        exportFields: [],
+    },
+    so_progress: {
+        kpiKey: 'so_progress',
+        id: 'F-REQ-304',
+        label: 'SO Progress par OF',
+        description:
+            "L'état d'avancement des commandes par point de contrôle",
+        formula: {
+            type: 'categorical',
+            field: 'checkpoint_status per SONo',
+            resultUnit: 'Status',
+            numerator: {
+                label: 'Checkpoint status',
+                field: 'avancement_pct',
+            },
+            denominator: { label: 'N/A', field: 'N/A' },
+        },
+        target: { value: 'All green', label: 'All checkpoints green' },
         thresholds: {
-            green: '|ecart_pct| ≤ 2%',
-            orange: '|ecart_pct| 2% – 5%',
-            red: '|ecart_pct| > 5%',
+            green: 'Tous les checkpoints validés',
+            orange: 'Un ou plusieurs checkpoints en attente',
+            red: 'Checkpoint bloqué',
         },
         source: {
-            system: 'SDT',
-            novacityEndpoint: 'GET /api/data/q/taging_reel',
-            mysqlTable: 'taging_reel',
-            frequency: 'Journalière',
+            system: 'G.PRO',
+            novacityEndpoint: 'GET /api/data/q/etat_avancement',
+            mysqlTable: 'etat_avancement',
+            frequency: 'Instantané',
             status: 'live',
         },
         view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'sparkline',
+        breakdownType: 'per_of',
+        miniVizType: 'none',
         exportFields: [
-            'chaine',
-            'shift',
-            'tag_theorique',
-            'tag_reel',
-            'ecart_pct',
+            'so_no',
+            'item_no',
+            'op_no',
+            'transaction_id',
+            'is_split',
         ],
+        note: 'Breakdown renders as a horizontal progress stepper — each OpNo is a step, colored by validation status.',
+    },
+    taux_avancement_of: {
+        id: 'F-REQ-305',
+        kpiKey: 'taux_avancement_of',
+        label: "Taux d'avancement OF par OF par chaine",
+        description:
+            "(Quantité produite déclaré / Quantité OF) × 100",
+        formula: {
+            numerator: {
+                label: 'Quantité produite déclarée',
+                field: 'quantite_realisee',
+            },
+            denominator: {
+                label: 'Quantité OF totale',
+                field: 'quantite_prevue',
+            },
+            multiplier: 100,
+            resultUnit: '%',
+        },
+        target: {
+            value: 'On schedule',
+            label: 'On schedule (EPD not exceeded)',
+        },
+        thresholds: {
+            green: '≥ 80% et EPD non dépassée',
+            orange: '50% – 80% ou EPD proche',
+            red: '< 50% ou EPD dépassée',
+        },
+        source: {
+            system: 'GPRO consulting',
+            novacityEndpoint: 'GET /api/data/q/etat_avancement',
+            mysqlTable: 'etat_avancement',
+            frequency: 'Instantané',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_of',
+        miniVizType: 'donut',
+        exportFields: [
+            'of',
+            'avancement_pct',
+            'quantite_prevue',
+            'quantite_realisee',
+            'statut',
+        ],
+        note: 'Breakdown lists all active OFs. Donut shows single OF completion if one selected, or aggregate if multiple.',
     },
     rft_production: {
         kpiKey: 'rft_production',
@@ -762,11 +1013,11 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         formula: {
             numerator: {
                 label: 'Pièces OK 1er coup',
-                field: 'first_pass_today',
+                field: 'FirstPassToday',
             },
             denominator: {
                 label: 'Total pièces produites',
-                field: 'produced_today',
+                field: 'ProducedToday',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -778,7 +1029,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             red: '< 95%',
         },
         source: {
-            system: 'QCM',
+            system: 'gpro-prod',
             novacityEndpoint:
                 'GET /api/data/q/pieces_ok_de_premier_coup_jour_en_cours + GET /api/data/q/pieces_produites_jour_en_cours',
             mysqlTable: 'pieces_ok_jour + pieces_produites_jour',
@@ -800,15 +1051,15 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             type: 'raw value',
             field: 'br_gtd',
             resultUnit: '%',
-            numerator: { label: 'Nombre de rejets contrôle', field: 'nb_rejets' },
-            denominator: { label: 'Nombre de contrôles', field: 'nb_controles' },
+            numerator: { label: 'Nombre de rejets contrôle', field: 'qtte' },
+            denominator: { label: 'Nombre de contrôles', field: 'total_colis' },
         },
         target: { value: 5, operator: '≤' },
-        thresholds: { green: '≤ 5%', orange: '5% – 10%', red: '> 10%' },
+        thresholds: { green: '≤ 4%', orange: '4% – 5%', red: '> 5%' },
         source: {
-            system: 'DIVA / GPRO',
-            novacityEndpoint: null,
-            mysqlTable: 'check_pass_qte',
+            system: 'DIVA',
+            novacityEndpoint: 'GET /api/data/q/packets_rejetes + GET /api/data/q/colis_total_3var',
+            mysqlTable: 'packets_rejetes + colis_total_var',
             frequency: 'Instantané',
             status: 'live',
         },
@@ -827,14 +1078,14 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             type: 'raw value',
             field: 'br_bundling',
             resultUnit: '%',
-            numerator: { label: 'BR Bundling', field: 'br_bundling' },
-            denominator: { label: 'N/A', field: 'N/A' },
+            numerator: { label: 'Nombre de rejet suite inspection Paquet', field: 'BundleRejectToday' },
+            denominator: { label: "Nombre d'inspection Paquet", field: 'BundleInspectedToday' },
         },
         target: { value: 5, operator: '≤' },
-        thresholds: { green: '≤ 5%', orange: '5% – 10%', red: '> 10%' },
+        thresholds: { green: '≤ 4%', orange: '4% – 5%', red: '> 5%' },
         source: {
-            system: 'GPRO Prod',
-            novacityEndpoint: null,
+            system: 'gpro-prod',
+            novacityEndpoint: 'GET /api/data/q/rejets_suite_inspection_paquet_jour_en_cours',
             mysqlTable: 'rejets_inspection_paquet',
             frequency: 'Instantané',
             status: 'live',
@@ -849,22 +1100,22 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         id: 'F-REQ-108',
         label: "BR Print (Aujourd'hui)",
         description:
-            "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (ce jour : jour en cours).",
+            "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (ce jour : le jour en cours).",
         formula: {
             type: 'raw value',
             field: 'br_print',
             resultUnit: '%',
-            numerator: { label: 'BR Print', field: 'br_print' },
-            denominator: { label: 'N/A', field: 'N/A' },
+            numerator: { label: 'Nombre de rejet suite inspection livraison sérigraphie', field: '—' },
+            denominator: { label: "Nombre d'inspection livraison sérigraphie", field: '—' },
         },
         target: { value: 5, operator: '≤' },
         thresholds: {
-            green: '≤ 5%',
-            orange: '5% – 10%',
-            red: '> 10%',
+            green: '≤ 4%',
+            orange: '4% – 5%',
+            red: '> 5%',
         },
         source: {
-            system: 'Google Drive',
+            system: 'DRIVE',
             novacityEndpoint: null,
             mysqlTable: 'sync_drive_br_print',
             frequency: '4×/jour',
@@ -874,202 +1125,5 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         breakdownType: 'none',
         miniVizType: 'none',
         exportFields: ['date', 'br_print'],
-    },
-    taux_archivage: {
-        kpiKey: 'taux_archivage',
-        id: 'F-REQ-216',
-        label: "Taux d'Archivage Suivi Paquets",
-        description:
-            "Pourcentage de paquets soldés qui ont été archivés. Source: GPRO Suivi Paquets.",
-        formula: {
-            type: 'computed',
-            resultUnit: '%',
-            numerator: { label: 'Paquets archivés (est_solde=1)', field: 'est_archive' },
-            denominator: { label: 'Paquets soldés (est_solde=1)', field: 'est_solde' },
-            multiplier: 100,
-        },
-        target: { value: 85, operator: '≥' },
-        thresholds: {
-            green: '≥ 85%',
-            orange: '70% – 85%',
-            red: '< 70%',
-        },
-        source: {
-            system: 'GPRO',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_gpro_suivi_paquets',
-            frequency: 'Quotidien',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'gauge',
-        exportFields: ['of_numero', 'est_solde', 'est_archive'],
-    },
-    respect_temps_estime: {
-        kpiKey: 'respect_temps_estime',
-        id: 'F-REQ-218',
-        label: 'Taux de Respect du Temps Estimé',
-        description:
-            "Pourcentage d'articles dont le temps de production est inférieur ou égal au temps coté. Source: Google Drive Cotation.",
-        formula: {
-            type: 'computed',
-            resultUnit: '%',
-            numerator: { label: 'Articles respectant le temps estimé', field: 'respect_count' },
-            denominator: { label: 'Total articles', field: 'total_count' },
-            multiplier: 100,
-        },
-        target: { value: 90, operator: '≥' },
-        thresholds: {
-            green: '≥ 90%',
-            orange: '80% – 90%',
-            red: '< 80%',
-        },
-        source: {
-            system: 'DRIVE',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_drive_cotation',
-            frequency: '4×/jour',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'gauge',
-        exportFields: ['article', 'temps_cotation_min', 'temps_production_min'],
-    },
-    temps_acceptes: {
-        kpiKey: 'temps_acceptes',
-        id: 'F-REQ-219',
-        label: 'Taux des Temps Acceptés dès la 1ère Version',
-        description:
-            "Pourcentage de gammes acceptées dès la première version. Source: Google Drive Gammes.",
-        formula: {
-            type: 'computed',
-            resultUnit: '%',
-            numerator: { label: 'Gammes acceptées V1', field: 'nb_gammes_acceptees_v1' },
-            denominator: { label: 'Total gammes', field: 'nb_gammes_total' },
-            multiplier: 100,
-        },
-        target: { value: 80, operator: '≥' },
-        thresholds: {
-            green: '≥ 80%',
-            orange: '60% – 80%',
-            red: '< 60%',
-        },
-        source: {
-            system: 'DRIVE',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_drive_gammes',
-            frequency: '4×/jour',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'gauge',
-        exportFields: ['article', 'nb_gammes_total', 'nb_gammes_acceptees_v1'],
-    },
-    sam: {
-        kpiKey: 'sam',
-        id: 'F-REQ-211',
-        label: 'SAM — Temps Standard Alloué par Article',
-        description:
-            "Temps standard alloué à la fabrication d'une pièce pour l'article en cours, exprimé en minutes",
-        formula: {
-            type: 'raw value',
-            resultUnit: 'min',
-            numerator: { label: 'N/A', field: 'N/A' },
-            denominator: { label: 'N/A', field: 'N/A' },
-        },
-        target: { value: 0 },
-        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
-        source: {
-            system: 'GPRO Consulting',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_gpro_article_master',
-            frequency: 'Tous les 15 min',
-            status: 'live',
-        },
-        view: 'confection',
-        breakdownType: 'none',
-        miniVizType: 'none',
-        exportFields: [],
-    },
-    sot: {
-        kpiKey: 'sot',
-        id: 'F-REQ-212',
-        label: 'SOT — Temps Article Fournisseur par Chaîne',
-        description:
-            "Temps de fabrication réel constaté chez le fournisseur — sert de référence pour le calcul d'efficience",
-        formula: {
-            type: 'raw value',
-            resultUnit: 'min',
-            numerator: { label: 'N/A', field: 'N/A' },
-            denominator: { label: 'N/A', field: 'N/A' },
-        },
-        target: { value: 0 },
-        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
-        source: {
-            system: 'GPRO Consulting',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_gpro_article_master',
-            frequency: 'Tous les 15 min',
-            status: 'live',
-        },
-        view: 'confection',
-        breakdownType: 'none',
-        miniVizType: 'none',
-        exportFields: [],
-    },
-    effectifs: {
-        kpiKey: 'effectifs',
-        id: 'F-REQ-213',
-        label: 'Effectifs par Chaîne',
-        description:
-            "Nombre d'opérateurs exigés affectés à la chaîne pour l'OF en cours",
-        formula: {
-            type: 'raw value',
-            resultUnit: 'pers',
-            numerator: { label: 'N/A', field: 'N/A' },
-            denominator: { label: 'N/A', field: 'N/A' },
-        },
-        target: { value: 0 },
-        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
-        source: {
-            system: 'GPRO Consulting',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_gpro_article_master',
-            frequency: 'Tous les 15 min',
-            status: 'live',
-        },
-        view: 'confection',
-        breakdownType: 'none',
-        miniVizType: 'none',
-        exportFields: [],
-    },
-    objectif: {
-        kpiKey: 'objectif',
-        id: 'F-REQ-312',
-        label: 'Objectif Journalier par Chaîne',
-        description:
-            'Quantité cible à produire ce jour sur la chaîne, selon la planification GPRO',
-        formula: {
-            type: 'raw value',
-            resultUnit: 'pcs',
-            numerator: { label: 'N/A', field: 'N/A' },
-            denominator: { label: 'N/A', field: 'N/A' },
-        },
-        target: { value: 0 },
-        thresholds: { green: 'N/A', orange: 'N/A', red: 'N/A' },
-        source: {
-            system: 'GPRO Consulting',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_gpro_chain_planning',
-            frequency: 'Toutes les 5 min',
-            status: 'live',
-        },
-        view: 'confection',
-        breakdownType: 'none',
-        miniVizType: 'none',
-        exportFields: [],
     },
 };

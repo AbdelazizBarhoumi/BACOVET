@@ -3,9 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Bar,
-    BarChart,
     CartesianGrid,
-    Cell,
     ComposedChart,
     Line,
     ReferenceLine,
@@ -51,19 +49,6 @@ const tooltipStyle = {
     fontSize: 12,
     fontFamily: 'var(--font-mono)',
 };
-
-function barFill(status: KpiStatus): string {
-    switch (status) {
-        case 'green':
-            return 'var(--success)';
-        case 'orange':
-            return 'var(--warning)';
-        case 'red':
-            return 'var(--destructive)';
-        default:
-            return 'var(--muted-foreground)';
-    }
-}
 
 function Sparkline({ data, color }: { data: number[]; color: string }) {
     if (data.length < 2) return null;
@@ -216,6 +201,30 @@ function generateAlerts(
         push(
             brBundling > 4 && brBundling <= 5,
             'BR BUNDLING VIGILANCE',
+            'orange',
+        );
+    }
+
+    const brCommande = kpis.br_commande.value;
+    if (brCommande !== null) {
+        push(
+            brCommande > 5,
+            'BR COMMANDE CRITIQUE — Dépassement du seuil',
+            'red',
+        );
+        push(
+            brCommande > 4 && brCommande <= 5,
+            'BR COMMANDE VIGILANCE — Approche du seuil',
+            'orange',
+        );
+    }
+
+    const brInJour = kpis.br_in_jour.value;
+    if (brInJour !== null) {
+        push(brInJour > 5, 'BR IN CRITIQUE — Dépassement du seuil', 'red');
+        push(
+            brInJour > 4 && brInJour <= 5,
+            'BR IN VIGILANCE — Approche du seuil',
             'orange',
         );
     }
@@ -409,8 +418,8 @@ export default function QualityPage() {
     const exportRows = kpis
         ? [
               {
-                  kpi: 'BR CGL (année)',
-                  valeur: kpis.br_cgl.value ?? '—',
+                  kpi: 'BR Commande (DDA)',
+                  valeur: kpis.br_commande.value ?? '—',
                   cible: '≤ 5%',
               },
               {
@@ -483,6 +492,16 @@ export default function QualityPage() {
                   valeur: kpis.br_compo_dda.value ?? '—',
                   cible: '≤ 5%',
               },
+              {
+                  kpi: 'BR IN (jour)',
+                  valeur: kpis.br_in_jour.value ?? '—',
+                  cible: '≤ 5%',
+              },
+              {
+                  kpi: 'BR IN DDA',
+                  valeur: kpis.br_in_dda.value ?? '—',
+                  cible: '≤ 5%',
+              },
               ...brChart.map((s) => ({
                   kpi: `BR ${s.stage}`,
                   valeur: s.defect_pct ?? '—',
@@ -513,11 +532,32 @@ export default function QualityPage() {
                 {/* Section A — KPI Cards Row 1 */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
-                        label="BR CGL (DDA)"
-                        kpi={kpis?.br_cgl ?? { value: null, status: 'grey' }}
+                        label="BR Bundling (Ce jour)"
+                        kpi={
+                            kpis?.br_bundling_jour ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
                         target="≤ 5%"
-                        source="Google Drive"
-                        onClick={() => setOpenModal('br_cgl')}
+                        source="gpro-prod"
+                        onClick={() => setOpenModal('br_bundling_jour')}
+                        trend={trend
+                            .map((d) => d.br_bundling)
+                            .filter((v): v is number => v !== null)}
+                        isLoading={loading}
+                    />
+                    <KpiCard
+                        label="BR Commande (DDA)"
+                        kpi={
+                            kpis?.br_commande ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="DIVA"
+                        onClick={() => setOpenModal('br_commande')}
                         isLoading={loading}
                     />
                     <KpiCard
@@ -534,30 +574,30 @@ export default function QualityPage() {
                         label="RFT (Ce jour)"
                         kpi={kpis?.rft_jour ?? { value: null, status: 'grey' }}
                         target="≥ 98%"
-                        source="GPRO"
+                        source="gpro-prod"
                         onClick={() => setOpenModal('rft_jour')}
-                        isLoading={loading}
-                    />
-                    <KpiCard
-                        label="BR Bundling (Ce jour)"
-                        kpi={
-                            kpis?.br_bundling_jour ?? {
-                                value: null,
-                                status: 'grey',
-                            }
-                        }
-                        target="≤ 5%"
-                        source="GPRO"
-                        onClick={() => setOpenModal('br_bundling_jour')}
-                        trend={trend
-                            .map((d) => d.br_bundling)
-                            .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
                 </div>
 
                 {/* Section A — KPI Cards Row 2 */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard
+                        label="BR Bundling DDA (Année)"
+                        kpi={
+                            kpis?.br_bundling_annee ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="gpro-prod"
+                        onClick={() => setOpenModal('br_bundling_annee')}
+                        trend={trend
+                            .map((d) => d.br_bundling)
+                            .filter((v): v is number => v !== null)}
+                        isLoading={loading}
+                    />
                     <KpiCard
                         label="BR GTD DDA (Année)"
                         kpi={
@@ -578,26 +618,10 @@ export default function QualityPage() {
                         label="RFT DDA (Année)"
                         kpi={kpis?.rft_annee ?? { value: null, status: 'grey' }}
                         target="≥ 98%"
-                        source="GPRO"
+                        source="gpro-prod"
                         onClick={() => setOpenModal('rft_annee')}
                         trend={trend
                             .map((d) => d.rft)
-                            .filter((v): v is number => v !== null)}
-                        isLoading={loading}
-                    />
-                    <KpiCard
-                        label="BR Bundling DDA (Année)"
-                        kpi={
-                            kpis?.br_bundling_annee ?? {
-                                value: null,
-                                status: 'grey',
-                            }
-                        }
-                        target="≤ 5%"
-                        source="GPRO"
-                        onClick={() => setOpenModal('br_bundling_annee')}
-                        trend={trend
-                            .map((d) => d.br_bundling)
                             .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
@@ -611,7 +635,7 @@ export default function QualityPage() {
                     />
                 </div>
 
-                {/* Section A — KPI Cards Row 3 (Google Drive — Sprint 7) */}
+                {/* Section A — KPI Cards Row 3 */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
                         label="BR Print DDA (Année)"
@@ -630,6 +654,32 @@ export default function QualityPage() {
                         isLoading={loading}
                     />
                     <KpiCard
+                        label="BR IN (Ce jour)"
+                        kpi={
+                            kpis?.br_in_jour ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="DIVA"
+                        onClick={() => setOpenModal('br_in_jour')}
+                        isLoading={loading}
+                    />
+                    <KpiCard
+                        label="BR IN DDA (Année)"
+                        kpi={
+                            kpis?.br_in_dda ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="DIVA"
+                        onClick={() => setOpenModal('br_in_dda')}
+                        isLoading={loading}
+                    />
+                    <KpiCard
                         label="BR Care Label (Ce jour)"
                         kpi={
                             kpis?.br_care_label_jour ?? {
@@ -642,6 +692,10 @@ export default function QualityPage() {
                         onClick={() => setOpenModal('br_care_label_jour')}
                         isLoading={loading}
                     />
+                </div>
+
+                {/* Section A — KPI Cards Row 4 */}
+                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
                         label="BR Care Label DDA (Année)"
                         kpi={
@@ -671,8 +725,6 @@ export default function QualityPage() {
                         onClick={() => setOpenModal('br_accessoires_jour')}
                         isLoading={loading}
                     />
-                </div>
-                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
                         label="BR Accessoires DDA (Année)"
                         kpi={
@@ -720,108 +772,8 @@ export default function QualityPage() {
                     />
                 </div>
 
-                {/* Section B — BR Bar Chart + Alerts */}
-                <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-                    <Panel
-                        title="Taux de rejet (BR) par étape de contrôle"
-                        className="lg:col-span-2"
-                    >
-                        {brChart.length === 0 ? (
-                            <div className="flex h-[260px] items-center justify-center text-xs text-muted-foreground">
-                                {loading
-                                    ? 'Chargement...'
-                                    : 'Aucune donnée disponible'}
-                            </div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={260}>
-                                <BarChart
-                                    data={brChart.map((d) => ({
-                                        ...d,
-                                        chartValue: d.defect_pct ?? 0,
-                                    }))}
-                                >
-                                    <CartesianGrid
-                                        stroke="var(--border)"
-                                        strokeDasharray="3 3"
-                                    />
-                                    <XAxis
-                                        dataKey="stage"
-                                        tick={{
-                                            fill: 'var(--muted-foreground)',
-                                            fontSize: 11,
-                                        }}
-                                    />
-                                    <YAxis
-                                        unit="%"
-                                        tick={{
-                                            fill: 'var(--muted-foreground)',
-                                            fontSize: 11,
-                                        }}
-                                        domain={[0, 10]}
-                                    />
-                                    <Tooltip
-                                        contentStyle={tooltipStyle}
-                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                        labelStyle={{
-                                            color: 'var(--foreground)',
-                                            fontWeight: 700,
-                                            fontSize: 11,
-                                            marginBottom: 4,
-                                        }}
-                                        itemStyle={{
-                                            color: 'var(--muted-foreground)',
-                                            fontSize: 11,
-                                        }}
-                                        formatter={(
-                                            value: unknown,
-                                            _name: string,
-                                            props: { payload?: BrChartItem },
-                                        ) => {
-                                            const original =
-                                                props.payload?.defect_pct;
-                                            return [
-                                                original != null
-                                                    ? `${original}%`
-                                                    : 'N/A',
-                                                `BR`,
-                                            ];
-                                        }}
-                                    />
-                                    <ReferenceLine
-                                        y={5}
-                                        stroke="var(--warning)"
-                                        strokeDasharray="4 4"
-                                        label={{
-                                            value: 'Cible 5%',
-                                            fill: 'var(--warning)',
-                                            fontSize: 10,
-                                        }}
-                                    />
-                                    <Bar
-                                        dataKey="chartValue"
-                                        radius={[4, 4, 0, 0]}
-                                    >
-                                        {brChart.map((d, i) => (
-                                            <Cell
-                                                key={i}
-                                                fill={
-                                                    d.defect_pct != null
-                                                        ? barFill(d.status)
-                                                        : 'var(--muted)'
-                                                }
-                                                opacity={
-                                                    d.defect_pct != null
-                                                        ? 1
-                                                        : 0.3
-                                                }
-                                            />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        )}
-                    </Panel>
-
+                {/* Section B — Alerts */}
+                <div className="mb-4">
                     <Panel title="Dernières alertes qualité">
                         <div className="space-y-2">
                             {alerts.map((a, i) => (
@@ -1111,10 +1063,10 @@ export default function QualityPage() {
                             <tbody className="font-mono">
                                 {[
                                     [
-                                        'BR CGL (DDA)',
-                                        kpis.br_cgl.value,
+                                        'BR Commande (DDA)',
+                                        kpis.br_commande.value,
                                         '≤ 5%',
-                                        kpis.br_cgl.status,
+                                        kpis.br_commande.status,
                                     ],
                                     [
                                         'BR GTD (jour)',
@@ -1129,7 +1081,7 @@ export default function QualityPage() {
                                         kpis.br_gtd_annee.status,
                                     ],
                                     [
-                                        'RFT Prod (jour)',
+                                        'RFT (jour)',
                                         kpis.rft_jour.value,
                                         '≥ 98%',
                                         kpis.rft_jour.status,
@@ -1199,6 +1151,18 @@ export default function QualityPage() {
                                         kpis.br_compo_dda.value,
                                         '≤ 5%',
                                         kpis.br_compo_dda.status,
+                                    ],
+                                    [
+                                        'BR IN (jour)',
+                                        kpis.br_in_jour.value,
+                                        '≤ 5%',
+                                        kpis.br_in_jour.status,
+                                    ],
+                                    [
+                                        'BR IN DDA',
+                                        kpis.br_in_dda.value,
+                                        '≤ 5%',
+                                        kpis.br_in_dda.status,
                                     ],
                                 ].map((r, i) => (
                                     <tr

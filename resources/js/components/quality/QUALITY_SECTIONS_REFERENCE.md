@@ -97,9 +97,7 @@ QualityController::kpis()
 
 ```json
 GET /quality/kpis →
-{
-  "br_cgl":              { "value": 3.2,  "status": "green", "source": "sync_drive_inspection_commande" },
-  "br_gtd_jour":         { "value": 3.8,  "status": "green", "source": "check_pass_qte (proxy DIVA)" },
+{"br_gtd_jour":         { "value": 3.8,  "status": "green", "source": "check_pass_qte (proxy DIVA)" },
   "rft_jour":            { "value": 97.5, "status": "orange", "raw": { "first_pass": 15600, "produced": 16000 } },
   "br_bundling_jour":    { "value": 2.1,  "status": "green" },
   "br_gtd_annee":        { "value": 4.1,  "status": "orange", "source": "check_pass_qte (proxy DIVA)" },

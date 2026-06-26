@@ -20,12 +20,10 @@ import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchDevelopmentKpis,
     fetchDevelopmentTrend,
-    fetchLeadTimeDev,
     fetchDevelopmentTrendRft,
     fetchDevelopmentTrendLivraison,
     type DevelopmentKpisResponse,
     type TrendItem,
-    type LeadTimeDevResponse,
 } from '@/services/developmentApi';
 
 const tooltipStyle = {
@@ -178,7 +176,6 @@ export default function DevPage() {
     const [trend, setTrend] = useState<TrendItem[]>([]);
     const [trendRft, setTrendRft] = useState<TrendItem[]>([]);
     const [trendLivraison, setTrendLivraison] = useState<TrendItem[]>([]);
-    const [leadTime, setLeadTime] = useState<LeadTimeDevResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -190,17 +187,15 @@ export default function DevPage() {
     const fetchData = useCallback(async () => {
         try {
             const filters = getFilterParams();
-            const [k, t, lt, rftT, livT] = await Promise.allSettled([
+            const [k, t, rftT, livT] = await Promise.allSettled([
                 fetchDevelopmentKpis(filters),
                 fetchDevelopmentTrend(filters),
-                fetchLeadTimeDev(filters),
                 fetchDevelopmentTrendRft(filters),
                 fetchDevelopmentTrendLivraison(filters),
             ]);
 
             if (k.status === 'fulfilled') setKpis(k.value);
             if (t.status === 'fulfilled') setTrend(t.value.data);
-            if (lt.status === 'fulfilled') setLeadTime(lt.value);
             if (rftT.status === 'fulfilled') setTrendRft(rftT.value.data);
             if (livT.status === 'fulfilled') setTrendLivraison(livT.value.data);
 
@@ -237,11 +232,6 @@ export default function DevPage() {
                 valeur: v.value !== null ? `${v.value}%` : '—',
                 cible: `${v.target_kind === 'min' ? '≥' : '≤'}${v.target}%`,
             })),
-            ...(leadTime ? [{
-                kpi: '354 Lead Time Dev',
-                valeur: leadTime.value !== null ? `${leadTime.value}j` : '—',
-                cible: '≤0j',
-            }] : []),
         ]
         : [];
 
@@ -347,26 +337,6 @@ export default function DevPage() {
 
                 {/* Row 3 — Lead Time Dev + Trend Charts */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {/* Lead Time Dev */}
-                    <div className="space-y-2">
-                        <KpiCard
-                            label="Lead Time Dev"
-                            fReq="354"
-                            value={leadTime?.value ?? null}
-                            status={leadTime?.status ?? 'grey'}
-                            target={0}
-                            targetKind="max"
-                            unit="j"
-                            source={leadTime?.source ?? 'sync_drive_development'}
-                            freq="Mensuel"
-                            onClick={() => setOpenModal('dev_leadtime')}
-                            isLoading={loading}
-                        />
-                        <div className="font-mono text-[9px] text-muted-foreground">
-                            Délai moyen livraison (jours) — source: sync_drive_development
-                        </div>
-                    </div>
-
                     {/* RFT Trend */}
                     <Panel title="Tendance RFT Développement" className="min-h-[200px]">
                         {trendRft.length === 0 ? (
@@ -468,20 +438,6 @@ export default function DevPage() {
                                         </tr>
                                     );
                                 })}
-                                {leadTime && (
-                                    <tr className="border-b border-border/50">
-                                        <td className="py-2 text-primary">354</td>
-                                        <td>Lead Time Dev</td>
-                                        <td className="text-right tabular-nums">
-                                            {leadTime.value !== null ? `${leadTime.value}j` : '—'}
-                                        </td>
-                                        <td className="text-right text-muted-foreground">{'≤'}0j</td>
-                                        <td className="text-right text-muted-foreground">{leadTime.frequency}</td>
-                                        <td className="text-right">
-                                            <TrafficBadge status={leadTime.status} />
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     </Panel>
@@ -491,7 +447,6 @@ export default function DevPage() {
                 <DevKpiDetailModal
                     kpiKey={openModal}
                     kpiData={kpis}
-                    leadTimeData={leadTime}
                     onClose={() => setOpenModal(null)}
                 />
             </AppShell>

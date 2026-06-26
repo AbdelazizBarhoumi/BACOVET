@@ -1,4 +1,4 @@
-import { X, Download } from 'lucide-react';
+import { X, Download, Info } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -112,7 +112,7 @@ export default function KpiDetailModal({
     const config = KPI_DETAIL_CONFIG[kpiKey];
 
     const kpiKeyMap: Record<KpiKey, keyof QualityKpis> = {
-        br_cgl: 'br_cgl',
+        br_commande: 'br_commande',
         br_gtd_jour: 'br_gtd_jour',
         rft_jour: 'rft_jour',
         br_bundling_jour: 'br_bundling_jour',
@@ -127,6 +127,8 @@ export default function KpiDetailModal({
         br_accessoires_dda: 'br_accessoires_dda',
         br_compo_jour: 'br_compo_jour',
         br_compo_dda: 'br_compo_dda',
+        br_in_jour: 'br_in_jour',
+        br_in_dda: 'br_in_dda',
     };
 
     const card = kpiData[kpiKeyMap[kpiKey]] as KpiCardType | undefined;
@@ -241,10 +243,6 @@ export default function KpiDetailModal({
 
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto px-5 py-4">
-                    <p className="mb-5 text-xs text-muted-foreground">
-                        {config.description}
-                    </p>
-
                     {/* Top stat boxes */}
                     <div className="mb-6 grid grid-cols-3 gap-3">
                         <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
@@ -289,36 +287,26 @@ export default function KpiDetailModal({
 
                     {/* Formula & Source */}
                     <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                        {config.formula.numerator.field !== '—' && config.formula.denominator.field !== '—' && (
-                            <div>
-                                <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                        <div className="group/info relative">
+                            <div className="mb-2 flex items-center gap-1.5">
+                                <h4 className="text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                     Formule de calcul
                                 </h4>
-                                <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
-                                    <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                        <div className="truncate text-[8px] opacity-70">
-                                            {config.formula.numerator.label}
-                                        </div>
-                                        <div className="truncate font-bold">
-                                            {config.formula.numerator.field}
-                                        </div>
-                                    </div>
-                                    <div className="text-muted-foreground">÷</div>
-                                    <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                        <div className="truncate text-[8px] opacity-70">
-                                            {config.formula.denominator.label}
-                                        </div>
-                                        <div className="truncate font-bold">
-                                            {config.formula.denominator.field}
+                                {config.formula.numerator.field !== '—' && config.formula.denominator.field !== '—' && (
+                                    <div className="relative">
+                                        <Info className="h-3 w-3 cursor-help text-muted-foreground/60 transition-colors hover:text-muted-foreground" />
+                                        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-md border border-border bg-card p-3 text-[10px] font-mono leading-relaxed normal-case tracking-normal text-muted-foreground shadow-lg opacity-0 transition-opacity duration-150 group-hover/info:pointer-events-auto group-hover/info:opacity-100">
+                                            <span className="font-sans text-[11px] font-bold text-foreground">Champs technique :</span>
+                                            <br />
+                                            {config.formula.numerator.field} ÷ {config.formula.denominator.field} × {config.formula.multiplier}
                                         </div>
                                     </div>
-                                    <div className="text-muted-foreground">×</div>
-                                    <div className="font-bold">
-                                        {config.formula.multiplier}
-                                    </div>
-                                </div>
+                                )}
                             </div>
-                        )}
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                                {config.description}
+                            </p>
+                        </div>
                         <div>
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
                                 Source de données
