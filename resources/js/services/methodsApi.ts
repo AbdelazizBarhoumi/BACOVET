@@ -66,41 +66,16 @@ export type MethodsKpi = {
 
 export type MethodsKpisResponse = {
     f_req_216: MethodsKpi;
-    f_req_217: MethodsKpi & { is_proxy?: boolean; proxy_note?: string };
+    f_req_217: MethodsKpi;
     f_req_218: MethodsKpi;
     f_req_219: MethodsKpi;
     synced_at: string | null;
-};
-
-export type TaggingChartItem = {
-    chaine: string;
-    shift: string;
-    tag_theorique: number;
-    tag_reel: number;
-    ecart_pct: number;
-    status: KpiStatus;
-};
-
-export type DetailTableItem = {
-    id: string;
-    indicateur: string;
-    valeur: string | null;
-    cible: string;
-    frequence: string;
-    status?: KpiStatus;
-    blocker?: string;
 };
 
 // ─── API Functions ──────────────────────────────────────────────────────────
 
 export const fetchMethodesKpis = (filters?: Record<string, string>) =>
     apiGet<MethodsKpisResponse>('/kpis', filters);
-
-export const fetchMethodesTaggingChart = (filters?: Record<string, string>) =>
-    apiGet<{ data: TaggingChartItem[] }>('/tagging-chart', filters);
-
-export const fetchMethodesDetailTable = () =>
-    apiGet<{ data: DetailTableItem[] }>('/detail-table');
 
 // ── Detail Endpoints ─────────────────────────────────────────────────────────
 
@@ -137,8 +112,8 @@ export const fetchTempsAcceptesDetail = () =>
 export type FiabiliteDetailItem = {
     chaine: string;
     shift: string;
-    tag_theorique: number;
     tag_reel: number;
+    sortie_jour: number;
     ecart_pct: number;
     ecart_abs: number;
     status: KpiStatus;

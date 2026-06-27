@@ -1,6 +1,5 @@
 import { X, Info } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { MethodsKpisResponse, FiabiliteDetailItem, ArchivageDetailItem, RespectTempsDetailItem, TempsAcceptesDetailItem } from '@/services/methodsApi';
 import {
     Pagination,
     PaginationContent,
@@ -9,6 +8,7 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from '@/components/ui/pagination';
+import type { MethodsKpisResponse, FiabiliteDetailItem, ArchivageDetailItem, RespectTempsDetailItem, TempsAcceptesDetailItem } from '@/services/methodsApi';
 import {
     METHODS_KPI_CONFIG,
     type MethodsKpiKey,
@@ -70,6 +70,7 @@ export default function MethodsKpiDetailModal({
     const DETAIL_PAGE_SIZE = 10;
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetailPage(1);
     }, [kpiKey]);
 
@@ -108,7 +109,7 @@ export default function MethodsKpiDetailModal({
                                 F-REQ-{config.id}
                             </span>
                             <span className="font-mono text-[10px] text-muted-foreground uppercase">
-                                Méthodes & Amélioration Continue
+                                Série 200 — Méthodes
                             </span>
                         </div>
                         <h2 className="text-sm font-bold tracking-wider text-foreground uppercase">
@@ -116,10 +117,12 @@ export default function MethodsKpiDetailModal({
                         </h2>
                         <div className="mt-1 flex gap-4">
                             <span className="text-[10px] tracking-tight text-muted-foreground uppercase">
-                                Période: <span className="text-foreground">{config.period}</span>
+                                Période:{' '}
+                                <span className="text-foreground">{config.period}</span>
                             </span>
                             <span className="text-[10px] tracking-tight text-muted-foreground uppercase">
-                                Exigence: <span className="text-foreground">F-REQ-{config.id}</span>
+                                Exigence:{' '}
+                                <span className="text-foreground">F-REQ-{config.id}</span>
                             </span>
                         </div>
                     </div>
@@ -133,21 +136,6 @@ export default function MethodsKpiDetailModal({
 
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto px-5 py-4">
-                    <p className="mb-5 text-xs text-muted-foreground">
-                        {config.description}
-                    </p>
-
-                    {/* Proxy disclaimer for F-REQ-217 */}
-                    {(kpiKey === 'f_req_217' && (kpiValue as { is_proxy?: boolean; proxy_note?: string })?.is_proxy) && (
-                        <div className="mb-5 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2">
-                            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-                            <div className="font-mono text-[10px]">
-                                <span className="font-bold tracking-wider text-warning uppercase">Proxy : </span>
-                                <span className="text-foreground/80">{(kpiValue as { proxy_note?: string }).proxy_note}</span>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Top stat boxes */}
                     <div className="mb-6 grid grid-cols-3 gap-3">
                         <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
@@ -181,31 +169,25 @@ export default function MethodsKpiDetailModal({
 
                     {/* Formula & Source */}
                     <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <div>
-                            <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
-                                Formule de calcul
-                            </h4>
-                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
-                                <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                    <div className="truncate text-[8px] opacity-70">
-                                        {config.formula.numerator.label}
+                        <div className="group/info relative">
+                            <div className="mb-2 flex items-center gap-1.5">
+                                <h4 className="text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
+                                    Formule de calcul
+                                </h4>
+                                {config.formula.numerator.field !== '—' && config.formula.denominator.field !== '—' && (
+                                    <div className="relative">
+                                        <Info className="h-3 w-3 cursor-help text-muted-foreground/60 transition-colors hover:text-muted-foreground" />
+                                        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-md border border-border bg-card p-3 text-[10px] font-mono leading-relaxed normal-case tracking-normal text-muted-foreground shadow-lg opacity-0 transition-opacity duration-150 group-hover/info:pointer-events-auto group-hover/info:opacity-100">
+                                            <span className="font-sans text-[11px] font-bold text-foreground">Champs technique :</span>
+                                            <br />
+                                            {config.formula.numerator.field} ÷ {config.formula.denominator.field} × {config.formula.multiplier}
+                                        </div>
                                     </div>
-                                    <div className="truncate font-bold">
-                                        {config.formula.numerator.field}
-                                    </div>
-                                </div>
-                                <div className="text-muted-foreground">÷</div>
-                                <div className="flex-1 rounded border border-border bg-secondary/10 p-1.5 text-center">
-                                    <div className="truncate text-[8px] opacity-70">
-                                        {config.formula.denominator.label}
-                                    </div>
-                                    <div className="truncate font-bold">
-                                        {config.formula.denominator.field}
-                                    </div>
-                                </div>
-                                <div className="text-muted-foreground">×</div>
-                                <div className="font-bold">{config.formula.multiplier}</div>
+                                )}
                             </div>
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                                {config.description}
+                            </p>
                         </div>
                         <div>
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">
@@ -217,8 +199,8 @@ export default function MethodsKpiDetailModal({
                                     {config.source.system}
                                 </div>
                                 <div className="truncate">
-                                    <span className="text-muted-foreground">Table:</span>{' '}
-                                    {config.source.mysqlTable || 'N/A'}
+                                    <span className="text-muted-foreground">Source:</span>{' '}
+                                    {config.source.novacityEndpoint || config.source.mysqlTable || 'N/A'}
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground">Fréquence:</span>{' '}
@@ -270,8 +252,8 @@ export default function MethodsKpiDetailModal({
                                                 <>
                                                     <th className="px-2 py-1.5 text-left">Chaîne</th>
                                                     <th className="px-2 py-1.5 text-left">Shift</th>
-                                                    <th className="px-2 py-1.5 text-right">Tag Théo.</th>
                                                     <th className="px-2 py-1.5 text-right">Tag Réel</th>
+                                                    <th className="px-2 py-1.5 text-right">Sortie Jour</th>
                                                     <th className="px-2 py-1.5 text-right">Écart %</th>
                                                     <th className="px-2 py-1.5 text-right">|Écart|</th>
                                                     <th className="px-2 py-1.5 text-right">Statut</th>
@@ -308,8 +290,8 @@ export default function MethodsKpiDetailModal({
                                             <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
                                                 <td className="px-2 py-1">{row.chaine}</td>
                                                 <td className="px-2 py-1">{row.shift}</td>
-                                                <td className="px-2 py-1 text-right tabular-nums">{row.tag_theorique}</td>
                                                 <td className="px-2 py-1 text-right tabular-nums">{row.tag_reel}</td>
+                                                <td className="px-2 py-1 text-right tabular-nums">{row.sortie_jour}</td>
                                                 <td className="px-2 py-1 text-right tabular-nums">{row.ecart_pct}%</td>
                                                 <td className="px-2 py-1 text-right tabular-nums">{row.ecart_abs}%</td>
                                                 <td className="px-2 py-1 text-right">

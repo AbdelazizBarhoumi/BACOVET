@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::kpis
- * @see app/Http/Controllers/Api/LogisticsController.php:17
+ * @see app/Http/Controllers/Api/LogisticsController.php:22
  * @route '/logistics/kpis'
  */
 export const kpis = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ kpis.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::kpis
- * @see app/Http/Controllers/Api/LogisticsController.php:17
+ * @see app/Http/Controllers/Api/LogisticsController.php:22
  * @route '/logistics/kpis'
  */
 kpis.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ kpis.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::kpis
- * @see app/Http/Controllers/Api/LogisticsController.php:17
+ * @see app/Http/Controllers/Api/LogisticsController.php:22
  * @route '/logistics/kpis'
  */
 kpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ kpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::kpis
- * @see app/Http/Controllers/Api/LogisticsController.php:17
+ * @see app/Http/Controllers/Api/LogisticsController.php:22
  * @route '/logistics/kpis'
  */
 kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\LogisticsController::kpis
- * @see app/Http/Controllers/Api/LogisticsController.php:17
+ * @see app/Http/Controllers/Api/LogisticsController.php:22
  * @route '/logistics/kpis'
  */
     const kpisForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::kpis
- * @see app/Http/Controllers/Api/LogisticsController.php:17
+ * @see app/Http/Controllers/Api/LogisticsController.php:22
  * @route '/logistics/kpis'
  */
         kpisForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::kpis
- * @see app/Http/Controllers/Api/LogisticsController.php:17
+ * @see app/Http/Controllers/Api/LogisticsController.php:22
  * @route '/logistics/kpis'
  */
         kpisForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     kpis.form = kpisForm
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockKpis
- * @see app/Http/Controllers/Api/LogisticsController.php:142
+ * @see app/Http/Controllers/Api/LogisticsController.php:196
  * @route '/logistics/stock-kpis'
  */
 export const stockKpis = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ stockKpis.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockKpis
- * @see app/Http/Controllers/Api/LogisticsController.php:142
+ * @see app/Http/Controllers/Api/LogisticsController.php:196
  * @route '/logistics/stock-kpis'
  */
 stockKpis.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ stockKpis.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockKpis
- * @see app/Http/Controllers/Api/LogisticsController.php:142
+ * @see app/Http/Controllers/Api/LogisticsController.php:196
  * @route '/logistics/stock-kpis'
  */
 stockKpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -112,7 +112,7 @@ stockKpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockKpis
- * @see app/Http/Controllers/Api/LogisticsController.php:142
+ * @see app/Http/Controllers/Api/LogisticsController.php:196
  * @route '/logistics/stock-kpis'
  */
 stockKpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -122,7 +122,7 @@ stockKpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockKpis
- * @see app/Http/Controllers/Api/LogisticsController.php:142
+ * @see app/Http/Controllers/Api/LogisticsController.php:196
  * @route '/logistics/stock-kpis'
  */
     const stockKpisForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -132,7 +132,7 @@ stockKpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockKpis
- * @see app/Http/Controllers/Api/LogisticsController.php:142
+ * @see app/Http/Controllers/Api/LogisticsController.php:196
  * @route '/logistics/stock-kpis'
  */
         stockKpisForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -141,7 +141,7 @@ stockKpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockKpis
- * @see app/Http/Controllers/Api/LogisticsController.php:142
+ * @see app/Http/Controllers/Api/LogisticsController.php:196
  * @route '/logistics/stock-kpis'
  */
         stockKpisForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -157,7 +157,7 @@ stockKpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     stockKpis.form = stockKpisForm
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockComposition
- * @see app/Http/Controllers/Api/LogisticsController.php:208
+ * @see app/Http/Controllers/Api/LogisticsController.php:279
  * @route '/logistics/stock-composition'
  */
 export const stockComposition = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -172,7 +172,7 @@ stockComposition.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockComposition
- * @see app/Http/Controllers/Api/LogisticsController.php:208
+ * @see app/Http/Controllers/Api/LogisticsController.php:279
  * @route '/logistics/stock-composition'
  */
 stockComposition.url = (options?: RouteQueryOptions) => {
@@ -181,7 +181,7 @@ stockComposition.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockComposition
- * @see app/Http/Controllers/Api/LogisticsController.php:208
+ * @see app/Http/Controllers/Api/LogisticsController.php:279
  * @route '/logistics/stock-composition'
  */
 stockComposition.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -190,7 +190,7 @@ stockComposition.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => 
 })
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockComposition
- * @see app/Http/Controllers/Api/LogisticsController.php:208
+ * @see app/Http/Controllers/Api/LogisticsController.php:279
  * @route '/logistics/stock-composition'
  */
 stockComposition.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -200,7 +200,7 @@ stockComposition.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
     /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockComposition
- * @see app/Http/Controllers/Api/LogisticsController.php:208
+ * @see app/Http/Controllers/Api/LogisticsController.php:279
  * @route '/logistics/stock-composition'
  */
     const stockCompositionForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -210,7 +210,7 @@ stockComposition.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockComposition
- * @see app/Http/Controllers/Api/LogisticsController.php:208
+ * @see app/Http/Controllers/Api/LogisticsController.php:279
  * @route '/logistics/stock-composition'
  */
         stockCompositionForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -219,7 +219,7 @@ stockComposition.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
         })
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockComposition
- * @see app/Http/Controllers/Api/LogisticsController.php:208
+ * @see app/Http/Controllers/Api/LogisticsController.php:279
  * @route '/logistics/stock-composition'
  */
         stockCompositionForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -235,7 +235,7 @@ stockComposition.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
     stockComposition.form = stockCompositionForm
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::ofs
- * @see app/Http/Controllers/Api/LogisticsController.php:257
+ * @see app/Http/Controllers/Api/LogisticsController.php:329
  * @route '/logistics/ofs'
  */
 export const ofs = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -250,7 +250,7 @@ ofs.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::ofs
- * @see app/Http/Controllers/Api/LogisticsController.php:257
+ * @see app/Http/Controllers/Api/LogisticsController.php:329
  * @route '/logistics/ofs'
  */
 ofs.url = (options?: RouteQueryOptions) => {
@@ -259,7 +259,7 @@ ofs.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::ofs
- * @see app/Http/Controllers/Api/LogisticsController.php:257
+ * @see app/Http/Controllers/Api/LogisticsController.php:329
  * @route '/logistics/ofs'
  */
 ofs.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -268,7 +268,7 @@ ofs.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::ofs
- * @see app/Http/Controllers/Api/LogisticsController.php:257
+ * @see app/Http/Controllers/Api/LogisticsController.php:329
  * @route '/logistics/ofs'
  */
 ofs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -278,7 +278,7 @@ ofs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\LogisticsController::ofs
- * @see app/Http/Controllers/Api/LogisticsController.php:257
+ * @see app/Http/Controllers/Api/LogisticsController.php:329
  * @route '/logistics/ofs'
  */
     const ofsForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -288,7 +288,7 @@ ofs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::ofs
- * @see app/Http/Controllers/Api/LogisticsController.php:257
+ * @see app/Http/Controllers/Api/LogisticsController.php:329
  * @route '/logistics/ofs'
  */
         ofsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -297,7 +297,7 @@ ofs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::ofs
- * @see app/Http/Controllers/Api/LogisticsController.php:257
+ * @see app/Http/Controllers/Api/LogisticsController.php:329
  * @route '/logistics/ofs'
  */
         ofsForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -312,242 +312,8 @@ ofs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     ofs.form = ofsForm
 /**
-* @see \App\Http\Controllers\Api\LogisticsController::livraison
- * @see app/Http/Controllers/Api/LogisticsController.php:339
- * @route '/logistics/livraison'
- */
-export const livraison = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: livraison.url(options),
-    method: 'get',
-})
-
-livraison.definition = {
-    methods: ["get","head"],
-    url: '/logistics/livraison',
-} satisfies RouteDefinition<["get","head"]>
-
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::livraison
- * @see app/Http/Controllers/Api/LogisticsController.php:339
- * @route '/logistics/livraison'
- */
-livraison.url = (options?: RouteQueryOptions) => {
-    return livraison.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::livraison
- * @see app/Http/Controllers/Api/LogisticsController.php:339
- * @route '/logistics/livraison'
- */
-livraison.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: livraison.url(options),
-    method: 'get',
-})
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::livraison
- * @see app/Http/Controllers/Api/LogisticsController.php:339
- * @route '/logistics/livraison'
- */
-livraison.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: livraison.url(options),
-    method: 'head',
-})
-
-    /**
-* @see \App\Http\Controllers\Api\LogisticsController::livraison
- * @see app/Http/Controllers/Api/LogisticsController.php:339
- * @route '/logistics/livraison'
- */
-    const livraisonForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: livraison.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Api\LogisticsController::livraison
- * @see app/Http/Controllers/Api/LogisticsController.php:339
- * @route '/logistics/livraison'
- */
-        livraisonForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: livraison.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Api\LogisticsController::livraison
- * @see app/Http/Controllers/Api/LogisticsController.php:339
- * @route '/logistics/livraison'
- */
-        livraisonForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: livraison.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    livraison.form = livraisonForm
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::coverage
- * @see app/Http/Controllers/Api/LogisticsController.php:374
- * @route '/logistics/coverage'
- */
-export const coverage = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: coverage.url(options),
-    method: 'get',
-})
-
-coverage.definition = {
-    methods: ["get","head"],
-    url: '/logistics/coverage',
-} satisfies RouteDefinition<["get","head"]>
-
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::coverage
- * @see app/Http/Controllers/Api/LogisticsController.php:374
- * @route '/logistics/coverage'
- */
-coverage.url = (options?: RouteQueryOptions) => {
-    return coverage.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::coverage
- * @see app/Http/Controllers/Api/LogisticsController.php:374
- * @route '/logistics/coverage'
- */
-coverage.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: coverage.url(options),
-    method: 'get',
-})
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::coverage
- * @see app/Http/Controllers/Api/LogisticsController.php:374
- * @route '/logistics/coverage'
- */
-coverage.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: coverage.url(options),
-    method: 'head',
-})
-
-    /**
-* @see \App\Http\Controllers\Api\LogisticsController::coverage
- * @see app/Http/Controllers/Api/LogisticsController.php:374
- * @route '/logistics/coverage'
- */
-    const coverageForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: coverage.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Api\LogisticsController::coverage
- * @see app/Http/Controllers/Api/LogisticsController.php:374
- * @route '/logistics/coverage'
- */
-        coverageForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: coverage.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Api\LogisticsController::coverage
- * @see app/Http/Controllers/Api/LogisticsController.php:374
- * @route '/logistics/coverage'
- */
-        coverageForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: coverage.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    coverage.form = coverageForm
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::stockSearch
- * @see app/Http/Controllers/Api/LogisticsController.php:479
- * @route '/logistics/stock-search'
- */
-export const stockSearch = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: stockSearch.url(options),
-    method: 'get',
-})
-
-stockSearch.definition = {
-    methods: ["get","head"],
-    url: '/logistics/stock-search',
-} satisfies RouteDefinition<["get","head"]>
-
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::stockSearch
- * @see app/Http/Controllers/Api/LogisticsController.php:479
- * @route '/logistics/stock-search'
- */
-stockSearch.url = (options?: RouteQueryOptions) => {
-    return stockSearch.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::stockSearch
- * @see app/Http/Controllers/Api/LogisticsController.php:479
- * @route '/logistics/stock-search'
- */
-stockSearch.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: stockSearch.url(options),
-    method: 'get',
-})
-/**
-* @see \App\Http\Controllers\Api\LogisticsController::stockSearch
- * @see app/Http/Controllers/Api/LogisticsController.php:479
- * @route '/logistics/stock-search'
- */
-stockSearch.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: stockSearch.url(options),
-    method: 'head',
-})
-
-    /**
-* @see \App\Http\Controllers\Api\LogisticsController::stockSearch
- * @see app/Http/Controllers/Api/LogisticsController.php:479
- * @route '/logistics/stock-search'
- */
-    const stockSearchForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: stockSearch.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Api\LogisticsController::stockSearch
- * @see app/Http/Controllers/Api/LogisticsController.php:479
- * @route '/logistics/stock-search'
- */
-        stockSearchForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: stockSearch.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Api\LogisticsController::stockSearch
- * @see app/Http/Controllers/Api/LogisticsController.php:479
- * @route '/logistics/stock-search'
- */
-        stockSearchForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: stockSearch.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    stockSearch.form = stockSearchForm
-/**
 * @see \App\Http\Controllers\Api\LogisticsController::stockReliability
- * @see app/Http/Controllers/Api/LogisticsController.php:633
+ * @see app/Http/Controllers/Api/LogisticsController.php:416
  * @route '/logistics/stock-reliability'
  */
 export const stockReliability = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -562,7 +328,7 @@ stockReliability.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockReliability
- * @see app/Http/Controllers/Api/LogisticsController.php:633
+ * @see app/Http/Controllers/Api/LogisticsController.php:416
  * @route '/logistics/stock-reliability'
  */
 stockReliability.url = (options?: RouteQueryOptions) => {
@@ -571,7 +337,7 @@ stockReliability.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockReliability
- * @see app/Http/Controllers/Api/LogisticsController.php:633
+ * @see app/Http/Controllers/Api/LogisticsController.php:416
  * @route '/logistics/stock-reliability'
  */
 stockReliability.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -580,7 +346,7 @@ stockReliability.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => 
 })
 /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockReliability
- * @see app/Http/Controllers/Api/LogisticsController.php:633
+ * @see app/Http/Controllers/Api/LogisticsController.php:416
  * @route '/logistics/stock-reliability'
  */
 stockReliability.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -590,7 +356,7 @@ stockReliability.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
     /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockReliability
- * @see app/Http/Controllers/Api/LogisticsController.php:633
+ * @see app/Http/Controllers/Api/LogisticsController.php:416
  * @route '/logistics/stock-reliability'
  */
     const stockReliabilityForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -600,7 +366,7 @@ stockReliability.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockReliability
- * @see app/Http/Controllers/Api/LogisticsController.php:633
+ * @see app/Http/Controllers/Api/LogisticsController.php:416
  * @route '/logistics/stock-reliability'
  */
         stockReliabilityForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -609,7 +375,7 @@ stockReliability.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
         })
             /**
 * @see \App\Http\Controllers\Api\LogisticsController::stockReliability
- * @see app/Http/Controllers/Api/LogisticsController.php:633
+ * @see app/Http/Controllers/Api/LogisticsController.php:416
  * @route '/logistics/stock-reliability'
  */
         stockReliabilityForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -623,6 +389,6 @@ stockReliability.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
         })
     
     stockReliability.form = stockReliabilityForm
-const LogisticsController = { kpis, stockKpis, stockComposition, ofs, livraison, coverage, stockSearch, stockReliability }
+const LogisticsController = { kpis, stockKpis, stockComposition, ofs, stockReliability }
 
 export default LogisticsController

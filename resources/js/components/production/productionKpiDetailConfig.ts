@@ -10,18 +10,15 @@ export type ProductionKpiKey =
     | 'efficience_vignettes'
     | 'top_operateurs'
     | 'taux_avancement_of'
+    | 'of_confection'
     | 'so_progress'
     | 'couverture_serigraphie'
     | 'couverture_chaine'
     | 'couverture_coupe'
-    | 'taux_fiabilite_systeme'
     | 'rft_production'
     | 'br_gtd'
     | 'br_bundling'
     | 'br_print'
-    | 'taux_archivage'
-    | 'respect_temps_estime'
-    | 'temps_acceptes'
     | 'sam'
     | 'sot'
     | 'effectifs'
@@ -63,7 +60,7 @@ export interface ProductionKpiDetailConfig {
         frequency: string;
         status: 'live' | 'pending' | 'inactive' | 'google_drive' | 'blocked';
     };
-    view: 'confection' | 'coupe' | 'serigraphie' | 'all';
+    view: 'confection' | 'coupe' | 'serigraphie' | 'confection+serigraphie' | 'coupe+serigraphie' | 'all';
     breakdownType:
         | 'per_chain'
         | 'per_operator'
@@ -88,7 +85,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     efficience_operateur: {
         id: 'F-REQ-201',
         kpiKey: 'efficience_operateur',
-        label: 'Efficience par OPERATEUR par chaine',
+        label: 'Efficience par OPÉRATEUR par chaine',
         description:
             '(Minutes produites / minutes présence) × 100',
         formula: {
@@ -117,7 +114,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection',
         breakdownType: 'per_operator',
         miniVizType: 'horizontal_bar',
         exportFields: [
@@ -149,9 +146,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         },
         target: { value: 85, operator: '>' },
         thresholds: {
-            green: '≥ 90%',
-            orange: '85% – 90%',
-            red: '< 85%',
+            green: '≥ 85%',
+            orange: '70% – 85%',
+            red: '< 70%',
         },
         source: {
             system: 'G.PRO + GPRO consulting',
@@ -160,7 +157,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection',
         breakdownType: 'per_chain',
         miniVizType: 'gauge',
         exportFields: [
@@ -174,7 +171,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     efficience_cumulee: {
         id: 'F-REQ-203',
         kpiKey: 'efficience_cumulee',
-        label: 'Efficience Cumulée chaine',
+        label: 'Efficience Cumulée Chaine (mensuelle)',
         description:
             '(Somme des minutes produites pour le mois en cours / Somme des minutes présence pour le mois en cours) × 100',
         formula: {
@@ -203,7 +200,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection',
         breakdownType: 'per_chain',
         miniVizType: 'sparkline',
         exportFields: [
@@ -234,9 +231,9 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         },
         target: { value: 70, operator: '>' },
         thresholds: {
-            green: '≥ 75%',
-            orange: '70% – 75%',
-            red: '< 70%',
+            green: '≥ 70%',
+            orange: '60% – 70%',
+            red: '< 60%',
         },
         source: {
             system: 'G.PRO + GPRO consulting',
@@ -245,7 +242,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection',
         breakdownType: 'per_chain',
         miniVizType: 'gauge',
         exportFields: ['chaine', 'shift_code', 'mono', 'log_date'],
@@ -281,7 +278,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection+serigraphie',
         breakdownType: 'per_chain',
         miniVizType: 'gauge',
         exportFields: ['chaine', 'en_cours', 'entree_jour', 'sortie_jour'],
@@ -320,7 +317,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'coupe',
+        view: 'confection+serigraphie',
         breakdownType: 'per_of',
         miniVizType: 'sparkline',
         exportFields: [
@@ -367,7 +364,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     efficience_depart: {
         id: 'F-REQ-208',
         kpiKey: 'efficience_depart',
-        label: 'Efficience Départage PAR OPERATRICE',
+        label: 'Efficience Départage PAR OPÉRATRICE',
         description:
             '(Minutes produites poste 221 / Minutes présence) × 100',
         formula: {
@@ -397,7 +394,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'coupe',
         breakdownType: 'per_operator',
         miniVizType: 'horizontal_bar',
         exportFields: [
@@ -412,7 +409,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     efficience_vignettes: {
         id: 'F-REQ-209',
         kpiKey: 'efficience_vignettes',
-        label: 'Efficience Vignettes PAR OPERATRICE',
+        label: 'Efficience Vignettes PAR OPÉRATRICE',
         description: '(Minutes produites poste 213 / Minutes présence) × 100',
         formula: {
             numerator: {
@@ -441,7 +438,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'coupe',
         breakdownType: 'per_operator',
         miniVizType: 'horizontal_bar',
         exportFields: [
@@ -486,7 +483,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'coupe',
+        view: 'all',
         breakdownType: 'per_operator',
         miniVizType: 'horizontal_bar',
         exportFields: [
@@ -624,150 +621,15 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'confection',
+        view: 'all',
         breakdownType: 'none',
         miniVizType: 'none',
         exportFields: ['Description'],
     },
-    taux_archivage: {
-        kpiKey: 'taux_archivage',
-        id: 'F-REQ-216',
-        label: "Taux d'archivage suivi paquets par chaine",
-        description:
-            "(Nbre des OF soldés archivés / nbr des Ofs soldés) × 100",
-        formula: {
-            type: 'computed',
-            resultUnit: '%',
-            numerator: { label: 'OF archivés', field: 'OFabrication' },
-            denominator: { label: 'OFs soldés', field: 'of (statut=termine)' },
-            multiplier: 100,
-        },
-        target: { value: 85, operator: '≥' },
-        thresholds: {
-            green: '≥ 85%',
-            orange: '70% – 85%',
-            red: '< 70%',
-        },
-        source: {
-            system: 'Base suivi production',
-            novacityEndpoint: 'GET /api/data/ofabrication + GET /api/data/q/etat_avancement',
-            mysqlTable: 'ofabrication + etat_avancement',
-            frequency: 'Journalière',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'gauge',
-        exportFields: ['of_numero', 'est_solde', 'est_archive'],
-    },
-    taux_fiabilite_systeme: {
-        kpiKey: 'taux_fiabilite_systeme',
-        id: 'F-REQ-217',
-        label: 'Taux de fiabilité des donnés sur système par OF',
-        description:
-            'Différence entre tagging réel et sortie fin chaine',
-        formula: {
-            type: 'comparison',
-            field_a: 'tag_reel',
-            field_b: 'sortie_jour',
-            resultUnit: '%',
-            numerator: { label: 'Tag réel', field: 'tag_reel' },
-            denominator: { label: 'Sortie fin chaine', field: 'sortie_jour' },
-        },
-        target: {
-            value: 95,
-            operator: '≥',
-            label: '≥ 95% fiabilité (ecart_pct within ±5%)',
-        },
-        thresholds: {
-            green: '|ecart_pct| ≤ 2%',
-            orange: '|ecart_pct| 2% – 5%',
-            red: '|ecart_pct| > 5%',
-        },
-        source: {
-            system: 'GPRO',
-            novacityEndpoint: 'GET /api/data/q/taging_reel',
-            mysqlTable: 'taging_reel',
-            frequency: 'Journalière',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'sparkline',
-        exportFields: [
-            'chaine',
-            'shift',
-            'tag_theorique',
-            'tag_reel',
-            'ecart_pct',
-        ],
-    },
-    respect_temps_estime: {
-        kpiKey: 'respect_temps_estime',
-        id: 'F-REQ-218',
-        label: 'Taux de respect du temps estimé par ARTICLE',
-        description:
-            "Temps cotation − Temps prod = / > 0 minute",
-        formula: {
-            type: 'computed',
-            resultUnit: '%',
-            numerator: { label: 'Articles respectant le temps estimé', field: 'respect_count' },
-            denominator: { label: 'Temps production', field: 'heures_prod' },
-            multiplier: 100,
-        },
-        target: { value: 90, operator: '≥' },
-        thresholds: {
-            green: '≥ 90%',
-            orange: '80% – 90%',
-            red: '< 80%',
-        },
-        source: {
-            system: 'Base rendement + Logiciel Cotation',
-            novacityEndpoint: 'GET /api/data/q/efficience_chaine',
-            mysqlTable: 'efficience_chaine',
-            frequency: 'Journalière',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'gauge',
-        exportFields: ['article', 'temps_cotation_min', 'temps_production_min'],
-    },
-    temps_acceptes: {
-        kpiKey: 'temps_acceptes',
-        id: 'F-REQ-219',
-        label: 'Taux des temps acceptés dès la première version par ARTICLE',
-        description:
-            "(Nbr des demandes de négociation − Nbr des gammes déchiffrage) × 100",
-        formula: {
-            type: 'computed',
-            resultUnit: '%',
-            numerator: { label: 'Gammes acceptées V1', field: 'nb_gammes_acceptees_v1' },
-            denominator: { label: 'Total gammes', field: 'nb_gammes_total' },
-            multiplier: 100,
-        },
-        target: { value: 80, operator: '≥' },
-        thresholds: {
-            green: '≥ 80%',
-            orange: '60% – 80%',
-            red: '< 60%',
-        },
-        source: {
-            system: 'Fichier déchiffrage + logiciel cotation',
-            novacityEndpoint: null,
-            mysqlTable: 'sync_drive_gammes',
-            frequency: 'Hebdomadaire',
-            status: 'live',
-        },
-        view: 'all',
-        breakdownType: 'per_chain',
-        miniVizType: 'gauge',
-        exportFields: ['article', 'nb_gammes_total', 'nb_gammes_acceptees_v1'],
-    },
     couverture_serigraphie: {
         id: 'F-REQ-309',
         kpiKey: 'couverture_serigraphie',
-        label: 'COUVERTURE Sérigraphie',
+        label: 'Couverture Sérigraphie',
         description:
             'Quantité entrée sérigraphie 236 − quantité produite 239',
         formula: {
@@ -837,7 +699,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection',
         breakdownType: 'per_chain',
         miniVizType: 'sparkline',
         exportFields: [
@@ -912,7 +774,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'confection',
+        view: 'all',
         breakdownType: 'none',
         miniVizType: 'none',
         exportFields: [],
@@ -957,6 +819,37 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             'is_split',
         ],
         note: 'Breakdown renders as a horizontal progress stepper — each OpNo is a step, colored by validation status.',
+    },
+    of_confection: {
+        id: 'F-REQ-301',
+        kpiKey: 'of_confection',
+        label: 'OF ou OFs confection par CHAINE',
+        description: 'Numéros des OF en cours de production par chaine',
+        formula: {
+            type: 'categorical',
+            field: 'of, statut, avancement_pct, quantite_prevue, quantite_realisee',
+            resultUnit: 'List',
+            numerator: { label: 'Numéro OF', field: 'of' },
+            denominator: { label: 'N/A', field: 'N/A' },
+        },
+        target: { value: 'All OFs en cours', label: 'Tous les OF non soldés' },
+        thresholds: {
+            green: 'OF en cours, avancement > 80%',
+            orange: 'OF en cours, avancement 40% – 80%',
+            red: 'OF en cours, avancement < 40%',
+        },
+        source: {
+            system: 'GPRO consulting (SDT)',
+            novacityEndpoint: 'GET /api/data/q/etat_avancement',
+            mysqlTable: 'etat_avancement',
+            frequency: 'Instantané',
+            status: 'live',
+        },
+        view: 'all',
+        breakdownType: 'per_of',
+        miniVizType: 'none',
+        exportFields: ['of', 'statut', 'avancement_pct', 'quantite_prevue', 'quantite_realisee'],
+        note: 'Filtrer statut = "en_cours". Afficher la liste de tous les OF non soldés.',
     },
     taux_avancement_of: {
         id: 'F-REQ-305',
@@ -1007,7 +900,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     rft_production: {
         kpiKey: 'rft_production',
         id: 'F-REQ-104',
-        label: 'RFT — Right First Time Production (Ce jour)',
+        label: 'RFT (Right First Time — jour en cours)',
         description:
             'Pourcentage de pièces conformes dès le premier contrôle par rapport au total produit ce jour',
         formula: {
@@ -1025,7 +918,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
         target: { value: 98, operator: '≥' },
         thresholds: {
             green: '≥ 98%',
-            orange: '95% – 97%',
+            orange: '95% – 98%',
             red: '< 95%',
         },
         source: {
@@ -1036,7 +929,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection+serigraphie',
         breakdownType: 'none',
         miniVizType: 'none',
         exportFields: ['date', 'first_pass_today', 'produced_today', 'rft_pct'],
@@ -1044,7 +937,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     br_gtd: {
         kpiKey: 'br_gtd',
         id: 'F-REQ-102',
-        label: "BR GTD (Aujourd'hui)",
+        label: "BR GTD (jour en cours)",
         description:
             "Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production × 100 (ce jour : jour en cours).",
         formula: {
@@ -1063,7 +956,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'confection',
         breakdownType: 'none',
         miniVizType: 'gauge',
         exportFields: ['date', 'br_gtd'],
@@ -1071,7 +964,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     br_bundling: {
         kpiKey: 'br_bundling',
         id: 'F-REQ-106',
-        label: 'BR Bundling',
+        label: 'BR Bundling (jour en cours)',
         description:
             "Nombre de rejet suite inspection Paquet / Nombre d'inspection Paquet × 100 (ce jour : jour en cours).",
         formula: {
@@ -1090,7 +983,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: 'Instantané',
             status: 'live',
         },
-        view: 'all',
+        view: 'coupe',
         breakdownType: 'none',
         miniVizType: 'gauge',
         exportFields: ['date', 'br_bundling'],
@@ -1098,7 +991,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
     br_print: {
         kpiKey: 'br_print',
         id: 'F-REQ-108',
-        label: "BR Print (Aujourd'hui)",
+        label: "BR Print (jour en cours)",
         description:
             "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (ce jour : le jour en cours).",
         formula: {
@@ -1121,7 +1014,7 @@ export const PRODUCTION_KPI_DETAIL_CONFIG: Record<
             frequency: '4×/jour',
             status: 'live',
         },
-        view: 'all',
+        view: 'coupe+serigraphie',
         breakdownType: 'none',
         miniVizType: 'none',
         exportFields: ['date', 'br_print'],

@@ -39,7 +39,7 @@ const NAV_ITEMS: {
         icon: Boxes,
     },
     {
-        href: '/development',
+        href: '/developpement',
         label: 'DÉVELOPPEMENT & AMÉLIORATION',
         code: '350',
         icon: Activity,

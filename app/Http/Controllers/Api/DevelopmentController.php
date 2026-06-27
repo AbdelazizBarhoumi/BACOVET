@@ -6,12 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\ManualKpiValue;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class DevelopmentController extends Controller
 {
-    public function kpis(Request $request): JsonResponse
+    public function kpis(): JsonResponse
     {
         $keys = [
             'dev_rft' => ['target' => 95, 'target_kind' => 'min', 'frequency' => 'Mensuel'],
@@ -20,17 +19,12 @@ class DevelopmentController extends Controller
             'dev_reclamations' => ['target' => 2,  'target_kind' => 'max', 'frequency' => 'Mensuel'],
         ];
 
-        // Compute from sync_drive_development (primary source)
-        $query = DB::table('sync_drive_development');
-
-        if ($request->filled('marque')) {
-            $query->where('modele', 'like', '%'.$request->input('marque').'%');
-        }
-
-        $devData = $query->get();
+        $devData = DB::table('sync_drive_development')->get();
         $computed = $this->computeDevKpis($devData);
 
         $kpis = [];
+        $globalSyncedAt = DB::table('sync_drive_development')->orderByDesc('synced_at')->value('synced_at')
+            ?? ManualKpiValue::max('updated_at');
 
         foreach ($keys as $key => $meta) {
             // Use computed value if available, else fall back to manual
@@ -38,6 +32,8 @@ class DevelopmentController extends Controller
             $value = $computed[$key] ?? $manualRecord?->value;
             $numerator = $computed[$key.'_numerator'] ?? $manualRecord?->numerator;
             $denominator = $computed[$key.'_denominator'] ?? $manualRecord?->denominator;
+            $source = $computed ? 'sync_drive_development' : 'manual_kpi_values';
+            $kpiSyncedAt = $source === 'sync_drive_development' ? $globalSyncedAt : $manualRecord?->updated_at?->toISOString();
 
             $status = 'grey';
             if ($value !== null) {
@@ -45,9 +41,15 @@ class DevelopmentController extends Controller
                     $status = $value >= $meta['target'] ? 'green'
                         : ($value >= $meta['target'] - 3 ? 'orange' : 'red');
                 } else {
-                    $status = $value <= $meta['target'] - 1 ? 'green'
-                        : ($value <= $meta['target'] ? 'orange' : 'red');
+                    $status = $value < $meta['target'] ? 'green'
+                        : ($value <= $meta['target'] + 1 ? 'orange' : 'red');
                 }
+            }
+
+            $isStale = false;
+            if ($kpiSyncedAt) {
+                $ageDays = Carbon::parse($kpiSyncedAt)->diffInDays(Carbon::now());
+                $isStale = $ageDays > 7;
             }
 
             $kpis[$key] = [
@@ -58,15 +60,16 @@ class DevelopmentController extends Controller
                 'target_kind' => $meta['target_kind'],
                 'frequency' => $meta['frequency'],
                 'status' => $status,
-                'source' => $computed ? 'sync_drive_development' : 'manual_kpi_values',
+                'source' => $source,
+                'synced_at' => $kpiSyncedAt,
+                'is_stale' => $isStale,
                 'updated_at' => $manualRecord?->updated_at?->toISOString(),
             ];
         }
 
         return response()->json([
             'kpis' => $kpis,
-            'synced_at' => DB::table('sync_drive_development')->orderByDesc('synced_at')->value('synced_at')
-                ?? ManualKpiValue::max('updated_at'),
+            'synced_at' => $globalSyncedAt,
         ]);
     }
 
@@ -106,15 +109,11 @@ class DevelopmentController extends Controller
         ];
     }
 
-    public function trend(Request $request): JsonResponse
+    public function trend(): JsonResponse
     {
         // Try sync_drive_development first, fallback to manual_kpi_history
         $query = DB::table('sync_drive_development')
             ->whereNotNull('date');
-
-        if ($request->filled('marque')) {
-            $query->where('modele', 'like', '%'.$request->input('marque').'%');
-        }
 
         $driveData = $query
             ->selectRaw("DATE_FORMAT(date, '%Y-%m') as mois")
@@ -151,74 +150,24 @@ class DevelopmentController extends Controller
         return response()->json(['data' => $data]);
     }
 
-    // ── New endpoints ────────────────────────────────────────────────────────
-
-    public function leadTimeDev(): JsonResponse
+    public function reclamationsScatter(): JsonResponse
     {
-        $rows = DB::table('sync_drive_development')
-            ->whereNotNull('date_livraison_reelle')
-            ->whereNotNull('date_livraison_prevue')
-            ->get();
-
-        if ($rows->isEmpty()) {
-            return response()->json([
-                'value' => null,
-                'target' => 0,
-                'status' => 'grey',
-                'unit' => 'jours',
-                'target_kind' => 'max',
-                'frequency' => 'Mensuel',
-            ]);
-        }
-
-        $delays = $rows->map(fn ($r) => Carbon::parse($r->date_livraison_reelle)->diffInDays(Carbon::parse($r->date_livraison_prevue)));
-        $avgDelay = round($delays->avg(), 1);
-
-        return response()->json([
-            'value' => $avgDelay,
-            'target' => 0,
-            'status' => $avgDelay <= 0 ? 'green' : ($avgDelay <= 7 ? 'orange' : 'red'),
-            'unit' => 'jours',
-            'target_kind' => 'max',
-            'frequency' => 'Mensuel',
-            'source' => 'sync_drive_development',
-        ]);
-    }
-
-    public function trendRft(): JsonResponse
-    {
-        $data = DB::table('sync_drive_development')
+        $query = DB::table('sync_drive_development')
             ->whereNotNull('date')
             ->selectRaw("DATE_FORMAT(date, '%Y-%m') as mois")
-            ->selectRaw("COUNT(CASE WHEN statut_validation = 'OK' THEN 1 END) as ok_count")
+            ->selectRaw('modele')
+            ->selectRaw("COUNT(CASE WHEN est_reclamation = 1 THEN 1 END) as reclamations")
             ->selectRaw('COUNT(*) as total')
-            ->groupBy('mois')
-            ->orderBy('mois')
-            ->get()
+            ->groupBy('mois', 'modele')
+            ->orderBy('mois');
+
+        $data = $query->get()
             ->map(fn ($r) => [
                 'mois' => Carbon::parse($r->mois.'-01')->format('M'),
-                'valeur' => $r->total > 0 ? round(($r->ok_count / $r->total) * 100, 1) : null,
-            ])
-            ->toArray();
-
-        return response()->json(['data' => $data]);
-    }
-
-    public function trendLivraison(): JsonResponse
-    {
-        $data = DB::table('sync_drive_development')
-            ->whereNotNull('date')
-            ->whereNotNull('date_livraison_reelle')
-            ->whereNotNull('date_livraison_prevue')
-            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as mois")
-            ->selectRaw('COUNT(CASE WHEN date_livraison_reelle <= date_livraison_prevue THEN 1 END) as ontime')
-            ->selectRaw('COUNT(*) as total')
-            ->groupBy('mois')
-            ->orderBy('mois')
-            ->get()
-            ->map(fn ($r) => [
-                'mois' => Carbon::parse($r->mois.'-01')->format('M'),
-                'valeur' => $r->total > 0 ? round(($r->ontime / $r->total) * 100, 1) : null,
+                'modele' => $r->modele,
+                'valeur' => $r->total > 0 ? round(($r->reclamations / $r->total) * 100, 1) : 0,
+                'reclamations' => $r->reclamations,
+                'total' => $r->total,
             ])
             ->toArray();
 

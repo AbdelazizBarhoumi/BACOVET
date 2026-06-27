@@ -330,13 +330,13 @@ export default function KpiDetailModal({
                                     </span>{' '}
                                     {config.source.frequency}
                                 </div>
-                                {kpiData.synced_at && (
+                                {card.synced_at && (
                                     <div>
                                         <span className="text-muted-foreground">
                                             Sync:
                                         </span>{' '}
                                         {new Date(
-                                            kpiData.synced_at,
+                                            card.synced_at,
                                         ).toLocaleString('fr-FR')}
                                     </div>
                                 )}

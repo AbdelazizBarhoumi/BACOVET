@@ -1,8 +1,8 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::kpis
- * @see app/Http/Controllers/Api/DevelopmentController.php:14
- * @route '/development/kpis'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:13
+ * @route '/developpement/kpis'
  */
 export const kpis = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: kpis.url(options),
@@ -11,13 +11,13 @@ export const kpis = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 kpis.definition = {
     methods: ["get","head"],
-    url: '/development/kpis',
+    url: '/developpement/kpis',
 } satisfies RouteDefinition<["get","head"]>
 
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::kpis
- * @see app/Http/Controllers/Api/DevelopmentController.php:14
- * @route '/development/kpis'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:13
+ * @route '/developpement/kpis'
  */
 kpis.url = (options?: RouteQueryOptions) => {
     return kpis.definition.url + queryParams(options)
@@ -25,8 +25,8 @@ kpis.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::kpis
- * @see app/Http/Controllers/Api/DevelopmentController.php:14
- * @route '/development/kpis'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:13
+ * @route '/developpement/kpis'
  */
 kpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: kpis.url(options),
@@ -34,8 +34,8 @@ kpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::kpis
- * @see app/Http/Controllers/Api/DevelopmentController.php:14
- * @route '/development/kpis'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:13
+ * @route '/developpement/kpis'
  */
 kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: kpis.url(options),
@@ -44,8 +44,8 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DevelopmentController::kpis
- * @see app/Http/Controllers/Api/DevelopmentController.php:14
- * @route '/development/kpis'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:13
+ * @route '/developpement/kpis'
  */
     const kpisForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
         action: kpis.url(options),
@@ -54,8 +54,8 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DevelopmentController::kpis
- * @see app/Http/Controllers/Api/DevelopmentController.php:14
- * @route '/development/kpis'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:13
+ * @route '/developpement/kpis'
  */
         kpisForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: kpis.url(options),
@@ -63,8 +63,8 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\DevelopmentController::kpis
- * @see app/Http/Controllers/Api/DevelopmentController.php:14
- * @route '/development/kpis'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:13
+ * @route '/developpement/kpis'
  */
         kpisForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: kpis.url({
@@ -79,8 +79,8 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     kpis.form = kpisForm
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::trend
- * @see app/Http/Controllers/Api/DevelopmentController.php:109
- * @route '/development/trend'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:112
+ * @route '/developpement/trend'
  */
 export const trend = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: trend.url(options),
@@ -89,13 +89,13 @@ export const trend = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 trend.definition = {
     methods: ["get","head"],
-    url: '/development/trend',
+    url: '/developpement/trend',
 } satisfies RouteDefinition<["get","head"]>
 
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::trend
- * @see app/Http/Controllers/Api/DevelopmentController.php:109
- * @route '/development/trend'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:112
+ * @route '/developpement/trend'
  */
 trend.url = (options?: RouteQueryOptions) => {
     return trend.definition.url + queryParams(options)
@@ -103,8 +103,8 @@ trend.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::trend
- * @see app/Http/Controllers/Api/DevelopmentController.php:109
- * @route '/development/trend'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:112
+ * @route '/developpement/trend'
  */
 trend.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: trend.url(options),
@@ -112,8 +112,8 @@ trend.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\DevelopmentController::trend
- * @see app/Http/Controllers/Api/DevelopmentController.php:109
- * @route '/development/trend'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:112
+ * @route '/developpement/trend'
  */
 trend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: trend.url(options),
@@ -122,8 +122,8 @@ trend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DevelopmentController::trend
- * @see app/Http/Controllers/Api/DevelopmentController.php:109
- * @route '/development/trend'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:112
+ * @route '/developpement/trend'
  */
     const trendForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
         action: trend.url(options),
@@ -132,8 +132,8 @@ trend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DevelopmentController::trend
- * @see app/Http/Controllers/Api/DevelopmentController.php:109
- * @route '/development/trend'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:112
+ * @route '/developpement/trend'
  */
         trendForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: trend.url(options),
@@ -141,8 +141,8 @@ trend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\DevelopmentController::trend
- * @see app/Http/Controllers/Api/DevelopmentController.php:109
- * @route '/development/trend'
+ * @see app/Http/Controllers/Api/DevelopmentController.php:112
+ * @route '/developpement/trend'
  */
         trendForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: trend.url({
@@ -156,74 +156,74 @@ trend.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     trend.form = trendForm
 /**
-* @see \App\Http\Controllers\Api\DevelopmentController::leadTimeDev
- * @see app/Http/Controllers/Api/DevelopmentController.php:156
- * @route '/development/lead-time'
+* @see \App\Http\Controllers\Api\DevelopmentController::reclamationsScatter
+ * @see app/Http/Controllers/Api/DevelopmentController.php:153
+ * @route '/developpement/reclamations-scatter'
  */
-export const leadTimeDev = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: leadTimeDev.url(options),
+export const reclamationsScatter = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: reclamationsScatter.url(options),
     method: 'get',
 })
 
-leadTimeDev.definition = {
+reclamationsScatter.definition = {
     methods: ["get","head"],
-    url: '/development/lead-time',
+    url: '/developpement/reclamations-scatter',
 } satisfies RouteDefinition<["get","head"]>
 
 /**
-* @see \App\Http\Controllers\Api\DevelopmentController::leadTimeDev
- * @see app/Http/Controllers/Api/DevelopmentController.php:156
- * @route '/development/lead-time'
+* @see \App\Http\Controllers\Api\DevelopmentController::reclamationsScatter
+ * @see app/Http/Controllers/Api/DevelopmentController.php:153
+ * @route '/developpement/reclamations-scatter'
  */
-leadTimeDev.url = (options?: RouteQueryOptions) => {
-    return leadTimeDev.definition.url + queryParams(options)
+reclamationsScatter.url = (options?: RouteQueryOptions) => {
+    return reclamationsScatter.definition.url + queryParams(options)
 }
 
 /**
-* @see \App\Http\Controllers\Api\DevelopmentController::leadTimeDev
- * @see app/Http/Controllers/Api/DevelopmentController.php:156
- * @route '/development/lead-time'
+* @see \App\Http\Controllers\Api\DevelopmentController::reclamationsScatter
+ * @see app/Http/Controllers/Api/DevelopmentController.php:153
+ * @route '/developpement/reclamations-scatter'
  */
-leadTimeDev.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: leadTimeDev.url(options),
+reclamationsScatter.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: reclamationsScatter.url(options),
     method: 'get',
 })
 /**
-* @see \App\Http\Controllers\Api\DevelopmentController::leadTimeDev
- * @see app/Http/Controllers/Api/DevelopmentController.php:156
- * @route '/development/lead-time'
+* @see \App\Http\Controllers\Api\DevelopmentController::reclamationsScatter
+ * @see app/Http/Controllers/Api/DevelopmentController.php:153
+ * @route '/developpement/reclamations-scatter'
  */
-leadTimeDev.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: leadTimeDev.url(options),
+reclamationsScatter.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: reclamationsScatter.url(options),
     method: 'head',
 })
 
     /**
-* @see \App\Http\Controllers\Api\DevelopmentController::leadTimeDev
- * @see app/Http/Controllers/Api/DevelopmentController.php:156
- * @route '/development/lead-time'
+* @see \App\Http\Controllers\Api\DevelopmentController::reclamationsScatter
+ * @see app/Http/Controllers/Api/DevelopmentController.php:153
+ * @route '/developpement/reclamations-scatter'
  */
-    const leadTimeDevForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: leadTimeDev.url(options),
+    const reclamationsScatterForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: reclamationsScatter.url(options),
         method: 'get',
     })
 
             /**
-* @see \App\Http\Controllers\Api\DevelopmentController::leadTimeDev
- * @see app/Http/Controllers/Api/DevelopmentController.php:156
- * @route '/development/lead-time'
+* @see \App\Http\Controllers\Api\DevelopmentController::reclamationsScatter
+ * @see app/Http/Controllers/Api/DevelopmentController.php:153
+ * @route '/developpement/reclamations-scatter'
  */
-        leadTimeDevForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: leadTimeDev.url(options),
+        reclamationsScatterForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: reclamationsScatter.url(options),
             method: 'get',
         })
             /**
-* @see \App\Http\Controllers\Api\DevelopmentController::leadTimeDev
- * @see app/Http/Controllers/Api/DevelopmentController.php:156
- * @route '/development/lead-time'
+* @see \App\Http\Controllers\Api\DevelopmentController::reclamationsScatter
+ * @see app/Http/Controllers/Api/DevelopmentController.php:153
+ * @route '/developpement/reclamations-scatter'
  */
-        leadTimeDevForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: leadTimeDev.url({
+        reclamationsScatterForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: reclamationsScatter.url({
                         [options?.mergeQuery ? 'mergeQuery' : 'query']: {
                             _method: 'HEAD',
                             ...(options?.query ?? options?.mergeQuery ?? {}),
@@ -232,163 +232,7 @@ leadTimeDev.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
             method: 'get',
         })
     
-    leadTimeDev.form = leadTimeDevForm
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendRft
- * @see app/Http/Controllers/Api/DevelopmentController.php:188
- * @route '/development/trend-rft'
- */
-export const trendRft = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: trendRft.url(options),
-    method: 'get',
-})
-
-trendRft.definition = {
-    methods: ["get","head"],
-    url: '/development/trend-rft',
-} satisfies RouteDefinition<["get","head"]>
-
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendRft
- * @see app/Http/Controllers/Api/DevelopmentController.php:188
- * @route '/development/trend-rft'
- */
-trendRft.url = (options?: RouteQueryOptions) => {
-    return trendRft.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendRft
- * @see app/Http/Controllers/Api/DevelopmentController.php:188
- * @route '/development/trend-rft'
- */
-trendRft.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: trendRft.url(options),
-    method: 'get',
-})
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendRft
- * @see app/Http/Controllers/Api/DevelopmentController.php:188
- * @route '/development/trend-rft'
- */
-trendRft.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: trendRft.url(options),
-    method: 'head',
-})
-
-    /**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendRft
- * @see app/Http/Controllers/Api/DevelopmentController.php:188
- * @route '/development/trend-rft'
- */
-    const trendRftForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: trendRft.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendRft
- * @see app/Http/Controllers/Api/DevelopmentController.php:188
- * @route '/development/trend-rft'
- */
-        trendRftForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: trendRft.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendRft
- * @see app/Http/Controllers/Api/DevelopmentController.php:188
- * @route '/development/trend-rft'
- */
-        trendRftForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: trendRft.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    trendRft.form = trendRftForm
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendLivraison
- * @see app/Http/Controllers/Api/DevelopmentController.php:207
- * @route '/development/trend-livraison'
- */
-export const trendLivraison = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: trendLivraison.url(options),
-    method: 'get',
-})
-
-trendLivraison.definition = {
-    methods: ["get","head"],
-    url: '/development/trend-livraison',
-} satisfies RouteDefinition<["get","head"]>
-
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendLivraison
- * @see app/Http/Controllers/Api/DevelopmentController.php:207
- * @route '/development/trend-livraison'
- */
-trendLivraison.url = (options?: RouteQueryOptions) => {
-    return trendLivraison.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendLivraison
- * @see app/Http/Controllers/Api/DevelopmentController.php:207
- * @route '/development/trend-livraison'
- */
-trendLivraison.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: trendLivraison.url(options),
-    method: 'get',
-})
-/**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendLivraison
- * @see app/Http/Controllers/Api/DevelopmentController.php:207
- * @route '/development/trend-livraison'
- */
-trendLivraison.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: trendLivraison.url(options),
-    method: 'head',
-})
-
-    /**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendLivraison
- * @see app/Http/Controllers/Api/DevelopmentController.php:207
- * @route '/development/trend-livraison'
- */
-    const trendLivraisonForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: trendLivraison.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendLivraison
- * @see app/Http/Controllers/Api/DevelopmentController.php:207
- * @route '/development/trend-livraison'
- */
-        trendLivraisonForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: trendLivraison.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Api\DevelopmentController::trendLivraison
- * @see app/Http/Controllers/Api/DevelopmentController.php:207
- * @route '/development/trend-livraison'
- */
-        trendLivraisonForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: trendLivraison.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    trendLivraison.form = trendLivraisonForm
-const DevelopmentController = { kpis, trend, leadTimeDev, trendRft, trendLivraison }
+    reclamationsScatter.form = reclamationsScatterForm
+const DevelopmentController = { kpis, trend, reclamationsScatter }
 
 export default DevelopmentController

@@ -63,16 +63,6 @@ const GlobalFilterBar = () => {
             opts: ['Toutes', ...options.marques],
         },
         {
-            key: 'atelier',
-            label: 'Atelier',
-            opts: ['Tous', ...options.ateliers],
-        },
-        {
-            key: 'ligne',
-            label: 'Ligne',
-            opts: ['Toutes', ...options.lignes],
-        },
-        {
             key: 'of',
             label: 'OF',
             opts: ['Tous', ...options.ofs],

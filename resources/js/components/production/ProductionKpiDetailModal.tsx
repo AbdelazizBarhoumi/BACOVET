@@ -22,12 +22,7 @@ import {
 
 interface ProductionKpiDetailModalProps {
     kpiKey: ProductionKpiKey | null;
-    kpiData: ProductionKpis | null; // Full response from GET /production/kpis
-    extraData?: {
-        tauxArchivage?: { value: number | null; status: string; target: number } | null;
-        respectTempsEstime?: { value: number | null; status: string; target: number } | null;
-        tauxTempsAcceptes?: { value: number | null; status: string; target: number } | null;
-    } | null;
+    kpiData: ProductionKpis | null;
     breakdownData?: BreakdownData | null;
     onClose: () => void;
 }
@@ -468,7 +463,6 @@ function BreakdownTable({
 export default function ProductionKpiDetailModal({
     kpiKey,
     kpiData,
-    extraData,
     breakdownData,
     onClose,
 }: ProductionKpiDetailModalProps) {
@@ -523,21 +517,9 @@ export default function ProductionKpiDetailModal({
     };
 
     // Extra KPIs come from a separate API call, not from kpiData
-    const extraKpiMap: Record<string, string> = {
-        taux_archivage: 'tauxArchivage',
-        respect_temps_estime: 'respectTempsEstime',
-        temps_acceptes: 'tauxTempsAcceptes',
-    };
-
     const responseKey = kpiMap[kpiKey] || kpiKey;
-    const extraKey = extraKpiMap[kpiKey];
 
-    let card;
-    if (extraKey && extraData?.[extraKey as keyof typeof extraData]) {
-        card = extraData[extraKey as keyof typeof extraData];
-    } else {
-        card = (kpiData as unknown as Record<string, {value: number, status: string}>)?.[responseKey];
-    }
+    let card = (kpiData as unknown as Record<string, {value: number, status: string}>)?.[responseKey];
     card = card || {
         value: 0,
         status: 'grey',

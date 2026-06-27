@@ -10,7 +10,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
     '/production': 'SÉRIE 200 : PRODUCTION',
     '/logistics': 'PILOTAGE LOGISTIQUE',
     '/methods': 'MÉTHODES & AMÉLIORATION CONTINUE',
-    '/development': 'DÉVELOPPEMENT & AMÉLIORATION',
+    '/developpement': 'DÉVELOPPEMENT & AMÉLIORATION',
     '/admin': 'ADMINISTRATION SYSTÈME',
 };
 

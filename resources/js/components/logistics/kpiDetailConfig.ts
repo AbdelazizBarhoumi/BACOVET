@@ -3,6 +3,7 @@ export type KpiKey =
     | 'hot'
     | 'respect_plan'
     | 'lead_time'
+    | 'archivage'
     | 'stock_mort_acc'
     | 'stock_mort_tissu'
     | 'stock_mort_fg'
@@ -54,8 +55,8 @@ export interface KpiDetailConfig {
 
 export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
     dot: {
-        id: '334',
-        label: 'DOT (Delivery)',
+        id: '335',
+        label: 'DOT (Delivery On Time)',
         description:
             "(QT livrée on time / ordered QT) × 100",
         formula: {
@@ -86,8 +87,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     hot: {
-        id: '335',
-        label: 'HOT (Handover)',
+        id: '336',
+        label: 'HOT (Handover On Time)',
         description:
             "(QT livrée on time / ordered QT) × 100",
         formula: {
@@ -118,7 +119,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     respect_plan: {
-        id: '336',
+        id: '337',
         label: 'Respect Planif.',
         description:
             "(qte réaliser / objectif journalier) par chaine de montage",
@@ -150,10 +151,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     lead_time: {
-        id: '337',
+        id: '338',
         label: 'Lead Time Global',
         description:
-            'STRH + LT TRANSPORT',
+             'STRH + LT TRANSPORT',
         formula: {
             numerator: {
                 label: 'Moyenne jours transfert',
@@ -182,10 +183,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
 
-    // ── Stock Reliability (F-REQ-313/314/315) ──────────────────────────────
+    // ── Stock Reliability (F-REQ-314/315/316) ──────────────────────────────
     stock_reliability_acc: {
-        id: '313',
-        label: 'Taux de fiabilité stock accessoires',
+        id: '314',
+        label: 'Taux de fiabilité stock (Accessoires)',
         description:
             '(Quantité physique / Quantité dans le système) × 100',
         formula: {
@@ -200,8 +201,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     stock_reliability_tissu: {
-        id: '314',
-        label: 'Taux de fiabilité stock tissu',
+        id: '315',
+        label: 'Taux de fiabilité stock (Tissu)',
         description:
             '(Quantité physique / Quantité dans le système) × 100',
         formula: {
@@ -216,8 +217,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     stock_reliability_fg: {
-        id: '315',
-        label: 'Taux de fiabilité stock FG',
+        id: '316',
+        label: 'Taux de fiabilité stock (FG)',
         description:
             '(Quantité physique / Quantité dans le système) × 100',
         formula: {
@@ -232,10 +233,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
 
-    // ── Rotation Stock (F-REQ-316/317/318) ─────────────────────────────────
+    // ── Rotation Stock (F-REQ-317/318/319) ─────────────────────────────────
     rotation_acc: {
-        id: '316',
-        label: 'Taux de rotation stock accessoires',
+        id: '317',
+        label: 'Taux de rotation stock (Accessoires)',
         description: 'Coût des marchandises / Stock moyen',
         formula: {
             numerator: { label: 'Coût des marchandises', field: 'Non mappé' },
@@ -249,8 +250,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     rotation_tissu: {
-        id: '317',
-        label: 'Taux de rotation stock tissu',
+        id: '318',
+        label: 'Taux de rotation stock (Tissu)',
         description: 'Coût des marchandises / Stock moyen',
         formula: {
             numerator: { label: 'Coût des marchandises', field: 'Non mappé' },
@@ -264,8 +265,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     rotation_fg: {
-        id: '318',
-        label: 'Taux de rotation stock FG',
+        id: '319',
+        label: 'Taux de rotation stock (FG)',
         description: 'Coût des marchandises / Stock moyen',
         formula: {
             numerator: { label: 'Coût des marchandises', field: 'Non mappé' },
@@ -279,10 +280,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
 
-    // ── Stock Mort (F-REQ-319/320/321) ─────────────────────────────────────
+    // ── Stock Mort (F-REQ-320/321/322) ─────────────────────────────────────
     stock_mort_acc: {
-        id: '319',
-        label: 'Taux de stock mort accessoires',
+        id: '320',
+        label: 'Taux de stock mort (Accessoires)',
         description: "(Valeur des articles sans mouvement durant 365 / la valeur total du stock) × 100",
         formula: {
             numerator: { label: 'Valeur articles sans mouvement 365j', field: 'Qtte_SansMvt_365j' },
@@ -296,8 +297,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     stock_mort_tissu: {
-        id: '320',
-        label: 'Taux de stock mort tissu',
+        id: '321',
+        label: 'Taux de stock mort (Tissu)',
         description: "(Valeur des articles sans mouvement durant 365 / la valeur total du stock) × 100",
         formula: {
             numerator: { label: 'Valeur articles sans mouvement 365j', field: 'Qtte_SansMvt_365j' },
@@ -311,8 +312,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     stock_mort_fg: {
-        id: '321',
-        label: 'Taux de stock mort stock FG',
+        id: '322',
+        label: 'Taux de stock mort (FG)',
         description: "(Valeur des articles sans mouvement durant 365 / la valeur total du stock) × 100",
         formula: {
             numerator: { label: 'Valeur articles sans mouvement 365j', field: 'Qtte_SansMvt_365j' },
@@ -326,10 +327,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
 
-    // ── Occupation (F-REQ-322/323/324) ─────────────────────────────────────
+    // ── Occupation (F-REQ-323/324/325) ─────────────────────────────────────
     occupation_acc: {
-        id: '322',
-        label: "Taux d'occupation Accessoires",
+        id: '323',
+        label: "Taux d'occupation (Accessoires)",
         description: "(Nombre de rouleaux / Capacité de stockage en nombre des Colis) × 100",
         formula: {
             numerator: { label: 'Nombre de rouleaux', field: 'NbRouleaux' },
@@ -343,8 +344,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     occupation_tissu: {
-        id: '323',
-        label: "Taux d'occupation tissu",
+        id: '324',
+        label: "Taux d'occupation (Tissu)",
         description: "(Nombre de rouleaux / Capacité de stockage en nombre des Colis) × 100",
         formula: {
             numerator: { label: 'Nombre de rouleaux', field: 'NbRouleaux' },
@@ -358,8 +359,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     occupation_fg: {
-        id: '324',
-        label: "Taux d'occupation stock FG",
+        id: '325',
+        label: "Taux d'occupation (FG)",
         description: "(Nombre de rouleaux / Capacité de stockage en nombre des Colis) × 100",
         formula: {
             numerator: { label: 'Nombre de rouleaux', field: 'NbRouleaux' },
@@ -373,10 +374,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
 
-    // ── Livraison à temps (F-REQ-325/326/327) ──────────────────────────────
+    // ── Livraison à temps (F-REQ-326/327/328) ──────────────────────────────
     livraison_acc: {
-        id: '325',
-        label: 'Taux de commandes livrées à temps Accessoires',
+        id: '326',
+        label: 'Taux de commandes livrées à temps (Accessoires)',
         description: "Nombre de commandes livrée dont la date de transfert (transfert coupe + transfert coupe Jemmel)",
         formula: {
             numerator: { label: 'OFs avec transfert coupe', field: 'OF_AvecTransfertCoupe_Total' },
@@ -390,8 +391,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     livraison_tissu: {
-        id: '326',
-        label: 'Taux de commandes livrées à temps tissu',
+        id: '327',
+        label: 'Taux de commandes livrées à temps (Tissu)',
         description: "Nombre de commandes livrée dont la date de transfert (transfert coupe + transfert coupe Jemmel)",
         formula: {
             numerator: { label: 'OFs avec transfert coupe', field: 'OF_AvecTransfertCoupe_Total' },
@@ -405,8 +406,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     livraison_fg: {
-        id: '327',
-        label: 'Taux de commandes livrées à temps stock FG',
+        id: '328',
+        label: 'Taux de commandes livrées à temps (FG)',
         description: "Nombre de commandes livrée dont la date de transfert (transfert coupe + transfert coupe Jemmel)",
         formula: {
             numerator: { label: 'OFs avec transfert coupe', field: 'OF_AvecTransfertCoupe_Total' },
@@ -420,10 +421,10 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
 
-    // ── Délai de livraison (F-REQ-328/329/330) ─────────────────────────────
+    // ── Délai de livraison (F-REQ-329/330/331) ─────────────────────────────
     delai_acc: {
-        id: '328',
-        label: "Délai de livraison d'une commande Accessoires",
+        id: '329',
+        label: "Délai de livraison d'une commande (Accessoires)",
         description: "Moyen (date de transfert − date de réservation)",
         formula: {
             numerator: { label: 'Moyenne jours transfert', field: 'MoyenneJours' },
@@ -437,8 +438,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     delai_tissu: {
-        id: '329',
-        label: "Délai de livraison d'une commande tissu",
+        id: '330',
+        label: "Délai de livraison d'une commande (Tissu)",
         description: "Moyen (date de transfert − date de réservation)",
         formula: {
             numerator: { label: 'Moyenne jours transfert', field: 'MoyenneJours' },
@@ -452,8 +453,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     delai_fg: {
-        id: '330',
-        label: "Délai de livraison d'une commande stock FG",
+        id: '331',
+        label: "Délai de livraison d'une commande (FG)",
         description: "Moyen (date de transfert − date de réservation)",
         formula: {
             numerator: { label: 'Moyenne jours transfert', field: 'MoyenneJours' },
@@ -467,10 +468,25 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
 
-    // ── Stock / Catégories (F-REQ-331/332/333) ─────────────────────────────
+    // ── Stock / Catégories (F-REQ-332/333/334) ─────────────────────────────
+    archivage: {
+        id: '218',
+        label: "Taux d'archivage suivi paquets",
+        description: "(Nombre OF soldés archivés / Nombre OF soldés) × 100",
+        formula: {
+            numerator: { label: 'OFs archivés', field: 'archived_ofs' },
+            denominator: { label: 'OFs soldés total', field: 'total_ofs' },
+            multiplier: 100,
+            resultUnit: '%',
+        },
+        target: { value: 85, operator: '>=' },
+        thresholds: { green: '≥ 85%', orange: '70% – 85%', red: '< 70%' },
+        source: { system: 'Base suivi production', novacityEndpoint: null, mysqlTable: 'etat_avancement', frequency: 'Journalier', status: 'pending' },
+        period: 'jour',
+    },
     stock_typologie: {
-        id: '331',
-        label: 'STOCK/Typologie',
+        id: '332',
+        label: 'STOCK / Typologie',
         description: "(Valeur par Typologie fournitures / Valeur total de stock) × 100",
         formula: {
             numerator: { label: 'Valeur par Typologie', field: 'Quantite (filtré par Typologie)' },
@@ -484,8 +500,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     stock_provenance: {
-        id: '332',
-        label: 'STOCK/provenance',
+        id: '333',
+        label: 'STOCK / Provenance',
         description: "(Valeur par provenance / Valeur total Stock) × 100",
         formula: {
             numerator: { label: 'Valeur par provenance', field: 'Quantite (filtré par Provenance)' },
@@ -499,8 +515,8 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
         period: 'jour',
     },
     stock_brand: {
-        id: '333',
-        label: 'STOCK/Brand',
+        id: '334',
+        label: 'STOCK / Brand',
         description: "(Valeur Par famille FG (ex : NABAIJI ; DOMYOS ; …) / Valeur Total Stock) × 100",
         formula: {
             numerator: { label: 'Valeur par famille FG', field: 'Quantite (filtré par FamilleFG)' },

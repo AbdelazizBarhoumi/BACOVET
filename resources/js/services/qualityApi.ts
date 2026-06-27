@@ -67,6 +67,7 @@ export type KpiCard = {
     blocker?: string | null;
     raw?: Record<string, unknown>;
     source?: string;
+    synced_at?: string | null;
 };
 
 export type QualityKpis = {
@@ -88,19 +89,6 @@ export type QualityKpis = {
     br_in_jour: KpiCard;
     br_in_dda: KpiCard;
     synced_at: string | null;
-};
-
-export type BrChartItem = {
-    stage: string;
-    defect_pct: number | null;
-    status: KpiStatus;
-    blocker?: string | null;
-    source?: string;
-};
-
-export type BrChartResponse = {
-    data: BrChartItem[];
-    target: number;
 };
 
 export type DefectChartItem = {
@@ -128,12 +116,6 @@ export type QpTeamsResponse = {
     is_partial: boolean;
 };
 
-export type Alert = {
-    type: string;
-    level: 'green' | 'orange' | 'red';
-    message: string;
-};
-
 export type AnnualTrendItem = {
     month: string;
     rft: number | null;
@@ -156,16 +138,11 @@ export type ParetoItem = {
 export const fetchQualityKpis = (filters?: Record<string, string>) =>
     apiGet<QualityKpis>('/kpis', filters);
 
-export const fetchQualityBrChart = (filters?: Record<string, string>) =>
-    apiGet<BrChartResponse>('/br-chart', filters);
-
 export const fetchQualityDefectChart = (filters?: Record<string, string>) =>
     apiGet<{ data: DefectChartItem[] }>('/defect-chart', filters);
 
 export const fetchQualityQpTeams = (filters?: Record<string, string>) =>
     apiGet<QpTeamsResponse>('/qp-teams', filters);
-
-export const fetchQualityAlerts = () => apiGet<{ alerts: Alert[] }>('/alerts');
 
 export const fetchQualityAnnualTrend = () =>
     apiGet<{ data: AnnualTrendItem[] }>('/annual-trend');
@@ -176,6 +153,3 @@ export const fetchQualityParetoRft = (filters?: Record<string, string>) =>
 export const fetchQualityParetoInspection = (
     filters?: Record<string, string>,
 ) => apiGet<{ data: ParetoItem[] }>('/pareto/inspection', filters);
-
-export const fetchQualityParetoFg = (filters?: Record<string, string>) =>
-    apiGet<{ data: ParetoItem[] }>('/pareto/fg', filters);

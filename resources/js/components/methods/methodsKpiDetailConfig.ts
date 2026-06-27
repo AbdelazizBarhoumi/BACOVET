@@ -19,6 +19,7 @@ export interface MethodsKpiDetailConfig {
     };
     source: {
         system: string;
+        novacityEndpoint: string | null;
         mysqlTable: string | null;
         frequency: string;
         status: 'live' | 'pending' | 'inactive';
@@ -29,17 +30,17 @@ export interface MethodsKpiDetailConfig {
 export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> = {
     f_req_216: {
         id: '216',
-        label: "Taux d'Archivage Suivi Paquets",
+        label: "Taux d'archivage suivi paquets",
         description:
-            "Pourcentage d'OF soldés archivés par rapport au total des OFs soldés. Indicateur de suivi de la traçabilité des paquets.",
+            "(Nbre des OF soldés archivés / nbr des Ofs soldés) × 100",
         formula: {
             numerator: {
                 label: 'Nombre OF soldés archivés',
-                field: 'of_archived',
+                field: 'est_archive',
             },
             denominator: {
                 label: 'Nombre total OF soldés',
-                field: 'of_sold_total',
+                field: 'est_solde',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -52,58 +53,60 @@ export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> =
         },
         source: {
             system: 'Base suivi production',
+            novacityEndpoint: 'GET /api/data/ofabrication + GET /api/data/q/etat_avancement',
             mysqlTable: 'sync_gpro_suivi_paquets',
             frequency: 'Journalière',
             status: 'live',
         },
-        period: 'Quotidienne',
+        period: 'Journalière',
     },
 
     f_req_217: {
         id: '217',
-        label: 'Taux de Fiabilité des Données sur Système',
+        label: 'Taux de fiabilité des données système par OF',
         description:
-            "Mesure la fiabilité des données en comparant le tagging réel à la sortie fin chaîne. Calculé comme 100 - écart absolu moyen entre tag théorique et tag réel.",
+            'Différence entre tagging réel et sortie fin chaine',
         formula: {
             numerator: {
-                label: '100 - écart absolu moyen',
-                field: '100 - AVG(ABS(ecart_pct))',
+                label: 'Tag réel',
+                field: 'tag_reel',
             },
             denominator: {
-                label: '(Valeur unique — pas un ratio)',
-                field: '100',
+                label: 'Sortie fin chaine',
+                field: 'sortie_jour',
             },
             multiplier: 1,
             resultUnit: '%',
         },
         target: { value: 95, operator: '>=' },
         thresholds: {
-            green: '≥ 95%',
-            orange: '90% – 95%',
-            red: '< 90%',
+            green: '|ecart_pct| ≤ 2%',
+            orange: '|ecart_pct| 2% – 5%',
+            red: '|ecart_pct| > 5%',
         },
         source: {
-            system: 'GPRO (tagging_reel)',
-            mysqlTable: 'taging_reel',
+            system: 'GPRO',
+            novacityEndpoint: 'GET /api/data/q/taging_reel + GET /api/data/q/wip_chaine',
+            mysqlTable: 'taging_reel + wip_chaine',
             frequency: 'Journalière',
             status: 'live',
         },
-        period: 'Quotidienne',
+        period: 'Journalière',
     },
 
     f_req_218: {
         id: '218',
-        label: 'Taux de Respect du Temps Estimé par Article',
+        label: 'Taux de respect du temps estimé par ARTICLE',
         description:
-            "Pourcentage d'articles dont le temps réel de production est inférieur ou égal au temps estimé (cotation). Temps cotation − Temps prod ≥ 0. Source: Base rendement + Logiciel Cotation (Excel).",
+            "Temps cotation − Temps prod = / > 0 minute",
         formula: {
             numerator: {
                 label: 'Articles respectant le temps estimé',
-                field: 'articles_ok',
+                field: 'respect_count',
             },
             denominator: {
-                label: 'Total articles lancés',
-                field: 'articles_total',
+                label: 'Temps production',
+                field: 'heures_prod',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -116,26 +119,27 @@ export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> =
         },
         source: {
             system: 'Base rendement + Logiciel Cotation',
+            novacityEndpoint: 'GET /api/data/q/efficience_chaine',
             mysqlTable: 'sync_drive_cotation',
-            frequency: 'Au démarrage de chaque nouveau lancement',
+            frequency: 'Journalière',
             status: 'live',
         },
-        period: 'Par lancement',
+        period: 'Journalière',
     },
 
     f_req_219: {
         id: '219',
-        label: 'Taux des Temps Acceptés dès la Première Version',
+        label: 'Taux des temps acceptés dès la première version par ARTICLE',
         description:
-            "Pourcentage de gammes déchiffrage acceptées sans demande de négociation. Source: Fichier déchiffrage + Logiciel Cotation.",
+            "(Nbr des demandes de négociation − Nbr des gammes déchiffrage) × 100",
         formula: {
             numerator: {
-                label: 'Gammes sans négociation',
-                field: 'gammes_ok',
+                label: 'Gammes acceptées V1',
+                field: 'nb_gammes_acceptees_v1',
             },
             denominator: {
-                label: 'Total gammes déchiffrage',
-                field: 'gammes_total',
+                label: 'Total gammes',
+                field: 'nb_gammes_total',
             },
             multiplier: 100,
             resultUnit: '%',
@@ -143,15 +147,16 @@ export const METHODS_KPI_CONFIG: Record<MethodsKpiKey, MethodsKpiDetailConfig> =
         target: { value: 80, operator: '>=' },
         thresholds: {
             green: '≥ 80%',
-            orange: '70% – 80%',
-            red: '< 70%',
+            orange: '60% – 80%',
+            red: '< 60%',
         },
         source: {
             system: 'Fichier déchiffrage + Logiciel Cotation',
+            novacityEndpoint: null,
             mysqlTable: 'sync_drive_gammes',
-            frequency: 'Fichier déchiffrage',
+            frequency: 'Hebdomadaire',
             status: 'live',
         },
-        period: 'Par fichier déchiffrage',
+        period: 'Hebdomadaire',
     },
 };

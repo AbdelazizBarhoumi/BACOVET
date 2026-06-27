@@ -78,164 +78,8 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     kpis.form = kpisForm
 /**
-* @see \App\Http\Controllers\Api\MethodesController::taggingChart
- * @see app/Http/Controllers/Api/MethodesController.php:118
- * @route '/methods/tagging-chart'
- */
-export const taggingChart = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: taggingChart.url(options),
-    method: 'get',
-})
-
-taggingChart.definition = {
-    methods: ["get","head"],
-    url: '/methods/tagging-chart',
-} satisfies RouteDefinition<["get","head"]>
-
-/**
-* @see \App\Http\Controllers\Api\MethodesController::taggingChart
- * @see app/Http/Controllers/Api/MethodesController.php:118
- * @route '/methods/tagging-chart'
- */
-taggingChart.url = (options?: RouteQueryOptions) => {
-    return taggingChart.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Api\MethodesController::taggingChart
- * @see app/Http/Controllers/Api/MethodesController.php:118
- * @route '/methods/tagging-chart'
- */
-taggingChart.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: taggingChart.url(options),
-    method: 'get',
-})
-/**
-* @see \App\Http\Controllers\Api\MethodesController::taggingChart
- * @see app/Http/Controllers/Api/MethodesController.php:118
- * @route '/methods/tagging-chart'
- */
-taggingChart.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: taggingChart.url(options),
-    method: 'head',
-})
-
-    /**
-* @see \App\Http\Controllers\Api\MethodesController::taggingChart
- * @see app/Http/Controllers/Api/MethodesController.php:118
- * @route '/methods/tagging-chart'
- */
-    const taggingChartForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: taggingChart.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Api\MethodesController::taggingChart
- * @see app/Http/Controllers/Api/MethodesController.php:118
- * @route '/methods/tagging-chart'
- */
-        taggingChartForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: taggingChart.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Api\MethodesController::taggingChart
- * @see app/Http/Controllers/Api/MethodesController.php:118
- * @route '/methods/tagging-chart'
- */
-        taggingChartForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: taggingChart.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    taggingChart.form = taggingChartForm
-/**
-* @see \App\Http\Controllers\Api\MethodesController::detailTable
- * @see app/Http/Controllers/Api/MethodesController.php:148
- * @route '/methods/detail-table'
- */
-export const detailTable = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: detailTable.url(options),
-    method: 'get',
-})
-
-detailTable.definition = {
-    methods: ["get","head"],
-    url: '/methods/detail-table',
-} satisfies RouteDefinition<["get","head"]>
-
-/**
-* @see \App\Http\Controllers\Api\MethodesController::detailTable
- * @see app/Http/Controllers/Api/MethodesController.php:148
- * @route '/methods/detail-table'
- */
-detailTable.url = (options?: RouteQueryOptions) => {
-    return detailTable.definition.url + queryParams(options)
-}
-
-/**
-* @see \App\Http\Controllers\Api\MethodesController::detailTable
- * @see app/Http/Controllers/Api/MethodesController.php:148
- * @route '/methods/detail-table'
- */
-detailTable.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: detailTable.url(options),
-    method: 'get',
-})
-/**
-* @see \App\Http\Controllers\Api\MethodesController::detailTable
- * @see app/Http/Controllers/Api/MethodesController.php:148
- * @route '/methods/detail-table'
- */
-detailTable.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: detailTable.url(options),
-    method: 'head',
-})
-
-    /**
-* @see \App\Http\Controllers\Api\MethodesController::detailTable
- * @see app/Http/Controllers/Api/MethodesController.php:148
- * @route '/methods/detail-table'
- */
-    const detailTableForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: detailTable.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Api\MethodesController::detailTable
- * @see app/Http/Controllers/Api/MethodesController.php:148
- * @route '/methods/detail-table'
- */
-        detailTableForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: detailTable.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Api\MethodesController::detailTable
- * @see app/Http/Controllers/Api/MethodesController.php:148
- * @route '/methods/detail-table'
- */
-        detailTableForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: detailTable.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    detailTable.form = detailTableForm
-/**
 * @see \App\Http\Controllers\Api\MethodesController::archivageDetail
- * @see app/Http/Controllers/Api/MethodesController.php:223
+ * @see app/Http/Controllers/Api/MethodesController.php:123
  * @route '/methods/archivage-detail'
  */
 export const archivageDetail = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -250,7 +94,7 @@ archivageDetail.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::archivageDetail
- * @see app/Http/Controllers/Api/MethodesController.php:223
+ * @see app/Http/Controllers/Api/MethodesController.php:123
  * @route '/methods/archivage-detail'
  */
 archivageDetail.url = (options?: RouteQueryOptions) => {
@@ -259,7 +103,7 @@ archivageDetail.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::archivageDetail
- * @see app/Http/Controllers/Api/MethodesController.php:223
+ * @see app/Http/Controllers/Api/MethodesController.php:123
  * @route '/methods/archivage-detail'
  */
 archivageDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -268,7 +112,7 @@ archivageDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => (
 })
 /**
 * @see \App\Http\Controllers\Api\MethodesController::archivageDetail
- * @see app/Http/Controllers/Api/MethodesController.php:223
+ * @see app/Http/Controllers/Api/MethodesController.php:123
  * @route '/methods/archivage-detail'
  */
 archivageDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -278,7 +122,7 @@ archivageDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
 
     /**
 * @see \App\Http\Controllers\Api\MethodesController::archivageDetail
- * @see app/Http/Controllers/Api/MethodesController.php:223
+ * @see app/Http/Controllers/Api/MethodesController.php:123
  * @route '/methods/archivage-detail'
  */
     const archivageDetailForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -288,7 +132,7 @@ archivageDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
 
             /**
 * @see \App\Http\Controllers\Api\MethodesController::archivageDetail
- * @see app/Http/Controllers/Api/MethodesController.php:223
+ * @see app/Http/Controllers/Api/MethodesController.php:123
  * @route '/methods/archivage-detail'
  */
         archivageDetailForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -297,7 +141,7 @@ archivageDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
         })
             /**
 * @see \App\Http\Controllers\Api\MethodesController::archivageDetail
- * @see app/Http/Controllers/Api/MethodesController.php:223
+ * @see app/Http/Controllers/Api/MethodesController.php:123
  * @route '/methods/archivage-detail'
  */
         archivageDetailForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -313,7 +157,7 @@ archivageDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
     archivageDetail.form = archivageDetailForm
 /**
 * @see \App\Http\Controllers\Api\MethodesController::respectTempsDetail
- * @see app/Http/Controllers/Api/MethodesController.php:236
+ * @see app/Http/Controllers/Api/MethodesController.php:136
  * @route '/methods/respect-temps-detail'
  */
 export const respectTempsDetail = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -328,7 +172,7 @@ respectTempsDetail.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::respectTempsDetail
- * @see app/Http/Controllers/Api/MethodesController.php:236
+ * @see app/Http/Controllers/Api/MethodesController.php:136
  * @route '/methods/respect-temps-detail'
  */
 respectTempsDetail.url = (options?: RouteQueryOptions) => {
@@ -337,7 +181,7 @@ respectTempsDetail.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::respectTempsDetail
- * @see app/Http/Controllers/Api/MethodesController.php:236
+ * @see app/Http/Controllers/Api/MethodesController.php:136
  * @route '/methods/respect-temps-detail'
  */
 respectTempsDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -346,7 +190,7 @@ respectTempsDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> =
 })
 /**
 * @see \App\Http\Controllers\Api\MethodesController::respectTempsDetail
- * @see app/Http/Controllers/Api/MethodesController.php:236
+ * @see app/Http/Controllers/Api/MethodesController.php:136
  * @route '/methods/respect-temps-detail'
  */
 respectTempsDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -356,7 +200,7 @@ respectTempsDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'>
 
     /**
 * @see \App\Http\Controllers\Api\MethodesController::respectTempsDetail
- * @see app/Http/Controllers/Api/MethodesController.php:236
+ * @see app/Http/Controllers/Api/MethodesController.php:136
  * @route '/methods/respect-temps-detail'
  */
     const respectTempsDetailForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -366,7 +210,7 @@ respectTempsDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'>
 
             /**
 * @see \App\Http\Controllers\Api\MethodesController::respectTempsDetail
- * @see app/Http/Controllers/Api/MethodesController.php:236
+ * @see app/Http/Controllers/Api/MethodesController.php:136
  * @route '/methods/respect-temps-detail'
  */
         respectTempsDetailForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -375,7 +219,7 @@ respectTempsDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'>
         })
             /**
 * @see \App\Http\Controllers\Api\MethodesController::respectTempsDetail
- * @see app/Http/Controllers/Api/MethodesController.php:236
+ * @see app/Http/Controllers/Api/MethodesController.php:136
  * @route '/methods/respect-temps-detail'
  */
         respectTempsDetailForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -391,7 +235,7 @@ respectTempsDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'>
     respectTempsDetail.form = respectTempsDetailForm
 /**
 * @see \App\Http\Controllers\Api\MethodesController::tempsAcceptesDetail
- * @see app/Http/Controllers/Api/MethodesController.php:252
+ * @see app/Http/Controllers/Api/MethodesController.php:152
  * @route '/methods/temps-acceptes-detail'
  */
 export const tempsAcceptesDetail = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -406,7 +250,7 @@ tempsAcceptesDetail.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::tempsAcceptesDetail
- * @see app/Http/Controllers/Api/MethodesController.php:252
+ * @see app/Http/Controllers/Api/MethodesController.php:152
  * @route '/methods/temps-acceptes-detail'
  */
 tempsAcceptesDetail.url = (options?: RouteQueryOptions) => {
@@ -415,7 +259,7 @@ tempsAcceptesDetail.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::tempsAcceptesDetail
- * @see app/Http/Controllers/Api/MethodesController.php:252
+ * @see app/Http/Controllers/Api/MethodesController.php:152
  * @route '/methods/temps-acceptes-detail'
  */
 tempsAcceptesDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -424,7 +268,7 @@ tempsAcceptesDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> 
 })
 /**
 * @see \App\Http\Controllers\Api\MethodesController::tempsAcceptesDetail
- * @see app/Http/Controllers/Api/MethodesController.php:252
+ * @see app/Http/Controllers/Api/MethodesController.php:152
  * @route '/methods/temps-acceptes-detail'
  */
 tempsAcceptesDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -434,7 +278,7 @@ tempsAcceptesDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'
 
     /**
 * @see \App\Http\Controllers\Api\MethodesController::tempsAcceptesDetail
- * @see app/Http/Controllers/Api/MethodesController.php:252
+ * @see app/Http/Controllers/Api/MethodesController.php:152
  * @route '/methods/temps-acceptes-detail'
  */
     const tempsAcceptesDetailForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -444,7 +288,7 @@ tempsAcceptesDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'
 
             /**
 * @see \App\Http\Controllers\Api\MethodesController::tempsAcceptesDetail
- * @see app/Http/Controllers/Api/MethodesController.php:252
+ * @see app/Http/Controllers/Api/MethodesController.php:152
  * @route '/methods/temps-acceptes-detail'
  */
         tempsAcceptesDetailForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -453,7 +297,7 @@ tempsAcceptesDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'
         })
             /**
 * @see \App\Http\Controllers\Api\MethodesController::tempsAcceptesDetail
- * @see app/Http/Controllers/Api/MethodesController.php:252
+ * @see app/Http/Controllers/Api/MethodesController.php:152
  * @route '/methods/temps-acceptes-detail'
  */
         tempsAcceptesDetailForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -469,7 +313,7 @@ tempsAcceptesDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'
     tempsAcceptesDetail.form = tempsAcceptesDetailForm
 /**
 * @see \App\Http\Controllers\Api\MethodesController::fiabiliteDetail
- * @see app/Http/Controllers/Api/MethodesController.php:266
+ * @see app/Http/Controllers/Api/MethodesController.php:166
  * @route '/methods/fiabilite-detail'
  */
 export const fiabiliteDetail = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -484,7 +328,7 @@ fiabiliteDetail.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::fiabiliteDetail
- * @see app/Http/Controllers/Api/MethodesController.php:266
+ * @see app/Http/Controllers/Api/MethodesController.php:166
  * @route '/methods/fiabilite-detail'
  */
 fiabiliteDetail.url = (options?: RouteQueryOptions) => {
@@ -493,7 +337,7 @@ fiabiliteDetail.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\MethodesController::fiabiliteDetail
- * @see app/Http/Controllers/Api/MethodesController.php:266
+ * @see app/Http/Controllers/Api/MethodesController.php:166
  * @route '/methods/fiabilite-detail'
  */
 fiabiliteDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -502,7 +346,7 @@ fiabiliteDetail.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => (
 })
 /**
 * @see \App\Http\Controllers\Api\MethodesController::fiabiliteDetail
- * @see app/Http/Controllers/Api/MethodesController.php:266
+ * @see app/Http/Controllers/Api/MethodesController.php:166
  * @route '/methods/fiabilite-detail'
  */
 fiabiliteDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -512,7 +356,7 @@ fiabiliteDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
 
     /**
 * @see \App\Http\Controllers\Api\MethodesController::fiabiliteDetail
- * @see app/Http/Controllers/Api/MethodesController.php:266
+ * @see app/Http/Controllers/Api/MethodesController.php:166
  * @route '/methods/fiabilite-detail'
  */
     const fiabiliteDetailForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -522,7 +366,7 @@ fiabiliteDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
 
             /**
 * @see \App\Http\Controllers\Api\MethodesController::fiabiliteDetail
- * @see app/Http/Controllers/Api/MethodesController.php:266
+ * @see app/Http/Controllers/Api/MethodesController.php:166
  * @route '/methods/fiabilite-detail'
  */
         fiabiliteDetailForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -531,7 +375,7 @@ fiabiliteDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
         })
             /**
 * @see \App\Http\Controllers\Api\MethodesController::fiabiliteDetail
- * @see app/Http/Controllers/Api/MethodesController.php:266
+ * @see app/Http/Controllers/Api/MethodesController.php:166
  * @route '/methods/fiabilite-detail'
  */
         fiabiliteDetailForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -545,6 +389,6 @@ fiabiliteDetail.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =>
         })
     
     fiabiliteDetail.form = fiabiliteDetailForm
-const MethodesController = { kpis, taggingChart, detailTable, archivageDetail, respectTempsDetail, tempsAcceptesDetail, fiabiliteDetail }
+const MethodesController = { kpis, archivageDetail, respectTempsDetail, tempsAcceptesDetail, fiabiliteDetail }
 
 export default MethodesController

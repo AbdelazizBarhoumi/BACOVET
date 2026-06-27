@@ -26,7 +26,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/quality', fn () => Inertia::render('quality'))->name('quality');
     Route::get('/production', fn () => Inertia::render('production'))->name('production');
     Route::get('/logistics', fn () => Inertia::render('logistics'))->name('logistics');
-    Route::get('/development', fn () => Inertia::render('development'))->name('development');
+    Route::get('/developpement', fn () => Inertia::render('development'))->name('development');
     Route::get('/methods', fn () => Inertia::render('methods'))->name('methods');
     Route::get('/admin', fn () => Inertia::render('admin'))->name('admin');
 });
@@ -96,14 +96,11 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         ->middleware('role:it,direction,resp_production,resp_qualite,methodes')
         ->group(function () {
             Route::get('/kpis', [QualityController::class, 'kpis']);
-            Route::get('/br-chart', [QualityController::class, 'brChart']);
             Route::get('/defect-chart', [QualityController::class, 'defectChart']);
             Route::get('/qp-teams', [QualityController::class, 'qpTeams']);
-            Route::get('/alerts', [QualityController::class, 'alerts']);
             Route::get('/annual-trend', [QualityController::class, 'annualTrend']);
             Route::get('/pareto/rft', [QualityController::class, 'paretoRft']);
             Route::get('/pareto/inspection', [QualityController::class, 'paretoInspection']);
-            Route::get('/pareto/fg', [QualityController::class, 'paretoFg']);
         });
 
     // ── PRODUCTION ───────────────────────────────────────────────────────
@@ -120,6 +117,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/top-operators', [ProductionController::class, 'topOperators']);
             Route::get('/wip', [ProductionController::class, 'wip']);
             Route::get('/so-progress', [ProductionController::class, 'soProgress']);
+            Route::get('/order-tracking', [ProductionController::class, 'orderTracking']);
             Route::get('/breakdown/{kpiKey}', [ProductionController::class, 'breakdown']);
             Route::get('/inline-endline', [ProductionController::class, 'inlineEndline']);
             // Methods KPIs (F-REQ-216, 218, 219)
@@ -148,9 +146,6 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/stock-kpis', [LogisticsController::class, 'stockKpis']);
             Route::get('/stock-composition', [LogisticsController::class, 'stockComposition']);
             Route::get('/ofs', [LogisticsController::class, 'ofs']);
-            Route::get('/livraison', [LogisticsController::class, 'livraison']);
-            Route::get('/coverage', [LogisticsController::class, 'coverage']);
-            Route::get('/stock-search', [LogisticsController::class, 'stockSearch']);
             Route::get('/stock-reliability', [LogisticsController::class, 'stockReliability']);
         });
 
@@ -159,8 +154,6 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         ->middleware('role:it,direction,methodes')
         ->group(function () {
             Route::get('/kpis', [MethodesController::class, 'kpis']);
-            Route::get('/tagging-chart', [MethodesController::class, 'taggingChart']);
-            Route::get('/detail-table', [MethodesController::class, 'detailTable']);
             Route::get('/archivage-detail', [MethodesController::class, 'archivageDetail']);
             Route::get('/respect-temps-detail', [MethodesController::class, 'respectTempsDetail']);
             Route::get('/temps-acceptes-detail', [MethodesController::class, 'tempsAcceptesDetail']);
@@ -168,14 +161,12 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         });
 
     // ── DEVELOPMENT ──────────────────────────────────────────────────────
-    Route::prefix('development')
+    Route::prefix('developpement')
         ->middleware('role:it,direction,methodes')
         ->group(function () {
             Route::get('/kpis', [DevelopmentController::class, 'kpis']);
             Route::get('/trend', [DevelopmentController::class, 'trend']);
-            Route::get('/lead-time', [DevelopmentController::class, 'leadTimeDev']);
-            Route::get('/trend-rft', [DevelopmentController::class, 'trendRft']);
-            Route::get('/trend-livraison', [DevelopmentController::class, 'trendLivraison']);
+            Route::get('/reclamations-scatter', [DevelopmentController::class, 'reclamationsScatter']);
         });
 
     // ── FILTERS ──────────────────────────────────────────────────────────

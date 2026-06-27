@@ -183,10 +183,13 @@ export default function DevKpiDetailModal({
                                     <span className="text-muted-foreground">Fréquence:</span>{' '}
                                     {config.source.frequency}
                                 </div>
-                                {kpiData.synced_at && (
+                                {(kpiValue?.synced_at || kpiData.synced_at) && (
                                     <div>
                                         <span className="text-muted-foreground">Sync:</span>{' '}
-                                        {new Date(kpiData.synced_at).toLocaleString('fr-FR')}
+                                        {new Date(kpiValue?.synced_at || kpiData.synced_at!).toLocaleString('fr-FR')}
+                                        {kpiValue?.is_stale && (
+                                            <span className="ml-1 text-warning">(obsolète)</span>
+                                        )}
                                     </div>
                                 )}
                             </div>

@@ -57,19 +57,20 @@ export type ApiMetadata = {
 };
 
 export type ProductionKpis = {
-    avg_efficience: { value: number | null; status: string; target: string };
-    avg_owe: { value: number | null; status: string; target: string };
+    avg_efficience: { value: number | null; status: string; target: string; synced_at?: string | null };
+    avg_owe: { value: number | null; status: string; target: string; synced_at?: string | null; partial_data?: boolean };
     rft_production?: {
         value: number | null;
         status: string;
         target: string;
         source?: string;
+        synced_at?: string | null;
     };
-    total_wip: { value: number | null; status: string; target: string };
-    total_lost_time: { value: number | null; status: string; target: string };
-    br_gtd?: { value: number | null; status: string; target: string };
-    br_bundling?: { value: number | null; status: string; target: string; source_active?: boolean };
-    br_print?: { value: number | null; status: string; target: string; synced_at?: string | null };
+    total_wip: { value: number | null; status: string; target: string; synced_at?: string | null };
+    total_lost_time: { value: number | null; status: string; target: string; synced_at?: string | null };
+    br_gtd?: { value: number | null; status: string; target: string; synced_at?: string | null };
+    br_bundling?: { value: number | null; status: string; target: string; source_active?: boolean; synced_at?: string | null };
+    br_print?: { value: number | null; status: string; target: string; synced_at?: string | null; stale?: boolean };
     synced_at: string | null;
     metadata?: ApiMetadata;
 };
@@ -177,6 +178,36 @@ export const fetchDepartage = (
     filters?: Record<string, string>,
 ) => apiGet<{ data: BreakdownRow[] }>(`/coupe/departage?poste=${poste}`, filters);
 
+export type OrderTrackingItem = {
+    orderId: string;
+    designation: string;
+    priorEff: number;
+    priorOwe: number;
+    stages: { label: string; pct: number }[];
+    overallPct: number;
+    actual: number;
+    planned: number;
+    qtyOrdered: number;
+    qtySC1: number;
+    qtySAM: number;
+    bpd: string;
+    epd: string;
+    ehd: string;
+    gtd: string;
+    amObjective: number;
+    soObjective: number;
+    gapSamSo: number;
+    dailyTarget: number;
+    qteDemandee: number;
+    qteRealiseeHeure: number;
+    cumulEff: number;
+    cumulQty: number;
+    cumulRestant: number;
+};
+
+export const fetchOrderTracking = (filters?: Record<string, string>) =>
+    apiGet<{ data: OrderTrackingItem[] }>('/order-tracking', filters);
+
 export const fetchProductionBreakdown = (
     kpiKey: string,
     filters?: Record<string, string>,
@@ -199,26 +230,11 @@ export const fetchSerigraphieCoverage = (filters?: Record<string, string>) =>
         filters,
     );
 
-export const fetchCoupeTagging = (filters?: Record<string, string>) =>
-    apiGet<DataResponse<Record<string, unknown>>>('/coupe/tagging', filters);
-
 export const fetchCoupeOfs = (filters?: Record<string, string>) =>
     apiGet<DataResponse<Record<string, unknown>>>('/coupe/ofs', filters);
 
 export const fetchCoupeQteDepartage = (filters?: Record<string, string>) =>
     apiGet<DataResponse<Record<string, unknown>>>('/coupe/qte-departage', filters);
-
-export const fetchSerigraphieFlux = (filters?: Record<string, string>) =>
-    apiGet<DataResponse<Record<string, unknown>>>('/serigraphie/flux', filters);
-
-export const fetchSerigraphieRejets = (filters?: Record<string, string>) =>
-    apiGet<{ data: Record<string, unknown>[]; metadata?: Record<string, unknown> }>(
-        '/serigraphie/rejets',
-        filters,
-    );
-
-export const fetchInlineEndline = (filters?: Record<string, string>) =>
-    apiGet<DataResponse<Record<string, unknown>>>('/inline-endline', filters);
 
 // ── Methods KPIs (F-REQ-216, 218, 219) ─────────────────────────────────────
 

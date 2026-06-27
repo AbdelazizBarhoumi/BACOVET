@@ -248,7 +248,7 @@ const PodiumColumn = ({
                     <Indicator ok={team.rft_ok} label="RFT" />
                     <Indicator ok={team.br_gtd_ok} label="BR GTD" />
                     <Indicator ok={team.br_in_ok} label="BR IN" />
-                    <Indicator ok={team.br_ok} label="BR CGL" />
+                    <Indicator ok={team.br_ok} label="BR" />
                 </div>
 
                 <div className="mt-auto pb-2">
@@ -330,7 +330,7 @@ const QpTeamPodium = ({
                     {title}
                 </h3>
                 <span className="font-mono text-[10px] text-muted-foreground">
-                    Score max: {effectiveMax}/12
+                    Score max: {effectiveMax}/{effectiveMax}
                 </span>
             </div>
 

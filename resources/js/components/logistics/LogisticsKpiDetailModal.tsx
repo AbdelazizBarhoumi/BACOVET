@@ -84,6 +84,9 @@ export default function LogisticsKpiDetailModal({
         case 'lead_time':
             card = kpiData.lead_time;
             break;
+        case 'archivage':
+            card = kpiData.archivage;
+            break;
         default:
             card = { value: null, status: 'grey' };
     }

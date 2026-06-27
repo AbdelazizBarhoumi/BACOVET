@@ -37,7 +37,7 @@ class KpiComputeService
         if ($pct === null) {
             return 'grey';
         }
-        if ($pct <= 4) {
+        if ($pct < 4) {
             return 'green';
         }
         if ($pct <= 5) {
@@ -124,6 +124,63 @@ class KpiComputeService
             return 'green';
         }
         if ($wip <= $cadence) {
+            return 'orange';
+        }
+
+        return 'red';
+    }
+
+    /**
+     * Taux Archivage Status (F-REQ-216)
+     * Target: ≥ 85%
+     */
+    public function tauxArchivageStatus(?float $pct): string
+    {
+        if ($pct === null) {
+            return 'grey';
+        }
+        if ($pct >= 85) {
+            return 'green';
+        }
+        if ($pct >= 70) {
+            return 'orange';
+        }
+
+        return 'red';
+    }
+
+    /**
+     * Respect Temps Estimé Status (F-REQ-218)
+     * Target: ≥ 90%
+     */
+    public function respectTempsEstimeStatus(?float $pct): string
+    {
+        if ($pct === null) {
+            return 'grey';
+        }
+        if ($pct >= 90) {
+            return 'green';
+        }
+        if ($pct >= 80) {
+            return 'orange';
+        }
+
+        return 'red';
+    }
+
+    /**
+     * Temps Acceptés Status (F-REQ-219)
+     * Target: ≥ 80%
+     */
+    public function tempsAcceptesStatus(?float $pct): string
+    {
+        if ($pct === null) {
+            return 'grey';
+        }
+        if ($pct >= 80) {
+            return 'green';
+        }
+        if ($pct >= 60) {
             return 'orange';
         }
 

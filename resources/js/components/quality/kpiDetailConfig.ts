@@ -51,7 +51,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_commande: {
         id: '101',
-        label: 'BR Commande',
+        label: 'BR (Blocking Rate annuel)',
         description: "Nombre de rejet suite inspection commande / Nombre d'inspection commande × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {
@@ -76,7 +76,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             novacityEndpoint: null,
             mysqlTable: 'sync_drive_inspection_commande',
             frequency: 'Temps réel',
-            status: 'live',
+            status: 'inactive',
         },
         breakdownAvailable: false,
         trendAvailable: false,
@@ -86,7 +86,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_gtd_jour: {
         id: '102',
-        label: 'BR GTD (Jour)',
+        label: 'BR GTD (jour en cours)',
         description:
         "Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production × 100 (ce jour : jour en cours)",
         formula: {
@@ -122,7 +122,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     rft_jour: {
         id: '104',
-        label: 'RFT (Jour)',
+        label: 'RFT (Right First Time — jour en cours)',
         description:
         "Nombre des pièces Ok de premier coup par chaîne de production / Nombre des pièces produites par chaîne de production × 100 (ce jour : jour en cours)",
         formula: {
@@ -159,7 +159,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_bundling_jour: {
         id: '106',
-        label: 'BR Bundling (Jour)',
+        label: 'BR Bundling (jour en cours)',
         description:
             "Nombre de rejet suite inspection Paquet / Nombre d'inspection Paquet × 100 (ce jour : le jour en cours)",
         formula: {
@@ -196,7 +196,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_gtd_dda: {
         id: '103',
-        label: 'BR GTD DDA',
+        label: 'BR GTD DDA (annuel)',
         description:
         "Nombre de rejet suite contrôle RFID colis / Nombre de contrôle RFID colis annuel × 100 (par chaîne de production, dès le début de l'année jusqu'à présent)",
         formula: {
@@ -232,7 +232,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     rft_annee: {
         id: '105',
-        label: 'RFT DDA',
+        label: 'RFT DDA (annuel)',
         description:
         "Nombre des pièces Ok de premier coup par chaîne de production / Nombre des pièces produites par chaîne de production × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
@@ -269,7 +269,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_bundling_annee: {
         id: '107',
-        label: 'BR Bundling DDA',
+        label: 'BR Bundling DDA (annuel)',
         description: "Nombre de rejet suite inspection Paquet / Nombre d'inspection Paquet × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {
@@ -304,7 +304,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_print: {
         id: '108',
-        label: 'BR Print (Jour)',
+        label: 'BR Print (jour en cours)',
         description:
         "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (ce jour : le jour en cours)",
         formula: {
@@ -340,7 +340,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_print_dda: {
         id: '109',
-        label: 'BR Print DDA',
+        label: 'BR Print DDA (annuel)',
         description:
         "Nombre de rejet suite inspection livraison sérigraphie / Nombre d'inspection livraison sérigraphie × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
@@ -376,7 +376,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_care_label_jour: {
         id: '110',
-        label: 'BR Care Label (Jour)',
+        label: 'BR Care Label (jour en cours)',
         description: "Nombre de rejet suite inspection livraison vignettes / Nombre d'inspection livraison vignettes × 100 (ce jour : le jour en cours)",
         formula: {
             numerator: { label: "Nombre de rejet suite inspection livraison vignettes", field: '—' },
@@ -405,7 +405,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_care_label_dda: {
         id: '111',
-        label: 'BR Care Label DDA',
+        label: 'BR Care Label DDA (annuel)',
         description:
         "Nombre de rejet suite inspection livraison vignettes / Nombre d'inspection livraison vignettes × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
@@ -438,7 +438,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_accessoires_jour: {
         id: '112',
-        label: 'BR Accessoires (Jour)',
+        label: 'BR Accessoires (jour en cours)',
         description: "Nombre de rejet suite inspection livraison accessoires / Nombre d'inspection livraison accessoires × 100 (ce jour : le jour en cours)",
         formula: {
             numerator: { label: "Nombre de rejet suite inspection livraison accessoires", field: '—' },
@@ -467,7 +467,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_accessoires_dda: {
         id: '113',
-        label: 'BR Accessoires DDA',
+        label: 'BR Accessoires DDA (annuel)',
         description:
         "Nombre de rejet suite inspection livraison accessoires / Nombre d'inspection livraison accessoires × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
@@ -500,7 +500,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_compo_jour: {
         id: '114',
-        label: 'BR Compo (Jour)',
+        label: 'BR Compo (jour en cours)',
         description: "Nombre de rejet suite inspection livraison Compo / Nombre d'inspection livraison Compo × 100 (ce jour : le jour en cours)",
         formula: {
             numerator: { label: "Nombre de rejet suite inspection livraison Compo", field: '—' },
@@ -529,7 +529,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_compo_dda: {
         id: '115',
-        label: 'BR Compo DDA',
+        label: 'BR Compo DDA (annuel)',
         description:
         "Nombre de rejet suite inspection livraison Compo / Nombre d'inspection livraison Compo × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
@@ -562,7 +562,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_in_jour: {
         id: '120',
-        label: 'BR IN (Jour)',
+        label: 'BR IN (jour en cours)',
         description: "Nombre de rejet suite inspection colis / Nombre d'inspection colis × 100 (ce jour : jour en cours)",
         formula: {
             numerator: {
@@ -583,7 +583,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
             red: '> 5%',
         },
         source: {
-            system: 'DIVA',
+            system: 'DRIVE',
             novacityEndpoint: null,
             mysqlTable: null,
             frequency: '4×/jour',
@@ -597,7 +597,7 @@ export const KPI_DETAIL_CONFIG: Record<KpiKey, KpiDetailConfig> = {
 
     br_in_dda: {
         id: '121',
-        label: 'BR IN DDA',
+        label: 'BR IN DDA (annuel)',
         description: "Nombre de rejet suite inspection AQL colis / Nombre d'inspection AQL colis × 100 (dès le début de l'année jusqu'à présent)",
         formula: {
             numerator: {

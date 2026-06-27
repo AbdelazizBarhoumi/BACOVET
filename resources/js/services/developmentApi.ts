@@ -11,16 +11,8 @@ function getXsrfToken(): string {
     );
 }
 
-async function apiGet<T>(
-    path: string,
-    params?: Record<string, string>,
-): Promise<T> {
-    const url = new URL(`/development${path}`, window.location.origin);
-    if (params) {
-        Object.entries(params).forEach(([k, v]) => {
-            if (v != null && v !== '') url.searchParams.set(k, v);
-        });
-    }
+async function apiGet<T>(path: string): Promise<T> {
+    const url = new URL(`/developpement${path}`, window.location.origin);
 
     const res = await fetch(url.toString(), {
         method: 'GET',
@@ -61,6 +53,8 @@ export type DevelopmentKpi = {
     frequency: string;
     status: KpiStatus;
     source?: string;
+    synced_at?: string;
+    is_stale?: boolean;
     updated_at?: string;
 };
 
@@ -79,29 +73,21 @@ export type TrendItem = {
     valeur: number;
 };
 
-// ─── API Functions ──────────────────────────────────────────────────────────
-
-export const fetchDevelopmentKpis = (filters?: Record<string, string>) =>
-    apiGet<DevelopmentKpisResponse>('/kpis', filters);
-
-export const fetchDevelopmentTrend = (filters?: Record<string, string>) =>
-    apiGet<{ data: TrendItem[] }>('/trend', filters);
-
-export type LeadTimeDevResponse = {
-    value: number | null;
-    target: number;
-    status: KpiStatus;
-    unit: string;
-    target_kind: string;
-    frequency: string;
-    source?: string;
+export type ScatterItem = {
+    mois: string;
+    modele: string;
+    valeur: number;
+    reclamations: number;
+    total: number;
 };
 
-export const fetchLeadTimeDev = (filters?: Record<string, string>) =>
-    apiGet<LeadTimeDevResponse>('/lead-time', filters);
+// ─── API Functions ──────────────────────────────────────────────────────────
 
-export const fetchDevelopmentTrendRft = (filters?: Record<string, string>) =>
-    apiGet<{ data: TrendItem[] }>('/trend-rft', filters);
+export const fetchDevelopmentKpis = () =>
+    apiGet<DevelopmentKpisResponse>('/kpis');
 
-export const fetchDevelopmentTrendLivraison = (filters?: Record<string, string>) =>
-    apiGet<{ data: TrendItem[] }>('/trend-livraison', filters);
+export const fetchDevelopmentTrend = () =>
+    apiGet<{ data: TrendItem[] }>('/trend');
+
+export const fetchReclamationsScatter = () =>
+    apiGet<{ data: ScatterItem[] }>('/reclamations-scatter');

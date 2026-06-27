@@ -21,6 +21,7 @@ import {
     YAxis,
 } from 'recharts';
 import { AppShell } from '@/components/app-shell';
+import { OrderTrackingTable, type OrderTracking } from "@/components/order-tracking-table";
 import { ProductionKpiCard } from '@/components/production/ProductionKpiCard';
 import type { ProductionKpiKey } from '@/components/production/productionKpiDetailConfig';
 import ProductionKpiDetailModal from '@/components/production/ProductionKpiDetailModal';
@@ -49,19 +50,13 @@ import {
     fetchProductionTopOps,
     fetchProductionWip,
     fetchProductionSoProgress,
+    fetchOrderTracking,
     fetchCoupeCoverage,
     fetchCoupeChainCoverage,
     fetchSerigraphieCoverage,
-    fetchCoupeTagging,
     fetchCoupeOfs,
     fetchCoupeQteDepartage,
-    fetchSerigraphieFlux,
-    fetchSerigraphieRejets,
-    fetchInlineEndline,
     fetchDepartage,
-    fetchTauxArchivage,
-    fetchRespectTempsEstime,
-    fetchTauxTempsAcceptes,
     type ChainInfo,
     type ProductionKpis,
     type GaugeItem,
@@ -70,6 +65,7 @@ import {
     type TrendItem,
     type TopOpItem,
     type WipAreaItem,
+    type OrderTrackingItem,
 } from '@/services/productionApi';
 import type { BreakdownData, BreakdownRow } from '../types/production';
 
@@ -99,25 +95,11 @@ type ExtraData = {
     /** Coupe only */
     coupeCoverage?: CoupeCoverageData;
     /** Coupe only */
-    coupeTagging?: BreakdownRow[];
-    /** Coupe only */
     coupeOfs?: BreakdownRow[];
     /** Coupe only */
     coupeQteDepartage?: BreakdownRow[];
     /** Sérigraphie only */
     serigraphieCoverage?: SerigraphieCoverageData;
-    /** Sérigraphie only */
-    seriFlux?: BreakdownRow[];
-    /** Sérigraphie only */
-    seriRejets?: BreakdownRow[];
-    seriRejetsMetadata?: Record<string, unknown>;
-    inlineEndlineData?: BreakdownRow[];
-    inlineEndlineSource?: string | null;
-
-    // Methods KPIs (F-REQ-216, 218, 219)
-    tauxArchivage?: { value: number | null; status: string; target: number } | null;
-    respectTempsEstime?: { value: number | null; status: string; target: number } | null;
-    tauxTempsAcceptes?: { value: number | null; status: string; target: number } | null;
 };
 
 // ─── Misc helpers ─────────────────────────────────────────────────────────────
@@ -196,15 +178,9 @@ function ProductionTab({
         vignettes = [],
         coupeChainCoverage = null,
         coupeCoverage = null,
-        serigraphieCoverage = null,
-        coupeTagging = [],
         coupeOfs = [],
         coupeQteDepartage = [],
-        inlineEndlineData = [],
-        inlineEndlineSource = null,
-        seriFlux = [],
-        seriRejets = [],
-        seriRejetsMetadata = null,
+        serigraphieCoverage = null,
     } = extraData;
 
     const coupeOfsPageItems = useMemo(() => {
@@ -248,8 +224,6 @@ function ProductionTab({
     return (
         <>
             {/* Row 1 — Chain info cards */}
-            {workshop !== 'serigraphie' && (
-                <>
                 {missingFields.length > 0 && (
                     <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -294,31 +268,37 @@ function ProductionTab({
                                 </div>
                             </div>
                             <div className="grid grid-cols-4 gap-2 font-mono text-[10px] uppercase">
-                                <KV label="Article" value={c.article} />
-                                <KV
-                                    label="SAM"
-                                    value={
-                                        typeof c.sam === 'number'
-                                            ? `${c.sam} min`
-                                            : c.sam
-                                    }
-                                />
-                                <KV
-                                    label="SOT"
-                                    value={
-                                        typeof c.sot === 'number'
-                                            ? `${c.sot} min`
-                                            : (c.sot ?? 'N/A')
-                                    }
-                                />
-                                <KV label="Effectif" value={String(c.effectif)} />
+                                {workshop === 'confection' && <KV label="Article" value={c.article} />}
+                                {workshop === 'confection' && (
+                                    <>
+                                        <KV
+                                            label="SAM"
+                                            value={
+                                                typeof c.sam === 'number'
+                                                    ? `${c.sam} min`
+                                                    : c.sam
+                                            }
+                                        />
+                                        <KV
+                                            label="SOT"
+                                            value={
+                                                typeof c.sot === 'number'
+                                                    ? `${c.sot} min`
+                                                    : (c.sot ?? 'N/A')
+                                            }
+                                        />
+                                        <KV label="Effectif" value={String(c.effectif)} />
+                                    </>
+                                )}
                                 <KV label="Eff." value={`${c.eff.toFixed(1)}%`} />
-                                <KV label="WIP" value={String(c.wip)} />
+                                {(workshop === 'confection' || workshop === 'serigraphie') && (
+                                    <KV label="WIP" value={String(c.wip)} />
+                                )}
                                 <KV label="BPD" value={c.bpd ?? 'N/A'} />
                                 <KV label="EPD" value={c.epd ?? 'N/A'} />
                                 <KV label="EHD" value={c.ehd ?? 'N/A'} />
                             </div>
-                            {c.br_gtd != null && (
+                            {workshop === 'confection' && c.br_gtd != null && (
                                 <div className="mt-1 flex items-center gap-2 font-mono text-[9px] uppercase">
                                     <span className="text-muted-foreground">BR GTD:</span>
                                     <span
@@ -334,7 +314,7 @@ function ProductionTab({
                                     </span>
                                 </div>
                             )}
-                            {(c.entree_jour != null || c.sortie_jour != null) && (
+                            {(workshop === 'confection' || workshop === 'serigraphie') && (c.entree_jour != null || c.sortie_jour != null) && (
                                 <div className="mt-1 flex items-center gap-3 font-mono text-[9px] text-muted-foreground uppercase">
                                     <span>
                                         Entrée:{' '}
@@ -346,22 +326,6 @@ function ProductionTab({
                                         Sortie:{' '}
                                         <span className="font-bold text-foreground">
                                             {c.sortie_jour ?? 'N/A'}
-                                        </span>
-                                    </span>
-                                </div>
-                            )}
-                            {(c.hp != null || c.hs != null) && (
-                                <div className="mt-2 flex gap-3 border-t border-border/30 pt-1 font-mono text-[9px] text-muted-foreground uppercase">
-                                    <span>
-                                        HP:{' '}
-                                        <span className="font-bold text-foreground">
-                                            {c.hp ?? 'N/A'}h
-                                        </span>
-                                    </span>
-                                    <span>
-                                        HS:{' '}
-                                        <span className="font-bold text-foreground">
-                                            {c.hs ?? 'N/A'}h
                                         </span>
                                     </span>
                                 </div>
@@ -379,22 +343,14 @@ function ProductionTab({
                         </div>
                     )}
                 </div>
-                </>
-            )}
 
             {/* Row 2 — KPIs */}
             <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-                {workshop !== 'serigraphie' && (
+                {workshop === 'confection' && (
                     <>
                         <ProductionKpiCard
-                            label="Efficience Chaîne ·202"
-                            value={
-                                kpis.avg_efficience.value ??
-                                (kpis.avg_efficience.status === 'pending' ||
-                                kpis.avg_efficience.status === 'inactive'
-                                    ? '-'
-                                    : 'N/A')
-                            }
+                            label="Efficience PAR CHAINE"
+                            value={kpis.avg_efficience.value ?? (kpis.avg_efficience.status === 'pending' || kpis.avg_efficience.status === 'inactive' ? '-' : 'N/A')}
                             target={kpis.avg_efficience.target}
                             status={kpis.avg_efficience.status as Status}
                             source="SDT"
@@ -402,165 +358,137 @@ function ProductionTab({
                             onClick={() => onKpiClick('efficience_chaine')}
                         />
                         <ProductionKpiCard
-                            label="OWE Chaîne ·204"
-                            value={
-                                kpis.avg_owe.value ??
-                                (kpis.avg_owe.status === 'pending' ||
-                                kpis.avg_owe.status === 'inactive'
-                                    ? '-'
-                                    : 'N/A')
-                            }
+                            label="OWE par chaine"
+                            value={kpis.avg_owe.value ?? (kpis.avg_owe.status === 'pending' || kpis.avg_owe.status === 'inactive' ? '-' : 'N/A')}
                             target={kpis.avg_owe.target}
                             status={kpis.avg_owe.status as Status}
                             source="SDT (G.PRO + GPRO consulting)"
                             isLoading={loading}
                             onClick={() => onKpiClick('owe_chaine')}
                         />
-                    </>
-                )}
-                <ProductionKpiCard
-                    label="RFT Production ·104"
-                    value={
-                        kpis.rft_production?.value ??
-                        (kpis.rft_production?.status === 'pending' ||
-                        kpis.rft_production?.status === 'inactive'
-                            ? '-'
-                            : 'N/A')
-                    }
-                    target={kpis.rft_production?.target}
-                    status={kpis.rft_production?.status as Status}
-                    source={kpis.rft_production?.source ?? 'GPRO + Novacity'}
-                    isLoading={loading}
-                    onClick={() => onKpiClick('rft_production')}
-                />
-                {workshop !== 'serigraphie' && (
-                    <ProductionKpiCard
-                        label="WIP Total ·205"
-                        value={
-                            kpis.total_wip.value ??
-                            (kpis.total_wip.status === 'pending' ||
-                            kpis.total_wip.status === 'inactive'
-                                ? '-'
-                                : 'N/A')
-                        }
-                        target={kpis.total_wip.target}
-                        status={kpis.total_wip.status as Status}
-                        source="SDT"
-                        isLoading={loading}
-                        onClick={() => onKpiClick('wip_chaine')}
-                    />
-                )}
-                {workshop !== 'serigraphie' && (
-                    <ProductionKpiCard
-                        label="Arrêts non planifiés ·207"
-                        value={
-                            kpis.total_lost_time.value ??
-                            (kpis.total_lost_time.status === 'pending' ||
-                            kpis.total_lost_time.status === 'inactive'
-                                ? '-'
-                                : 'N/A')
-                        }
-                        unit="min"
-                        target={kpis.total_lost_time.target}
-                        status={kpis.total_lost_time.status as Status}
-                        source="SDT"
-                        isLoading={loading}
-                        onClick={() => onKpiClick('arrets_non_planifies')}
-                    />
-                )}
-
-                {(workshop === 'confection' || workshop === 'coupe') && (
-                    <>
                         <ProductionKpiCard
-                            label="BR GTD (Aujourd'hui) ·102"
-                            value={
-                                kpis.br_gtd?.value ??
-                                (kpis.br_gtd?.status === 'pending' ||
-                                kpis.br_gtd?.status === 'inactive'
-                                    ? '-'
-                                    : 'N/A')
-                            }
+                            label="RFT (Right First Time — jour en cours)"
+                            value={kpis.rft_production?.value ?? (kpis.rft_production?.status === 'pending' || kpis.rft_production?.status === 'inactive' ? '-' : 'N/A')}
+                            target={kpis.rft_production?.target}
+                            status={kpis.rft_production?.status as Status}
+                            source={kpis.rft_production?.source ?? 'GPRO + Novacity'}
+                            isLoading={loading}
+                            onClick={() => onKpiClick('rft_production')}
+                        />
+                        <ProductionKpiCard
+                            label="WIP par chaine"
+                            value={kpis.total_wip.value ?? (kpis.total_wip.status === 'pending' || kpis.total_wip.status === 'inactive' ? '-' : 'N/A')}
+                            target={kpis.total_wip.target}
+                            status={kpis.total_wip.status as Status}
+                            source="SDT"
+                            isLoading={loading}
+                            onClick={() => onKpiClick('wip_chaine')}
+                        />
+                        <ProductionKpiCard
+                            label="Arrêts non planifiés par chaine"
+                            value={kpis.total_lost_time.value ?? (kpis.total_lost_time.status === 'pending' || kpis.total_lost_time.status === 'inactive' ? '-' : 'N/A')}
+                            unit="min"
+                            target={kpis.total_lost_time.target}
+                            status={kpis.total_lost_time.status as Status}
+                            source="SDT"
+                            isLoading={loading}
+                            onClick={() => onKpiClick('arrets_non_planifies')}
+                        />
+                        <ProductionKpiCard
+                            label="BR GTD (jour en cours)"
+                            value={kpis.br_gtd?.value ?? (kpis.br_gtd?.status === 'pending' || kpis.br_gtd?.status === 'inactive' ? '-' : 'N/A')}
                             target={kpis.br_gtd?.target}
                             status={kpis.br_gtd?.status as Status}
                             source="SDT (G.PRO)"
                             isLoading={loading}
                             onClick={() => onKpiClick('br_gtd')}
                         />
+                    </>
+                )}
+
+                {workshop === 'coupe' && (
+                    <>
                         <ProductionKpiCard
-                            label="BR Bundling ·106"
-                            value={
-                                kpis.br_bundling?.source_active === false
-                                    ? '— Indisponible'
-                                    : kpis.br_bundling?.value ??
-                                    (kpis.br_bundling?.status === 'pending' ||
-                                    kpis.br_bundling?.status === 'inactive'
-                                        ? '-'
-                                        : 'N/A')
-                            }
+                            label="Arrêts non planifiés par chaine"
+                            value={kpis.total_lost_time.value ?? (kpis.total_lost_time.status === 'pending' || kpis.total_lost_time.status === 'inactive' ? '-' : 'N/A')}
+                            unit="min"
+                            target={kpis.total_lost_time.target}
+                            status={kpis.total_lost_time.status as Status}
+                            source="SDT"
+                            isLoading={loading}
+                            onClick={() => onKpiClick('arrets_non_planifies')}
+                        />
+                        <ProductionKpiCard
+                            label="BR Bundling (jour en cours)"
+                            value={kpis.br_bundling?.source_active === false ? '— Indisponible' : kpis.br_bundling?.value ?? (kpis.br_bundling?.status === 'pending' || kpis.br_bundling?.status === 'inactive' ? '-' : 'N/A')}
                             target={kpis.br_bundling?.target}
                             status={kpis.br_bundling?.status as Status}
                             source="SDT (G.PRO)"
                             isLoading={loading}
                             onClick={() => onKpiClick('br_bundling')}
                         />
+                        <ProductionKpiCard
+                            label="BR Print (jour en cours)"
+                            value={kpis.br_print?.value ?? (kpis.br_print?.status === 'pending' || kpis.br_print?.status === 'inactive' ? '-' : 'N/A')}
+                            target={kpis.br_print?.target}
+                            status={kpis.br_print?.status as Status}
+                            source={kpis.br_print?.stale ? 'Google Drive (données décalées)' : 'Google Drive'}
+                            badge={kpis.br_print?.stale ? '⚠ Données d\'une date antérieure' : kpis.br_print?.synced_at ? (now - new Date(kpis.br_print.synced_at).getTime()) > 6 * 60 * 60 * 1000 ? '⚠ Données potentiellement périmées (>6h)' : undefined : '⚠ Sync non vérifié'}
+                            isLoading={loading}
+                            onClick={() => onKpiClick('br_print')}
+                        />
                     </>
                 )}
-                <ProductionKpiCard
-                    label="BR Print (Aujourd'hui) ·108"
-                    value={
-                        kpis.br_print?.value ??
-                        (kpis.br_print?.status === 'pending' ||
-                        kpis.br_print?.status === 'inactive'
-                            ? '-'
-                            : 'N/A')
-                    }
-                    target={kpis.br_print?.target}
-                    status={kpis.br_print?.status as Status}
-                    source="Google Drive"
-                    badge={
-                        kpis.br_print?.synced_at
-                            ? (now - new Date(kpis.br_print.synced_at).getTime()) > 6 * 60 * 60 * 1000
-                                ? '⚠ Données potentiellement périmées (>6h)'
-                                : undefined
-                            : '⚠ Sync non vérifié'
-                    }
-                    isLoading={loading}
-                    onClick={() => onKpiClick('br_print')}
-                />
-                <ProductionKpiCard
-                    label="Taux Archivage ·216"
-                    value={extraData.tauxArchivage?.value ?? 'N/A'}
-                    target={`≥ ${extraData.tauxArchivage?.target ?? 85}%`}
-                    status={extraData.tauxArchivage?.status as Status}
-                    source="GPRO Prod"
-                    isLoading={loading}
-                    onClick={() => onKpiClick('taux_archivage')}
-                />
-                <ProductionKpiCard
-                    label="Respect Temps Estimé ·218"
-                    value={extraData.respectTempsEstime?.value != null ? `${extraData.respectTempsEstime.value}%` : 'N/A'}
-                    target={`≥ ${extraData.respectTempsEstime?.target ?? 90}%`}
-                    status={extraData.respectTempsEstime?.status as Status}
-                    source="DRIVE"
-                    isLoading={loading}
-                    onClick={() => onKpiClick('respect_temps_estime')}
-                />
-                <ProductionKpiCard
-                    label="Temps Acceptés V1 ·219"
-                    value={extraData.tauxTempsAcceptes?.value != null ? `${extraData.tauxTempsAcceptes.value}%` : 'N/A'}
-                    target={`≥ ${extraData.tauxTempsAcceptes?.target ?? 80}%`}
-                    status={extraData.tauxTempsAcceptes?.status as Status}
-                    source="DRIVE"
-                    isLoading={loading}
-                    onClick={() => onKpiClick('temps_acceptes')}
-                />
+
+                {workshop === 'serigraphie' && (
+                    <>
+                        <ProductionKpiCard
+                            label="RFT (Right First Time — jour en cours)"
+                            value={kpis.rft_production?.value ?? (kpis.rft_production?.status === 'pending' || kpis.rft_production?.status === 'inactive' ? '-' : 'N/A')}
+                            target={kpis.rft_production?.target}
+                            status={kpis.rft_production?.status as Status}
+                            source={kpis.rft_production?.source ?? 'GPRO + Novacity'}
+                            isLoading={loading}
+                            onClick={() => onKpiClick('rft_production')}
+                        />
+                        <ProductionKpiCard
+                            label="WIP par chaine"
+                            value={kpis.total_wip.value ?? (kpis.total_wip.status === 'pending' || kpis.total_wip.status === 'inactive' ? '-' : 'N/A')}
+                            target={kpis.total_wip.target}
+                            status={kpis.total_wip.status as Status}
+                            source="SDT"
+                            isLoading={loading}
+                            onClick={() => onKpiClick('wip_chaine')}
+                        />
+                        <ProductionKpiCard
+                            label="Arrêts non planifiés par chaine"
+                            value={kpis.total_lost_time.value ?? (kpis.total_lost_time.status === 'pending' || kpis.total_lost_time.status === 'inactive' ? '-' : 'N/A')}
+                            unit="min"
+                            target={kpis.total_lost_time.target}
+                            status={kpis.total_lost_time.status as Status}
+                            source="SDT"
+                            isLoading={loading}
+                            onClick={() => onKpiClick('arrets_non_planifies')}
+                        />
+                        <ProductionKpiCard
+                            label="BR Print (jour en cours)"
+                            value={kpis.br_print?.value ?? (kpis.br_print?.status === 'pending' || kpis.br_print?.status === 'inactive' ? '-' : 'N/A')}
+                            target={kpis.br_print?.target}
+                            status={kpis.br_print?.status as Status}
+                            source={kpis.br_print?.stale ? 'Google Drive (données décalées)' : 'Google Drive'}
+                            badge={kpis.br_print?.stale ? '⚠ Données d\'une date antérieure' : kpis.br_print?.synced_at ? (now - new Date(kpis.br_print.synced_at).getTime()) > 6 * 60 * 60 * 1000 ? '⚠ Données potentiellement périmées (>6h)' : undefined : '⚠ Sync non vérifié'}
+                            isLoading={loading}
+                            onClick={() => onKpiClick('br_print')}
+                        />
+                    </>
+                )}
             </div>
 
             {/* Row 3 — Gauges + Timeline */}
-            {workshop !== 'serigraphie' && (
-                <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+            {workshop === 'confection' && (
+            <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <div className="flex flex-col gap-3 lg:col-span-2 h-full">
-                        <Panel title="Efficience par Chaîne · Gauges" className="h-full">
+                        <Panel title="Efficience PAR CHAINE" className="h-full">
                             <div className="flex min-h-[120px] items-end justify-around pt-2">
                                 {gauges.length > 0 ? (
                                     gauges.map((c) => (
@@ -578,8 +506,7 @@ function ProductionTab({
                             </div>
                         </Panel>
 
-                        {(workshop === 'confection' || workshop === 'coupe') && (
-                            <Panel title="WIP par Chaîne · 205 Gauges" className="h-full">
+                            <Panel title="WIP par chaine" className="h-full">
                                 <div className="flex min-h-[120px] items-end justify-around pt-2">
                                     {wipGauges.length > 0 ? (
                                         wipGauges.map((c) => (
@@ -604,10 +531,9 @@ function ProductionTab({
                                     )}
                                 </div>
                             </Panel>
-                        )}
                     </div>
 
-                    <Panel title="Chronologie des arrêts (Aujourd'hui)" className="h-full">
+                    <Panel title="Arrêts non planifiés par chaine" className="h-full">
                         <div className="space-y-3 font-mono text-xs">
                             {(() => {
                                 const uniqueChains = [...new Set(stoppages.map((s) => s.chaine))].sort();
@@ -713,10 +639,226 @@ function ProductionTab({
                 </div>
             )}
 
-            {/* Row 4 — Workshop specific panels */}
+            {workshop === 'serigraphie' && (
             <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <Panel title="WIP par chaine" className="h-full">
+                        <div className="flex min-h-[120px] items-end justify-around pt-2">
+                            {wipGauges.length > 0 ? (
+                                wipGauges.map((c) => (
+                                    <div key={c.chaine} className="flex flex-col items-center">
+                                        <Gauge
+                                            value={Number(c.wip)}
+                                            label={c.chaine}
+                                            max={200}
+                                            inverted={true}
+                                        />
+                                        {(c.raw_wip != null || c.target != null) && (
+                                            <div className="mt-1 font-mono text-[9px] text-muted-foreground">
+                                                {c.raw_wip ?? '—'} / {c.target ?? '—'}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="font-mono text-xs text-muted-foreground">
+                                    En attente de données...
+                                </div>
+                            )}
+                        </div>
+                    </Panel>
+
+                    <Panel title="Arrêts non planifiés par chaine" className="h-full">
+                        <div className="space-y-3 font-mono text-xs">
+                            {(() => {
+                                const uniqueChains = [...new Set(stoppages.map((s) => s.chaine))].sort();
+                                return uniqueChains.length > 0 ? uniqueChains : ['CH1', 'CH2', 'CH3', 'CH4'];
+                            })().map((ch) => (
+                                <div key={ch} className="flex items-center gap-2">
+                                    <div className="w-10 text-muted-foreground">{ch}</div>
+                                    <div className="relative h-6 flex-1 overflow-hidden rounded bg-secondary">
+                                        {stoppages
+                                            .filter((s) => s.chaine === ch)
+                                            .map((s, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="absolute top-0 flex h-full items-center justify-center rounded text-[10px] font-bold text-background"
+                                                    style={{
+                                                        left: `${((s.start - 6) / 12) * 100}%`,
+                                                        width: `${Math.max((s.duration / 12) * 100, 2)}%`,
+                                                        backgroundColor:
+                                                            s.motif === 'MAINT'
+                                                                ? 'var(--chart-4)'
+                                                                : s.motif === 'MATIERE'
+                                                                  ? 'var(--warning)'
+                                                                  : 'var(--destructive)',
+                                                    }}
+                                                    title={`${s.motif} · ${Math.round(s.duration * 60)}min`}
+                                                >
+                                                    {s.motif[0]}
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex justify-between pl-12 text-[10px] text-muted-foreground">
+                            <span>06h</span>
+                            <span>09h</span>
+                            <span>12h</span>
+                            <span>15h</span>
+                            <span>18h</span>
+                        </div>
+                        <div className="flex gap-3 border-t border-border pt-2 text-[10px]">
+                            <Legend2 color="var(--chart-4)" label="Maintenance" />
+                            <Legend2 color="var(--warning)" label="Matière" />
+                            <Legend2 color="var(--destructive)" label="Qualité" />
+                        </div>
+                        <div className="mt-4 border-t border-border pt-3">
+                            <div className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                                Liste des motifs d'arrêt
+                            </div>
+                            <div className="max-h-[120px] space-y-1 overflow-y-auto pr-2">
+                                {stoppages.length > 0 ? (
+                                    stoppages.map((s, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex items-center justify-between border-b border-border/30 py-1 text-[10px] last:border-0"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-6 font-bold text-primary">
+                                                    {s.chaine}
+                                                </span>
+                                                <span className="text-muted-foreground">
+                                                    Début:{' '}
+                                                    {isNaN(s.start)
+                                                        ? '--h--'
+                                                        : `${Math.floor(s.start)}h${Math.round((s.start % 1) * 60).toString().padStart(2, '0')}`}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-semibold">
+                                                    {isNaN(s.duration) ? '--' : Math.round(s.duration * 60)} min
+                                                </span>
+                                                <TrafficBadge
+                                                    status={
+                                                        s.motif === 'MAINT' ? 'orange' : s.motif === 'MATIERE' ? 'orange' : 'red'
+                                                    }
+                                                >
+                                                    {s.motif}
+                                                </TrafficBadge>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-[10px] text-muted-foreground italic">
+                                        Aucun arrêt enregistré
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </Panel>
+                </div>
+            )}
+
+            {workshop === 'coupe' && (
+            <div className="mb-4">
+                    <Panel title="Arrêts non planifiés par chaine" className="h-full">
+                        <div className="space-y-3 font-mono text-xs">
+                            {(() => {
+                                const uniqueChains = [...new Set(stoppages.map((s) => s.chaine))].sort();
+                                return uniqueChains.length > 0 ? uniqueChains : ['CH1', 'CH2', 'CH3', 'CH4'];
+                            })().map((ch) => (
+                                <div key={ch} className="flex items-center gap-2">
+                                    <div className="w-10 text-muted-foreground">{ch}</div>
+                                    <div className="relative h-6 flex-1 overflow-hidden rounded bg-secondary">
+                                        {stoppages
+                                            .filter((s) => s.chaine === ch)
+                                            .map((s, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="absolute top-0 flex h-full items-center justify-center rounded text-[10px] font-bold text-background"
+                                                    style={{
+                                                        left: `${((s.start - 6) / 12) * 100}%`,
+                                                        width: `${Math.max((s.duration / 12) * 100, 2)}%`,
+                                                        backgroundColor:
+                                                            s.motif === 'MAINT'
+                                                                ? 'var(--chart-4)'
+                                                                : s.motif === 'MATIERE'
+                                                                  ? 'var(--warning)'
+                                                                  : 'var(--destructive)',
+                                                    }}
+                                                    title={`${s.motif} · ${Math.round(s.duration * 60)}min`}
+                                                >
+                                                    {s.motif[0]}
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex justify-between pl-12 text-[10px] text-muted-foreground">
+                            <span>06h</span>
+                            <span>09h</span>
+                            <span>12h</span>
+                            <span>15h</span>
+                            <span>18h</span>
+                        </div>
+                        <div className="flex gap-3 border-t border-border pt-2 text-[10px]">
+                            <Legend2 color="var(--chart-4)" label="Maintenance" />
+                            <Legend2 color="var(--warning)" label="Matière" />
+                            <Legend2 color="var(--destructive)" label="Qualité" />
+                        </div>
+                        <div className="mt-4 border-t border-border pt-3">
+                            <div className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                                Liste des motifs d'arrêt
+                            </div>
+                            <div className="max-h-[120px] space-y-1 overflow-y-auto pr-2">
+                                {stoppages.length > 0 ? (
+                                    stoppages.map((s, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex items-center justify-between border-b border-border/30 py-1 text-[10px] last:border-0"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-6 font-bold text-primary">
+                                                    {s.chaine}
+                                                </span>
+                                                <span className="text-muted-foreground">
+                                                    Début:{' '}
+                                                    {isNaN(s.start)
+                                                        ? '--h--'
+                                                        : `${Math.floor(s.start)}h${Math.round((s.start % 1) * 60).toString().padStart(2, '0')}`}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-semibold">
+                                                    {isNaN(s.duration) ? '--' : Math.round(s.duration * 60)} min
+                                                </span>
+                                                <TrafficBadge
+                                                    status={
+                                                        s.motif === 'MAINT' ? 'orange' : s.motif === 'MATIERE' ? 'orange' : 'red'
+                                                    }
+                                                >
+                                                    {s.motif}
+                                                </TrafficBadge>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-[10px] text-muted-foreground italic">
+                                        Aucun arrêt enregistré
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </Panel>
+                </div>
+            )}
+
+            {/* Row 4 — Workshop specific panels */}
+            <div className="mb-4 grid grid-cols-1 gap-3">
                 {workshop === 'serigraphie' && (
-                    <Panel title="Couverture Sérigraphie ·309">
+                    <Panel title="Couverture Sérigraphie">
                         <div className="flex h-[200px] flex-col items-center justify-center">
                             <div className="font-mono text-4xl font-bold">
                                 {serigraphieCoverage?.value ??
@@ -742,7 +884,7 @@ function ProductionTab({
                 )}
 
                 {workshop === 'coupe' && (
-                    <Panel title="Couverture Coupe ·311">
+                    <Panel title="Couverture Coupe">
                         <div className="flex h-[200px] flex-col items-center justify-center">
                             <div className="font-mono text-4xl font-bold">
                                 {coupeCoverage?.value != null
@@ -766,8 +908,8 @@ function ProductionTab({
                     </Panel>
                 )}
 
-                {(workshop === 'confection' || workshop === 'coupe') && (
-                    <Panel title="Couverture Chaîne ·310">
+                {workshop === 'confection' && (
+                    <Panel title="Couverture chaine">
                         {(coupeChainCoverage?.breakdown ?? []).length > 0 ? (
                             <ResponsiveContainer width="100%" height={200}>
                                 <BarChart
@@ -826,9 +968,8 @@ function ProductionTab({
             </div>
 
             {/* Row 5 — OF progress */}
-            {workshop !== 'serigraphie' && (
                 <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    <Panel title="Taux d'avancement OF ·305">
+                    <Panel title="Taux d'avancement OF par OF par chaine">
                         <div className="grid min-h-[140px] grid-cols-2 gap-2 sm:grid-cols-4">
                             {ofProgress.length > 0 ? (
                                 ofProgress.map((o) => (
@@ -874,7 +1015,7 @@ function ProductionTab({
                         </div>
                     </Panel>
 
-                    <Panel title="SO Progress par Chaîne ·304">
+                    <Panel title="SO Progress par OF">
                         <ResponsiveContainer width="100%" height={220}>
                             <BarChart data={soProgress} layout="vertical">
                                 <CartesianGrid
@@ -914,89 +1055,11 @@ function ProductionTab({
                         </ResponsiveContainer>
                     </Panel>
                 </div>
-            )}
 
             {/* Row 6 — Operators & Additional Panels */}
-            {workshop !== 'serigraphie' && (
-                <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    {workshop === 'confection' && (
-                        <>
-                            <Panel title="Efficience Départage ·208">
-                                {departage.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={220}>
-                                        <BarChart data={departage}>
-                                            <CartesianGrid
-                                                stroke="var(--border)"
-                                                strokeDasharray="3 3"
-                                            />
-                                            <XAxis
-                                                dataKey="employe"
-                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
-                                            />
-                                            <YAxis
-                                                unit="%"
-                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                                            />
-                                            <Tooltip
-                                            contentStyle={tt}
-                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                            itemStyle={{ fontSize: 11 }}
-                                        />
-                                            <Bar
-                                                dataKey="eff"
-                                                name="Efficience"
-                                                fill="var(--chart-1)"
-                                                radius={[4, 4, 0, 0]}
-                                            />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="flex h-[220px] items-center justify-center font-mono text-xs text-muted-foreground">
-                                        Aucune donnée départage pour aujourd'hui
-                                    </div>
-                                )}
-                            </Panel>
-                            <Panel title="Efficience Vignettes ·209">
-                                {vignettes.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={220}>
-                                        <BarChart data={vignettes}>
-                                            <CartesianGrid
-                                                stroke="var(--border)"
-                                                strokeDasharray="3 3"
-                                            />
-                                            <XAxis
-                                                dataKey="employe"
-                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
-                                            />
-                                            <YAxis
-                                                unit="%"
-                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                                            />
-                                            <Tooltip
-                                            contentStyle={tt}
-                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                            itemStyle={{ fontSize: 11 }}
-                                        />
-                                            <Bar
-                                                dataKey="eff"
-                                                name="Efficience"
-                                                fill="var(--chart-2)"
-                                                radius={[4, 4, 0, 0]}
-                                            />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="flex h-[220px] items-center justify-center font-mono text-xs text-muted-foreground">
-                                        Aucune donnée vignettes pour aujourd'hui
-                                    </div>
-                                )}
-                            </Panel>
-                        </>
-                    )}
-
-                    <Panel title="Top Opérateurs (Aujourd'hui) ·210">
+                {workshop === 'confection' && (
+                <div className="mb-4 grid grid-cols-1 gap-3">
+                    <Panel title="Top opérateurs">
                         <ResponsiveContainer width="100%" height={220}>
                             <BarChart data={topOps} layout="vertical">
                                 <CartesianGrid
@@ -1015,11 +1078,11 @@ function ProductionTab({
                                     tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                                 />
                                 <Tooltip
-                                            contentStyle={tt}
-                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                            itemStyle={{ fontSize: 11 }}
-                                        />
+                                    contentStyle={tt}
+                                    cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                    labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                    itemStyle={{ fontSize: 11 }}
+                                />
                                 <ReferenceLine
                                     x={90}
                                     stroke="var(--success)"
@@ -1034,8 +1097,170 @@ function ProductionTab({
                             </BarChart>
                         </ResponsiveContainer>
                     </Panel>
+                </div>
+                )}
 
-                    <Panel title="Flux Coupe & Engagement ·206">
+                {workshop === 'coupe' && (
+                <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                            <Panel title="Efficience Départage PAR OPÉRATRICE (poste 221)">
+                                {departage.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={220}>
+                                        <BarChart data={departage}>
+                                            <CartesianGrid
+                                                stroke="var(--border)"
+                                                strokeDasharray="3 3"
+                                            />
+                                            <XAxis
+                                                dataKey="employe"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
+                                            />
+                                            <YAxis
+                                                unit="%"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                            />
+                                            <Tooltip
+                                                contentStyle={tt}
+                                                cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                                labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                                itemStyle={{ fontSize: 11 }}
+                                            />
+                                            <Bar
+                                                dataKey="eff"
+                                                name="Efficience"
+                                                fill="var(--chart-1)"
+                                                radius={[4, 4, 0, 0]}
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex h-[220px] items-center justify-center font-mono text-xs text-muted-foreground">
+                                        Aucune donnée départage pour aujourd'hui
+                                    </div>
+                                )}
+                            </Panel>
+                            <Panel title="Efficience Vignettes PAR OPÉRATRICE (poste 213)">
+                                {vignettes.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={220}>
+                                        <BarChart data={vignettes}>
+                                            <CartesianGrid
+                                                stroke="var(--border)"
+                                                strokeDasharray="3 3"
+                                            />
+                                            <XAxis
+                                                dataKey="employe"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
+                                            />
+                                            <YAxis
+                                                unit="%"
+                                                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                            />
+                                            <Tooltip
+                                                contentStyle={tt}
+                                                cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                                labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                                itemStyle={{ fontSize: 11 }}
+                                            />
+                                            <Bar
+                                                dataKey="eff"
+                                                name="Efficience"
+                                                fill="var(--chart-2)"
+                                                radius={[4, 4, 0, 0]}
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex h-[220px] items-center justify-center font-mono text-xs text-muted-foreground">
+                                        Aucune donnée vignettes pour aujourd'hui
+                                    </div>
+                                )}
+                            </Panel>
+                            <Panel title="Top opérateurs coupe">
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <BarChart data={topOps} layout="vertical">
+                                        <CartesianGrid
+                                            stroke="var(--border)"
+                                            strokeDasharray="3 3"
+                                        />
+                                        <XAxis
+                                            type="number"
+                                            unit="%"
+                                            tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                        />
+                                        <YAxis
+                                            dataKey="nom"
+                                            type="category"
+                                            width={80}
+                                            tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                        />
+                                        <Tooltip
+                                            contentStyle={tt}
+                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                            itemStyle={{ fontSize: 11 }}
+                                        />
+                                        <ReferenceLine
+                                            x={90}
+                                            stroke="var(--success)"
+                                            strokeDasharray="4 4"
+                                        />
+                                        <Bar
+                                            dataKey="eff"
+                                            name="Efficience"
+                                            fill="var(--primary)"
+                                            radius={[0, 4, 4, 0]}
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </Panel>
+                </div>
+                )}
+
+                {workshop === 'serigraphie' && (
+                <div className="mb-4 grid grid-cols-1 gap-3">
+                    <Panel title="Top opérateurs">
+                        <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={topOps} layout="vertical">
+                                <CartesianGrid
+                                    stroke="var(--border)"
+                                    strokeDasharray="3 3"
+                                />
+                                <XAxis
+                                    type="number"
+                                    unit="%"
+                                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                />
+                                <YAxis
+                                    dataKey="nom"
+                                    type="category"
+                                    width={80}
+                                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                                />
+                                <Tooltip
+                                    contentStyle={tt}
+                                    cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                                    labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
+                                    itemStyle={{ fontSize: 11 }}
+                                />
+                                <ReferenceLine
+                                    x={90}
+                                    stroke="var(--success)"
+                                    strokeDasharray="4 4"
+                                />
+                                <Bar
+                                    dataKey="eff"
+                                    name="Efficience"
+                                    fill="var(--primary)"
+                                    radius={[0, 4, 4, 0]}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </Panel>
+                </div>
+                )}
+
+                {(workshop === 'confection' || workshop === 'serigraphie') && (
+                <div className="mb-4">
+                    <Panel title="WIP OPTIMAL">
                         <ResponsiveContainer width="100%" height={220}>
                             <AreaChart data={wipData}>
                                 <CartesianGrid
@@ -1076,11 +1301,11 @@ function ProductionTab({
                         </ResponsiveContainer>
                     </Panel>
                 </div>
-            )}
+                )}
 
-            {workshop !== 'serigraphie' && (
                 <div className="mb-4 grid grid-cols-1 gap-3">
-                    <Panel title="Efficience par Opérateur ·201 (Aujourd'hui)">
+                    {workshop === 'confection' && (
+                    <Panel title="Efficience par OPÉRATEUR par chaine">
                         <ResponsiveContainer width="100%" height={300}>
                             <ComposedChart data={allOps}>
                                 <CartesianGrid
@@ -1128,12 +1353,12 @@ function ProductionTab({
                             </ComposedChart>
                         </ResponsiveContainer>
                     </Panel>
+                    )}
                 </div>
-            )}
 
             {/* Row 7 — Trend */}
-            {workshop !== 'serigraphie' && (
-                <Panel title="Efficience Cumulée ·203">
+                    {workshop === 'confection' && (
+                    <Panel title="Efficience Cumulée Chaine (mensuelle)">
                     {trend.length > 0 ? (
                         <ResponsiveContainer width="100%" height={220}>
                             <LineChart data={trend}>
@@ -1169,57 +1394,11 @@ function ProductionTab({
                         </div>
                     )}
                 </Panel>
-            )}
+                    )}
 
             {/* Sprint 5 — Coupe specific tables */}
             {workshop === 'coupe' && (
                 <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    <Panel title="Tagging Réel vs Théorique ·217">
-                        <div className="overflow-x-auto">
-                            <table className="w-full font-mono text-xs">
-                                <thead>
-                                    <tr className="border-b border-border text-muted-foreground uppercase">
-                                        <th className="py-2 text-left">Chaîne</th>
-                                        <th className="py-2 text-left">Shift</th>
-                                        <th className="py-2 text-right">Théorique</th>
-                                        <th className="py-2 text-right">Réel</th>
-                                        <th className="py-2 text-right">Écart</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {coupeTagging.length > 0 ? (
-                                        coupeTagging.map((t, i) => (
-                                            <tr key={i} className="border-b border-border/50">
-                                                <td className="py-2 font-bold">{t.chaine}</td>
-                                                <td className="py-2 text-muted-foreground">{t.shift ?? '—'}</td>
-                                                <td className="py-2 text-right">{t.tag_theorique}</td>
-                                                <td className="py-2 text-right">{t.tag_reel}</td>
-                                                <td
-                                                    className={`py-2 text-right font-bold ${
-                                                        (Number(t.ecart_pct) || 0) < 0
-                                                            ? 'text-destructive'
-                                                            : 'text-success'
-                                                    }`}
-                                                >
-                                                    {t.ecart_pct}%
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td
-                                                colSpan={5}
-                                                className="py-4 text-center italic text-muted-foreground"
-                                            >
-                                                Aucune donnée
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Panel>
-
                     <Panel title={`Liste des OF actifs (Coupe) ·${coupeOfs.length}`}>
                         <div className="overflow-x-auto">
                             <table className="w-full font-mono text-xs">
@@ -1349,7 +1528,7 @@ function ProductionTab({
                         )}
                     </Panel>
 
-                    <Panel title="Quantité Départage par OF ·303" className="lg:col-span-2">
+                    <Panel title="Quantité OF ou OFs par ARTICLE" className="lg:col-span-2">
                         <div className="overflow-x-auto">
                             <table className="w-full font-mono text-xs">
                                 <thead>
@@ -1377,151 +1556,6 @@ function ProductionTab({
                                                 className="py-4 text-center italic text-muted-foreground"
                                             >
                                                 Aucun départage
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Panel>
-
-                    <Panel title="Opérations par Chaîne" className="lg:col-span-2">
-                        {inlineEndlineSource === 'vw_defects' && (
-                            <div className="mb-2 rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                                Source: données défauts (substitut)
-                            </div>
-                        )}
-                        {inlineEndlineData.length > 0 ? (() => {
-                            const operaKeys = Object.keys(inlineEndlineData[0] ?? {}).filter((k) => k !== 'chaine');
-                            const colors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
-                            return (
-                                <ResponsiveContainer width="100%" height={250}>
-                                    <BarChart data={inlineEndlineData}>
-                                        <CartesianGrid
-                                            strokeDasharray="3 3"
-                                            vertical={false}
-                                            stroke="var(--border)"
-                                        />
-                                        <XAxis
-                                            dataKey="chaine"
-                                            tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                                        />
-                                        <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-                                        <Tooltip
-                                            contentStyle={tt}
-                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                            itemStyle={{ fontSize: 11 }}
-                                        />
-                                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                                        {operaKeys.map((op, i) => (
-                                            <Bar
-                                                key={op}
-                                                dataKey={op}
-                                                name={op}
-                                                fill={colors[i % colors.length]}
-                                                radius={[4, 4, 0, 0]}
-                                                stackId="ops"
-                                            />
-                                        ))}
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            );
-                        })() : (
-                            <div className="flex h-[250px] items-center justify-center font-mono text-xs text-muted-foreground">
-                                Aucune donnée opérations
-                            </div>
-                        )}
-                    </Panel>
-                </div>
-            )}
-
-            {/* Sprint 5 — Sérigraphie specific panels */}
-            {workshop === 'serigraphie' && (
-                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    <Panel title="Flux Entrée vs Sortie ·309">
-                        <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={seriFlux}>
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    vertical={false}
-                                    stroke="var(--border)"
-                                />
-                                <XAxis
-                                    dataKey="article"
-                                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                                    interval={0}
-                                    angle={-45}
-                                    textAnchor="end"
-                                    height={60}
-                                />
-                                <YAxis tick={{ fontSize: 10 }} />
-                                <Tooltip
-                                    contentStyle={tt}
-                                    cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                    labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                    itemStyle={{ fontSize: 11 }}
-                                    formatter={(value: number, name: string, props: { payload?: Record<string, unknown> }) => {
-                                        const couleur = props.payload?.couleur;
-                                        return [
-                                            value,
-                                            name + (couleur ? ` (${couleur})` : ''),
-                                        ];
-                                    }}
-                                />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
-                                <Bar
-                                    dataKey="entree"
-                                    name="Entrée"
-                                    fill="var(--chart-4)"
-                                    radius={[4, 4, 0, 0]}
-                                />
-                                <Bar
-                                    dataKey="sortie"
-                                    name="Sortie"
-                                    fill="var(--chart-2)"
-                                    radius={[4, 4, 0, 0]}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </Panel>
-
-                    <Panel title="Rejets Sérigraphie ·309">
-                        <div className="overflow-x-auto">
-                            <table className="w-full font-mono text-xs">
-                                <thead>
-                                    <tr className="border-b border-border text-muted-foreground uppercase">
-                                        <th className="py-2 text-left">ID Colis</th>
-                                        <th className="py-2 text-left">Référence</th>
-                                        <th className="py-2 text-left">Motif</th>
-                                        <th className="py-2 text-right">Qté</th>
-                                        <th className="py-2 text-center">Date rejet</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {seriRejets.length > 0 ? (
-                                        seriRejets.map((r, i) => (
-                                            <tr key={i} className="border-b border-border/50">
-                                                <td className="py-2 font-bold">{r.id_colis}</td>
-                                                <td className="py-2 text-muted-foreground">{r.reference ?? '—'}</td>
-                                                <td className="py-2 text-destructive">
-                                                    {r.motif}
-                                                </td>
-                                                <td className="py-2 text-right">{r.qtte}</td>
-                                                <td className="py-2 text-center text-muted-foreground">
-                                                    {r.date_rejet
-                                                        ? new Date(String(r.date_rejet)).toLocaleDateString('fr-FR')
-                                                        : '—'}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td
-                                                colSpan={5}
-                                                className="py-4 text-center italic text-muted-foreground"
-                                            >
-                                                Aucun rejet
                                             </td>
                                         </tr>
                                     )}
@@ -1578,20 +1612,12 @@ export default function ProductionPage() {
     const [departage, setDepartage] = useState<BreakdownRow[]>([]);
     const [vignettes, setVignettes] = useState<BreakdownRow[]>([]);
 
-    // Sprint 5 - Coupe & Sérigraphie
-    const [coupeTagging, setCoupeTagging] = useState<BreakdownRow[]>([]);
+    // Sprint 5 - Coupe
     const [coupeOfs, setCoupeOfs] = useState<BreakdownRow[]>([]);
     const [coupeQteDepartage, setCoupeQteDepartage] = useState<BreakdownRow[]>([]);
-    const [seriFlux, setSeriFlux] = useState<BreakdownRow[]>([]);
-    const [seriRejets, setSeriRejets] = useState<BreakdownRow[]>([]);
-    const [seriRejetsMetadata, setSeriRejetsMetadata] = useState<Record<string, unknown> | undefined>(undefined);
-    const [inlineEndlineData, setInlineEndlineData] = useState<BreakdownRow[]>([]);
-    const [inlineEndlineSource, setInlineEndlineSource] = useState<string | null>(null);
 
-    // Methods KPIs (F-REQ-216, 218, 219)
-    const [tauxArchivage, setTauxArchivage] = useState<{ value: number | null; status: string; target: number } | null>(null);
-    const [respectTempsEstime, setRespectTempsEstime] = useState<{ value: number | null; status: string; target: number } | null>(null);
-    const [tauxTempsAcceptes, setTauxTempsAcceptes] = useState<{ value: number | null; status: string; target: number } | null>(null);
+    // Order Tracking
+    const [orderTracking, setOrderTracking] = useState<OrderTracking[]>([]);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -1624,24 +1650,17 @@ export default function ProductionPage() {
             const promises: Promise<unknown>[] = [
                 fetchProductionChainInfo(filters),
                 fetchProductionKpis(filters),
-                fetchTauxArchivage(),
-                fetchRespectTempsEstime(),
-                fetchTauxTempsAcceptes(),
+                fetchOrderTracking(filters),
+                fetchProductionGauges(filters),
+                fetchProductionWipGauges(filters),
+                fetchProductionStoppages(filters),
+                fetchProductionOfDonuts(filters),
+                fetchProductionSoProgress(filters),
+                fetchProductionTrend(filters),
+                fetchProductionTopOps(filters),
+                fetchProductionTopOps({ ...filters, all: '1' }),
+                fetchProductionWip(filters),
             ];
-
-            if (activeTab !== 'serigraphie') {
-                promises.push(
-                    fetchProductionGauges(filters),
-                    fetchProductionWipGauges(filters),
-                    fetchProductionStoppages(filters),
-                    fetchProductionOfDonuts(filters),
-                    fetchProductionSoProgress(filters),
-                    fetchProductionTrend(filters),
-                    fetchProductionTopOps(filters),
-                    fetchProductionTopOps({ ...filters, all: '1' }),
-                    fetchProductionWip(filters),
-                );
-            }
 
             if (activeTab === 'confection') {
                 promises.push(
@@ -1653,16 +1672,12 @@ export default function ProductionPage() {
                 promises.push(
                     fetchCoupeCoverage(filters),
                     fetchCoupeChainCoverage(filters),
-                    fetchCoupeTagging(filters),
                     fetchCoupeOfs(filters),
                     fetchCoupeQteDepartage(filters),
-                    fetchInlineEndline(filters),
                 );
             } else if (activeTab === 'serigraphie') {
                 promises.push(
                     fetchSerigraphieCoverage(filters),
-                    fetchSerigraphieFlux(filters),
-                    fetchSerigraphieRejets(filters),
                 );
             }
 
@@ -1680,34 +1695,34 @@ export default function ProductionPage() {
             }
             if (kpisRes.status === 'fulfilled') setKpis(kpisRes.value as ProductionKpis);
 
-            const archivageRes = nextResult();
-            const respectRes = nextResult();
-            const tempsAcceptesRes = nextResult();
-            if (archivageRes.status === 'fulfilled') setTauxArchivage(archivageRes.value as { value: number | null; status: string; target: number });
-            if (respectRes.status === 'fulfilled') setRespectTempsEstime(respectRes.value as { value: number | null; status: string; target: number });
-            if (tempsAcceptesRes.status === 'fulfilled') setTauxTempsAcceptes(tempsAcceptesRes.value as { value: number | null; status: string; target: number });
-
-            if (activeTab !== 'serigraphie') {
-                const gaugesRes     = nextResult();
-                const wipGaugesRes  = nextResult();
-                const stoppagesRes  = nextResult();
-                const ofRes         = nextResult();
-                const soRes         = nextResult();
-                const trendRes      = nextResult();
-                const topOpsRes     = nextResult();
-                const allOpsRes     = nextResult();
-                const wipRes        = nextResult();
-
-                if (gaugesRes.status    === 'fulfilled') setGauges((gaugesRes.value as { data: GaugeItem[] }).data);
-                if (wipGaugesRes.status === 'fulfilled') setWipGauges((wipGaugesRes.value as { data: GaugeItem[] }).data);
-                if (stoppagesRes.status === 'fulfilled') setStoppages((stoppagesRes.value as { data: StoppageItem[] }).data);
-                if (ofRes.status        === 'fulfilled') setOfProgress((ofRes.value as { data: OfDonutItem[] }).data);
-                if (soRes.status        === 'fulfilled') setSoProgress((soRes.value as { data: BreakdownRow[] }).data);
-                if (trendRes.status     === 'fulfilled') setTrend((trendRes.value as { data: TrendItem[] }).data);
-                if (topOpsRes.status    === 'fulfilled') setTopOps((topOpsRes.value as { data: TopOpItem[] }).data);
-                if (allOpsRes.status    === 'fulfilled') setAllOps((allOpsRes.value as { data: TopOpItem[] }).data);
-                if (wipRes.status       === 'fulfilled') setWipData((wipRes.value as { data: WipAreaItem[] }).data);
+            const orderTrackingRes = nextResult();
+            if (orderTrackingRes.status === 'fulfilled') {
+                const otVal = orderTrackingRes.value as { data: OrderTrackingItem[] };
+                setOrderTracking(otVal.data.map((o) => ({
+                    ...o,
+                    stages: o.stages ?? [],
+                })));
             }
+
+            const gaugesRes     = nextResult();
+            const wipGaugesRes  = nextResult();
+            const stoppagesRes  = nextResult();
+            const ofRes         = nextResult();
+            const soRes         = nextResult();
+            const trendRes      = nextResult();
+            const topOpsRes     = nextResult();
+            const allOpsRes     = nextResult();
+            const wipRes        = nextResult();
+
+            if (gaugesRes.status    === 'fulfilled') setGauges((gaugesRes.value as { data: GaugeItem[] }).data);
+            if (wipGaugesRes.status === 'fulfilled') setWipGauges((wipGaugesRes.value as { data: GaugeItem[] }).data);
+            if (stoppagesRes.status === 'fulfilled') setStoppages((stoppagesRes.value as { data: StoppageItem[] }).data);
+            if (ofRes.status        === 'fulfilled') setOfProgress((ofRes.value as { data: OfDonutItem[] }).data);
+            if (soRes.status        === 'fulfilled') setSoProgress((soRes.value as { data: BreakdownRow[] }).data);
+            if (trendRes.status     === 'fulfilled') setTrend((trendRes.value as { data: TrendItem[] }).data);
+            if (topOpsRes.status    === 'fulfilled') setTopOps((topOpsRes.value as { data: TopOpItem[] }).data);
+            if (allOpsRes.status    === 'fulfilled') setAllOps((allOpsRes.value as { data: TopOpItem[] }).data);
+            if (wipRes.status       === 'fulfilled') setWipData((wipRes.value as { data: WipAreaItem[] }).data);
 
             if (activeTab === 'confection') {
                 const depRes       = nextResult();
@@ -1719,49 +1734,17 @@ export default function ProductionPage() {
             } else if (activeTab === 'coupe') {
                 const coupeCovRes       = nextResult();
                 const coupeChainRes     = nextResult();
-                const taggingRes        = nextResult();
                 const ofsRes            = nextResult();
                 const qteDepRes         = nextResult();
-                const inlineEndRes      = nextResult();
 
                 if (coupeCovRes.status   === 'fulfilled') setCoupeCoverage(coupeCovRes.value as CoupeCoverageData);
                 if (coupeChainRes.status === 'fulfilled') setCoupeChainCoverage(coupeChainRes.value as CoupeChainCoverageData);
-                if (taggingRes.status    === 'fulfilled') setCoupeTagging((taggingRes.value as { data: BreakdownRow[] }).data);
                 if (ofsRes.status        === 'fulfilled') setCoupeOfs((ofsRes.value as { data: BreakdownRow[] }).data);
                 if (qteDepRes.status     === 'fulfilled') setCoupeQteDepartage((qteDepRes.value as { data: BreakdownRow[] }).data);
-                if (inlineEndRes.status  === 'fulfilled') {
-                    const inlineVal = inlineEndRes.value as { data: { chaine: string; opera: string; count: number }[]; source?: string };
-                    const raw = inlineVal.data;
-                    setInlineEndlineSource(inlineVal.source ?? null);
-                    const byOpera = new Map<string, Record<string, number>>();
-                    for (const row of raw) {
-                        if (!byOpera.has(row.opera)) byOpera.set(row.opera, {});
-                        const chainMap = byOpera.get(row.opera)!;
-                        chainMap[row.chaine] = (chainMap[row.chaine] ?? 0) + row.count;
-                    }
-                    const chains = [...new Set(raw.map((r) => r.chaine))];
-                    const operaKeys = [...byOpera.keys()];
-                    const chartData = chains.map((ch) => {
-                        const row: Record<string, string | number> = { chaine: ch };
-                        for (const op of operaKeys) {
-                            row[op] = byOpera.get(op)?.[ch] ?? 0;
-                        }
-                        return row;
-                    });
-                    setInlineEndlineData(chartData as BreakdownRow[]);
-                }
             } else if (activeTab === 'serigraphie') {
                 const seriCovRes    = nextResult();
-                const fluxRes       = nextResult();
-                const rejetsRes     = nextResult();
 
                 if (seriCovRes.status === 'fulfilled') setSerigraphieCoverage(seriCovRes.value as SerigraphieCoverageData);
-                if (fluxRes.status    === 'fulfilled') setSeriFlux((fluxRes.value as { data: BreakdownRow[] }).data);
-                if (rejetsRes.status  === 'fulfilled') {
-                    const val = rejetsRes.value as { data: BreakdownRow[]; metadata?: Record<string, unknown> };
-                    setSeriRejets(val.data);
-                    setSeriRejetsMetadata(val.metadata);
-                }
             }
 
             const criticalFailed = [chainsRes, kpisRes].some((r) => r.status === 'rejected');
@@ -1824,7 +1807,7 @@ export default function ProductionPage() {
         };
     }, [fetchData, refreshIntervalSec]);
 
-    const exportRows = chains.map((c) => ({
+    const _exportRows = chains.map((c) => ({
         chaine:         c.id,
         of:             c.of,
         article:        c.article,
@@ -1862,10 +1845,7 @@ export default function ProductionPage() {
             <Head title="Production — BACOVET" />
             <AppShell
                 page="/production"
-                title="Production & Flux"
-                subtitle="Série 200 · Performance Atelier"
-                exportRows={exportRows}
-                exportFilename="BACOVET_Production_S200"
+                title="Production"
             >
                 {error && (
                     <div className="mb-4 flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive">
@@ -1875,6 +1855,7 @@ export default function ProductionPage() {
                         </div>
                     </div>
                 )}
+                <OrderTrackingTable orders={orderTracking} isLoading={loading} />
 
                 <Tabs
                     value={activeTab}
@@ -1911,9 +1892,6 @@ export default function ProductionPage() {
                                 departage,
                                 vignettes,
                                 coupeChainCoverage,
-                                tauxArchivage,
-                                respectTempsEstime,
-                                tauxTempsAcceptes
                             }}
                             />
                             </TabsContent>
@@ -1925,14 +1903,8 @@ export default function ProductionPage() {
                             extraData={{
                                 coupeCoverage,
                                 coupeChainCoverage,
-                                coupeTagging,
                                 coupeOfs,
                                 coupeQteDepartage,
-                                inlineEndlineData,
-                                inlineEndlineSource,
-                                tauxArchivage,
-                                respectTempsEstime,
-                                tauxTempsAcceptes
                             }}
                             />
                             </TabsContent>
@@ -1943,13 +1915,6 @@ export default function ProductionPage() {
                             workshop="serigraphie"
                             extraData={{
                                 serigraphieCoverage,
-                                seriFlux,
-                                seriRejets,
-                                seriRejetsMetadata,
-                                inlineEndlineData,
-                                tauxArchivage,
-                                respectTempsEstime,
-                                tauxTempsAcceptes
                             }}
                             />
                     </TabsContent>
@@ -1959,11 +1924,6 @@ export default function ProductionPage() {
             <ProductionKpiDetailModal
                 kpiKey={selectedKpi}
                 kpiData={kpis}
-                extraData={{
-                    tauxArchivage,
-                    respectTempsEstime,
-                    tauxTempsAcceptes,
-                }}
                 breakdownData={breakdownData}
                 onClose={() => setSelectedKpi(null)}
             />

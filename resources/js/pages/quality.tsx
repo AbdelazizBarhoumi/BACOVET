@@ -20,21 +20,17 @@ import QpTeamPodium, {
 import type { KpiKey } from '@/components/quality/kpiDetailConfig';
 import KpiDetailModal from '@/components/quality/KpiDetailModal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { BigNumberCard, Panel, TrafficBadge } from '@/components/widgets';
+import { BigNumberCard, Panel } from '@/components/widgets';
 import { useFilters } from '@/context/FilterContext';
 import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchQualityKpis,
-    fetchQualityBrChart,
     fetchQualityQpTeams,
     fetchQualityAnnualTrend,
     fetchQualityParetoRft,
     fetchQualityParetoInspection,
-    fetchQualityParetoFg,
     type QualityKpis,
-    type BrChartItem,
     type QpTeam,
-    type Alert,
     type AnnualTrendItem,
     type ParetoItem,
     type KpiStatus,
@@ -155,163 +151,8 @@ function KpiCard({
     );
 }
 
-function generateAlerts(
-    kpis: QualityKpis | null,
-    brChart: BrChartItem[],
-): Alert[] {
-    if (!kpis) return [];
-    const alerts: Alert[] = [];
-    const now = new Date().toLocaleTimeString('fr-FR', {
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-
-    const push = (cond: boolean, type: string, level: Alert['level']) => {
-        if (cond) alerts.push({ type, level, message: now });
-    };
-
-    const rftJour = kpis.rft_jour.value;
-    const brBundling = kpis.br_bundling_jour.value;
-
-    if (rftJour !== null) {
-        push(rftJour < 95, 'RFT CRITIQUE — En dessous de 95%', 'red');
-        push(
-            rftJour >= 95 && rftJour < 98,
-            'RFT EN BAISSE — Sous la cible de 98%',
-            'orange',
-        );
-    }
-
-    const brGtdJour = kpis.br_gtd_jour.value;
-    if (brGtdJour !== null) {
-        push(brGtdJour > 5, 'BR GTD CRITIQUE — Dépassement du seuil', 'red');
-        push(
-            brGtdJour > 4 && brGtdJour <= 5,
-            'BR GTD VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    if (brBundling !== null) {
-        push(
-            brBundling > 5,
-            'BR BUNDLING CRITIQUE — Dépassement du seuil',
-            'red',
-        );
-        push(
-            brBundling > 4 && brBundling <= 5,
-            'BR BUNDLING VIGILANCE',
-            'orange',
-        );
-    }
-
-    const brCommande = kpis.br_commande.value;
-    if (brCommande !== null) {
-        push(
-            brCommande > 5,
-            'BR COMMANDE CRITIQUE — Dépassement du seuil',
-            'red',
-        );
-        push(
-            brCommande > 4 && brCommande <= 5,
-            'BR COMMANDE VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    const brInJour = kpis.br_in_jour.value;
-    if (brInJour !== null) {
-        push(brInJour > 5, 'BR IN CRITIQUE — Dépassement du seuil', 'red');
-        push(
-            brInJour > 4 && brInJour <= 5,
-            'BR IN VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    const brPrint = kpis.br_print.value;
-    if (brPrint !== null) {
-        push(brPrint > 5, 'BR PRINT CRITIQUE — Dépassement du seuil', 'red');
-        push(
-            brPrint > 4 && brPrint <= 5,
-            'BR PRINT VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    const brPrintDda = kpis.br_print_dda.value;
-    if (brPrintDda !== null) {
-        push(brPrintDda > 5, 'BR PRINT DDA CRITIQUE — Dépassement du seuil', 'red');
-        push(
-            brPrintDda > 4 && brPrintDda <= 5,
-            'BR PRINT DDA VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    const brCareLabel = kpis.br_care_label_jour.value;
-    if (brCareLabel !== null) {
-        push(brCareLabel > 5, 'BR CARE LABEL CRITIQUE — Dépassement du seuil', 'red');
-        push(
-            brCareLabel > 4 && brCareLabel <= 5,
-            'BR CARE LABEL VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    const brAccessoires = kpis.br_accessoires_jour.value;
-    if (brAccessoires !== null) {
-        push(brAccessoires > 5, 'BR ACCESSOIRES CRITIQUE — Dépassement du seuil', 'red');
-        push(
-            brAccessoires > 4 && brAccessoires <= 5,
-            'BR ACCESSOIRES VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    const brCompo = kpis.br_compo_jour.value;
-    if (brCompo !== null) {
-        push(brCompo > 5, 'BR COMPO CRITIQUE — Dépassement du seuil', 'red');
-        push(
-            brCompo > 4 && brCompo <= 5,
-            'BR COMPO VIGILANCE — Approche du seuil',
-            'orange',
-        );
-    }
-
-    // Check stages from brChart — only alert on stages with actual data
-    brChart.forEach((item) => {
-        if (item.defect_pct !== null) {
-            if (item.defect_pct > 5) {
-                alerts.push({
-                    type: `${item.stage} — Taux de rejet critique`,
-                    level: 'red',
-                    message: `${item.defect_pct}% — dépassement du seuil 5%`,
-                });
-            } else if (item.defect_pct > 4) {
-                alerts.push({
-                    type: `${item.stage} — Taux de rejet en vigilance`,
-                    level: 'orange',
-                    message: `${item.defect_pct}% — approche du seuil 5%`,
-                });
-            }
-        }
-    });
-
-    if (alerts.length === 0) {
-        alerts.push({
-            type: 'Aucune alerte — Tous les indicateurs sont dans les objectifs',
-            level: 'green',
-            message: now,
-        });
-    }
-
-    return alerts.slice(0, 8);
-}
-
 export default function QualityPage() {
     const [kpis, setKpis] = useState<QualityKpis | null>(null);
-    const [brChart, setBrChart] = useState<BrChartItem[]>([]);
     const [qpTeams, setQpTeams] = useState<{
         best: PodiumTeam[];
         worst: PodiumTeam[];
@@ -322,7 +163,6 @@ export default function QualityPage() {
     const [trend, setTrend] = useState<AnnualTrendItem[]>([]);
     const [paretoRft, setParetoRft] = useState<ParetoItem[]>([]);
     const [paretoInsp, setParetoInsp] = useState<ParetoItem[]>([]);
-    const [paretoFg, setParetoFg] = useState<ParetoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openModal, setOpenModal] = useState<KpiKey | null>(null);
@@ -335,24 +175,19 @@ export default function QualityPage() {
             const filters = getFilterParams();
             const [
                 kpisRes,
-                brRes,
                 teamsRes,
                 trendRes,
                 paretoRftRes,
                 paretoInspRes,
-                paretoFgRes,
             ] = await Promise.allSettled([
                 fetchQualityKpis(filters),
-                fetchQualityBrChart(filters),
                 fetchQualityQpTeams(filters),
                 fetchQualityAnnualTrend(),
                 fetchQualityParetoRft(filters),
                 fetchQualityParetoInspection(filters),
-                fetchQualityParetoFg(filters),
             ]);
 
             if (kpisRes.status === 'fulfilled') setKpis(kpisRes.value);
-            if (brRes.status === 'fulfilled') setBrChart(brRes.value.data);
             if (teamsRes.status === 'fulfilled') {
                 const t = teamsRes.value;
                 const mapTeam = (team: QpTeam, rank: number): PodiumTeam => ({
@@ -377,17 +212,13 @@ export default function QualityPage() {
                 setParetoRft(paretoRftRes.value.data);
             if (paretoInspRes.status === 'fulfilled')
                 setParetoInsp(paretoInspRes.value.data);
-            if (paretoFgRes.status === 'fulfilled')
-                setParetoFg(paretoFgRes.value.data);
 
             const anyFailed = [
                 kpisRes,
-                brRes,
                 teamsRes,
                 trendRes,
                 paretoRftRes,
                 paretoInspRes,
-                paretoFgRes,
             ].some((r) => r.status === 'rejected');
 
             if (anyFailed && kpisRes.status === 'rejected') {
@@ -413,103 +244,6 @@ export default function QualityPage() {
         };
     }, [fetchData, refreshIntervalSec]);
 
-    const alerts = generateAlerts(kpis, brChart);
-
-    const exportRows = kpis
-        ? [
-              {
-                  kpi: 'BR Commande (DDA)',
-                  valeur: kpis.br_commande.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR GTD (jour)',
-                  valeur: kpis.br_gtd_jour.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR GTD DDA (année)',
-                  valeur: kpis.br_gtd_annee.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'RFT (jour)',
-                  valeur: kpis.rft_jour.value ?? '—',
-                  cible: '≥ 98%',
-              },
-              {
-                  kpi: 'RFT DDA (année)',
-                  valeur: kpis.rft_annee.value ?? '—',
-                  cible: '≥ 98%',
-              },
-              {
-                  kpi: 'BR Bundling (jour)',
-                  valeur: kpis.br_bundling_jour.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Bundling DDA',
-                  valeur: kpis.br_bundling_annee.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Print (jour)',
-                  valeur: kpis.br_print.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Print DDA',
-                  valeur: kpis.br_print_dda.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Care Label (jour)',
-                  valeur: kpis.br_care_label_jour.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Care Label DDA',
-                  valeur: kpis.br_care_label_dda.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Accessoires (jour)',
-                  valeur: kpis.br_accessoires_jour.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Accessoires DDA',
-                  valeur: kpis.br_accessoires_dda.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Compo (jour)',
-                  valeur: kpis.br_compo_jour.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR Compo DDA',
-                  valeur: kpis.br_compo_dda.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR IN (jour)',
-                  valeur: kpis.br_in_jour.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              {
-                  kpi: 'BR IN DDA',
-                  valeur: kpis.br_in_dda.value ?? '—',
-                  cible: '≤ 5%',
-              },
-              ...brChart.map((s) => ({
-                  kpi: `BR ${s.stage}`,
-                  valeur: s.defect_pct ?? '—',
-                  cible: '≤ 5%',
-              })),
-          ]
-        : [];
-
     return (
         <>
             <Head title="Qualité — BACOVET" />
@@ -517,8 +251,6 @@ export default function QualityPage() {
                 page="/quality"
                 title="Qualité"
                 subtitle="Série 100 · Performance Qualité"
-                exportRows={exportRows}
-                exportFilename="BACOVET_Qualite_S100"
             >
                 {error && (
                     <div className="mb-4 flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive">
@@ -529,10 +261,41 @@ export default function QualityPage() {
                     </div>
                 )}
 
-                {/* Section A — KPI Cards Row 1 */}
+                {/* Row 1: F-REQ-101, 102, 104, 106 */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
-                        label="BR Bundling (Ce jour)"
+                        label="BR (Blocking Rate annuel)"
+                        kpi={
+                            kpis?.br_commande ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="DIVA"
+                        onClick={() => setOpenModal('br_commande')}
+                        isLoading={loading}
+                    />
+                    <KpiCard
+                        label="BR GTD (jour en cours)"
+                        kpi={
+                            kpis?.br_gtd_jour ?? { value: null, status: 'grey' }
+                        }
+                        target="≤ 5%"
+                        source="DIVA"
+                        onClick={() => setOpenModal('br_gtd_jour')}
+                        isLoading={loading}
+                    />
+                    <KpiCard
+                        label="RFT (Right First Time — jour en cours)"
+                        kpi={kpis?.rft_jour ?? { value: null, status: 'grey' }}
+                        target="≥ 98%"
+                        source="gpro-prod"
+                        onClick={() => setOpenModal('rft_jour')}
+                        isLoading={loading}
+                    />
+                    <KpiCard
+                        label="BR Bundling (jour en cours)"
                         kpi={
                             kpis?.br_bundling_jour ?? {
                                 value: null,
@@ -547,59 +310,12 @@ export default function QualityPage() {
                             .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
-                    <KpiCard
-                        label="BR Commande (DDA)"
-                        kpi={
-                            kpis?.br_commande ?? {
-                                value: null,
-                                status: 'grey',
-                            }
-                        }
-                        target="≤ 5%"
-                        source="DIVA"
-                        onClick={() => setOpenModal('br_commande')}
-                        isLoading={loading}
-                    />
-                    <KpiCard
-                        label="BR GTD (Ce jour)"
-                        kpi={
-                            kpis?.br_gtd_jour ?? { value: null, status: 'grey' }
-                        }
-                        target="≤ 5%"
-                        source="DIVA"
-                        onClick={() => setOpenModal('br_gtd_jour')}
-                        isLoading={loading}
-                    />
-                    <KpiCard
-                        label="RFT (Ce jour)"
-                        kpi={kpis?.rft_jour ?? { value: null, status: 'grey' }}
-                        target="≥ 98%"
-                        source="gpro-prod"
-                        onClick={() => setOpenModal('rft_jour')}
-                        isLoading={loading}
-                    />
                 </div>
 
-                {/* Section A — KPI Cards Row 2 */}
+                {/* Row 2: F-REQ-103, 105, 107, 108 */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
-                        label="BR Bundling DDA (Année)"
-                        kpi={
-                            kpis?.br_bundling_annee ?? {
-                                value: null,
-                                status: 'grey',
-                            }
-                        }
-                        target="≤ 5%"
-                        source="gpro-prod"
-                        onClick={() => setOpenModal('br_bundling_annee')}
-                        trend={trend
-                            .map((d) => d.br_bundling)
-                            .filter((v): v is number => v !== null)}
-                        isLoading={loading}
-                    />
-                    <KpiCard
-                        label="BR GTD DDA (Année)"
+                        label="BR GTD DDA (annuel)"
                         kpi={
                             kpis?.br_gtd_annee ?? {
                                 value: null,
@@ -615,7 +331,7 @@ export default function QualityPage() {
                         isLoading={loading}
                     />
                     <KpiCard
-                        label="RFT DDA (Année)"
+                        label="RFT DDA (annuel)"
                         kpi={kpis?.rft_annee ?? { value: null, status: 'grey' }}
                         target="≥ 98%"
                         source="gpro-prod"
@@ -626,7 +342,23 @@ export default function QualityPage() {
                         isLoading={loading}
                     />
                     <KpiCard
-                        label="BR Print (Ce jour)"
+                        label="BR Bundling DDA (annuel)"
+                        kpi={
+                            kpis?.br_bundling_annee ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="gpro-prod"
+                        onClick={() => setOpenModal('br_bundling_annee')}
+                        trend={trend
+                            .map((d) => d.br_bundling)
+                            .filter((v): v is number => v !== null)}
+                        isLoading={loading}
+                    />
+                    <KpiCard
+                        label="BR Print (jour en cours)"
                         kpi={kpis?.br_print ?? { value: null, status: 'grey' }}
                         target="≤ 5%"
                         source="Google Drive"
@@ -635,10 +367,10 @@ export default function QualityPage() {
                     />
                 </div>
 
-                {/* Section A — KPI Cards Row 3 */}
+                {/* Row 3: F-REQ-109, 110, 111, 112 */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
-                        label="BR Print DDA (Année)"
+                        label="BR Print DDA (annuel)"
                         kpi={
                             kpis?.br_print_dda ?? {
                                 value: null,
@@ -654,33 +386,7 @@ export default function QualityPage() {
                         isLoading={loading}
                     />
                     <KpiCard
-                        label="BR IN (Ce jour)"
-                        kpi={
-                            kpis?.br_in_jour ?? {
-                                value: null,
-                                status: 'grey',
-                            }
-                        }
-                        target="≤ 5%"
-                        source="DIVA"
-                        onClick={() => setOpenModal('br_in_jour')}
-                        isLoading={loading}
-                    />
-                    <KpiCard
-                        label="BR IN DDA (Année)"
-                        kpi={
-                            kpis?.br_in_dda ?? {
-                                value: null,
-                                status: 'grey',
-                            }
-                        }
-                        target="≤ 5%"
-                        source="DIVA"
-                        onClick={() => setOpenModal('br_in_dda')}
-                        isLoading={loading}
-                    />
-                    <KpiCard
-                        label="BR Care Label (Ce jour)"
+                        label="BR Care Label (jour en cours)"
                         kpi={
                             kpis?.br_care_label_jour ?? {
                                 value: null,
@@ -692,12 +398,8 @@ export default function QualityPage() {
                         onClick={() => setOpenModal('br_care_label_jour')}
                         isLoading={loading}
                     />
-                </div>
-
-                {/* Section A — KPI Cards Row 4 */}
-                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
-                        label="BR Care Label DDA (Année)"
+                        label="BR Care Label DDA (annuel)"
                         kpi={
                             kpis?.br_care_label_dda ?? {
                                 value: null,
@@ -713,7 +415,7 @@ export default function QualityPage() {
                         isLoading={loading}
                     />
                     <KpiCard
-                        label="BR Accessoires (Ce jour)"
+                        label="BR Accessoires (jour en cours)"
                         kpi={
                             kpis?.br_accessoires_jour ?? {
                                 value: null,
@@ -725,8 +427,12 @@ export default function QualityPage() {
                         onClick={() => setOpenModal('br_accessoires_jour')}
                         isLoading={loading}
                     />
+                </div>
+
+                {/* Row 4: F-REQ-113, 114, 115, 120 */}
+                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
-                        label="BR Accessoires DDA (Année)"
+                        label="BR Accessoires DDA (annuel)"
                         kpi={
                             kpis?.br_accessoires_dda ?? {
                                 value: null,
@@ -742,7 +448,7 @@ export default function QualityPage() {
                         isLoading={loading}
                     />
                     <KpiCard
-                        label="BR Compo (Ce jour)"
+                        label="BR Compo (jour en cours)"
                         kpi={
                             kpis?.br_compo_jour ?? {
                                 value: null,
@@ -755,7 +461,7 @@ export default function QualityPage() {
                         isLoading={loading}
                     />
                     <KpiCard
-                        label="BR Compo DDA (Année)"
+                        label="BR Compo DDA (annuel)"
                         kpi={
                             kpis?.br_compo_dda ?? {
                                 value: null,
@@ -770,51 +476,55 @@ export default function QualityPage() {
                             .filter((v): v is number => v !== null)}
                         isLoading={loading}
                     />
+                    <KpiCard
+                        label="BR IN (jour en cours)"
+                        kpi={
+                            kpis?.br_in_jour ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="DRIVE"
+                        onClick={() => setOpenModal('br_in_jour')}
+                        isLoading={loading}
+                    />
                 </div>
 
-                {/* Section B — Alerts */}
-                <div className="mb-4">
-                    <Panel title="Dernières alertes qualité">
-                        <div className="space-y-2">
-                            {alerts.map((a, i) => (
-                                <div
-                                    key={i}
-                                    className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2"
-                                >
-                                    <div className="flex min-w-0 items-center gap-2">
-                                        <TrafficBadge status={a.level} />
-                                        <div className="min-w-0">
-                                            <div className="truncate text-xs font-bold tracking-wider uppercase">
-                                                {a.type}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="font-mono text-[10px] text-muted-foreground">
-                                        {a.message}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </Panel>
+                {/* Row 5: F-REQ-121 */}
+                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard
+                        label="BR IN DDA (annuel)"
+                        kpi={
+                            kpis?.br_in_dda ?? {
+                                value: null,
+                                status: 'grey',
+                            }
+                        }
+                        target="≤ 5%"
+                        source="DRIVE"
+                        onClick={() => setOpenModal('br_in_dda')}
+                        isLoading={loading}
+                    />
                 </div>
 
-                {/* Section C — Podiums Équipes QP */}
+                {/* F-REQ-118 & F-REQ-119: QP Team Podiums */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                     <QpTeamPodium
-                        title="Meilleure Équipe QP"
+                        title="Best QP Team (Top 3 chaines)"
                         teams={qpTeams.best}
                         variant="best"
                         isLoading={loading}
                     />
-                <QpTeamPodium
-                    title="Équipe à Améliorer"
-                    teams={qpTeams.worst}
-                    variant="worst"
-                    isLoading={loading}
-                />
+                    <QpTeamPodium
+                        title="Low QP Team (3 chaines à améliorer)"
+                        teams={qpTeams.worst}
+                        variant="worst"
+                        isLoading={loading}
+                    />
                 </div>
 
-                {/* Section D — Pareto Tabs */}
+                {/* F-REQ-116 & F-REQ-117: Pareto Charts */}
                 <Panel title="Pareto des défauts">
                     <Tabs defaultValue="rft">
                         <TabsList>
@@ -822,19 +532,13 @@ export default function QualityPage() {
                                 value="rft"
                                 className="text-xs tracking-wider uppercase"
                             >
-                                Pareto RFT
+                                Pareto Defects RFT (jour en cours)
                             </TabsTrigger>
                             <TabsTrigger
                                 value="colis"
                                 className="text-xs tracking-wider uppercase"
                             >
-                                Pareto Inspection AQL
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="fg"
-                                className="text-xs tracking-wider uppercase"
-                            >
-                                Pareto Défauts FG
+                                Pareto Defects Inspection Colis (BR IN + BR GTD)
                             </TabsTrigger>
                         </TabsList>
                         <TabsContent value="rft">
@@ -964,238 +668,8 @@ export default function QualityPage() {
                                 </ResponsiveContainer>
                             )}
                         </TabsContent>
-                        <TabsContent value="fg">
-                            {paretoFg.length === 0 ? (
-                                <div className="flex h-[260px] items-center justify-center text-xs text-muted-foreground">
-                                    {loading
-                                        ? 'Chargement...'
-                                        : 'Aucune donnée disponible'}
-                                </div>
-                            ) : (
-                                <ResponsiveContainer width="100%" height={260}>
-                                    <ComposedChart
-                                        data={paretoFg}
-                                        layout="vertical"
-                                    >
-                                        <CartesianGrid
-                                            stroke="var(--border)"
-                                            strokeDasharray="3 3"
-                                        />
-                                        <XAxis
-                                            type="number"
-                                            tick={{
-                                                fill: 'var(--muted-foreground)',
-                                                fontSize: 11,
-                                            }}
-                                        />
-                                        <YAxis
-                                            dataKey="label"
-                                            type="category"
-                                            width={130}
-                                            tick={{
-                                                fill: 'var(--muted-foreground)',
-                                                fontSize: 11,
-                                            }}
-                                        />
-                                        <Tooltip
-                                            contentStyle={tooltipStyle}
-                                            cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                            labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                            itemStyle={{ fontSize: 11 }}
-                                        />
-                                        <Legend
-                                            wrapperStyle={{ fontSize: 11 }}
-                                        />
-                                        <Bar
-                                            dataKey="value"
-                                            fill="var(--chart-2)"
-                                            radius={[0, 4, 4, 0]}
-                                            name="Rejets FG"
-                                        />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="cumulative"
-                                            stroke="var(--destructive)"
-                                            strokeWidth={2}
-                                            dot={{ r: 3 }}
-                                            name="Cumulé %"
-                                            xAxisId={0}
-                                        />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            )}
-                        </TabsContent>
                     </Tabs>
                 </Panel>
-
-                {/* Section F — KPI Summary Table */}
-                {loading ? (
-                    <Panel
-                        title="Synthèse des indicateurs Qualité"
-                        className="mt-4"
-                    >
-                        <div className="animate-pulse space-y-2">
-                            {[...Array(6)].map((_, i) => (
-                                <div key={i} className="flex gap-4">
-                                    <div className="h-4 w-20 rounded bg-muted" />
-                                    <div className="h-4 flex-1 rounded bg-muted" />
-                                    <div className="h-4 w-16 rounded bg-muted" />
-                                    <div className="h-4 w-12 rounded bg-muted" />
-                                    <div className="h-4 w-16 rounded bg-muted" />
-                                </div>
-                            ))}
-                        </div>
-                    </Panel>
-                ) : kpis ? (
-                    <Panel
-                        title="Synthèse des indicateurs Qualité"
-                        className="mt-4"
-                    >
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                    <th className="py-2 text-left">Indicateur</th>
-                                    <th className="text-right">Valeur</th>
-                                    <th className="text-right">Cible</th>
-                                    <th className="text-right">Statut</th>
-                                </tr>
-                            </thead>
-                            <tbody className="font-mono">
-                                {[
-                                    [
-                                        'BR Commande (DDA)',
-                                        kpis.br_commande.value,
-                                        '≤ 5%',
-                                        kpis.br_commande.status,
-                                    ],
-                                    [
-                                        'BR GTD (jour)',
-                                        kpis.br_gtd_jour.value,
-                                        '≤ 5%',
-                                        kpis.br_gtd_jour.status,
-                                    ],
-                                    [
-                                        'BR GTD DDA (année)',
-                                        kpis.br_gtd_annee.value,
-                                        '≤ 5%',
-                                        kpis.br_gtd_annee.status,
-                                    ],
-                                    [
-                                        'RFT (jour)',
-                                        kpis.rft_jour.value,
-                                        '≥ 98%',
-                                        kpis.rft_jour.status,
-                                    ],
-                                    [
-                                        'RFT DDA (année)',
-                                        kpis.rft_annee.value,
-                                        '≥ 98%',
-                                        kpis.rft_annee.status,
-                                    ],
-                                    [
-                                        'BR Bundling (jour)',
-                                        kpis.br_bundling_jour.value,
-                                        '≤ 5%',
-                                        kpis.br_bundling_jour.status,
-                                    ],
-                                    [
-                                        'BR Bundling DDA',
-                                        kpis.br_bundling_annee.value,
-                                        '≤ 5%',
-                                        kpis.br_bundling_annee.status,
-                                    ],
-                                    [
-                                        'BR Print (jour)',
-                                        kpis.br_print.value,
-                                        '≤ 5%',
-                                        kpis.br_print.status,
-                                    ],
-                                    [
-                                        'BR Print DDA',
-                                        kpis.br_print_dda.value,
-                                        '≤ 5%',
-                                        kpis.br_print_dda.status,
-                                    ],
-                                    [
-                                        'BR Care Label (jour)',
-                                        kpis.br_care_label_jour.value,
-                                        '≤ 5%',
-                                        kpis.br_care_label_jour.status,
-                                    ],
-                                    [
-                                        'BR Care Label DDA',
-                                        kpis.br_care_label_dda.value,
-                                        '≤ 5%',
-                                        kpis.br_care_label_dda.status,
-                                    ],
-                                    [
-                                        'BR Accessoires (jour)',
-                                        kpis.br_accessoires_jour.value,
-                                        '≤ 5%',
-                                        kpis.br_accessoires_jour.status,
-                                    ],
-                                    [
-                                        'BR Accessoires DDA',
-                                        kpis.br_accessoires_dda.value,
-                                        '≤ 5%',
-                                        kpis.br_accessoires_dda.status,
-                                    ],
-                                    [
-                                        'BR Compo (jour)',
-                                        kpis.br_compo_jour.value,
-                                        '≤ 5%',
-                                        kpis.br_compo_jour.status,
-                                    ],
-                                    [
-                                        'BR Compo DDA',
-                                        kpis.br_compo_dda.value,
-                                        '≤ 5%',
-                                        kpis.br_compo_dda.status,
-                                    ],
-                                    [
-                                        'BR IN (jour)',
-                                        kpis.br_in_jour.value,
-                                        '≤ 5%',
-                                        kpis.br_in_jour.status,
-                                    ],
-                                    [
-                                        'BR IN DDA',
-                                        kpis.br_in_dda.value,
-                                        '≤ 5%',
-                                        kpis.br_in_dda.status,
-                                    ],
-                                ].map((r, i) => (
-                                    <tr
-                                        key={i}
-                                        className="border-b border-border/50"
-                                    >
-                                        <td className="py-2 text-primary">
-                                            {r[0] as string}
-                                        </td>
-                                        <td className="text-right tabular-nums">
-                                            {r[1] != null
-                                                ? `${(r[1] as number).toFixed(1)}%`
-                                                : '—'}
-                                        </td>
-                                        <td className="text-right text-muted-foreground">
-                                            {r[2] as string}
-                                        </td>
-                                        <td className="text-right">
-                                            <TrafficBadge
-                                                status={
-                                                    (r[3] as
-                                                          | 'green'
-                                                          | 'orange'
-                                                          | 'red')
-                                                }
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </Panel>
-                ) : null}
 
                 <KpiDetailModal
                     kpiKey={openModal}

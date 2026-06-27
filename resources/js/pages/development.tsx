@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Clock } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     CartesianGrid,
@@ -7,22 +7,24 @@ import {
     LineChart,
     ReferenceLine,
     ResponsiveContainer,
+    Scatter,
+    ScatterChart,
     Tooltip,
     XAxis,
     YAxis,
+    ZAxis,
 } from 'recharts';
 import { AppShell } from '@/components/app-shell';
 import type { DevKpiKey } from '@/components/development/devKpiDetailConfig';
 import DevKpiDetailModal from '@/components/development/DevKpiDetailModal';
 import { Panel, TrafficBadge } from '@/components/widgets';
-import { useFilters } from '@/context/FilterContext';
 import { useLiveData } from '@/hooks/use-live-data';
 import {
     fetchDevelopmentKpis,
     fetchDevelopmentTrend,
-    fetchDevelopmentTrendRft,
-    fetchDevelopmentTrendLivraison,
+    fetchReclamationsScatter,
     type DevelopmentKpisResponse,
+    type ScatterItem,
     type TrendItem,
 } from '@/services/developmentApi';
 
@@ -37,10 +39,10 @@ const tooltipStyle = {
 };
 
 const KPI_META: Record<string, { label: string; fReq: string }> = {
-    dev_rft:          { label: 'RFT Développement',      fReq: '350' },
-    dev_livraison:    { label: 'Respect Livraison',      fReq: '351' },
-    dev_nomenclature: { label: 'Fiabilité Nomenclature', fReq: '352' },
-    dev_reclamations: { label: 'Réclamations Prod',      fReq: '353' },
+    dev_rft:          { label: 'RFT Développement (Right First Time)',      fReq: '350' },
+    dev_livraison:    { label: 'Taux de respect de livraison à date',      fReq: '351' },
+    dev_nomenclature: { label: 'Taux de fiabilité de nomenclature', fReq: '352' },
+    dev_reclamations: { label: '% Réclamations de la production',      fReq: '353' },
 };
 
 function KpiCardSkeleton() {
@@ -67,11 +69,15 @@ function GaugeSkeleton() {
 function GaugeChart({
     value,
     target,
+    status,
+    isStale,
     isLoading,
     onClick,
 }: {
     value: number | null;
     target: number;
+    status: string;
+    isStale?: boolean;
     isLoading: boolean;
     onClick?: () => void;
 }) {
@@ -80,7 +86,7 @@ function GaugeChart({
     const v = value ?? 0;
     const pct = Math.min(100, Math.max(0, v));
     const angle = (pct / 100) * 180;
-    const color = v >= target ? 'var(--success)' : v >= target - 3 ? 'var(--warning)' : 'var(--destructive)';
+    const color = status === 'green' ? 'var(--success)' : status === 'orange' ? 'var(--warning)' : status === 'red' ? 'var(--destructive)' : 'var(--muted)';
 
     return (
         <div
@@ -98,7 +104,10 @@ function GaugeChart({
                     </text>
                 </svg>
             </div>
-            <div className="font-mono text-xs text-muted-foreground">Cible: ≥{target}%</div>
+            <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                <span>Cible: ≥{target}%</span>
+                {isStale && <Clock className="h-3 w-3 text-warning" />}
+            </div>
         </div>
     );
 }
@@ -112,6 +121,7 @@ function KpiCard({
     targetKind,
     unit,
     source,
+    isStale,
     freq,
     onClick,
     isLoading,
@@ -124,6 +134,7 @@ function KpiCard({
     targetKind: 'min' | 'max';
     unit?: string;
     source?: string;
+    isStale?: boolean;
     freq?: string;
     onClick?: () => void;
     isLoading?: boolean;
@@ -162,8 +173,9 @@ function KpiCard({
                     {freq && <span className="text-primary/80">Freq: {freq}</span>}
                 </div>
                 {source && (
-                    <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/70">
-                        src: {source}
+                    <div className="mt-1 flex items-center gap-1 truncate font-mono text-[10px] text-muted-foreground/70">
+                        <span>src: {source}</span>
+                        {isStale && <span title="Données obsolètes"><Clock className="h-3 w-3 shrink-0 text-warning" /></span>}
                     </div>
                 )}
             </div>
@@ -171,35 +183,42 @@ function KpiCard({
     );
 }
 
+function ScatterTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ScatterItem }> }) {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    return (
+        <div style={tooltipStyle}>
+            <div className="font-bold text-foreground">{d.mois} — {d.modele}</div>
+            <div className="text-muted-foreground">Réclamations: {d.reclamations} / {d.total}</div>
+            <div className="text-muted-foreground">Taux: {d.valeur.toFixed(1)}%</div>
+        </div>
+    );
+}
+
 export default function DevPage() {
     const [kpis, setKpis] = useState<DevelopmentKpisResponse | null>(null);
     const [trend, setTrend] = useState<TrendItem[]>([]);
-    const [trendRft, setTrendRft] = useState<TrendItem[]>([]);
-    const [trendLivraison, setTrendLivraison] = useState<TrendItem[]>([]);
+    const [scatter, setScatter] = useState<ScatterItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const [openModal, setOpenModal] = useState<DevKpiKey | null>(null);
-    const { getFilterParams } = useFilters();
     const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
 
     const fetchData = useCallback(async () => {
         try {
-            const filters = getFilterParams();
-            const [k, t, rftT, livT] = await Promise.allSettled([
-                fetchDevelopmentKpis(filters),
-                fetchDevelopmentTrend(filters),
-                fetchDevelopmentTrendRft(filters),
-                fetchDevelopmentTrendLivraison(filters),
+            const [k, t, s] = await Promise.allSettled([
+                fetchDevelopmentKpis(),
+                fetchDevelopmentTrend(),
+                fetchReclamationsScatter(),
             ]);
 
             if (k.status === 'fulfilled') setKpis(k.value);
             if (t.status === 'fulfilled') setTrend(t.value.data);
-            if (rftT.status === 'fulfilled') setTrendRft(rftT.value.data);
-            if (livT.status === 'fulfilled') setTrendLivraison(livT.value.data);
+            if (s.status === 'fulfilled') setScatter(s.value.data);
 
-            const anyFailed = [k, t, lt, rftT, livT].some((r) => r.status === 'rejected');
+            const anyFailed = [k, t, s].some((r) => r.status === 'rejected');
             if (anyFailed && k.status === 'rejected') {
                 setError('Erreur de connexion au serveur');
                 recordFetchError();
@@ -213,7 +232,7 @@ export default function DevPage() {
         } finally {
             setLoading(false);
         }
-    }, [getFilterParams, recordFetchError, recordFetchSuccess]);
+    }, [recordFetchError, recordFetchSuccess]);
 
     useEffect(() => {
         fetchData();
@@ -225,25 +244,12 @@ export default function DevPage() {
 
     const k = kpis?.kpis;
 
-    const exportRows = k
-        ? [
-            ...Object.entries(k).map(([key, v]) => ({
-                kpi: `${KPI_META[key]?.fReq ?? key} ${KPI_META[key]?.label ?? key}`,
-                valeur: v.value !== null ? `${v.value}%` : '—',
-                cible: `${v.target_kind === 'min' ? '≥' : '≤'}${v.target}%`,
-            })),
-        ]
-        : [];
-
     return (
         <>
             <Head title="Développement — BACOVET" />
             <AppShell
-                page="/development"
-                title="Développement & Amélioration"
-                subtitle="Série 350 · KPIs mensuels"
-                exportRows={exportRows}
-                exportFilename="BACOVET_Dev_S350"
+                page="/developpement"
+                title="Développement"
             >
                 {error && (
                     <div className="mb-4 flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive">
@@ -252,7 +258,7 @@ export default function DevPage() {
                     </div>
                 )}
 
-                {/* Row 1 — F-REQ-350 (KpiCard), F-REQ-351 (GaugeChart per spec), F-REQ-352 (Line chart per spec) */}
+                {/* Row 1 — F-REQ-350 (KpiCard), F-REQ-351 (GaugeChart), F-REQ-352 (LineChart) */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                     {/* F-REQ-350: RFT — KpiCard */}
                     <KpiCard
@@ -263,23 +269,26 @@ export default function DevPage() {
                         target={95}
                         targetKind="min"
                         source="Google Drive"
+                        isStale={k?.dev_rft.is_stale}
                         freq="Mensuel"
                         onClick={() => setOpenModal('dev_rft')}
                         isLoading={loading}
                     />
 
-                    {/* F-REQ-351: Respect Livraison — GaugeChart per spec */}
-                    <Panel title="Respect Livraison à Date (F-REQ-351)">
+                    {/* F-REQ-351: Respect Livraison — GaugeChart */}
+                    <Panel title="Taux de respect de livraison à date">
                         <GaugeChart
                             value={k?.dev_livraison.value ?? null}
                             target={95}
+                            status={k?.dev_livraison.status ?? 'grey'}
+                            isStale={k?.dev_livraison.is_stale}
                             isLoading={loading}
                             onClick={() => setOpenModal('dev_livraison')}
                         />
                     </Panel>
 
-                    {/* F-REQ-352: Fiabilité Nomenclature — Line chart primary per spec */}
-                    <Panel title="Fiabilité Nomenclature (F-REQ-352)" right={
+                    {/* F-REQ-352: Fiabilité Nomenclature — Line Chart */}
+                    <Panel title="Taux de fiabilité de nomenclature" right={
                         <div className="flex items-center gap-2">
                             {k?.dev_nomenclature.value != null && (
                                 <span className="font-mono text-lg font-bold tabular-nums">
@@ -289,6 +298,7 @@ export default function DevPage() {
                             {k?.dev_nomenclature.status && (
                                 <TrafficBadge status={k.dev_nomenclature.status as 'green' | 'orange' | 'red' | 'grey'} />
                             )}
+                            {k?.dev_nomenclature.is_stale && <span title="Données obsolètes"><Clock className="h-3.5 w-3.5 text-warning" /></span>}
                         </div>
                     }>
                         {loading ? (
@@ -315,133 +325,61 @@ export default function DevPage() {
                     </Panel>
                 </div>
 
-                {/* Row 2 — F-REQ-353 (KpiCard + Scatter derogation) */}
+                {/* Row 2 — F-REQ-353: Scatter Plot + KpiCard */}
                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {/* F-REQ-353: Réclamations — KpiCard + Scatter derogation per spec */}
-                    <div className="space-y-2">
-                        <KpiCard
-                            label={KPI_META.dev_reclamations.label}
-                            fReq="353"
-                            value={k?.dev_reclamations.value ?? null}
-                            status={k?.dev_reclamations.status ?? 'grey'}
-                            target={2}
-                            targetKind="max"
-                            source="Google Drive"
-                            freq="Mensuel"
-                            onClick={() => setOpenModal('dev_reclamations')}
-                            isLoading={loading}
-                        />
+                    {/* F-REQ-353: Réclamations — KpiCard */}
+                    <KpiCard
+                        label={KPI_META.dev_reclamations.label}
+                        fReq="353"
+                        value={k?.dev_reclamations.value ?? null}
+                        status={k?.dev_reclamations.status ?? 'grey'}
+                        target={2}
+                        targetKind="max"
+                        source="Google Drive"
+                        isStale={k?.dev_reclamations.is_stale}
+                        freq="Mensuel"
+                        onClick={() => setOpenModal('dev_reclamations')}
+                        isLoading={loading}
+                    />
 
-                    </div>
-                </div>
-
-                {/* Row 3 — Lead Time Dev + Trend Charts */}
-                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {/* RFT Trend */}
-                    <Panel title="Tendance RFT Développement" className="min-h-[200px]">
-                        {trendRft.length === 0 ? (
-                            <div className="flex h-[160px] items-center justify-center text-xs text-muted-foreground">
-                                {loading ? 'Chargement...' : 'Aucune donnée'}
+                    {/* F-REQ-353: Réclamations — Scatter Plot */}
+                    <Panel title="% Réclamations — Tendance par modèle" className="md:col-span-2">
+                        {loading ? (
+                            <div className="flex h-[200px] items-center justify-center">
+                                <div className="animate-pulse h-[180px] w-full rounded bg-muted" />
+                            </div>
+                        ) : scatter.length === 0 ? (
+                            <div className="flex h-[200px] items-center justify-center text-xs text-muted-foreground">
+                                Aucune donnée
                             </div>
                         ) : (
-                            <ResponsiveContainer width="100%" height={160}>
-                                <LineChart data={trendRft}>
+                            <ResponsiveContainer width="100%" height={200}>
+                                <ScatterChart margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
                                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-                                    <XAxis dataKey="mois" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
-                                    <YAxis domain={[80, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
-                                    <Tooltip
-                                        contentStyle={tooltipStyle}
-                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                        labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                        itemStyle={{ fontSize: 11 }}
+                                    <XAxis
+                                        dataKey="mois"
+                                        type="category"
+                                        tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
                                     />
-                                    <ReferenceLine y={95} stroke="var(--success)" strokeDasharray="4 4" label={{ value: 'Cible 95%', fill: 'var(--success)', fontSize: 10 }} />
-                                    <Line type="monotone" dataKey="valeur" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} name="RFT %" />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        )}
-                    </Panel>
-
-                    {/* Livraison Trend */}
-                    <Panel title="Tendance Respect Livraison" className="min-h-[200px]">
-                        {trendLivraison.length === 0 ? (
-                            <div className="flex h-[160px] items-center justify-center text-xs text-muted-foreground">
-                                {loading ? 'Chargement...' : 'Aucune donnée'}
-                            </div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={160}>
-                                <LineChart data={trendLivraison}>
-                                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-                                    <XAxis dataKey="mois" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
-                                    <YAxis domain={[80, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
-                                    <Tooltip
-                                        contentStyle={tooltipStyle}
-                                        cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-                                        labelStyle={{ color: 'var(--foreground)', fontWeight: 700, fontSize: 11, marginBottom: 4 }}
-                                        itemStyle={{ fontSize: 11 }}
+                                    <YAxis
+                                        dataKey="valeur"
+                                        type="number"
+                                        domain={[0, 'auto']}
+                                        tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
+                                        label={{ value: '%', position: 'insideTopLeft', fontSize: 10, fill: 'var(--muted-foreground)' }}
                                     />
-                                    <ReferenceLine y={95} stroke="var(--success)" strokeDasharray="4 4" label={{ value: 'Cible 95%', fill: 'var(--success)', fontSize: 10 }} />
-                                    <Line type="monotone" dataKey="valeur" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} name="Livraison %" />
-                                </LineChart>
+                                    <ZAxis dataKey="total" range={[40, 200]} />
+                                    <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                                    <Scatter
+                                        data={scatter}
+                                        fill="var(--primary)"
+                                        fillOpacity={0.6}
+                                    />
+                                </ScatterChart>
                             </ResponsiveContainer>
                         )}
                     </Panel>
                 </div>
-
-                {/* Detail Table */}
-                {loading ? (
-                    <Panel title="Détails des Indicateurs Mensuels (Série 350)">
-                        <div className="animate-pulse space-y-2">
-                            {[...Array(4)].map((_, i) => (
-                                <div key={i} className="flex gap-4">
-                                    <div className="h-4 w-12 rounded bg-muted" />
-                                    <div className="h-4 flex-1 rounded bg-muted" />
-                                    <div className="h-4 w-16 rounded bg-muted" />
-                                    <div className="h-4 w-12 rounded bg-muted" />
-                                    <div className="h-4 w-16 rounded bg-muted" />
-                                    <div className="h-4 w-16 rounded bg-muted" />
-                                </div>
-                            ))}
-                        </div>
-                    </Panel>
-                ) : k ? (
-                    <Panel title="Détails des Indicateurs Mensuels (Série 350)">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                    <th className="py-2 text-left">ID</th>
-                                    <th className="text-left">Indicateur</th>
-                                    <th className="text-right">Valeur</th>
-                                    <th className="text-right">Cible</th>
-                                    <th className="text-right">Fréquence</th>
-                                    <th className="text-right">Statut</th>
-                                </tr>
-                            </thead>
-                            <tbody className="font-mono">
-                                {(Object.entries(k) as [string, typeof k.dev_rft][]).map(([key, data]) => {
-                                    const meta = KPI_META[key];
-                                    if (!meta) return null;
-                                    return (
-                                        <tr key={key} className="border-b border-border/50">
-                                            <td className="py-2 text-primary">{meta.fReq}</td>
-                                            <td>{meta.label}</td>
-                                            <td className="text-right tabular-nums">
-                                                {data.value !== null ? `${data.value.toFixed(1)}%` : '—'}
-                                            </td>
-                                            <td className="text-right text-muted-foreground">
-                                                {data.target_kind === 'max' ? '<' : '≥'}{data.target}%
-                                            </td>
-                                            <td className="text-right text-muted-foreground">{data.frequency}</td>
-                                            <td className="text-right">
-                                                <TrafficBadge status={data.status as 'green' | 'orange' | 'red' | 'grey'} />
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </Panel>
-                ) : null}
 
                 {/* KPI Detail Modal */}
                 <DevKpiDetailModal

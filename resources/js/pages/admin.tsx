@@ -1,5 +1,4 @@
 import { Head } from '@inertiajs/react';
-import { Pencil, Plus, Monitor, Trash2, AlertTriangle } from 'lucide-react';
 import { useEffect, useState, useRef, useReducer, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app-shell';
@@ -25,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { Panel } from '@/components/widgets';
 import { ROLE_LABEL, type Role, useAuth } from '@/context/AuthContext';
 import { useLiveData } from '@/hooks/use-live-data';
+import { exportToCsv } from '@/lib/export';
 import {
     fetchAllJobs,
     fetchAllUsers,
@@ -44,12 +44,105 @@ import {
     type PipelineStatus,
     createAuditLog,
     clearAuditLogs,
-    fetchManualKpiValues,
-    updateManualKpiValue,
     type SyncConfigItem,
     type AuditLogEntry,
-    type ManualKpiEntry,
 } from '@/services/adminApi';
+
+function IconPencil({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            <path d="m15 5 4 4" />
+        </svg>
+    );
+}
+
+function IconPlus({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+        </svg>
+    );
+}
+
+function IconMonitor({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <rect width="20" height="14" x="2" y="3" rx="2" />
+            <line x1="8" x2="16" y1="21" y2="21" />
+            <line x1="12" x2="12" y1="17" y2="21" />
+        </svg>
+    );
+}
+
+function IconTrash({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M3 6h18" />
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            <line x1="10" x2="10" y1="11" y2="17" />
+            <line x1="14" x2="14" y1="11" y2="17" />
+        </svg>
+    );
+}
+
+function IconAlertTriangle({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+        </svg>
+    );
+}
+
+function IconDownload({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" x2="12" y1="15" y2="3" />
+        </svg>
+    );
+}
+
+function IconCheck({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M20 6 9 17l-5-5" />
+        </svg>
+    );
+}
+
+function IconX({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+        </svg>
+    );
+}
+
+function IconClock({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+        </svg>
+    );
+}
+
+function IconAlert({ className = '' }: { className?: string }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+        </svg>
+    );
+}
 
 function Skeleton({ className = '' }: { className?: string }) {
     return <div className={`animate-pulse rounded bg-muted ${className}`} />;
@@ -74,6 +167,7 @@ type JobApi = {
     source?: string;
     last_status: string;
     last_run_at: string;
+    last_error?: string;
     is_active: boolean;
 };
 
@@ -82,6 +176,7 @@ type Screen = {
     name: string;
     status: 'online' | 'offline';
     assigned_page: string;
+    location: string | null;
 };
 
 type AdminState = {
@@ -92,6 +187,7 @@ type AdminState = {
         source?: string;
         last_status: string;
         last_run: string;
+        last_message: string;
         active: boolean;
     }[];
     users: User[];
@@ -137,6 +233,7 @@ const adminReducer = (state: AdminState, action: AdminAction): AdminState => {
                 source: j.source,
                 last_status: j.last_status,
                 last_run: j.last_run_at || '',
+                last_message: j.last_error || '',
                 active: !!j.is_active,
             }));
             return {
@@ -188,11 +285,8 @@ export default function AdminPage() {
     const [creatingScreen, setCreatingScreen] = useState(false);
     const [deletingScreen, setDeletingScreen] = useState<Screen | null>(null);
     const [screenName, setScreenName] = useState('');
+    const [screenZone, setScreenZone] = useState('');
     const [syncConfig, setSyncConfig] = useState<SyncConfigItem[]>([]);
-    const [kpiValues, setKpiValues] = useState<ManualKpiEntry[]>([]);
-    const [editingKpi, setEditingKpi] = useState<ManualKpiEntry | null>(null);
-    const [kpiNumerator, setKpiNumerator] = useState('');
-    const [kpiDenominator, setKpiDenominator] = useState('');
     const [pipelineSources, setPipelineSources] = useState<PipelineStatus[]>([]);
     const [syncingSources, setSyncingSources] = useState<Set<string>>(new Set());
     const logEndRef = useRef<HTMLDivElement>(null);
@@ -227,13 +321,6 @@ export default function AdminPage() {
                 if (isMounted) setSyncConfig(config);
             } catch {
                 // Sync config fetch is optional — non-critical
-            }
-
-            try {
-                const kpis = await fetchManualKpiValues();
-                if (isMounted) setKpiValues(kpis);
-            } catch {
-                // KPI values fetch is optional
             }
 
             try {
@@ -383,7 +470,7 @@ export default function AdminPage() {
                     <div className="space-y-3 lg:col-span-2">
                         {error && (
                             <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive">
-                                <AlertTriangle className="h-5 w-5" />
+                                <IconAlertTriangle className="h-5 w-5" />
                                 <div className="text-xs font-bold uppercase">
                                     {error}
                                 </div>
@@ -392,7 +479,7 @@ export default function AdminPage() {
 
                         {bundlingInactive && (
                             <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive">
-                                <AlertTriangle className="h-5 w-5" />
+                                <IconAlertTriangle className="h-5 w-5" />
                                 <div className="text-xs">
                                     <p className="font-bold uppercase">
                                         Attention : 4 requêtes BR Bundling sont
@@ -547,130 +634,6 @@ export default function AdminPage() {
                             </Panel>
                         )}
 
-                        <Panel title="Gestion des KPI Manuels">
-                            <p className="mb-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                Valeurs KPI saisies manuellement (Méthodes + Développement)
-                            </p>
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                        <th className="py-2 text-left">Clé</th>
-                                        <th className="text-left">Indicateur</th>
-                                        <th className="text-right">Valeur</th>
-                                        <th className="text-right">Dernière MAJ</th>
-                                        <th className="text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="font-mono">
-                                    {kpiValues.map((kpi) => (
-                                        <tr key={kpi.kpi_key} className="border-b border-border/50">
-                                            <td className="py-2 text-primary text-xs">{kpi.kpi_key}</td>
-                                            <td className="text-xs">{kpi.kpi_label}</td>
-                                            <td className="text-right text-xs tabular-nums">
-                                                {kpi.value !== null ? `${kpi.value}%` : '—'}
-                                            </td>
-                                            <td className="text-right text-[10px] text-muted-foreground">
-                                                {kpi.updated_at
-                                                    ? new Date(kpi.updated_at).toLocaleString('fr-FR')
-                                                    : '—'}
-                                                {kpi.updated_by && (
-                                                    <span className="ml-1">({kpi.updated_by})</span>
-                                                )}
-                                            </td>
-                                            <td className="text-right">
-                                                <button
-                                                    onClick={() => {
-                                                        setEditingKpi(kpi);
-                                                        setKpiNumerator(kpi.numerator?.toString() ?? '');
-                                                        setKpiDenominator(kpi.denominator?.toString() ?? '');
-                                                    }}
-                                                    className="rounded border border-border px-2 py-1 text-[10px] text-primary hover:bg-accent"
-                                                >
-                                                    <Pencil className="inline h-3 w-3" /> Modifier
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {kpiValues.length === 0 && (
-                                        <tr>
-                                            <td colSpan={5} className="py-4 text-center text-xs text-muted-foreground">
-                                                Aucune valeur KPI enregistrée
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </Panel>
-
-                        {/* KPI Edit Modal */}
-                        <Dialog open={!!editingKpi} onOpenChange={(open) => { if (!open) setEditingKpi(null); }}>
-                            <DialogContent className="max-w-md">
-                                <DialogHeader>
-                                    <DialogTitle className="text-sm font-bold tracking-wider uppercase">
-                                        Modifier — {editingKpi?.kpi_label}
-                                    </DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                    <div>
-                                        <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                            Numérateur (valeur actuelle)
-                                        </Label>
-                                        <Input
-                                            type="number"
-                                            value={kpiNumerator}
-                                            onChange={(e) => setKpiNumerator(e.target.value)}
-                                            className="font-mono text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                            Dénominateur (total)
-                                        </Label>
-                                        <Input
-                                            type="number"
-                                            value={kpiDenominator}
-                                            onChange={(e) => setKpiDenominator(e.target.value)}
-                                            className="font-mono text-sm"
-                                        />
-                                    </div>
-                                    {kpiNumerator && kpiDenominator && parseFloat(kpiDenominator) > 0 && (
-                                        <div className="rounded border border-border bg-secondary/50 px-3 py-2 text-center">
-                                            <div className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">Résultat</div>
-                                            <div className="font-mono text-2xl font-bold tabular-nums">
-                                                {((parseFloat(kpiNumerator) / parseFloat(kpiDenominator)) * 100).toFixed(1)}%
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <DialogFooter className="gap-2">
-                                    <Button variant="ghost" onClick={() => setEditingKpi(null)} className="text-[10px] tracking-wider uppercase">
-                                        Annuler
-                                    </Button>
-                                    <Button
-                                        onClick={async () => {
-                                            if (!editingKpi || !kpiNumerator || !kpiDenominator) return;
-                                            try {
-                                                await updateManualKpiValue(
-                                                    editingKpi.kpi_key,
-                                                    parseFloat(kpiNumerator),
-                                                    parseFloat(kpiDenominator),
-                                                );
-                                                toast.success(`KPI ${editingKpi.kpi_key} mis à jour`);
-                                                setEditingKpi(null);
-                                                const kpis = await fetchManualKpiValues();
-                                                setKpiValues(kpis);
-                                            } catch {
-                                                toast.error('Erreur lors de la mise à jour');
-                                            }
-                                        }}
-                                        className="px-6 text-[10px] tracking-wider uppercase"
-                                    >
-                                        Enregistrer
-                                    </Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
-
                         <Panel title="Supervision des flux API">
                             {loading ? (
                                 <div className="space-y-3">
@@ -692,16 +655,19 @@ export default function AdminPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                            <th className="py-2 text-left">
+                                            <th className="py-2 px-3 text-left">
                                                 Source
                                             </th>
-                                            <th className="text-left">
+                                            <th className="py-2 px-3 text-left">
                                                 Statut
                                             </th>
-                                            <th className="text-left">
+                                            <th className="py-2 px-3 text-left">
                                                 Dernière sync
                                             </th>
-                                            <th className="text-right">
+                                            <th className="py-2 px-3 text-right">
+                                                Enregistrements
+                                            </th>
+                                            <th className="py-2 px-3 text-right">
                                                 Action
                                             </th>
                                         </tr>
@@ -717,10 +683,10 @@ export default function AdminPage() {
                                                     key={src.name}
                                                     className="border-b border-border/50"
                                                 >
-                                                    <td className="py-2 font-bold">
+                                                    <td className="py-2 px-3 font-bold">
                                                         {src.name}
                                                     </td>
-                                                    <td>
+                                                    <td className="px-3">
                                                         <span className="inline-flex items-center gap-2 text-xs">
                                                             <span
                                                                 className={`h-2 w-2 rounded-full ${meta.dot} ${
@@ -739,7 +705,7 @@ export default function AdminPage() {
                                                             </span>
                                                         </span>
                                                     </td>
-                                                    <td className="text-xs text-muted-foreground">
+                                                    <td className="px-3 text-xs text-muted-foreground">
                                                         {src.last_sync
                                                             ? (() => {
                                                                   const diff =
@@ -764,7 +730,10 @@ export default function AdminPage() {
                                                               })()
                                                             : 'Jamais'}
                                                     </td>
-                                                    <td className="text-right">
+                                                    <td className="px-3 text-right text-xs tabular-nums">
+                                                        {src.total_rows.toLocaleString()}
+                                                    </td>
+                                                    <td className="px-3 text-right">
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
@@ -815,6 +784,82 @@ export default function AdminPage() {
                             )}
                         </Panel>
 
+                        <Panel title="Catalogue des jobs cron">
+                            {loading ? (
+                                <div className="space-y-2">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <div key={i} className="flex items-center gap-4 py-1">
+                                            <Skeleton className="h-3 w-8" />
+                                            <Skeleton className="h-3 w-32" />
+                                            <Skeleton className="h-3 w-24" />
+                                            <Skeleton className="h-3 w-16" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="max-h-96 overflow-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="sticky top-0 bg-background">
+                                            <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                                <th className="py-2 px-3 text-left">ID</th>
+                                                <th className="py-2 px-3 text-left">Nom</th>
+                                                <th className="py-2 px-3 text-left">Requête</th>
+                                                <th className="py-2 px-3 text-left">Statut</th>
+                                                <th className="py-2 px-3 text-right">Dernière exécution</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="font-mono">
+                                            {jobs.map((job) => (
+                                                <tr key={job.id} className="border-b border-border/50">
+                                                    <td className="py-1.5 px-3 text-xs text-muted-foreground">{job.id}</td>
+                                                    <td className="px-3 text-xs font-bold">{job.name}</td>
+                                                    <td className="px-3 text-xs text-muted-foreground">{job.description || '—'}</td>
+                                                    <td className="px-3">
+                                                        <span className={`text-[10px] tracking-wider uppercase ${
+                                                            job.last_status === 'ok'
+                                                                ? 'text-success'
+                                                                : job.last_status === 'error'
+                                                                    ? 'text-destructive'
+                                                                    : 'text-muted-foreground'
+                                                        }`}>
+                                                            <span className="inline-flex items-center gap-1">
+                                                                {job.last_status === 'ok' ? (
+                                                                    <><IconCheck className="inline h-3 w-3" /> OK</>
+                                                                ) : job.last_status === 'error' ? (
+                                                                    <><IconX className="inline h-3 w-3" /> Erreur</>
+                                                                ) : job.active ? (
+                                                                    <><IconClock className="inline h-3 w-3" /> En attente</>
+                                                                ) : (
+                                                                    <><IconAlert className="inline h-3 w-3" /> Inactif</>
+                                                                )}
+                                                            </span>
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 text-right text-[10px] text-muted-foreground">
+                                                        {job.last_run
+                                                            ? new Date(job.last_run).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                                            : '—'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {jobs.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={5} className="py-4 text-center text-xs text-muted-foreground">
+                                                        Aucun job enregistré
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                            <div className="mt-2 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                Total : <span className="text-foreground">{jobs.length}</span> jobs
+                                {' · '}Actifs : <span className="text-success">{jobs.filter(j => j.active).length}</span>
+                                {' · '}Inactifs : <span className="text-muted-foreground">{jobs.filter(j => !j.active).length}</span>
+                            </div>
+                        </Panel>
+
                         <Panel
                             title="Gestion des comptes"
                             right={
@@ -828,7 +873,7 @@ export default function AdminPage() {
                                                 size="sm"
                                                 className="h-7 text-[10px] tracking-wider uppercase"
                                             >
-                                                <Plus className="mr-1 h-3 w-3" />{' '}
+                                                <IconPlus className="mr-1 h-3 w-3" />{' '}
                                                 Ajouter utilisateur
                                             </Button>
                                         </DialogTrigger>
@@ -893,18 +938,18 @@ export default function AdminPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                            <th className="py-2 text-left">
+                                            <th className="py-2 px-3 text-left">
                                                 Utilisateur
                                             </th>
-                                            <th className="text-left">
+                                            <th className="py-2 px-3 text-left">
                                                 Matricule
                                             </th>
-                                            <th className="text-left">Rôle</th>
-                                            <th className="text-left">Email</th>
-                                            <th className="text-left">
+                                            <th className="py-2 px-3 text-left">Rôle</th>
+                                            <th className="py-2 px-3 text-left">Email</th>
+                                            <th className="py-2 px-3 text-left">
                                                 Statut
                                             </th>
-                                            <th className="text-right">
+                                            <th className="py-2 px-3 text-right">
                                                 Action
                                             </th>
                                         </tr>
@@ -915,7 +960,7 @@ export default function AdminPage() {
                                                 key={u.id}
                                                 className="border-b border-border/50"
                                             >
-                                                <td className="py-2">
+                                                <td className="py-2 px-3">
                                                     <div className="flex items-center gap-2">
                                                         <div className="grid h-7 w-7 place-items-center rounded-full bg-secondary text-[10px] font-bold">
                                                             {u.name
@@ -929,21 +974,21 @@ export default function AdminPage() {
                                                         {u.name}
                                                     </div>
                                                 </td>
-                                                <td className="text-xs text-muted-foreground uppercase">
+                                                <td className="px-3 text-xs text-muted-foreground uppercase">
                                                     {u.matricule || '—'}
                                                 </td>
                                                 {/* FIX #4: Safer role display */}
-                                                <td className="text-muted-foreground">
+                                                <td className="px-3 text-muted-foreground">
                                                     {typeof u.role ===
                                                         'object' &&
                                                     u.role !== null
                                                         ? u.role.name
                                                         : String(u.role || '')}
                                                 </td>
-                                                <td className="text-xs text-muted-foreground">
+                                                <td className="px-3 text-xs text-muted-foreground">
                                                     {u.email}
                                                 </td>
-                                                <td>
+                                                <td className="px-3">
                                                     <button
                                                         onClick={() =>
                                                             toggleActive(u.id)
@@ -959,7 +1004,7 @@ export default function AdminPage() {
                                                             : 'Inactive'}
                                                     </button>
                                                 </td>
-                                                <td className="text-right">
+                                                <td className="px-3 text-right">
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
@@ -968,7 +1013,7 @@ export default function AdminPage() {
                                                             setEditing(u)
                                                         }
                                                     >
-                                                        <Pencil className="h-3 w-3" />
+                                                        <IconPencil className="h-3 w-3" />
                                                     </Button>
                                                     <Button
                                                         size="sm"
@@ -978,7 +1023,7 @@ export default function AdminPage() {
                                                             setDeleting(u)
                                                         }
                                                     >
-                                                        <Trash2 className="h-3 w-3" />
+                                                        <IconTrash className="h-3 w-3" />
                                                     </Button>
                                                 </td>
                                             </tr>
@@ -1054,7 +1099,7 @@ export default function AdminPage() {
                                 <DialogContent>
                                     <DialogHeader>
                                         <DialogTitle className="flex items-center gap-2 font-mono text-sm tracking-wider text-destructive uppercase">
-                                            <Trash2 className="h-4 w-4" />
+                                            <IconTrash className="h-4 w-4" />
                                             Supprimer l'utilisateur
                                         </DialogTitle>
                                     </DialogHeader>
@@ -1100,6 +1145,24 @@ export default function AdminPage() {
                                     <Button
                                         size="sm"
                                         variant="ghost"
+                                        onClick={() => {
+                                            const rows = logs.map((l) => ({
+                                                Date: l.created_at ? new Date(l.created_at).toLocaleString('fr-FR') : '',
+                                                Utilisateur: l.user?.name || 'Système',
+                                                Type: l.action_type,
+                                                Message: l.message,
+                                                IP: l.ip_address || '',
+                                            }));
+                                            exportToCsv('journal-audit', rows);
+                                        }}
+                                        className="h-7 text-[10px] tracking-wider uppercase"
+                                    >
+                                        <IconDownload className="mr-1 h-3 w-3" />{' '}
+                                        Exporter
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
                                         onClick={async () => {
                                             if (
                                                 confirm(
@@ -1125,7 +1188,7 @@ export default function AdminPage() {
                                         }}
                                         className="h-7 text-[10px] tracking-wider text-destructive uppercase"
                                     >
-                                        <Trash2 className="mr-1 h-3 w-3" />{' '}
+                                        <IconTrash className="mr-1 h-3 w-3" />{' '}
                                         Archiver les logs
                                     </Button>
                                     <div className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
@@ -1182,6 +1245,9 @@ export default function AdminPage() {
                                                 >
                                                     [{l.action_type}]
                                                 </span>
+                                                <span className="w-24 truncate text-chart-4 text-[10px]">
+                                                    {l.user?.name || 'Système'}
+                                                </span>
                                                 <span className="text-foreground/90">
                                                     {l.message}
                                                 </span>
@@ -1203,10 +1269,11 @@ export default function AdminPage() {
                                     className="h-7 text-[10px] tracking-wider uppercase"
                                     onClick={() => {
                                         setScreenName('');
+                                        setScreenZone('');
                                         setCreatingScreen(true);
                                     }}
                                 >
-                                    <Plus className="mr-1 h-3 w-3" /> Ajouter
+                                    <IconPlus className="mr-1 h-3 w-3" /> Ajouter
                                     écran
                                 </Button>
                             }
@@ -1235,10 +1302,15 @@ export default function AdminPage() {
                                           >
                                               <div className="mb-2 flex items-center justify-between">
                                                   <div className="flex items-center gap-2">
-                                                      <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+                                                      <IconMonitor className="h-3.5 w-3.5 text-muted-foreground" />
                                                       <span className="text-sm font-bold">
                                                           {s.name}
                                                       </span>
+                                                      {s.location && (
+                                                          <span className="text-[10px] text-muted-foreground">
+                                                              · {s.location}
+                                                          </span>
+                                                      )}
                                                   </div>
                                                   <div className="flex items-center gap-1 cursor-pointer">
                                                       <button
@@ -1305,7 +1377,7 @@ export default function AdminPage() {
                                                               )
                                                           }
                                                       >
-                                                          <Trash2 className="h-3 w-3" />
+                                                          <IconTrash className="h-3 w-3" />
                                                       </Button>
                                                   </div>
                                               </div>
@@ -1425,7 +1497,7 @@ export default function AdminPage() {
                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2 font-mono text-sm tracking-wider text-primary uppercase">
-                                        <Monitor className="h-4 w-4" />
+                                        <IconMonitor className="h-4 w-4" />
                                         Ajouter un écran
                                     </DialogTitle>
                                 </DialogHeader>
@@ -1441,6 +1513,19 @@ export default function AdminPage() {
                                             }
                                             className="h-9 font-mono"
                                             placeholder="Ex: Écran Qualité 1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                            Zone
+                                        </Label>
+                                        <Input
+                                            value={screenZone}
+                                            onChange={(e) =>
+                                                setScreenZone(e.target.value)
+                                            }
+                                            className="h-9 font-mono"
+                                            placeholder="Ex: Atelier Confection"
                                         />
                                     </div>
                                 </div>
@@ -1464,6 +1549,7 @@ export default function AdminPage() {
                                                 const result =
                                                     await createScreen({
                                                         name: screenName.trim(),
+                                                        location: screenZone.trim() || undefined,
                                                     });
                                                 dispatch({
                                                     type: 'UPDATE_SCREENS',
@@ -1499,7 +1585,7 @@ export default function AdminPage() {
                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2 font-mono text-sm tracking-wider text-destructive uppercase">
-                                        <Trash2 className="h-4 w-4" />
+                                        <IconTrash className="h-4 w-4" />
                                         Supprimer l'écran
                                     </DialogTitle>
                                 </DialogHeader>
@@ -1607,9 +1693,9 @@ function UserDialog({ initial, isEditing, onSave, onCancel }: UserDialogProps) {
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 font-mono text-sm tracking-wider text-primary uppercase">
                     {isEditing ? (
-                        <Pencil className="h-4 w-4" />
+                        <IconPencil className="h-4 w-4" />
                     ) : (
-                        <Plus className="h-4 w-4" />
+                        <IconPlus className="h-4 w-4" />
                     )}
                     {isEditing ? 'Modifier utilisateur' : 'Ajouter utilisateur'}
                 </DialogTitle>

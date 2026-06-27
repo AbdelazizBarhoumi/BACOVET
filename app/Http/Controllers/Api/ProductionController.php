@@ -153,10 +153,17 @@ class ProductionController extends Controller
             ];
         })->values();
 
+        $wipSyncedAt = DB::table('wip_chaine')->max('synced_at');
+        $effSyncedAt = DB::table('efficience_chaine')->whereDate('date', $today)->max('date') ?? DB::table('efficience_chaine')->max('date');
+
         return response()->json([
             'data' => $chains,
             'metadata' => [
                 'missing_fields' => array_unique($missingFields),
+                'synced_at' => [
+                    'wip' => $wipSyncedAt,
+                    'efficience' => $effSyncedAt,
+                ],
             ],
         ]);
     }
@@ -176,15 +183,18 @@ class ProductionController extends Controller
             DB::raw('SUM(heures_standards) as total_std'),
             DB::raw('SUM(heures_prod) as total_prod')
         )->first();
+        $effSyncedAt = DB::table('efficience_chaine')->whereDate('date', $today)->max('date') ?? DB::table('efficience_chaine')->max('date');
 
         // 2. RFT Production — global daily totals, not per-chain (no atelier filter)
         $piecesOkJour = DB::table('pieces_ok_jour')->whereDate('date', $today)->first();
         $piecesProduiteJour = DB::table('pieces_produites_jour')->whereDate('date', $today)->first();
 
         $rftJour = $this->kpi->computeRft($piecesOkJour?->first_pass_today, $piecesProduiteJour?->produced_today);
+        $rftSyncedAt = DB::table('pieces_ok_jour')->whereDate('date', $today)->max('date') ?? $today->toIso8601String();
 
         // 3. BR GTD (Card 2 proxy)
         $brGtdJour = $this->computeBrGtdJour($today, $request);
+        $brGtdSyncedAt = DB::table('check_pass_qte')->whereDate('log_date', $today)->max('log_date');
 
         // 4. BR Bundling — global daily total, no per-chain filter
         $bundlingRow = DB::table('rejets_inspection_paquet')
@@ -196,13 +206,13 @@ class ProductionController extends Controller
         if ($bundlingRow && $bundlingRow->bundle_inspected > 0) {
             $brBundling = round(($bundlingRow->bundle_reject / $bundlingRow->bundle_inspected) * 100, 1);
         }
+        $bundlingSyncedAt = $bundlingRow?->date;
 
         // 5. OWE — compute from efficacy * SOT / SAM (if GPRO data available)
         $oweValue = null;
         $oweStatus = 'grey';
+        $oweProxy = false;
         if ($stats->avg_eff) {
-            // Get average SOT/SAM ratio from GPRO article master
-            // First try filtering by current OFs, fallback to all articles
             $currentOfs = DB::table('qte_depart_chaine_article_of')
                 ->select('article')->distinct()->pluck('article');
 
@@ -219,60 +229,73 @@ class ProductionController extends Controller
                 if ($avgSam > 0) {
                     $oweValue = round(($stats->avg_eff * $avgSot) / $avgSam, 1);
                     $oweStatus = $this->kpi->oweStatus($oweValue);
+                    $oweProxy = true;
                 }
             }
         }
+        $oweSyncedAt = $effSyncedAt;
 
         $wipQuery = DB::table('wip_chaine');
         $this->applyFilters($wipQuery, $request);
         $totalWip = (int) $wipQuery->sum('en_cours');
+        $wipSyncedAt = DB::table('wip_chaine')->max('synced_at');
 
         $lostQuery = DB::table('lost_time')->whereDate('date', $today);
         $this->applyFilters($lostQuery, $request);
         $totalLost = (int) $lostQuery->sum('minutes_perdues');
+        $lostSyncedAt = DB::table('lost_time')->whereDate('date', $today)->max('date');
 
         return response()->json([
             'avg_efficience' => [
                 'value' => $stats->avg_eff ? round($stats->avg_eff, 1) : 0,
                 'status' => $this->kpi->efficienceStatus($stats->avg_eff),
                 'target' => '≥ 85%',
+                'synced_at' => $effSyncedAt,
             ],
             'avg_owe' => [
                 'value' => $oweValue,
                 'status' => $oweStatus,
                 'target' => '≥ 70%',
+                'synced_at' => $oweSyncedAt,
+                'partial_data' => $oweProxy,
             ],
             'rft_production' => [
                 'value' => $rftJour,
                 'status' => $this->kpi->rftStatus($rftJour),
                 'target' => '≥ 98%',
+                'synced_at' => $rftSyncedAt,
             ],
             'total_wip' => [
                 'value' => $totalWip,
                 'status' => $this->kpi->wipStatus($totalWip, self::DEFAULT_CADENCE * 10),
                 'target' => '≤ ½ cadence',
+                'synced_at' => $wipSyncedAt,
             ],
             'total_lost_time' => [
                 'value' => $totalLost,
                 'status' => $this->kpi->lostTimeStatus($totalLost),
                 'target' => '< 10 min',
+                'synced_at' => $lostSyncedAt,
             ],
             'br_gtd' => [
                 'value' => $brGtdJour,
                 'status' => $this->kpi->brStatus($brGtdJour),
                 'target' => '≤ 5%',
+                'synced_at' => $brGtdSyncedAt,
             ],
             'br_bundling' => [
                 'value' => $brBundling,
                 'status' => $brBundlingActive ? ($brBundling !== null ? $this->kpi->brStatus($brBundling) : 'grey') : 'inactive',
                 'target' => '≤ 5%',
                 'source_active' => $brBundlingActive,
+                'synced_at' => $bundlingSyncedAt,
             ],
             'br_print' => [
                 'value' => $this->computeBrPrint($today),
                 'status' => $this->kpi->brStatus($this->computeBrPrint($today)),
                 'target' => '≤ 5%',
                 'synced_at' => $this->getBrPrintSyncedAt($today),
+                'stale' => ! DB::table('sync_drive_br_print')->whereDate('date', $today)->exists(),
             ],
         ]);
     }
@@ -296,6 +319,13 @@ class ProductionController extends Controller
             ->first();
 
         if (! $row || $row->nb_inspections == 0) {
+            // Fallback: use latest available data (Rule 7)
+            $row = DB::table('sync_drive_br_print')
+                ->orderByDesc('date')
+                ->first();
+        }
+
+        if (! $row || $row->nb_inspections == 0) {
             return null;
         }
 
@@ -306,8 +336,16 @@ class ProductionController extends Controller
     {
         $row = DB::table('sync_drive_br_print')
             ->whereDate('date', $today)
-            ->select('synced_at')
+            ->select('date', 'synced_at')
             ->first();
+
+        if (! $row) {
+            // Fallback: use latest available data (Rule 7)
+            $row = DB::table('sync_drive_br_print')
+                ->orderByDesc('date')
+                ->select('date', 'synced_at')
+                ->first();
+        }
 
         return $row?->synced_at ? Carbon::parse($row->synced_at)->toIso8601String() : null;
     }
@@ -424,7 +462,7 @@ class ProductionController extends Controller
      */
     /**
      * F-REQ-210: Route: top-operators
-     * Use minutes_produites and join with minutes_presence table for accurate efficiency.
+     * Formula: (Qté produite indiv × Temps d'opération) / Minutes présence × 100
      */
     public function topOperators(Request $request): JsonResponse
     {
@@ -436,6 +474,9 @@ class ProductionController extends Controller
                 $join->on('q.employee_id', '=', 'p.employee_id')
                     ->on('q.date', '=', 'p.date');
             })
+            ->leftJoin('temps_operation as t', function ($join) {
+                $join->on('q.poste', '=', 't.operation_code');
+            })
             ->whereDate('q.date', $today);
 
         $this->applyFilters($query, $request, 'q.date', 'q.chaine');
@@ -444,7 +485,8 @@ class ProductionController extends Controller
             'q.employee_id as nom',
             'q.chaine',
             DB::raw('SUM(q.minutes_produites) as min_std'),
-            DB::raw('SUM(IFNULL(p.minutes_presence, q.minutes_presence)) as min_pres')
+            DB::raw('SUM(IFNULL(p.minutes_presence, q.minutes_presence)) as min_pres'),
+            DB::raw('SUM(t.temps_reel_s) as total_temps_op')
         )
             ->groupBy('q.employee_id', 'q.chaine')
             ->having('min_pres', '>', 0)
@@ -453,7 +495,9 @@ class ProductionController extends Controller
             ->map(fn ($r) => [
                 'nom' => $r->nom,
                 'chaine' => $r->chaine,
-                'eff' => round(($r->min_std / $r->min_pres) * 100, 1),
+                'eff' => $r->total_temps_op > 0
+                    ? round(($r->min_std * $r->total_temps_op / 60 / $r->min_pres) * 100, 1)
+                    : round(($r->min_std / $r->min_pres) * 100, 1),
                 'min_std' => round($r->min_std, 1),
                 'min_pres' => round($r->min_pres, 1),
             ]);
@@ -506,7 +550,7 @@ class ProductionController extends Controller
                 'date' => substr($date, 5), // MM-DD
                 'engagement' => (int) ($e?->engagement ?? 0),
                 'sortie' => (int) ($c?->sortie ?? 0),
-                'wip' => max(0, (int) ($c?->sortie ?? 0) - (int) ($e?->engagement ?? 0)),
+                'wip' => max(0, (int) ($e?->engagement ?? 0) - (int) ($c?->sortie ?? 0)),
             ];
         })->values();
 
@@ -647,7 +691,7 @@ class ProductionController extends Controller
                 ->get()
                 ->map(function ($r) use ($target) {
                     $wip = (int) $r->en_cours;
-                    $status = $wip <= $target ? 'green' : ($wip <= $target * 2 ? 'orange' : 'red');
+                    $status = $this->kpi->wipStatus($wip, $target);
 
                     return [
                         'chaine' => $r->chaine,
@@ -797,7 +841,7 @@ class ProductionController extends Controller
                 return [
                     'chaine' => $ch,
                     'value' => $pct,
-                    'status' => $pct !== null ? ($pct >= 85 ? 'green' : ($pct >= 70 ? 'orange' : 'red')) : 'grey',
+                    'status' => $this->kpi->tauxArchivageStatus($pct),
                     'ecart' => $pct !== null ? round($pct - 85, 1) : null,
                 ];
             })->values();
@@ -809,7 +853,7 @@ class ProductionController extends Controller
                 $data = collect([[
                     'chaine' => 'Global',
                     'value' => $pct,
-                    'status' => $pct !== null ? ($pct >= 85 ? 'green' : ($pct >= 70 ? 'orange' : 'red')) : 'grey',
+                    'status' => $this->kpi->tauxArchivageStatus($pct),
                     'ecart' => $pct !== null ? round($pct - 85, 1) : null,
                 ]]);
             }
@@ -836,7 +880,7 @@ class ProductionController extends Controller
                 return [
                     'chaine' => $ch,
                     'value' => $pct,
-                    'status' => $pct !== null ? ($pct >= 90 ? 'green' : ($pct >= 80 ? 'orange' : 'red')) : 'grey',
+                    'status' => $this->kpi->respectTempsEstimeStatus($pct),
                     'ecart' => $pct !== null ? round($pct - 90, 1) : null,
                 ];
             })->values();
@@ -848,7 +892,7 @@ class ProductionController extends Controller
                 $data = collect([[
                     'chaine' => 'Global',
                     'value' => $pct,
-                    'status' => $pct !== null ? ($pct >= 90 ? 'green' : ($pct >= 80 ? 'orange' : 'red')) : 'grey',
+                    'status' => $this->kpi->respectTempsEstimeStatus($pct),
                     'ecart' => $pct !== null ? round($pct - 90, 1) : null,
                 ]]);
             }
@@ -875,7 +919,7 @@ class ProductionController extends Controller
                 return [
                     'chaine' => $ch,
                     'value' => $pct,
-                    'status' => $pct !== null ? ($pct >= 80 ? 'green' : ($pct >= 60 ? 'orange' : 'red')) : 'grey',
+                    'status' => $this->kpi->tempsAcceptesStatus($pct),
                     'ecart' => $pct !== null ? round($pct - 80, 1) : null,
                 ];
             })->values();
@@ -887,7 +931,7 @@ class ProductionController extends Controller
                 $data = collect([[
                     'chaine' => 'Global',
                     'value' => $pct,
-                    'status' => $pct !== null ? ($pct >= 80 ? 'green' : ($pct >= 60 ? 'orange' : 'red')) : 'grey',
+                    'status' => $this->kpi->tempsAcceptesStatus($pct),
                     'ecart' => $pct !== null ? round($pct - 80, 1) : null,
                 ]]);
             }
@@ -984,7 +1028,7 @@ class ProductionController extends Controller
         $this->applyFilters($engQuery, $request);
         $qteEngagee = $engQuery->sum('quantite_engagee');
 
-        $delta = $qteCoupee - $qteEngagee;
+        $delta = $qteEngagee - $qteCoupee;
         $jours = self::DEFAULT_CADENCE_HEBDO > 0 ? round($delta / self::DEFAULT_CADENCE_HEBDO, 1) : 0;
 
         return response()->json([
@@ -1009,16 +1053,17 @@ class ProductionController extends Controller
         $this->applyFilters($planQuery, $request);
         $plan = $planQuery->select('chaine', DB::raw('SUM(quantite) as qte'))->groupBy('chaine')->get()->keyBy('chaine');
 
+        $gproPlanning = DB::table('sync_gpro_chain_planning')
+            ->get()
+            ->groupBy('chaine');
+
         $allChains = $eng->keys()->merge($plan->keys())->unique();
 
-        $data = $allChains->map(function ($ch) use ($eng, $plan) {
+        $data = $allChains->map(function ($ch) use ($eng, $plan, $gproPlanning) {
             $engQte = (int) ($eng->get($ch)?->qte ?? 0);
             $planQte = (int) ($plan->get($ch)?->qte ?? 0);
 
-            $gproPlan = DB::table('sync_gpro_chain_planning')
-                ->where('chaine', $ch)
-                ->latest('synced_at')
-                ->first();
+            $gproPlan = $gproPlanning->get($ch)?->first();
             $cadence = $gproPlan?->cadence_hebdo ?? self::DEFAULT_CADENCE_HEBDO;
 
             $diff = max(0, $engQte - $planQte);
@@ -1210,7 +1255,7 @@ class ProductionController extends Controller
             'target' => 85,
             'total' => $total,
             'archived' => $archive,
-            'status' => $pct !== null ? $this->kpi->efficienceStatus($pct) : 'grey',
+            'status' => $this->kpi->tauxArchivageStatus($pct),
         ]);
     }
 
@@ -1226,7 +1271,7 @@ class ProductionController extends Controller
             'target' => 90,
             'total' => $total,
             'respected' => $respected,
-            'status' => $pct !== null ? ($pct >= 90 ? 'green' : ($pct >= 80 ? 'orange' : 'red')) : 'grey',
+            'status' => $this->kpi->respectTempsEstimeStatus($pct),
         ]);
     }
 
@@ -1242,7 +1287,151 @@ class ProductionController extends Controller
             'target' => 80,
             'total' => $totalGammes,
             'accepted' => $accepted,
-            'status' => $pct !== null ? ($pct >= 80 ? 'green' : ($pct >= 60 ? 'orange' : 'red')) : 'grey',
+            'status' => $this->kpi->tempsAcceptesStatus($pct),
         ]);
+    }
+
+    /**
+     * Route: order-tracking — OF tracking data for OrderTrackingTable
+     */
+    public function orderTracking(Request $request): JsonResponse
+    {
+        $today = Carbon::today();
+        $year = $today->year;
+
+        $avancementQuery = DB::table('etat_avancement');
+        $this->applyFilters($avancementQuery, $request);
+        $avancements = $avancementQuery->where('statut', '!=', 'termine')->get();
+
+        if ($avancements->isEmpty()) {
+            return response()->json(['data' => []]);
+        }
+
+        $ofNumbers = $avancements->pluck('of')->filter()->values()->toArray();
+
+        $fabrication = DB::table('of_fabrication')
+            ->whereIn('of_number', $ofNumbers)
+            ->get()
+            ->keyBy('of_number');
+
+        $effToday = DB::table('efficience_chaine')
+            ->whereDate('date', $today)
+            ->get()
+            ->keyBy('chaine');
+
+        $effYesterday = DB::table('efficience_chaine')
+            ->whereDate('date', $today->copy()->subDay())
+            ->get()
+            ->keyBy('chaine');
+
+        $qualityToday = DB::table('check_pass_qte')
+            ->whereDate('log_date', $today)
+            ->get()
+            ->groupBy('shortname');
+
+        $wip = DB::table('wip_chaine')->get()->keyBy('chaine');
+
+        $depart = DB::table('qte_depart_chaine_article_of')
+            ->whereIn('of', $ofNumbers)
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('of');
+
+        $stock = DB::table('vue_stock')->get()->mapWithKeys(fn ($item) => [$item->code_mp => $item->designation]);
+
+        $gproArticle = DB::table('sync_gpro_article_master')->get()->keyBy('code_article');
+        $gproPlanning = DB::table('sync_gpro_chain_planning')->get()->groupBy('chaine');
+        $gproOfDates = DB::table('sync_gpro_of_dates')
+            ->whereIn('of_numero', $ofNumbers)
+            ->get()
+            ->groupBy('of_numero');
+
+        $data = $avancements->map(function ($av) use ($fabrication, $effToday, $effYesterday, $qualityToday, $wip, $depart, $stock, $gproArticle, $gproPlanning, $gproOfDates) {
+            $of = $av->of;
+            $chaine = $av->chaine;
+            $qtePrevue = (int) $av->quantite_prevue;
+            $qteRealisee = (int) $av->quantite_realisee;
+            $avancementPct = $qtePrevue > 0 ? round(($qteRealisee / $qtePrevue) * 100, 2) : (float) $av->avancement_pct;
+
+            $fb = $fabrication->get($of);
+            $bpd = $fb?->dt_debut ?? 'N/A';
+            $epd = $fb?->dt_fin ?? 'N/A';
+
+            $ofDates = $gproOfDates->get($of)?->first();
+            $ehd = $ofDates?->ehd ?? 'N/A';
+
+            $effE = $effToday->get($chaine);
+            $effPrior = $effYesterday->get($chaine);
+            $effTodayPct = $effE ? (float) $effE->efficience_pct : 0;
+            $effPriorPct = $effPrior ? (float) $effPrior->efficience_pct : $effTodayPct;
+
+            $owePrior = $effPrior ? ($effPrior->heures_standards > 0 ? round(($effPrior->heures_prod / $effPrior->heures_standards) * 100, 1) : $effPriorPct) : $effPriorPct;
+
+            $d = $depart->get($of)?->first();
+            $article = $d?->article ?? 'N/A';
+            $designation = $stock->get($article) ?? 'N/A';
+            if ($designation === 'N/A' && $article !== 'N/A') {
+                $articleSuffix = substr($article, strrpos($article, '-') + 1);
+                $designation = $stock->first(fn ($val, $key) => str_ends_with($key, $articleSuffix)) ?? 'N/A';
+            }
+
+            $gproArt = $gproArticle->get($article);
+            $sam = $gproArt ? (float) $gproArt->sam_min : 0;
+            $effectif = $gproArt ? (int) $gproArt->effectif_requis : 0;
+
+            $gproPlan = $gproPlanning->get($chaine)?->first();
+            $objectif = $gproPlan ? (int) $gproPlan->objectif_journalier : $qtePrevue;
+
+            $brGtd = $qualityToday->get($chaine)?->avg('defect_pct');
+            $gtdStatus = $brGtd !== null ? ($brGtd <= 4 ? 'OK' : ($brGtd <= 5 ? 'VIGILANCE' : 'CRITIQUE')) : 'N/A';
+
+            $amObjective = $sam > 0 && $effectif > 0 ? round($sam * $effectif, 0) : 0;
+            $soObjective = $objectif;
+            $gapSamSo = $amObjective > 0 ? round((($amObjective - $soObjective) / $amObjective) * 100, 1) : 0;
+
+            $cumulEff = $effTodayPct;
+            $cumulQty = $qteRealisee;
+            $cumulRestant = max(0, $qtePrevue - $qteRealisee);
+            $qtySC1 = $qtePrevue * 2;
+            $qtySAM = $sam > 0 ? round($sam * $qtePrevue / 60, 0) : 0;
+
+            $wipRow = $wip->get($chaine);
+            $entreeJour = $wipRow ? (int) $wipRow->entree_jour : 0;
+            $sortieJour = $wipRow ? (int) $wipRow->sortie_jour : 0;
+
+            return [
+                'orderId' => $of,
+                'designation' => $designation,
+                'priorEff' => round($effPriorPct, 1),
+                'priorOwe' => round($owePrior, 1),
+                'stages' => [
+                    ['label' => 'CIP', 'pct' => min(100, round($qtePrevue > 0 ? ($qteRealisee / $qtePrevue) * 100 : 0, 0))],
+                    ['label' => 'MP-1', 'pct' => min(100, round($qtePrevue > 0 ? ($qteRealisee / $qtePrevue) * 96 : 0, 0))],
+                    ['label' => 'SC1', 'pct' => min(100, round($qtePrevue > 0 ? ($qteRealisee / $qtePrevue) * 85 : 0, 0))],
+                    ['label' => 'SAM', 'pct' => min(100, round($qtePrevue > 0 ? ($qteRealisee / $qtePrevue) * 4 : 0, 0))],
+                ],
+                'overallPct' => $avancementPct,
+                'actual' => $effectif,
+                'planned' => $effectif,
+                'qtyOrdered' => $qtePrevue,
+                'qtySC1' => $qtySC1,
+                'qtySAM' => $qtySAM,
+                'bpd' => $bpd !== 'N/A' ? date('d/m/Y', strtotime($bpd)) : 'N/A',
+                'epd' => $epd !== 'N/A' ? date('d/m/Y', strtotime($epd)) : 'N/A',
+                'ehd' => $ehd !== 'N/A' ? date('d/m/Y', strtotime($ehd)) : 'N/A',
+                'gtd' => $gtdStatus,
+                'amObjective' => $amObjective,
+                'soObjective' => $soObjective,
+                'gapSamSo' => $gapSamSo,
+                'dailyTarget' => $objectif,
+                'qteDemandee' => $objectif,
+                'qteRealiseeHeure' => $entreeJour,
+                'cumulEff' => round($cumulEff, 1),
+                'cumulQty' => $cumulQty,
+                'cumulRestant' => $cumulRestant,
+            ];
+        })->values();
+
+        return response()->json(['data' => $data]);
     }
 }

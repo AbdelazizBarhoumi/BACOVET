@@ -84,7 +84,6 @@ class LogisticsTest extends TestCase
                 'hot' => ['value', 'status', 'source'],
                 'respect_plan' => ['value', 'status', 'source', 'raw'],
                 'lead_time' => ['value', 'status', 'unit', 'source'],
-                'next_export',
                 'synced_at',
             ]);
     }
@@ -466,209 +465,6 @@ class LogisticsTest extends TestCase
         $this->assertEquals('ART-880', $data['ofs'][0]['colis'][0]['article']);
     }
 
-    // ─── LIVRAISON (Section D separate endpoint) ───────────────────────────
-
-    public function test_livraison_endpoint_structure()
-    {
-        $this->seedLogisticsData();
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/livraison');
-
-        $response->assertStatus(200)
-            ->assertJsonStructure([
-                'livraison' => ['value', 'status', 'total_ofs', 'transfert_total'],
-                'delai_moyen' => ['value', 'status', 'nb_ofs'],
-                'synced_at',
-            ]);
-    }
-
-    // ─── COVERAGE (Section E) ──────────────────────────────────────────────
-
-    public function test_coverage_endpoint_structure()
-    {
-        $this->seedLogisticsData();
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
-
-        $response->assertStatus(200)
-            ->assertJsonStructure([
-                'chaine',
-                'coupe',
-                'serigraphie',
-                'synced_at',
-            ]);
-    }
-
-    public function test_coverage_chain_from_qte_engagement()
-    {
-        // Use raw DB statements to insert with `of` column (reserved word in SQLite)
-        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C1', 'C1', 'A1', 1200, '".now()->toDateString()."', '".now()."')");
-        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C2', 'C2', 'A2', 800, '".now()->toDateString()."', '".now()."')");
-        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C3', 'C3', 'A1', 1500, '".now()->toDateString()."', '".now()."')");
-
-        // Seed qte_depart_chaine_article_of with planifié quantities (different from engagement)
-        // CDC formula: (Qté engagé − Qté planifié) / cadence
-        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C1', 'CH1', 'A1', 200, '".now()->toDateString()."', '".now()."')");
-        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C2', 'CH1', 'A2', 100, '".now()->toDateString()."', '".now()."')");
-        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C3', 'CH2', 'A1', 300, '".now()->toDateString()."', '".now()."')");
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
-
-        $data = $response->json();
-        $this->assertCount(2, $data['chaine']);
-        // CH1: (1200+800) - (200+100) = 1700; 1700/100 = 17.0 (default cadence when no GPRO data)
-        $ch1 = collect($data['chaine'])->firstWhere('name', 'CH1');
-        $this->assertEquals(17.0, $ch1['jours']);
-        // CH2: 1500 - 300 = 1200; 1200/100 = 12.0
-        $ch2 = collect($data['chaine'])->firstWhere('name', 'CH2');
-        $this->assertEquals(12.0, $ch2['jours']);
-    }
-
-    public function test_coverage_couple_from_sortie_coupe()
-    {
-        DB::table('sortie_coupe')->insert([
-            ['date' => now()->toDateString(), 'commande' => 'CMD-1', 'article' => 'ART-1', 'quantite_coupee' => 900, 'synced_at' => now()],
-            ['date' => now()->toDateString(), 'commande' => 'CMD-2', 'article' => 'ART-2', 'quantite_coupee' => 600, 'synced_at' => now()],
-        ]);
-
-        // Need engagement data too for the formula (total_coupe - total_sortie) / 100
-        DB::table('qte_engagement')->insert([
-            ['commande' => 'CMD-1', 'date' => now()->toDateString(), 'chaine' => 'CH1', 'article' => 'ART-1', 'quantite_engagee' => 2000, 'synced_at' => now()],
-            ['commande' => 'CMD-2', 'date' => now()->toDateString(), 'chaine' => 'CH1', 'article' => 'ART-2', 'quantite_engagee' => 1000, 'synced_at' => now()],
-        ]);
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
-
-        $data = $response->json();
-        // Coupe now returns single "Global" value: (3000 - 1500) / 100 = 15.0
-        $this->assertCount(1, $data['coupe']);
-        $this->assertEquals('Global', $data['coupe'][0]['name']);
-        $this->assertEquals(15.0, $data['coupe'][0]['jours']);
-    }
-
-    public function test_coverage_empty_returns_empty_arrays()
-    {
-        $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
-
-        $data = $response->json();
-        $this->assertCount(0, $data['chaine']);
-        $this->assertCount(0, $data['coupe']);
-        $this->assertCount(0, $data['serigraphie']);
-    }
-
-    // ─── STOCK SEARCH (Section F) ──────────────────────────────────────────
-
-    public function test_stock_search_endpoint_structure()
-    {
-        $this->seedLogisticsData();
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/stock-search');
-
-        $response->assertStatus(200)
-            ->assertJsonStructure([
-                'data' => [
-                    '*' => ['code_mp', 'designation', 'famille', 'couleur', 'qtte', 'qtte_reserve', 'qtte_disponible'],
-                ],
-                'total',
-                'page',
-                'per_page',
-                'total_pages',
-                'stock_total',
-                'synced_at',
-            ]);
-    }
-
-    public function test_stock_search_joins_vue_stock_with_diva_stock()
-    {
-        // Seed vue_stock
-        DB::table('vue_stock')->insert([
-            ['idmp' => 'MP-001', 'code_mp' => 'MP-001', 'designation' => 'Tissu Coton', 'famille' => 'Tissu', 'couleur' => 'Noir', 'synced_at' => now()],
-        ]);
-
-        // Seed diva_stock with qtte and reserve
-        DB::table('diva_stock')->insert([
-            ['idmp' => 'MP-001', 'idmvt_stock' => 1, 'idmagasin' => 1, 'qtte' => 500, 'qtte_reserve' => 120, 'synced_at' => now()],
-        ]);
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/stock-search');
-
-        $data = $response->json();
-        $this->assertCount(1, $data['data']);
-        $this->assertEquals(500, $data['data'][0]['qtte']);
-        $this->assertEquals(120, $data['data'][0]['qtte_reserve']);
-        $this->assertEquals(380, $data['data'][0]['qtte_disponible']); // 500 - 120
-    }
-
-    public function test_stock_search_filters_by_query()
-    {
-        DB::table('vue_stock')->insert([
-            ['idmp' => 'MP-001', 'code_mp' => 'MP-001', 'designation' => 'Tissu Coton', 'famille' => 'Tissu', 'couleur' => 'Noir', 'synced_at' => now()],
-            ['idmp' => 'MP-002', 'code_mp' => 'MP-002', 'designation' => 'Elastique 20mm', 'famille' => 'Fourniture', 'couleur' => 'Blanc', 'synced_at' => now()],
-            ['idmp' => 'MP-003', 'code_mp' => 'MP-003', 'designation' => 'Cordon Polyester', 'famille' => 'Fourniture', 'couleur' => 'Bleu', 'synced_at' => now()],
-        ]);
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/stock-search?q=Coton');
-
-        $data = $response->json();
-        $this->assertCount(1, $data['data']);
-        $this->assertEquals('Tissu Coton', $data['data'][0]['designation']);
-    }
-
-    public function test_stock_search_filters_by_famille()
-    {
-        DB::table('vue_stock')->insert([
-            ['idmp' => 'MP-001', 'code_mp' => 'MP-001', 'designation' => 'Tissu', 'famille' => 'Tissu', 'couleur' => 'Noir', 'synced_at' => now()],
-            ['idmp' => 'MP-002', 'code_mp' => 'MP-002', 'designation' => 'Elastique', 'famille' => 'Fourniture', 'couleur' => 'Blanc', 'synced_at' => now()],
-        ]);
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/stock-search?famille=Fourniture');
-
-        $data = $response->json();
-        $this->assertCount(1, $data['data']);
-        $this->assertEquals('Fourniture', $data['data'][0]['famille']);
-    }
-
-    public function test_stock_search_pagination()
-    {
-        // Insert 25 items
-        $rows = [];
-        for ($i = 1; $i <= 25; $i++) {
-            $rows[] = [
-                'idmp' => "MP-{$i}",
-                'code_mp' => "MP-{$i}",
-                'designation' => "Item {$i}",
-                'famille' => 'Tissu',
-                'couleur' => 'Noir',
-                'synced_at' => now(),
-            ];
-        }
-        DB::table('vue_stock')->insert($rows);
-
-        // Page 1
-        $response = $this->actingAs($this->user)->getJson('/logistics/stock-search?page=1');
-        $data = $response->json();
-        $this->assertCount(20, $data['data']);
-        $this->assertEquals(1, $data['page']);
-        $this->assertEquals(2, $data['total_pages']);
-        $this->assertEquals(25, $data['total']);
-
-        // Page 2
-        $response = $this->actingAs($this->user)->getJson('/logistics/stock-search?page=2');
-        $data = $response->json();
-        $this->assertCount(5, $data['data']);
-        $this->assertEquals(2, $data['page']);
-    }
-
-    public function test_stock_search_empty_db()
-    {
-        $response = $this->actingAs($this->user)->getJson('/logistics/stock-search');
-
-        $data = $response->json();
-        $this->assertCount(0, $data['data']);
-        $this->assertEquals(0, $data['total']);
-        $this->assertEquals(1, $data['total_pages']);
-    }
-
     // ─── NO DATA / EMPTY STATE ─────────────────────────────────────────────
 
     public function test_all_endpoints_work_with_empty_db()
@@ -678,9 +474,7 @@ class LogisticsTest extends TestCase
             '/logistics/stock-kpis',
             '/logistics/stock-composition',
             '/logistics/ofs',
-            '/logistics/livraison',
-            '/logistics/coverage',
-            '/logistics/stock-search',
+            '/logistics/stock-reliability',
         ];
 
         foreach ($endpoints as $endpoint) {
@@ -873,51 +667,23 @@ class LogisticsTest extends TestCase
         $this->assertEquals('DOMYOS', $data['famille'][0]['name']);
     }
 
-    public function test_spec_freq_310_couverture_chaine()
+    public function test_spec_freq_313_314_315_stock_reliability()
     {
-        // F-REQ-310: Couverture Chaîne — from qte_engagement + qte_depart_chaine_article_of
-        DB::statement("INSERT INTO qte_engagement (commande, \"of\", article, quantite_engagee, date, synced_at) VALUES ('C1', 'C1', 'A1', 1200, '".now()->toDateString()."', '".now()."')");
-        DB::statement("INSERT INTO qte_depart_chaine_article_of (\"of\", chaine, article, quantite, date, synced_at) VALUES ('C1', 'CH1', 'A1', 1200, '".now()->toDateString()."', '".now()."')");
+        // F-REQ-313/314/315: Taux de fiabilité stock
+        DB::table('diva_stock')->insert([
+            ['idmp' => 'MP-001', 'idmvt_stock' => 1, 'idmagasin' => 1, 'qtte' => 500, 'qtte_reserve' => 490, 'synced_at' => now()],
+            ['idmp' => 'MP-002', 'idmvt_stock' => 2, 'idmagasin' => 2, 'qtte' => 300, 'qtte_reserve' => 300, 'synced_at' => now()],
+        ]);
 
-        $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
+        $response = $this->actingAs($this->user)->getJson('/logistics/stock-reliability');
 
         $data = $response->json();
-        $this->assertNotEmpty($data['chaine']);
-    }
-
-    public function test_spec_freq_311_couverture_couple()
-    {
-        // F-REQ-311: Couverture Coupe — single Global value from sortie_coupe + qte_engagement
-        DB::table('sortie_coupe')->insert([
-            ['date' => now()->toDateString(), 'commande' => 'CMD-1', 'article' => 'ART-1', 'quantite_coupee' => 900, 'synced_at' => now()],
-        ]);
-        DB::table('qte_engagement')->insert([
-            ['commande' => 'CMD-1', 'date' => now()->toDateString(), 'chaine' => 'CH1', 'article' => 'ART-1', 'quantite_engagee' => 2000, 'synced_at' => now()],
-        ]);
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
-
-        $data = $response->json();
-        $this->assertNotEmpty($data['coupe']);
-        $this->assertEquals('Global', $data['coupe'][0]['name']);
-    }
-
-    public function test_spec_freq_309_couverture_serigraphie()
-    {
-        // F-REQ-309: Couverture Sérigraphie
-        DB::table('qte_entree_serigraphie')->insert([
-            ['date' => now()->toDateString(), 'article' => 'ART-1', 'couleur' => 'Noir', 'quantite' => 500, 'synced_at' => now()],
-        ]);
-        DB::table('sortie_serigraphie')->insert([
-            ['date' => now()->toDateString(), 'article' => 'ART-1', 'couleur' => 'Noir', 'quantite' => 300, 'synced_at' => now()],
-        ]);
-
-        $response = $this->actingAs($this->user)->getJson('/logistics/coverage');
-
-        $data = $response->json();
-        $this->assertNotEmpty($data['serigraphie']);
-        // 500 - 300 = 200; 200/100 = 2.0 jours
-        $this->assertEquals(2.0, $data['serigraphie'][0]['jours']);
+        $this->assertArrayHasKey('global', $data);
+        $this->assertArrayHasKey('accessoires', $data);
+        $this->assertArrayHasKey('tissu', $data);
+        $this->assertArrayHasKey('fg', $data);
+        // Global: (500+300)/(490+300)*100 = 800/790*100 = 101.3%
+        $this->assertEqualsWithDelta(101.3, $data['global']['value'], 0.1);
     }
 
     // ─── HELPERS ───────────────────────────────────────────────────────────

@@ -78,30 +78,49 @@ export type LogisticsKpis = {
     hot: KpiCard;
     respect_plan: KpiCard;
     lead_time: KpiCard;
-    next_export: string;
+    archivage: KpiCard;
     synced_at: string | null;
+};
+
+export type CategoryStockKpi = {
+    value: number | null;
+    status: KpiStatus;
+    stock_moyen?: number;
+    nb_lignes?: number;
+    note?: string;
+    nb_articles_sans_mvt?: number;
+    qtte_sans_mvt?: number;
+    qtte_totale?: number;
+    nb_rouleaux?: number;
+    conteneurs_actifs?: number;
+    total_conteneurs?: number;
+};
+
+export type ArchivageKpi = {
+    value: number | null;
+    status: KpiStatus;
+    total_ofs: number;
+    archived_ofs: number;
+    note: string | null;
 };
 
 export type StockKpis = {
     rotation: {
-        stock_moyen: number;
-        nb_lignes: number;
-        note: string;
+        accessoires: CategoryStockKpi;
+        tissu: CategoryStockKpi;
+        fg: CategoryStockKpi;
     };
     stock_mort: {
-        value: number | null;
-        status: KpiStatus;
-        nb_articles_sans_mvt: number;
-        qtte_sans_mvt: number;
-        qtte_totale: number;
+        accessoires: CategoryStockKpi;
+        tissu: CategoryStockKpi;
+        fg: CategoryStockKpi;
     };
     occupation: {
-        value: number | null;
-        status: KpiStatus;
-        nb_rouleaux: number;
-        conteneurs_actifs: number;
-        total_conteneurs: number;
+        accessoires: CategoryStockKpi;
+        tissu: CategoryStockKpi;
+        fg: CategoryStockKpi;
     };
+    archivage: ArchivageKpi;
     synced_at: string | null;
 };
 
@@ -136,14 +155,14 @@ export type OfItem = {
     epd: string | null;
 };
 
-export type LivraisonData = {
+export type LivraisonCategory = {
     value: number | null;
     status: KpiStatus;
     total_ofs: number;
     transfert_total: number;
 };
 
-export type DelaiMoyen = {
+export type DelaiMoyenCategory = {
     value: number | null;
     status: KpiStatus;
     nb_ofs: number;
@@ -151,48 +170,16 @@ export type DelaiMoyen = {
 
 export type LogisticsOfs = {
     ofs: OfItem[];
-    livraison: LivraisonData;
-    delai_moyen: DelaiMoyen;
-    synced_at: string | null;
-};
-
-export type LivraisonResult = {
-    livraison: LivraisonData;
-    delai_moyen: DelaiMoyen;
-    synced_at: string | null;
-};
-
-export type CoverageItem = {
-    name: string;
-    jours: number;
-};
-
-export type LogisticsCoverage = {
-    chaine: CoverageItem[];
-    coupe: CoverageItem[];
-    serigraphie: CoverageItem[];
-    is_fallback?: boolean;
-    synced_at: string | null;
-};
-
-export type StockSearchItem = {
-    code_mp: string;
-    designation: string;
-    famille: string;
-    couleur: string;
-    idmagasin: string | null;
-    qtte: number;
-    qtte_reserve: number;
-    qtte_disponible: number;
-};
-
-export type StockSearchResult = {
-    data: StockSearchItem[];
-    total: number;
-    page: number;
-    per_page: number;
-    total_pages: number;
-    stock_total: number;
+    livraison: {
+        accessoires: LivraisonCategory;
+        tissu: LivraisonCategory;
+        fg: LivraisonCategory;
+    };
+    delai_moyen: {
+        accessoires: DelaiMoyenCategory;
+        tissu: DelaiMoyenCategory;
+        fg: DelaiMoyenCategory;
+    };
     synced_at: string | null;
 };
 
@@ -220,11 +207,5 @@ export const fetchLogisticsStockKpis = () =>
 export const fetchLogisticsStockComposition = () =>
     apiGet<StockComposition>('/stock-composition');
 export const fetchLogisticsOfs = () => apiGet<LogisticsOfs>('/ofs');
-export const fetchLogisticsLivraison = () =>
-    apiGet<LivraisonResult>('/livraison');
-export const fetchLogisticsCoverage = () =>
-    apiGet<LogisticsCoverage>('/coverage');
-export const fetchLogisticsStockSearch = (params?: Record<string, string>) =>
-    apiGet<StockSearchResult>('/stock-search', params);
 export const fetchLogisticsStockReliability = () =>
     apiGet<StockReliability>('/stock-reliability');

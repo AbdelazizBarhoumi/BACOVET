@@ -22,7 +22,7 @@ export type RolePage =
     | '/quality'
     | '/production'
     | '/logistics'
-    | '/development'
+    | '/developpement'
     | '/admin'
     | '/methods'
     | '/unauthorized'
@@ -44,7 +44,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/quality',
         '/production',
         '/logistics',
-        '/development',
+        '/developpement',
         '/admin',
         '/methods',
         '/unauthorized',
@@ -53,7 +53,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/quality',
         '/production',
         '/logistics',
-        '/development',
+        '/developpement',
         '/methods',
         '/unauthorized',
     ],
@@ -65,7 +65,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/production',
         '/logistics',
         '/methods',
-        '/development',
+        '/developpement',
         '/unauthorized',
     ],
     planning_coupe: ['/production', '/logistics', '/unauthorized'],

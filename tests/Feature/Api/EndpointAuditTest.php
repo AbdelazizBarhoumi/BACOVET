@@ -134,27 +134,6 @@ class EndpointAuditTest extends TestCase
         $this->assertNull($data['rft_jour']['value']);
     }
 
-    public function test_quality_br_chart_reads_check_pass_qte()
-    {
-        DB::table('check_pass_qte')->insert([
-            ['log_date' => now()->toDateString(), 'shortname' => 'CH1', 'shift_code' => 'A', 'defect_pct' => 3.5, 'synced_at' => now()],
-            ['log_date' => now()->toDateString(), 'shortname' => 'CH2', 'shift_code' => 'A', 'defect_pct' => 6.2, 'synced_at' => now()],
-        ]);
-
-        $response = $this->actingAs($this->user)->getJson('/quality/br-chart');
-        $data = $response->json();
-
-        // Controller always returns 6 stages (CGL, AQL, Bundling, Print, Accessoires, Composants)
-        $this->assertCount(6, $data['data']);
-        $this->assertEquals(5, $data['target']); // specs.md: BR target = 5%
-
-        // AQL stage gets AVG(defect_pct) across all check_pass_qte rows
-        $aql = collect($data['data'])->firstWhere('stage', 'AQL');
-        $this->assertNotNull($aql, 'AQL stage should exist');
-        // brStatus: <=4% = green, <=5% = orange, >5% = red
-        // The AVG of the seeded data determines the status
-    }
-
     public function test_quality_defect_chart_reads_vw_defects()
     {
         DB::table('vw_defects')->insert([
@@ -703,6 +682,54 @@ class EndpointAuditTest extends TestCase
         $this->assertEquals('green', $data['kpis']['dev_rft']['status']);
     }
 
+    public function test_specs_req_353_reclamations_boundary_green()
+    {
+        // F-REQ-353: Réclamations < 2% → green
+        ManualKpiValue::create(['kpi_key' => 'dev_reclamations', 'kpi_label' => 'Réclamations', 'numerator' => 1, 'denominator' => 100, 'value' => 1.5]);
+
+        $response = $this->actingAs($this->user)->getJson('/development/kpis');
+        $data = $response->json();
+
+        $this->assertEquals(1.5, $data['kpis']['dev_reclamations']['value']);
+        $this->assertEquals('green', $data['kpis']['dev_reclamations']['status']);
+    }
+
+    public function test_specs_req_353_reclamations_boundary_orange()
+    {
+        // F-REQ-353: Réclamations 2%-3% → orange
+        ManualKpiValue::create(['kpi_key' => 'dev_reclamations', 'kpi_label' => 'Réclamations', 'numerator' => 3, 'denominator' => 100, 'value' => 2.5]);
+
+        $response = $this->actingAs($this->user)->getJson('/development/kpis');
+        $data = $response->json();
+
+        $this->assertEquals(2.5, $data['kpis']['dev_reclamations']['value']);
+        $this->assertEquals('orange', $data['kpis']['dev_reclamations']['status']);
+    }
+
+    public function test_specs_req_353_reclamations_boundary_red()
+    {
+        // F-REQ-353: Réclamations > 3% → red
+        ManualKpiValue::create(['kpi_key' => 'dev_reclamations', 'kpi_label' => 'Réclamations', 'numerator' => 4, 'denominator' => 100, 'value' => 3.5]);
+
+        $response = $this->actingAs($this->user)->getJson('/development/kpis');
+        $data = $response->json();
+
+        $this->assertEquals(3.5, $data['kpis']['dev_reclamations']['value']);
+        $this->assertEquals('red', $data['kpis']['dev_reclamations']['status']);
+    }
+
+    public function test_development_kpis_return_synced_at_and_is_stale()
+    {
+        ManualKpiValue::create(['kpi_key' => 'dev_rft', 'kpi_label' => 'RFT Dev', 'numerator' => 96, 'denominator' => 100, 'value' => 96.0]);
+
+        $response = $this->actingAs($this->user)->getJson('/development/kpis');
+        $data = $response->json();
+
+        $this->assertArrayHasKey('synced_at', $data['kpis']['dev_rft']);
+        $this->assertArrayHasKey('is_stale', $data['kpis']['dev_rft']);
+        $this->assertIsBool($data['kpis']['dev_rft']['is_stale']);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // EDGE CASES
     // ═══════════════════════════════════════════════════════════════════════
@@ -734,6 +761,8 @@ class EndpointAuditTest extends TestCase
         foreach ($data['kpis'] as $kpi) {
             $this->assertNull($kpi['value']);
             $this->assertEquals('grey', $kpi['status']);
+            $this->assertArrayHasKey('synced_at', $kpi);
+            $this->assertArrayHasKey('is_stale', $kpi);
         }
     }
 

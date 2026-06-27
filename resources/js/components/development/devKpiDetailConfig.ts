@@ -33,7 +33,7 @@ export interface DevKpiDetailConfig {
 export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
     dev_rft: {
         id: '350',
-        label: 'RFT (RIGHT FIRST TIME)',
+        label: 'RFT Développement (Right First Time)',
         description:
             "Nb des modèles validé de 1er coup / Total des modèles envoyées",
         formula: {
@@ -56,7 +56,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
         },
         source: {
             system: 'DRIVE',
-            mysqlTable: 'manual_kpi_values (dev_rft)',
+            mysqlTable: 'sync_drive_development (fallback: manual_kpi_values)',
             frequency: 'Mensuelle',
             status: 'google_drive',
         },
@@ -65,7 +65,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
 
     dev_livraison: {
         id: '351',
-        label: 'Taux de respect de livraison a date',
+        label: 'Taux de respect de livraison à date',
         description:
             "Nb des modèles env a date / totales des modèles env",
         formula: {
@@ -88,7 +88,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
         },
         source: {
             system: 'DRIVE',
-            mysqlTable: 'manual_kpi_values (dev_livraison)',
+            mysqlTable: 'sync_drive_development (fallback: manual_kpi_values)',
             frequency: 'Mensuelle',
             status: 'google_drive',
         },
@@ -120,7 +120,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
         },
         source: {
             system: 'DRIVE',
-            mysqlTable: 'manual_kpi_values (dev_nomenclature)',
+            mysqlTable: 'sync_drive_development (fallback: manual_kpi_values)',
             frequency: 'Mensuelle',
             status: 'google_drive',
         },
@@ -129,7 +129,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
 
     dev_reclamations: {
         id: '353',
-        label: '%réclamations de la production',
+        label: '% Réclamations de la production',
         description:
             "Nb des modèles réclamés / totales des modèles",
         formula: {
@@ -152,7 +152,7 @@ export const DEV_KPI_CONFIG: Record<DevKpiKey, DevKpiDetailConfig> = {
         },
         source: {
             system: 'DRIVE',
-            mysqlTable: 'manual_kpi_values (dev_reclamations)',
+            mysqlTable: 'sync_drive_development (fallback: manual_kpi_values)',
             frequency: 'Mensuelle',
             status: 'google_drive',
         },

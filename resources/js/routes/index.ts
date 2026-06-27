@@ -567,7 +567,7 @@ logistics.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     logistics.form = logisticsForm
 /**
  * @see routes/web.php:29
- * @route '/development'
+ * @route '/developpement'
  */
 export const development = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: development.url(options),
@@ -576,12 +576,12 @@ export const development = (options?: RouteQueryOptions): RouteDefinition<'get'>
 
 development.definition = {
     methods: ["get","head"],
-    url: '/development',
+    url: '/developpement',
 } satisfies RouteDefinition<["get","head"]>
 
 /**
  * @see routes/web.php:29
- * @route '/development'
+ * @route '/developpement'
  */
 development.url = (options?: RouteQueryOptions) => {
     return development.definition.url + queryParams(options)
@@ -589,7 +589,7 @@ development.url = (options?: RouteQueryOptions) => {
 
 /**
  * @see routes/web.php:29
- * @route '/development'
+ * @route '/developpement'
  */
 development.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: development.url(options),
@@ -597,7 +597,7 @@ development.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
  * @see routes/web.php:29
- * @route '/development'
+ * @route '/developpement'
  */
 development.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: development.url(options),
@@ -606,7 +606,7 @@ development.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
  * @see routes/web.php:29
- * @route '/development'
+ * @route '/developpement'
  */
     const developmentForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
         action: development.url(options),
@@ -615,7 +615,7 @@ development.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
  * @see routes/web.php:29
- * @route '/development'
+ * @route '/developpement'
  */
         developmentForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: development.url(options),
@@ -623,7 +623,7 @@ development.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
  * @see routes/web.php:29
- * @route '/development'
+ * @route '/developpement'
  */
         developmentForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: development.url({
