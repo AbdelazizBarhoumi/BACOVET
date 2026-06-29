@@ -1,7 +1,8 @@
 import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import { Card, ReqLabel, LineKpi, ParetoChart } from "@/components/v1/primitives";
 import { qualite as q } from "@/lib/mock-v1";
-import { Check, AlertCircle, Trophy } from "lucide-react";
+import { AlertCircle, CheckCircle,Trophy } from "lucide-react";
+
 export default function Page() {
   return (
     <>
@@ -26,7 +27,7 @@ export default function Page() {
                 <div className="text-2xl font-black mt-1" style={{ color }}>{k.v.toString().replace(".", ",")} %</div>
                 <div className="flex items-center justify-between mt-1">
                   <div className="text-[10px] text-muted-foreground">Objectif : {k.dir === "max" ? "≤" : "≥"} {k.target} %</div>
-                  {ok ? <Check className="h-4 w-4 text-[#22c55e]" /> : <AlertCircle className="h-4 w-4 text-[#ef4444]" />}
+                  {ok ? <CheckCircle className="h-4 w-4 text-[#22c55e]" /> : <AlertCircle className="h-4 w-4 text-[#ef4444]" />}
                 </div>
               </Card>
             );
@@ -52,12 +53,12 @@ export default function Page() {
           </Card>
           <Card>
             <ReqLabel id="F-REQ-118" title="BEST QP TEAM (TOP 3 CHAÎNES QUALITÉ)" />
-            <Podium items={q.bestQP} accent="gold" />
+            <Podium3D items={q.bestQP} accent="gold" />
             <button className="w-full mt-2 text-[10px] uppercase tracking-widest border border-border rounded py-1.5 hover:bg-secondary">Voir classement</button>
           </Card>
           <Card>
             <ReqLabel id="F-REQ-119" title="LOW QP TEAM (3 CHAÎNES À AMÉLIORER)" />
-            <Podium items={q.lowQP} accent="red" />
+            <Podium3D items={q.lowQP} accent="red" />
             <button className="w-full mt-2 text-[10px] uppercase tracking-widest border border-border rounded py-1.5 hover:bg-secondary">Voir plan d'action</button>
           </Card>
         </div>
@@ -66,13 +67,15 @@ export default function Page() {
     </>
   );
 }
+
 function TrendCard({ t }: { t: typeof import("@/lib/mock-v1").qualite.trends[number] }) {
-  const ok = t.v <= 5 || t.title.startsWith("RFT");
   return (
     <Card className={t.color === "#ef4444" ? "border-[#ef4444]/40" : ""}>
       <div className="flex items-start justify-between">
         <ReqLabel id={t.id} title={t.title} />
-        {t.color === "#ef4444" ? <AlertCircle className="h-4 w-4 text-[#ef4444]" /> : <Check className="h-4 w-4 text-[#22c55e]" />}
+        {t.color === "#ef4444"
+          ? <AlertCircle className="h-4 w-4 text-[#ef4444]" />
+          : <CheckCircle className="h-4 w-4 text-[#22c55e]" />}
       </div>
       <div className="text-2xl font-black" style={{ color: t.color }}>{t.v.toString().replace(".", ",")} %</div>
       <div className="text-[10px] text-muted-foreground mb-1">Objectif : {t.title.startsWith("RFT") ? "≥ 98 %" : "≤ 5 %"}</div>
@@ -87,25 +90,174 @@ function TrendCard({ t }: { t: typeof import("@/lib/mock-v1").qualite.trends[num
     </Card>
   );
 }
-function Podium({ items, accent }: { items: { rank: number; name: string; score: number }[]; accent: "gold" | "red" }) {
-  const colors = accent === "gold"
-    ? { 1: "#facc15", 2: "#9ca3af", 3: "#b45309" }
-    : { 1: "#ef4444", 2: "#9ca3af", 3: "#b45309" };
-  const heights = { 1: 90, 2: 70, 3: 55 } as Record<number, number>;
-  const ordered = [items.find((i) => i.rank === 2), items.find((i) => i.rank === 1), items.find((i) => i.rank === 3)].filter(Boolean) as typeof items;
+
+// ─── colour helpers ────────────────────────────────────────────────────────────
+
+function lighten(hex: string, amt: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.round(Math.min(255, r + (255 - r) * amt))},${Math.round(Math.min(255, g + (255 - g) * amt))},${Math.round(Math.min(255, b + (255 - b) * amt))})`;
+}
+
+function darken(hex: string, amt: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.round(r * (1 - amt))},${Math.round(g * (1 - amt))},${Math.round(b * (1 - amt))})`;
+}
+
+// ─── Podium3D ─────────────────────────────────────────────────────────────────
+
+function Podium3D({
+  items,
+  accent,
+}: {
+  items: { rank: number; name: string; score: number }[];
+  accent: "gold" | "red";
+}) {
+  const baseColors: Record<number, string> =
+    accent === "gold"
+      ? { 1: "#facc15", 2: "#9ca3af", 3: "#b45309" }
+      : { 1: "#ef4444", 2: "#9ca3af", 3: "#b45309" };
+
+  // Classic podium order: 2nd · 1st · 3rd
+  const ordered = [
+    items.find((i) => i.rank === 2),
+    items.find((i) => i.rank === 1),
+    items.find((i) => i.rank === 3),
+  ].filter(Boolean) as { rank: number; name: string; score: number }[];
+
+  // Geometry
+  const barW  = 44;   // bar width  (px in SVG coords)
+  const gap   = 12;   // gap between bars
+  const dx    = 10;   // 3-D depth  – horizontal component
+  const dy    = 6;    // 3-D depth  – vertical component
+  const baseY = 155;  // floor y
+  const svgW  = 240;  // total SVG width
+  const hMap: Record<number, number> = { 1: 108, 2: 72, 3: 50 };
+  const totalW = 3 * barW + 2 * gap + dx;
+  const startX = (svgW - totalW) / 2; // ≈ 37
+
   return (
-    <div className="flex items-end justify-around mt-2 h-[180px]">
-      {ordered.map((it) => (
-        <div key={it.rank} className="flex flex-col items-center gap-1">
-          <div className="text-xs font-black" style={{ color: colors[it.rank as 1 | 2 | 3] }}>{it.score.toString().replace(".", ",")} %</div>
-          <div className="text-[10px] font-semibold">{it.name}</div>
-          <div className="text-[9px] text-muted-foreground">QP Score</div>
-          <div className="w-14 flex flex-col items-center justify-end text-white font-black" style={{ height: heights[it.rank], backgroundColor: colors[it.rank as 1 | 2 | 3] }}>
-            {accent === "gold" && it.rank === 1 ? <Trophy className="h-4 w-4 mb-1" /> : null}
-            {it.rank}
-          </div>
-        </div>
-      ))}
-    </div>
+    <svg
+      viewBox="0 0 240 196"
+      className="w-full mt-2"
+      style={{ height: 180 }}
+      aria-hidden="true"
+    >
+      <defs>
+        {ordered.map((item) => {
+          const c = baseColors[item.rank];
+          return (
+            <linearGradient
+              key={item.rank}
+              id={`bar3d-${accent}-${item.rank}`}
+              x1="0" y1="0" x2="1" y2="0"
+            >
+              <stop offset="0%"   stopColor={lighten(c, 0.18)} />
+              <stop offset="100%" stopColor={darken(c, 0.06)} />
+            </linearGradient>
+          );
+        })}
+      </defs>
+
+      {ordered.map((item, idx) => {
+        const c   = baseColors[item.rank];
+        const h   = hMap[item.rank];
+        const x   = startX + idx * (barW + gap);
+        const y   = baseY - h;
+
+        // Polygon point strings
+        const topPts   = `${x},${y} ${x+barW},${y} ${x+barW+dx},${y-dy} ${x+dx},${y-dy}`;
+        const rightPts = `${x+barW},${y} ${x+barW+dx},${y-dy} ${x+barW+dx},${baseY-dy} ${x+barW},${baseY}`;
+
+        // Label anchor points
+        const fcx = x + barW / 2;          // front-face horizontal centre
+        const tcx = x + barW / 2 + dx / 2; // top-face   horizontal centre (for overbar labels)
+
+        return (
+          <g key={item.rank}>
+            {/* ① Right side face – darkest (rendered first so front sits on top) */}
+            <polygon points={rightPts} fill={darken(c, 0.42)} />
+
+            {/* ② Front face – gradient left-light → right-shadow */}
+            <rect
+              x={x} y={y}
+              width={barW} height={h}
+              fill={`url(#bar3d-${accent}-${item.rank})`}
+            />
+
+            {/* ③ Subtle left-edge gloss strip */}
+            <rect
+              x={x} y={y}
+              width={Math.round(barW * 0.28)} height={h}
+              fill="rgba(255,255,255,0.10)"
+            />
+
+            {/* ④ Top face – lightest */}
+            <polygon points={topPts} fill={lighten(c, 0.40)} />
+
+            {/* Rank numeral centred near base of bar */}
+            <text
+              x={fcx} y={baseY - 10}
+              textAnchor="middle"
+              fontSize="20" fontWeight="900"
+              fill="rgba(255,255,255,0.82)"
+              fontFamily="system-ui,sans-serif"
+            >
+              {item.rank}
+            </text>
+
+{/* Trophy for best performer (gold only) */}
+{accent === "gold" && item.rank === 1 && (
+  <g transform={`translate(${tcx - 6}, ${y - dy - 30})`}>
+    <Trophy size={13} className="text-yellow-400" />
+  </g>
+)}
+
+            {/* Score label above bar */}
+            <text
+              x={tcx} y={y - dy - 6}
+              textAnchor="middle"
+              fontSize="10" fontWeight="800"
+              fill={c}
+              fontFamily="system-ui,sans-serif"
+            >
+              {item.score.toString().replace(".", ",")}%
+            </text>
+
+            {/* Team name */}
+            <text
+              x={tcx} y={baseY + 14}
+              textAnchor="middle"
+              fontSize="8" fontWeight="600"
+              fill="#9ca3af"
+              fontFamily="system-ui,sans-serif"
+            >
+              {item.name}
+            </text>
+
+            {/* "QP Score" sub-label */}
+            <text
+              x={tcx} y={baseY + 24}
+              textAnchor="middle"
+              fontSize="7"
+              fill="#6b7280"
+              fontFamily="system-ui,sans-serif"
+            >
+              QP Score
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Floor baseline */}
+      <line
+        x1={startX - 4} y1={baseY}
+        x2={startX + totalW + 4} y2={baseY}
+        stroke="#d1d5db" strokeWidth="0.75" strokeOpacity="0.5"
+      />
+    </svg>
   );
 }

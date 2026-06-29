@@ -1,6 +1,7 @@
 import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
-import { Card, ReqLabel, BarKpi, Sparkline, DonutKpi } from "@/components/v1/primitives";
+import { Card, ReqLabel, BarKpi, Sparkline, DonutKpi, DonutMulti } from "@/components/v1/primitives";
 import { chains18 as ch } from "@/lib/mock-v1";
+import { SparkCanvas } from "@/components/v1/canvas-charts";
 const STATUS_COLOR: Record<string, string> = {
 "Excellent": "#22c55e", "Bon": "#16a34a",
   "À surveiller": "#eab308", "À améliorer": "#f97316", "Critique": "#ef4444",
@@ -14,7 +15,36 @@ function statusBar(eff: number) {
 }
 export default function Page() {
   const top5 = [...ch.rows].sort((a, b) => b.eff - a.eff).slice(0, 5);
- const bottom5 = [...ch.rows].sort((a, b) => a.eff - b.eff).slice(0, 5).reverse();
+  const bottom5 = [...ch.rows].sort((a, b) => a.eff - b.eff).slice(0, 5).reverse();
+  const statusCounts = Object.keys(STATUS_COLOR).map((status) => ({
+    status,
+    color: STATUS_COLOR[status],
+    count: ch.rows.filter((r) => r.status === status).length,
+  }));
+  const STATUS_GRADIENT: Record<string, [string, string]> = {
+  "Excellent": ["#4ade80", "#16a34a"],
+  "Bon": ["#22c55e", "#15803d"],
+  "À surveiller": ["#facc15", "#ca8a04"],
+  "À améliorer": ["#fb923c", "#ea580c"],
+  "Critique": ["#f87171", "#dc2626"],
+};
+function statusGradient(eff: number): [string, string] {
+  if (eff >= 90) return STATUS_GRADIENT["Excellent"];
+  if (eff >= 85) return STATUS_GRADIENT["Bon"];
+  if (eff >= 80) return STATUS_GRADIENT["À surveiller"];
+  if (eff >= 75) return STATUS_GRADIENT["À améliorer"];
+  return STATUS_GRADIENT["Critique"];
+}
+  const WIP_RANGES = [
+    { label: "≤ 30 %", color: "#22c55e", min: -Infinity, max: 30 },
+    { label: "30 - 50 %", color: "#3b82f6", min: 30, max: 50 },
+    { label: "50 - 60 %", color: "#f59e0b", min: 50, max: 60 },
+    { label: "> 60 %", color: "#ef4444", min: 60, max: Infinity },
+  ];
+  const wipCounts = WIP_RANGES.map((range) => ({
+    ...range,
+    count: ch.rows.filter((r) => r.wip > range.min && r.wip <= range.max).length,
+  }));
   return (
     <>
       <PageHeader
@@ -28,14 +58,91 @@ export default function Page() {
         </>}
       />
       <div className="p-3 space-y-3">
-        <div className="grid grid-cols-7 gap-3">
-          <TopCard label="EFFICACITÉ MOYENNE" value={`${ch.effMoyenne.toString().replace(".", ",")} %`} sub="Objectif : ≥ 85 %" color="#22c55e" spark={[85, 86, 87, 88, 89, 89.6]} />
-          <TopCard label="SOT MOYEN" value={ch.sotMoyen.toLocaleString()} sub="min/pièce" color="#a855f7" />
-          <TopCard label="SAM MOYEN" value={ch.samMoyen.toLocaleString()} sub="min/pièce" color="#ec4899" />
-          <TopCard label="WIP MOYEN" value={`${ch.wipMoyen} %`} sub="Objectif : ≤ 1/2 cadence" color="#f59e0b" />
-          <TopCard label="COMMANDES" value={`${ch.commandes.toFixed(2).replace(".", ",")} %`} sub="Complétées" color="#22c55e" />
-          <TopCard label="PRODUCTION DU JOUR" value={ch.prodJour.toString()} sub="pièces" color="#3b82f6" />
-          <TopCard label="Objectif Eff. (%)" value="≥ 85%" sub="" color="#22c55e" />
+        <div className="grid gap-3" style={{ gridTemplateColumns: '1.2fr repeat(5, 1fr)' }}>
+          <Card className="rounded-sm relative overflow-hidden !bg-[#22c55e]/15 !border-[#22c55e]/30 flex flex-col">
+            <ReqLabel id="" title="EFFICACITÉ MOYENNE" />
+            <div className="flex items-center justify-between mt-auto">
+              <div>
+                <div className="text-3xl font-black text-foreground">{ch.effMoyenne.toString().replace(".", ",")} %</div>
+                <div className="text-sm text-muted-foreground mt-1">Objectif : ≥ 85 %</div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="3em" height="3em" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <path fill="#22c55e" d="M12 20a8 8 0 0 0 8-8a8 8 0 0 0-8-8a8 8 0 0 0-8 8a8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10a10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67l-.75 1.23L11 13V7z" />
+              </svg>
+            </div>
+            <SparkCanvas />
+          </Card>
+
+          <Card className="rounded-sm relative overflow-hidden !bg-[#a855f7]/15 !border-[#a855f7]/30 flex flex-col">
+            <ReqLabel id="" title="SOT MOYEN (min/pièce)" />
+            <div className="flex items-center justify-between mt-auto">
+              <div>
+                <div className="text-3xl font-black text-foreground">{ch.sotMoyen.toLocaleString()} <span className="text-lg font-normal text-muted-foreground">min</span></div>
+                <div className="text-sm text-muted-foreground mt-1">Temps réel</div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="3em" height="3em" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <path fill="#a855f7" d="M12 20a8 8 0 0 0 8-8a8 8 0 0 0-8-8a8 8 0 0 0-8 8a8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10a10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67l-.75 1.23L11 13V7z" />
+              </svg>
+            </div>
+          </Card>
+
+          <Card className="rounded-sm relative overflow-hidden !bg-[#ec4899]/15 !border-[#ec4899]/30 flex flex-col">
+            <ReqLabel id="" title="SAM MOYEN (min/pièce)" />
+            <div className="flex items-center justify-between mt-auto">
+              <div>
+                <div className="text-3xl font-black text-foreground">{ch.samMoyen.toLocaleString()} <span className="text-lg font-normal text-muted-foreground">min</span></div>
+                <div className="text-sm text-muted-foreground mt-1">Temps réel</div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="3em" height="3em" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <path fill="#ec4899" d="M12 20a8 8 0 0 0 8-8a8 8 0 0 0-8-8a8 8 0 0 0-8 8a8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10a10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67l-.75 1.23L11 13V7z" />
+              </svg>
+            </div>
+          </Card>
+
+          <Card className="rounded-sm relative overflow-hidden !bg-[#f59e0b]/15 !border-[#f59e0b]/30 flex flex-col">
+            <ReqLabel id="" title="WIP MOYEN" />
+            <div className="flex items-center justify-between mt-auto">
+              <div>
+                <div className="text-3xl font-black text-foreground">{ch.wipMoyen} %</div>
+                <div className="text-sm text-muted-foreground mt-1">Objectif : ≤ 1/2 cadence</div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="3em" height="3em" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <path fill="#f59e0b" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16m1-13h-2v6l5.25 3.15.75-1.23-4-2.42z" />
+              </svg>
+            </div>
+          </Card>
+
+          <Card className="rounded-sm relative overflow-hidden !bg-[#22c55e]/15 !border-[#22c55e]/30 flex flex-col">
+            <ReqLabel id="" title="COMMANDES COMPLÉTÉES" />
+            <div className="flex items-center justify-between mt-auto">
+              <div>
+                <div className="text-3xl font-black text-foreground">{ch.commandes.toFixed(2).replace(".", ",")} %</div>
+                <div className="text-sm text-muted-foreground mt-1">Complétées</div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="3em" height="3em" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <path fill="#22c55e" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+              </svg>
+            </div>
+          </Card>
+
+          <Card className="rounded-sm relative overflow-hidden !bg-[#3b82f6]/15 !border-[#3b82f6]/30 flex flex-col">
+            <ReqLabel id="" title="PRODUCTION DU JOUR" />
+            <div className="flex items-center justify-between mt-auto">
+              <div>
+                <div className="text-3xl font-black text-foreground">{ch.prodJour.toLocaleString()} <span className="text-lg font-normal text-muted-foreground">pce</span></div>
+                <div className="text-sm text-muted-foreground mt-1">Objectif : ≥ 85 %</div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="3em" height="3em" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <path fill="#3b82f6" d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2z" />
+              </svg>
+            </div>
+          </Card>
         </div>
         <div className="grid grid-cols-12 gap-3">
           <Card className="col-span-5 !p-0 overflow-hidden">
@@ -69,11 +176,15 @@ export default function Page() {
             <Card>
               <ReqLabel id="" title="EFFICACITÉ PAR CHAÎNE (%)" />
               <BarKpi
-                data={ch.rows.map((r) => ({ x: String(r.n).padStart(2, "0"), v: r.eff }))}
-                color="#3b82f6"
-                target={85}
-                height={200}
-              />
+  data={ch.rows.map((r) => ({
+    x: String(r.n).padStart(2, "0"),
+    v: r.eff,
+    color: statusGradient(r.eff),
+  }))}
+  color="#3b82f6"
+  target={85}
+  height={200}
+/>
             </Card>
             <div className="grid grid-cols-2 gap-3">
               <Card>
@@ -90,23 +201,32 @@ export default function Page() {
         <div className="grid grid-cols-6 gap-3">
           <Card>
             <ReqLabel id="" title="WIP PAR CHAÎNE (%)" />
-            <DonutKpi value={ch.wipMoyen} color="#f59e0b" label="Moyenne" />
+            <DonutMulti
+              segments={wipCounts.map((w) => ({ value: w.count, color: w.color }))}
+              centerLabel="Moyenne"
+            />
             <ul className="text-[10px] mt-2 space-y-0.5">
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#22c55e] mr-1"/>≤ 30 %</span><span>(3 chaînes)</span></li>
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#3b82f6] mr-1"/>30 - 50 %</span><span>(9 chaînes)</span></li>
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#f59e0b] mr-1"/>50 - 60 %</span><span>(4 chaînes)</span></li>
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#ef4444] mr-1"/>&gt; 60 %</span><span>(2 chaînes)</span></li>
+              {wipCounts.map((w) => (
+                <li key={w.label} className="flex justify-between">
+                  <span><span className="inline-block h-2 w-2 mr-1" style={{ backgroundColor: w.color }} />{w.label}</span>
+                  <span>({w.count} chaînes)</span>
+                </li>
+              ))}
             </ul>
           </Card>
           <Card>
             <ReqLabel id="" title="RÉPARTITION PAR STATUT" />
-            <DonutKpi value={100} color="#22c55e" label="Chaînes (18)" />
+            <DonutMulti
+              segments={statusCounts.map((s) => ({ value: s.count, color: s.color }))}
+              centerLabel="Chaînes"
+            />
             <ul className="text-[10px] mt-2 space-y-0.5">
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#22c55e] mr-1"/>Excellent</span><span>(5)</span></li>
-                 <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#16a34a] mr-1"/>Bon</span><span>(4)</span></li>
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#eab308] mr-1"/>À surveiller</span><span>(3)</span></li>
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#f97316] mr-1"/>À améliorer</span><span>(3)</span></li>
-              <li className="flex justify-between"><span><span className="inline-block h-2 w-2 bg-[#ef4444] mr-1"/>Critique</span><span>(3)</span></li>
+              {statusCounts.map((s) => (
+                <li key={s.status} className="flex justify-between">
+                  <span><span className="inline-block h-2 w-2 mr-1" style={{ backgroundColor: s.color }} />{s.status}</span>
+                  <span>({s.count})</span>
+                </li>
+              ))}
             </ul>
           </Card>
           <Card>
@@ -149,16 +269,6 @@ export default function Page() {
       </div>
       <StatusFooter />
     </>
-  );
-}
-function TopCard({ label, value, sub, color, spark }: { label: string; value: string; sub: string; color: string; spark?: number[] }) {
-  return (
-    <Card className="text-left">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="text-2xl font-black mt-1" style={{ color }}>{value}</div>
-      <div className="text-[10px] text-muted-foreground">{sub}</div>
-      {spark && <div className="h-6 mt-1"><Sparkline data={spark} color={color} type="area" /></div>}
-    </Card>
   );
 }
 function Row({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
