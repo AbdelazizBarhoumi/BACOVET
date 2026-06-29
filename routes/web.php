@@ -33,6 +33,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 Route::get('/unauthorized', fn () => Inertia::render('unauthorized'))->name('unauthorized');
 
+Route::get('/v1/{any?}', fn () => view('v1'))->where('any', '.*')->name('v1');
+
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 
 Route::middleware(['auth', 'active.user'])->prefix('api/novacity')->group(function () {
