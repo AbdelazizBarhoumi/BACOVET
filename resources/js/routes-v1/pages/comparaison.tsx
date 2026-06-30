@@ -1,27 +1,29 @@
 import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import { Card, ReqLabel, BarKpi, Sparkline, DonutKpi, DonutMulti } from "@/components/v1/primitives";
-import { chains18 as ch } from "@/lib/mock-v1";
 import { SparkCanvas } from "@/components/v1/canvas-charts";
+import { useLiveData } from "@/hooks/use-live-data";
+import { useFilters } from "@/context/FilterContext";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  fetchProductionChainInfo,
+  fetchProductionWipGauges,
+  type ChainInfo,
+  type GaugeItem,
+} from "@/services/productionApi";
+
 const STATUS_COLOR: Record<string, string> = {
-"Excellent": "#22c55e", "Bon": "#16a34a",
+  "Excellent": "#22c55e", "Bon": "#16a34a",
   "À surveiller": "#eab308", "À améliorer": "#f97316", "Critique": "#ef4444",
 };
 function statusBar(eff: number) {
   if (eff >= 90) return STATUS_COLOR["Excellent"];
   if (eff >= 85) return STATUS_COLOR["Bon"];
   if (eff >= 80) return STATUS_COLOR["À surveiller"];
- if (eff >= 75) return STATUS_COLOR["À améliorer"];
+  if (eff >= 75) return STATUS_COLOR["À améliorer"];
   return STATUS_COLOR["Critique"];
 }
-export default function Page() {
-  const top5 = [...ch.rows].sort((a, b) => b.eff - a.eff).slice(0, 5);
-  const bottom5 = [...ch.rows].sort((a, b) => a.eff - b.eff).slice(0, 5).reverse();
-  const statusCounts = Object.keys(STATUS_COLOR).map((status) => ({
-    status,
-    color: STATUS_COLOR[status],
-    count: ch.rows.filter((r) => r.status === status).length,
-  }));
-  const STATUS_GRADIENT: Record<string, [string, string]> = {
+
+const STATUS_GRADIENT: Record<string, [string, string]> = {
   "Excellent": ["#4ade80", "#16a34a"],
   "Bon": ["#22c55e", "#15803d"],
   "À surveiller": ["#facc15", "#ca8a04"],
@@ -35,6 +37,136 @@ function statusGradient(eff: number): [string, string] {
   if (eff >= 75) return STATUS_GRADIENT["À améliorer"];
   return STATUS_GRADIENT["Critique"];
 }
+
+type ComparisonRow = {
+  n: number;
+  name: string;
+  eff: number;
+  sot: number;
+  sam: number;
+  wip: number;
+  status: string;
+};
+
+type ComparisonData = {
+  effMoyenne: number;
+  sotMoyen: number;
+  samMoyen: number;
+  wipMoyen: number;
+  commandes: number;
+  prodJour: number;
+  rows: ComparisonRow[];
+};
+
+function computeStatus(eff: number): string {
+  if (eff >= 90) return "Excellent";
+  if (eff >= 85) return "Bon";
+  if (eff >= 80) return "À surveiller";
+  if (eff >= 75) return "À améliorer";
+  return "Critique";
+}
+
+function toNum(v: number | string): number {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  return Number.isFinite(n) ? n : 0;
+}
+
+export default function Page() {
+  const { getFilterParams } = useFilters();
+  const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
+
+  const [chainInfo, setChainInfo] = useState<ChainInfo[]>([]);
+  const [wipGauges, setWipGauges] = useState<GaugeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const filters = getFilterParams();
+      const results = await Promise.allSettled([
+        fetchProductionChainInfo(filters),
+        fetchProductionWipGauges(filters),
+      ]);
+
+      if (results[0].status === "fulfilled") {
+        setChainInfo(results[0].value.data);
+      }
+      if (results[1].status === "fulfilled") {
+        setWipGauges(results[1].value.data);
+      }
+
+      const criticalFailed = results[0].status === "rejected";
+      if (criticalFailed) recordFetchError();
+      else recordFetchSuccess();
+    } catch {
+      recordFetchError();
+    } finally {
+      setLoading(false);
+    }
+  }, [getFilterParams, recordFetchError, recordFetchSuccess]);
+
+  useEffect(() => {
+    setChainInfo([]);
+    setWipGauges([]);
+    setLoading(true);
+    fetchData();
+    intervalRef.current = setInterval(fetchData, refreshIntervalSec * 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [fetchData, refreshIntervalSec]);
+
+  const ch = useMemo<ComparisonData>(() => {
+    const wipMap = new Map<string, number>();
+    for (const g of wipGauges) {
+      wipMap.set(g.chaine, g.wip ?? 0);
+    }
+
+    const rows: ComparisonRow[] = chainInfo.map((c, i) => {
+      const eff = toNum(c.eff);
+      const sot = toNum(c.sot);
+      const sam = toNum(c.sam);
+      const wip = wipMap.get(c.id) ?? 0;
+      return {
+        n: i + 1,
+        name: c.id,
+        eff,
+        sot,
+        sam,
+        wip: Math.round(wip * 10) / 10,
+        status: c.status || computeStatus(eff),
+      };
+    });
+
+    const count = rows.length || 1;
+    const effMoyenne = Math.round((rows.reduce((s, r) => s + r.eff, 0) / count) * 10) / 10;
+    const sotMoyen = Math.round(rows.reduce((s, r) => s + r.sot, 0) / count);
+    const samMoyen = Math.round(rows.reduce((s, r) => s + r.sam, 0) / count);
+    const wipMoyen = Math.round((rows.reduce((s, r) => s + r.wip, 0) / count) * 10) / 10;
+
+    return {
+      effMoyenne,
+      sotMoyen,
+      samMoyen,
+      wipMoyen,
+      commandes: 100.0,
+      prodJour: 0,
+      rows,
+    };
+  }, [chainInfo, wipGauges]);
+
+  const top5 = useMemo(() => [...ch.rows].sort((a, b) => b.eff - a.eff).slice(0, 5), [ch.rows]);
+  const bottom5 = useMemo(() => [...ch.rows].sort((a, b) => a.eff - b.eff).slice(0, 5).reverse(), [ch.rows]);
+  const statusCounts = useMemo(
+    () =>
+      Object.keys(STATUS_COLOR).map((status) => ({
+        status,
+        color: STATUS_COLOR[status],
+        count: ch.rows.filter((r) => r.status === status).length,
+      })),
+    [ch.rows],
+  );
+
   const WIP_RANGES = [
     { label: "≤ 30 %", color: "#22c55e", min: -Infinity, max: 30 },
     { label: "30 - 50 %", color: "#3b82f6", min: 30, max: 50 },
@@ -45,11 +177,47 @@ function statusGradient(eff: number): [string, string] {
     ...range,
     count: ch.rows.filter((r) => r.wip > range.min && r.wip <= range.max).length,
   }));
+
+  if (loading) {
+    return (
+      <>
+        <PageHeader
+          title="COMPARAISON PERFORMANCE – CHAÎNES"
+          subtitle="CHAÎNE DE PRODUCTION – CONFECTION TEXTILE"
+          filters={<>
+            <FilterPill label="Période" value="Aujourd'hui" icon={Filters.Calendar} />
+            <FilterPill label="Ligne" value="Toutes" icon={Filters.Layers} />
+            <FilterPill label="Atelier" value="Tous" icon={Filters.Factory} />
+            <FilterPill label="Shift" value="Jour (07:00 - 19:00)" icon={Filters.Users} />
+          </>}
+        />
+        <div className="p-3 space-y-3">
+          <div className="grid gap-3" style={{ gridTemplateColumns: '1.2fr repeat(5, 1fr)' }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i} className="rounded-sm h-28 animate-pulse bg-secondary/30" />
+            ))}
+          </div>
+          <div className="grid grid-cols-12 gap-3">
+            <Card className="col-span-5 h-80 animate-pulse bg-secondary/30" />
+            <div className="col-span-7 space-y-3">
+              <Card className="h-56 animate-pulse bg-secondary/30" />
+              <div className="grid grid-cols-2 gap-3">
+                <Card className="h-48 animate-pulse bg-secondary/30" />
+                <Card className="h-48 animate-pulse bg-secondary/30" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <StatusFooter />
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader
-        title="COMPARAISON PERFORMANCE – 18 CHAÎNES"
-        subtitle="CHAÎNE DE PRODUCTION N°1 – CONFECTION TEXTILE"
+        title="COMPARAISON PERFORMANCE – CHAÎNES"
+        subtitle="CHAÎNE DE PRODUCTION – CONFECTION TEXTILE"
         filters={<>
           <FilterPill label="Période" value="Aujourd'hui" icon={Filters.Calendar} />
           <FilterPill label="Ligne" value="Toutes" icon={Filters.Layers} />
@@ -146,7 +314,7 @@ function statusGradient(eff: number): [string, string] {
         </div>
         <div className="grid grid-cols-12 gap-3">
           <Card className="col-span-5 !p-0 overflow-hidden">
-            <div className="px-3 py-2 text-xs font-bold uppercase border-b border-border">Performance par Chaîne (18)</div>
+            <div className="px-3 py-2 text-xs font-bold uppercase border-b border-border">Performance par Chaîne ({ch.rows.length})</div>
             <table className="w-full text-[10px]">
               <thead className="bg-secondary/40 uppercase text-muted-foreground">
                 <tr>
@@ -176,15 +344,15 @@ function statusGradient(eff: number): [string, string] {
             <Card>
               <ReqLabel id="" title="EFFICACITÉ PAR CHAÎNE (%)" />
               <BarKpi
-  data={ch.rows.map((r) => ({
-    x: String(r.n).padStart(2, "0"),
-    v: r.eff,
-    color: statusGradient(r.eff),
-  }))}
-  color="#3b82f6"
-  target={85}
-  height={200}
-/>
+                data={ch.rows.map((r) => ({
+                  x: String(r.n).padStart(2, "0"),
+                  v: r.eff,
+                  color: statusGradient(r.eff),
+                }))}
+                color="#3b82f6"
+                target={85}
+                height={200}
+              />
             </Card>
             <div className="grid grid-cols-2 gap-3">
               <Card>

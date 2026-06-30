@@ -82,7 +82,7 @@ function jitter(base, pct = 5) {
 
 // ── Mock data generators ──────────────────────────────────────
 
-const CHAINS = ["CH1", "CH2", "CH3", "CH4"];
+const CHAINS = Array.from({ length: 18 }, (_, i) => `CH${String(i + 1).padStart(2, "0")}`);
 const SHIFTS = ["S1", "S2"];
 const GROUPS = ["G01", "G02", "G03"];
 const EMPLOYEES = ["EMP0123", "EMP0456", "EMP0789", "EMP1011", "EMP1213"];
@@ -492,9 +492,9 @@ const QUERIES = {
     generate: () =>
       CHAINS.map((ch, i) => ({
         chaine: ch,
-        en_cours: Math.floor(jitter(1200, 15)),
-        entree_jour: Math.floor(jitter(380, 10)),
-        sortie_jour: Math.floor(jitter(355, 10)),
+        en_cours: Math.floor(jitter(800 + i * 60, 15)),
+        entree_jour: Math.floor(jitter(350 + i * 8, 10)),
+        sortie_jour: Math.floor(jitter(330 + i * 8, 10)),
         of: OFS[i % OFS.length],
         article: ARTICLES[i % ARTICLES.length],
       })),
@@ -537,15 +537,16 @@ const QUERIES = {
   efficience_chaine: {
     prestataire: "Prestataire Alpha",
     generate: () =>
-      CHAINS.flatMap((ch) =>
-        [0, 1].map((daysAgo) => ({
+      CHAINS.flatMap((ch, idx) => {
+        const baseEff = 95 - idx * 2;
+        return [0, 1].map((daysAgo) => ({
           chaine: ch,
           date: today(daysAgo),
           heures_prod: 8,
-          heures_standards: parseFloat(jitter(7.1, 5).toFixed(2)),
-          efficience_pct: Math.floor(jitter(88, 5)),
-        })),
-      ),
+          heures_standards: parseFloat(jitter(baseEff * 0.08, 3).toFixed(2)),
+          efficience_pct: Math.max(55, Math.min(99, Math.floor(jitter(baseEff, 4)))),
+        }));
+      }),
   },
 
   minutes_presence: {

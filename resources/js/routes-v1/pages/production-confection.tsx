@@ -1,20 +1,257 @@
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import { Card, LineKpi, BarKpi, DonutKpi } from "@/components/v1/primitives";
-import { confection as c } from "@/lib/mock-v1";
+import {
+  fetchProductionChainInfo,
+  fetchOrderTracking,
+  fetchProductionTrend,
+  fetchProductionStoppages,
+  type ChainInfo,
+  type OrderTrackingItem,
+  type TrendItem,
+  type StoppageItem,
+} from "@/services/productionApi";
+import { useLiveData } from "@/hooks/use-live-data";
+
+// ─── Data shape matching the mock structure ──────────────────────────────────
+
+interface HourlyRow {
+  plage: string;
+  dem: number;
+  reel: number;
+  eff: number;
+}
+
+interface ConfectionData {
+  of: string;
+  designation: string;
+  efficienceJ1: number | null;
+  oweJ1: number | null;
+  ofProgressPct: number;
+  wip1Pct: number;
+  samMidPct: number | null;
+  effectif: number;
+  sot: number;
+  sam: number;
+  qteCde: number;
+  bpd: string;
+  epd: string;
+  ehd: string;
+  objectifJour: number | string;
+  gtd: string | number;
+  objectifsAM: number;
+  objectifsOJ: number;
+  gapSamSot: number;
+  problemes: string;
+  detail: string;
+  efficienceSerie: { x: string; v: number }[];
+  hourlySchedule: HourlyRow[];
+  progressionRealise: number;
+  cumulQty: number;
+  cumulRestant: number;
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Page() {
+  const [data, setData] = useState<ConfectionData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { refreshIntervalSec } = useLiveData();
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [chainsRes, orderRes, trendRes, stoppagesRes] = await Promise.allSettled([
+        fetchProductionChainInfo(),
+        fetchOrderTracking(),
+        fetchProductionTrend(),
+        fetchProductionStoppages(),
+      ]);
+
+      const chains =
+        chainsRes.status === "fulfilled"
+          ? (chainsRes.value as { data: ChainInfo[] }).data
+          : [];
+      const orders =
+        orderRes.status === "fulfilled"
+          ? (orderRes.value as { data: OrderTrackingItem[] }).data
+          : [];
+      const trend =
+        trendRes.status === "fulfilled"
+          ? (trendRes.value as { data: TrendItem[] }).data
+          : [];
+      const stoppages =
+        stoppagesRes.status === "fulfilled"
+          ? (stoppagesRes.value as { data: StoppageItem[] }).data
+          : [];
+
+      const chain = chains[0];
+      const order = orders[0];
+
+      if (!chain && !order) {
+        setData(null);
+        return;
+      }
+
+      // ── EfficienceSerie from trend ──
+      const efficienceSerie = trend.map((t) => ({ x: t.jour, v: t.eff }));
+
+      // ── HourlySchedule — distribute cumulQty across elapsed time slots ──
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const workStart = 7.5;
+      const elapsed = Math.max(0, currentHour + currentMinute / 60 - workStart);
+
+      const totalSlots = 8;
+      const dailyTarget = order?.dailyTarget ?? Number(chain?.objectif) ?? 0;
+      const cumulQty = order?.cumulQty ?? 0;
+
+      const plages = [
+        "7:30-8:30", "8:30-9:30", "9:30-10:30", "10:30-11:30",
+        "11:30-12:30", "13:00-14:00", "14:00-15:00", "15:00-16:00",
+      ];
+
+      const hourlySchedule = plages.map((plage, i) => {
+        const slotStart = i < 5 ? 7.5 + i : 13 + (i - 5);
+        const slotEnd = slotStart + 1;
+        const inSlot = elapsed >= slotEnd ? 1 : elapsed > slotStart ? elapsed - slotStart : 0;
+
+        const dem = dailyTarget > 0 ? Math.round(dailyTarget / totalSlots) : 0;
+        const reel = inSlot > 0 && elapsed > 0
+          ? Math.round(cumulQty * inSlot / elapsed)
+          : 0;
+        const eff = dem > 0 ? Math.round((reel / dem) * 100) : 0;
+
+        return { plage, dem, reel, eff };
+      });
+
+      // ── Problemes / Detail from stoppages ──
+      const lastStop = stoppages.length > 0 ? stoppages[stoppages.length - 1] : null;
+      const problemes = lastStop ? lastStop.motif : "Aucun arrêt";
+      const detail = lastStop
+        ? `${Math.round(lastStop.duration * 60)} min — chaine ${lastStop.chaine}`
+        : "—";
+
+      setData({
+        of: order?.orderId ?? chain?.of ?? "—",
+        designation: order?.designation ?? chain?.designation ?? "—",
+        efficienceJ1: order?.priorEff ?? null,
+        oweJ1: order?.priorOwe ?? null,
+        ofProgressPct: order?.overallPct ?? 0,
+        wip1Pct: chain?.wip ?? 0,
+        samMidPct: null,
+        effectif: chain?.effectif ?? 0,
+        sot: chain?.sot ?? 0,
+        sam: chain?.sam ?? 0,
+        qteCde: order?.qtyOrdered ?? 0,
+        bpd: order?.bpd ?? chain?.bpd ?? "—",
+        epd: order?.epd ?? chain?.epd ?? "—",
+        ehd: order?.ehd ?? chain?.ehd ?? "—",
+        objectifJour: order?.dailyTarget ?? chain?.objectif ?? 0,
+        gtd:
+          chain?.br_gtd != null
+            ? `${chain.br_gtd.toFixed(1)}%`
+            : (order?.gtd ?? "No data"),
+        objectifsAM: order?.amObjective ?? 0,
+        objectifsOJ: order?.soObjective ?? 0,
+        gapSamSot: order?.gapSamSo ?? 0,
+        problemes,
+        detail,
+        efficienceSerie,
+        hourlySchedule,
+        progressionRealise: order?.overallPct ?? 0,
+        cumulQty: order?.cumulQty ?? 0,
+        cumulRestant: order?.cumulRestant ?? 0,
+      });
+
+      setError(null);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Erreur de chargement",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, refreshIntervalSec * 1000);
+    return () => clearInterval(interval);
+  }, [fetchData, refreshIntervalSec]);
+
+  const d = data;
+
+  // ── Loading state ──
+  if (loading && !d) {
+    return (
+      <>
+        <PageHeader
+          title="TABLEAU DE BORD PRODUCTION – CONFECTION"
+          subtitle="Chargement..."
+          filters={
+            <FilterPill label="Période" value="Aujourd'hui" icon={Filters.Calendar} />
+          }
+        />
+        <div className="p-6 text-center text-muted-foreground text-sm">
+          Chargement des données de production...
+        </div>
+        <StatusFooter />
+      </>
+    );
+  }
+
+  // ── Error state ──
+  if (error && !d) {
+    return (
+      <>
+        <PageHeader
+          title="TABLEAU DE BORD PRODUCTION – CONFECTION"
+          subtitle="Erreur de chargement"
+          filters={
+            <FilterPill label="Période" value="Aujourd'hui" icon={Filters.Calendar} />
+          }
+        />
+        <div className="p-6 text-center text-destructive text-sm">
+          {error}
+        </div>
+        <StatusFooter />
+      </>
+    );
+  }
+
+  // ── Empty state ──
+  if (!d) {
+    return (
+      <>
+        <PageHeader
+          title="TABLEAU DE BORD PRODUCTION – CONFECTION"
+          subtitle="Aucune donnée"
+          filters={
+            <FilterPill label="Période" value="Aujourd'hui" icon={Filters.Calendar} />
+          }
+        />
+        <div className="p-6 text-center text-muted-foreground text-sm">
+          Aucune donnée de production disponible.
+        </div>
+        <StatusFooter />
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader
         title="TABLEAU DE BORD PRODUCTION – CONFECTION"
-        subtitle="CHAÎNE DE PRODUCTION N°1 – CONFECTION TEXTILE"
+        subtitle={`${d.of} – CONFECTION`}
         filters={
           <>
             <FilterPill label="Période" value="Aujourd'hui" icon={Filters.Calendar} />
             <FilterPill label="Ligne" value="Ligne 1 - Série 200" icon={Filters.Layers} />
             <FilterPill
               label="Dernière mise à jour"
-              value="16:25:43 · 04 Avril 2026"
+              value={new Date().toLocaleTimeString("fr-FR") + " · " + new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
               icon={Filters.Clock ?? Filters.Calendar}
             />
           </>
@@ -49,27 +286,27 @@ export default function Page() {
                     </thead>
                     <tbody className="text-foreground">
                       <tr className="border-0">
-                        <td className="px-2 py-3 text-2xl font-black text-center border border-border" rowSpan={2}>{c.of}</td>
-                        <td className="px-2 py-3 text-center font-semibold border border-border" rowSpan={2}>{c.designation}</td>
-                        <td className="px-2 py-3 text-center text-2xl font-black border border-border" rowSpan={2}>{c.efficienceJ1}%</td>
-                        <td className="px-2 py-3 text-center text-2xl font-bold text-muted-foreground border border-border" rowSpan={2}>-</td>
+                        <td className="px-2 py-3 text-2xl font-black text-center border border-border" rowSpan={2}>{d.of}</td>
+                        <td className="px-2 py-3 text-center font-semibold border border-border" rowSpan={2}>{d.designation}</td>
+                        <td className="px-2 py-3 text-center text-2xl font-black border border-border" rowSpan={2}>{d.efficienceJ1 != null ? `${d.efficienceJ1}%` : "-"}</td>
+                        <td className="px-2 py-3 text-center text-2xl font-bold text-muted-foreground border border-border" rowSpan={2}>{d.oweJ1 != null ? `${d.oweJ1}%` : "-"}</td>
                         <td className="px-2 py-3 text-center text-[12px] font-bold border border-border">OF</td>
                         <td className="px-2 py-3 text-center text-[12px] font-bold border border-border">encours</td>
                         <td className="px-2 border border-border" colSpan={12}>
                           <div className="h-7 w-full bg-muted relative">
-                            <div className="absolute inset-y-0 left-0 bg-[#22c55e]" style={{ width: `${c.ofProgressPct}%` }} />
+                            <div className="absolute inset-y-0 left-0 bg-[#22c55e]" style={{ width: `${d.ofProgressPct}%` }} />
                             <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white"></div>
                           </div>
                         </td>
                       </tr>
                       <tr>
                         <td className="px-2 py-3 text-center text-[12px] font-bold bg-[#d803a5] text-white border border-border">WIP 1</td>
-                        <td className="px-2 py-3 text-center text-[12px] font-bold bg-[#22c55e] text-white border border-border" colSpan={2}>{c.wip1Pct}%</td>
+                        <td className="px-2 py-3 text-center text-[12px] font-bold bg-[#22c55e] text-white border border-border" colSpan={2}>{d.wip1Pct}%</td>
                         <td className="px-2 py-3 text-center text-[12px] font-bold bg-[#d803a5] text-white border border-border w-[200px]" colSpan={5} >
                           SAM
-                        </td>                        <td className="px-2 py-3 text-center text-[12px] font-bold bg-[#22c55e] text-white border border-border">{c.samMidPct}%</td>
+                        </td>                        <td className="px-2 py-3 text-center text-[12px] font-bold bg-[#22c55e] text-white border border-border">{d.samMidPct != null ? `${d.samMidPct}%` : "N/A"}</td>
                         <td className="px-2 py-3 text-center text-[12px] font-bold border border-border" colSpan={2}>Effectif</td>
-                        <td className="px-2 py-3 text-center text-[12px] font-bold border border-border">{c.effectif}</td>
+                        <td className="px-2 py-3 text-center text-[12px] font-bold border border-border">{d.effectif}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -84,40 +321,45 @@ export default function Page() {
                           GTD
                         </div>
                         <div className="flex-1 px-3 py-2 text-sm font-bold text-center flex items-center justify-center">
-                          {c.gtd}
+                          {d.gtd}
                         </div>
                       </div>
                       <div className="flex">
                         <div className="px-3 py-2 font-black text-xs w-1/3 flex items-center justify-center">
                           OBJECTIFS AM
                         </div>
-                        <div className="flex-1 px-3 py-2 text-sm bg-[#ffd600]/60 font-bold text-center flex items-center justify-center">
-                          {c.objectifsAM}
+                        <div className="flex-1 px-3 py-2 text-sm bg-[#ffa53c]/60 font-bold text-center flex items-center justify-center">
+                          {d.objectifsAM}
                         </div>
                       </div>
                       <div className="flex">
                         <div className="px-3 py-2 font-black text-xs w-1/3 flex items-center justify-center">
                           OBJECTIFS OJ
                         </div>
-                        <div className="flex-1 px-3 py-2 text-sm bg-[#ffd600]/60 font-bold text-center flex items-center justify-center">
-                          {c.objectifsOJ}
+                        <div className="flex-1 px-3 py-2 text-sm bg-[#ffa53c]/60 font-bold text-center flex items-center justify-center">
+                          {d.objectifsOJ}
                         </div>
                       </div>
                     </Card>
 
                     <Card className="rounded-sm col-span-2 !p-0 overflow-hidden">
-                      <div className="flex flex-col items-center justify-center bg-[#ffd600]/70 w-full h-full py-3 text-center">
-                        <div className="text-base font-black text-foreground">GAP</div>
+                      <div className="flex flex-col items-center justify-center w-full h-full text-center">
+                        <div className=" bg-[#ffd600]/70 w-full h-full items-center justify-center flex flex-col">
+                           <div className="text-base font-black text-foreground ">GAP</div>
                         <div className="text-xs text-muted-foreground">SAM/SOT</div>
-                        <div className="text-3xl font-black mt-2">{c.gapSamSot}%</div>
+                        </div>
+                       
+                        <div className="text-3xl font-black h-full items-center justify-center flex">
+                          {d.gapSamSot}%
+                        </div>
                       </div>
                     </Card>
                   </div>
 
                   <div className="col-span-6 grid grid-cols-6 gap-3 ml-6 mt-3">
-                    <MetricBig label="Effectif" value={c.effectif.toString().replace(".", ",")} unit="opérateurs" color="#3b82f6" />
-                    <MetricBig label="SOT" value={c.sot.toLocaleString()} unit="min/pièce" color="#a855f7" />
-                    <MetricBig label="SAM" value={c.sam.toLocaleString()} unit="min/pièce" color="#ec4899" />
+                    <MetricBig label="Effectif" value={String(d.effectif).replace(".", ",")} unit="opérateurs" color="#3b82f6" />
+                    <MetricBig label="SOT" value={Number(d.sot).toLocaleString()} unit="min/pièce" color="#a855f7" />
+                    <MetricBig label="SAM" value={Number(d.sam).toLocaleString()} unit="min/pièce" color="#ec4899" />
                   </div>
 
                 </div>
@@ -134,7 +376,7 @@ export default function Page() {
                         </tr>
                       </thead>
                       <tbody>
-                        {c.hourlySchedule.map((h, i) => (
+                        {d.hourlySchedule.map((h, i) => (
                           <tr key={i} className="border-0">
                             <td className="px-2 py-1.5 font-bold bg-[#fde047]/10 text-center">
                               {h.plage}
@@ -158,26 +400,26 @@ export default function Page() {
                   <div className="grid grid-cols-2 col-span-6 gap-3 mr-3">
                     <Card className="rounded-sm">
                       <div className="text-xs font-bold mb-1">EFFICENCE (%)</div>
-                      <LineKpi data={c.efficienceSerie} target={90} domain={[0, 100]} color="#3b82f6" />
+                      <LineKpi data={d.efficienceSerie} target={90} domain={[0, 100]} color="#3b82f6" />
                     </Card>
 
                     <Card className="rounded-sm">
                       <div className="text-xs font-bold mb-1">PROGRESSION DE LA COMMANDE (%)</div>
-                      <DonutKpi value={c.progressionRealise} color="#ec4899" label="Complétée" />
+                      <DonutKpi value={d.progressionRealise} color="#ec4899" label="Complétée" />
                       <div className="text-[10px] text-center mt-1">
-                        <span className="text-[#ec4899] font-bold">Réalisé 100,00%</span> ·{" "}
-                        <span className="text-muted-foreground">Restant 0,00%</span>
+                        <span className="text-[#ec4899] font-bold">Réalisé {d.progressionRealise.toFixed(2).replace(".", ",")}%</span> ·{" "}
+                        <span className="text-muted-foreground">Restant {(100 - d.progressionRealise).toFixed(2).replace(".", ",")}%</span>
                       </div>
                     </Card>
 
                     <Card className="rounded-sm">
                       <div className="text-xs font-bold mb-1">QTE RÉELLE PAR HEURE</div>
-                      <BarKpi data={c.hourlySchedule.map((h) => ({ x: h.plage, v: h.reel }))} color="#3b82f6" />
+                      <BarKpi data={d.hourlySchedule.map((h) => ({ x: h.plage, v: h.reel }))} color="#3b82f6" />
                     </Card>
 
                     <Card className="rounded-sm">
                       <div className="text-xs font-bold mb-1">EFFICIENCE (MULTIPLE DES OBJECTIFS)</div>
-                      <BarKpi data={c.hourlySchedule.map((h) => ({ x: h.plage, v: h.eff }))} color="#ec4899" />
+                      <BarKpi data={d.hourlySchedule.map((h) => ({ x: h.plage, v: h.eff }))} color="#ec4899" />
                     </Card>
                   </div>
                 </div>
@@ -197,16 +439,16 @@ export default function Page() {
                     </thead>
                     <tbody className="text-foreground">
                       <tr>
-                        <td className="px-2 py-2 text-center text-base font-black text-[#22c55e] border border-border">{c.ofProgressPct},00%</td>
-                        <td className="px-2 py-2 text-center text-base font-bold border border-border">{c.qteCde.toLocaleString()}</td>
+                        <td className="px-2 py-2 text-center text-base font-black text-[#22c55e] border border-border">{d.ofProgressPct},00%</td>
+                        <td className="px-2 py-2 text-center text-base font-bold border border-border">{Number(d.qteCde).toLocaleString()}</td>
                       </tr>
                       <tr>
                         <td className="px-2 py-3 text-center text-[13px] font-bold border border-border">SOT</td>
-                        <td className="px-2 py-3 text-center text-[13px] font-bold border border-border">{c.sot.toLocaleString()}</td>
+                        <td className="px-2 py-3 text-center text-[13px] font-bold border border-border">{Number(d.sot).toLocaleString()}</td>
                       </tr>
                       <tr className="bg-secondary/30">
                         <td className="px-2 py-3 text-center text-[13px] font-bold border border-border">SAM</td>
-                        <td className="px-2 py-3 text-center text-[13px] font-bold border border-border">{c.sam.toLocaleString()}</td>
+                        <td className="px-2 py-3 text-center text-[13px] font-bold border border-border">{Number(d.sam).toLocaleString()}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -216,15 +458,15 @@ export default function Page() {
                     <tbody className="text-foreground">
                       <tr>
                         <td className="px-2 py-3 text-center text-[10px] font-bold bg-[#dbeafe]/30 border border-border">BPD</td>
-                        <td className="px-2 py-3 text-center text-base font-black bg-[#dbeafe]/30 border border-border">{c.bpd}</td>
+                        <td className="px-2 py-3 text-center text-base font-black bg-[#dbeafe]/30 border border-border">{d.bpd}</td>
                       </tr>
                       <tr>
                         <td className="px-2 py-3 text-center text-[10px] font-bold bg-[#fed7aa]/30 border border-border">EPD</td>
-                        <td className="px-2 py-3 text-center text-base font-black bg-[#fed7aa]/30 border border-border">{c.epd}</td>
+                        <td className="px-2 py-3 text-center text-base font-black bg-[#fed7aa]/30 border border-border">{d.epd}</td>
                       </tr>
                       <tr>
                         <td className="px-2 py-3 text-center text-[10px] font-bold bg-[#fce7f3]/30 border border-border">Objectif</td>
-                        <td className="px-2 py-3 text-center text-sm font-semibold bg-[#fce7f3]/30 border border-border">{c.objectifJour} p/j</td>
+                        <td className="px-2 py-3 text-center text-sm font-semibold bg-[#fce7f3]/30 border border-border">{d.objectifJour} p/j</td>
                       </tr>
                     </tbody>
                   </table>
@@ -236,13 +478,13 @@ export default function Page() {
                       EHD :
                     </div>
                     <div className="bg-[#86efac]/60 px-3 py-2 font-black text-sm flex-1 text-center">
-                      {c.ehd}
+                      {d.ehd}
                     </div>
                   </div>
                   <div className="text-[10px] uppercase text-muted-foreground">Problèmes</div>
-                  <div className="bg-[#fce7f3] px-2 py-1.5 text-xs mt-1">pth qualité</div>
+                  <div className="bg-[#fce7f3] px-2 py-1.5 text-xs mt-1">{d.problemes}</div>
                   <div className="text-[10px] uppercase text-muted-foreground mt-2">Détail</div>
-                  <div className="px-2 py-1.5 text-xs mt-1">t-shirt souillé</div>
+                  <div className="px-2 py-1.5 text-xs mt-1">{d.detail}</div>
                 </Card>
               </div>
 
@@ -258,14 +500,14 @@ export default function Page() {
 
         {/* FOOTER METRIC STRIP — full width */}
         <div className="grid grid-cols-8 gap-2">
-          <FootCard label="GTD" value={c.gtd} color="#ec4899" big={false} />
-          <FootCard label="GAP SAM/SOT" value={`${c.gapSamSot}%`} color="#facc15" />
-          <FootCard label="Objectif journalier" value={c.objectifJour} unit="pièces / jour" color="#3b82f6" />
-          <FootCard label="QTE demandée" value={67} unit="pièces / h" color="#a855f7" />
-          <FootCard label="QTE réalisée (heure en cours)" value={85} unit="pièces / h" color="#06b6d4" />
-          <FootCard label="Efficience (heure en cours)" value="126%" unit="(multiple des objectifs)" color="#ec4899" />
-          <FootCard label="Production du jour" value={85} unit="pièces" color="#f97316" />
-          <FootCard label="Ecart vs objectif jour" value="+85" unit="pièces" color="#14b8a6" />
+          <FootCard label="GTD" value={d.gtd} color="#ec4899" big={false} />
+          <FootCard label="GAP SAM/SOT" value={`${d.gapSamSot}%`} color="#facc15" />
+          <FootCard label="Objectif journalier" value={d.objectifJour} unit="pièces / jour" color="#3b82f6" />
+          <FootCard label="QTE demandée" value={Number(d.objectifJour) || "—"} unit="pièces / h" color="#a855f7" />
+          <FootCard label="QTE réalisée (heure en cours)" value={d.hourlySchedule[0]?.reel ?? "—"} unit="pièces / h" color="#06b6d4" />
+          <FootCard label="Efficience (heure en cours)" value={d.hourlySchedule[0] ? `${d.hourlySchedule[0].eff}%` : "—"} unit="(multiple des objectifs)" color="#ec4899" />
+          <FootCard label="Production du jour" value={d.cumulQty} unit="pièces" color="#f97316" />
+          <FootCard label="Ecart vs objectif jour" value={d.objectifJour ? `+${d.cumulQty - Number(d.objectifJour)}` : "—"} unit="pièces" color="#14b8a6" />
         </div>
       </div>
 

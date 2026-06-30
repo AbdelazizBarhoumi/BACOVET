@@ -19,7 +19,7 @@ function formatDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
-const CHAINS = ['CH1', 'CH2', 'CH3', 'CH4', 'CH5', 'CH6', 'CH7', 'CH8', 'CH9', 'CH10', 'CH11', 'CH12', 'CH13', 'CH14', 'CH15'];
+const CHAINS = Array.from({ length: 18 }, (_, i) => `CH${String(i + 1).padStart(2, '0')}`);
 const ARTICLES = Array.from({ length: 100 }, (_, i) => `ART-${String(i + 1).padStart(4, '0')}`);
 const DESIGNS = [
   'T-shirt Basic Coton', 'Polos Classique Manches', 'Robe Ete Legere',

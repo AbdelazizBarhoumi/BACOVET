@@ -4,6 +4,8 @@ import '../css/app.css';
 import { initializeTheme } from './hooks/use-appearance';
 import { V1Shell } from '@/components/v1/v1-shell';
 import { useRouterState } from '@tanstack/react-router';
+import { FilterProvider } from '@/context/FilterContext';
+import { LiveDataProvider } from '@/hooks/use-live-data';
 
 import ProductionConfection from '@/routes-v1/pages/production-confection';
 import ProductionFlux from '@/routes-v1/pages/production-flux';
@@ -27,9 +29,13 @@ const v1LayoutRoute = createRoute({
 function V1Layout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <V1Shell pathname={pathname}>
-      <Outlet />
-    </V1Shell>
+    <FilterProvider>
+      <LiveDataProvider>
+        <V1Shell pathname={pathname}>
+          <Outlet />
+        </V1Shell>
+      </LiveDataProvider>
+    </FilterProvider>
   );
 }
 

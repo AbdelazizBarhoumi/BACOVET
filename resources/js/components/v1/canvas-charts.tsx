@@ -545,7 +545,7 @@ export function HBarChart({ names, values, target }: { names: string[]; values: 
     </div>
   );
 }
-export function SparkCanvas({ fullWidth }: { fullWidth?: boolean }) {
+export function SparkCanvas({ values, fullWidth }: { values?: number[]; fullWidth?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const tv = useThemeVersion();
   useEffect(() => {
@@ -556,14 +556,17 @@ export function SparkCanvas({ fullWidth }: { fullWidth?: boolean }) {
     ctx.strokeStyle = green;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    const pts = [70, 72, 71, 73, 72, 74, 72, 73, 65, 71, 73, 65, 74, 73, 72, 71, 78,72, 71, 70, 72, 74, 65, 72, 71, 72, 79, 73];
+    const pts = values?.length ? values : [70, 72, 71, 73, 72, 74, 72, 73, 65, 71, 73, 65, 74, 73, 72, 71, 78,72, 71, 70, 72, 74, 65, 72, 71, 72, 79, 73];
+    const min = Math.min(...pts);
+    const max = Math.max(...pts);
+    const range = max - min || 1;
     pts.forEach((v, i) => {
       const x = i * w / (pts.length - 1);
-      const y = h - 8 - (v - 68) * 3;
+      const y = h - 4 - ((v - min) / range) * (h - 12);
       i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
     });
     ctx.stroke();
-  }, [tv]);
+  }, [values, tv]);
   if (fullWidth) return <canvas ref={ref} className="w-full h-[40px] mt-2" />;
   return <canvas ref={ref} className="absolute right-4 bottom-3 w-[95px] h-[40px]" />;
 }
