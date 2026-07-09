@@ -10,9 +10,6 @@ class KpiComputeService
             return null;
         }
         $pct = ($ok / $produced) * 100;
-        if ($pct > 100) {
-            return null;
-        } // anomaly guard
 
         return round($pct, 1);
     }

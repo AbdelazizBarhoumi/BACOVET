@@ -1,4 +1,4 @@
-import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
+import { PageHeader, FilterPill, FilterSelect, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import { Card, ReqLabel } from "@/components/v1/primitives";
 import { ComboChart, GaugeChart, LineChart, AreaChart, TimelineChart, HBarChart, SparkCanvas } from "@/components/v1/canvas-charts";
 import { useLiveData } from "@/hooks/use-live-data";
@@ -26,10 +26,11 @@ import { fetchMethodesKpis, fetchRespectTempsDetail, fetchTempsAcceptesDetail, t
 import type { BreakdownRow } from "@/types/production";
 
 export default function Page() {
-  const { getFilterParams } = useFilters();
+  const { getFilterParams, setFilter } = useFilters();
   const { refreshIntervalSec, recordFetchSuccess, recordFetchError } = useLiveData();
 
   const [chains, setChains] = useState<ChainInfo[]>([]);
+  const [selectedChain, setSelectedChain] = useState<string>("");
   const [kpis, setKpis] = useState<ProductionKpis | null>(null);
   const [gauges, setGauges] = useState<GaugeItem[]>([]);
   const [wipGauges, setWipGauges] = useState<GaugeItem[]>([]);
@@ -46,6 +47,11 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const handleChainChange = useCallback((chainId: string) => {
+    setSelectedChain(chainId);
+    setFilter("ligne", chainId);
+  }, [setFilter]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -121,7 +127,11 @@ export default function Page() {
     };
   }, [fetchData, refreshIntervalSec]);
 
-  const chain = chains[0];
+  const chain = chains.find((c) => c.id === selectedChain) ?? chains[0];
+  const chainOptions = [
+    { value: "", label: "Toutes les chaînes" },
+    ...chains.map((c) => ({ value: c.id, label: `Chaîne ${c.id}` })),
+  ];
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
 
@@ -198,7 +208,13 @@ export default function Page() {
         filters={
           <>
             <FilterPill label="Période" value={dateStr} icon={Filters.Calendar} />
-            <FilterPill label="Ligne" value={chain ? `Ligne ${chain.id} - Série 200` : "Ligne 1 - Série 200"} icon={Filters.Layers} />
+            <FilterSelect
+              label="Ligne"
+              value={selectedChain}
+              options={chainOptions}
+              onChange={handleChainChange}
+              icon={Filters.Layers}
+            />
             <FilterPill label="Atelier" value="Confection" icon={Filters.Factory} />
             <FilterPill label="Shift" value="Jour 07:00 - 19:00" icon={Filters.Users} />
           </>

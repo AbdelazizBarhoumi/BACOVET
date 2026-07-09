@@ -112,6 +112,10 @@ class ProductionController extends Controller
 
             // GPRO data for SAM, SOT, Effectif, EHD
             $gproArt = $gproArticle->get($article);
+            if ($gproArt === null && $article !== 'N/A') {
+                $articleSuffix = substr($article, strrpos($article, '-') + 1);
+                $gproArt = $gproArticle->first(fn ($val, $key) => str_ends_with($key, $articleSuffix));
+            }
             $sam = $gproArt?->sam_min ?? 'N/A';
             $sot = $gproArt?->sot_min ?? 'N/A';
             $effectif = $gproArt?->effectif_requis ?? $gproPlan?->objectif_journalier ?? 'N/A';
@@ -411,8 +415,8 @@ class ProductionController extends Controller
 
         $data = $query->select(
             'of',
-            DB::raw('CASE WHEN quantite_prevue > 0 THEN CAST(quantite_realisee AS FLOAT) / quantite_prevue * 100 ELSE avancement_pct END as pct'),
-            'statut'
+            DB::raw('CASE WHEN departage > 0 THEN CAST(embalage AS FLOAT) / departage * 100 ELSE 0 END as pct'),
+            DB::raw('CASE WHEN departage > 0 AND embalage >= departage * 0.8 THEN "termine" WHEN departage > 0 AND embalage >= departage * 0.4 THEN "en_cours" ELSE "retard" END as statut')
         )
             ->limit(8)
             ->get()->map(fn ($r) => [
@@ -436,13 +440,16 @@ class ProductionController extends Controller
                 $join->on('q.employee_id', '=', 'p.employee_id')
                     ->on('q.date', '=', 'p.date');
             })
+            ->leftJoin('temps_operation as t', function ($join) {
+                $join->on('q.poste', '=', 't.operation_code');
+            })
             ->whereDate('q.date', '>=', $startOfMonth);
 
         $this->applyFilters($query, $request, 'q.date', 'q.chaine');
 
         $data = $query->select(
             'q.date',
-            DB::raw('SUM(q.minutes_produites) as total_prod'),
+            DB::raw('SUM(q.quantite * IFNULL(t.temps_reel_s, 0) / 60) as total_prod'),
             DB::raw('SUM(IFNULL(p.minutes_presence, q.minutes_presence)) as total_pres')
         )
             ->groupBy('q.date')
@@ -484,7 +491,7 @@ class ProductionController extends Controller
         $data = $query->select(
             'q.employee_id as nom',
             'q.chaine',
-            DB::raw('SUM(q.minutes_produites) as min_std'),
+            DB::raw('SUM(q.quantite * IFNULL(t.temps_reel_s, 0) / 60) as min_std'),
             DB::raw('SUM(IFNULL(p.minutes_presence, q.minutes_presence)) as min_pres'),
             DB::raw('SUM(t.temps_reel_s) as total_temps_op')
         )
@@ -565,7 +572,7 @@ class ProductionController extends Controller
         $query = DB::table('etat_avancement');
         $this->applyFilters($query, $request);
 
-        $data = $query->select('chaine', DB::raw('SUM(quantite_realisee) as realise'), DB::raw('SUM(quantite_prevue) as prevue'))
+        $data = $query->select('chaine', DB::raw('SUM(embalage) as realise'), DB::raw('SUM(departage) as prevue'))
             ->groupBy('chaine')->get()
             ->map(fn ($r) => [
                 'chaine' => $r->chaine,
@@ -589,6 +596,9 @@ class ProductionController extends Controller
                     $join->on('q.employee_id', '=', 'p.employee_id')
                         ->on('q.date', '=', 'p.date');
                 })
+                ->leftJoin('temps_operation as t', function ($join) {
+                    $join->on('q.poste', '=', 't.operation_code');
+                })
                 ->whereDate('q.date', $today);
 
             $this->applyFilters($query, $request, 'q.date', 'q.chaine');
@@ -596,7 +606,7 @@ class ProductionController extends Controller
             $data = $query->select(
                 'q.employee_id as employe',
                 'q.chaine',
-                DB::raw('SUM(q.minutes_produites) as min_std'),
+                DB::raw('SUM(q.quantite * IFNULL(t.temps_reel_s, 0) / 60) as min_std'),
                 DB::raw('SUM(IFNULL(p.minutes_presence, q.minutes_presence)) as min_pres')
             )
                 ->groupBy('q.employee_id', 'q.chaine')
@@ -1122,6 +1132,9 @@ class ProductionController extends Controller
                 $join->on('q.employee_id', '=', 'p.employee_id')
                     ->on('q.date', '=', 'p.date');
             })
+            ->leftJoin('temps_operation as t', function ($join) {
+                $join->on('q.poste', '=', 't.operation_code');
+            })
             ->whereDate('q.date', Carbon::today())
             ->where(function ($q) use ($posteId, $posteAlt) {
                 $q->where('q.poste', $posteId)
@@ -1133,7 +1146,7 @@ class ProductionController extends Controller
 
         $data = $query->select(
             'q.employee_id as employe',
-            DB::raw('SUM(q.minutes_produites) as min_prod'),
+            DB::raw('SUM(q.quantite * IFNULL(t.temps_reel_s, 0) / 60) as min_prod'),
             DB::raw('SUM(IFNULL(p.minutes_presence, q.minutes_presence)) as min_pres')
         )
             ->groupBy('q.employee_id')
@@ -1349,9 +1362,9 @@ class ProductionController extends Controller
         $data = $avancements->map(function ($av) use ($fabrication, $effToday, $effYesterday, $qualityToday, $wip, $depart, $stock, $gproArticle, $gproPlanning, $gproOfDates) {
             $of = $av->of;
             $chaine = $av->chaine;
-            $qtePrevue = (int) $av->quantite_prevue;
-            $qteRealisee = (int) $av->quantite_realisee;
-            $avancementPct = $qtePrevue > 0 ? round(($qteRealisee / $qtePrevue) * 100, 2) : (float) $av->avancement_pct;
+            $qtePrevue = (int) ($av->departage ?? 0);
+            $qteRealisee = (int) ($av->embalage ?? 0);
+            $avancementPct = $qtePrevue > 0 ? round(($qteRealisee / $qtePrevue) * 100, 2) : 0;
 
             $fb = $fabrication->get($of);
             $bpd = $fb?->dt_debut ?? 'N/A';

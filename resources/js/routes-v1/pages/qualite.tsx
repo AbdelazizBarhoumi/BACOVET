@@ -14,7 +14,7 @@ import {
 import { AlertCircle, AlertTriangle, CheckCircle, Trophy } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type KpiRow = { id: string; title: string; v: number | null; target: number; dir: "max" | "min" };
+type KpiRow = { id: string; title: string; v: number | null; target: number; dir: "max" | "min"; raw?: { num: number | null; den: number | null }; blocker?: string | null };
 type TrendRow = { id: string; title: string; v: number | null; target: number; color: string; domain: [number, number]; data: number[] };
 
 const KPI_DEFS: { id: string; title: string; target: number; dir: "max" | "min"; apiField: keyof ApiKpiCard extends never ? never : string }[] = [
@@ -69,7 +69,12 @@ export default function Page() {
         setKpis(
           KPI_DEFS.map((def) => {
             const card = (raw as Record<string, unknown>)[def.apiField] as ApiKpiCard | undefined;
-            return { id: def.id, title: def.title, v: card?.value ?? null, target: def.target, dir: def.dir };
+            const r = card?.raw as Record<string, unknown> | undefined;
+            return {
+              id: def.id, title: def.title, v: card?.value ?? null, target: def.target, dir: def.dir,
+              raw: r ? { num: (r.first_pass ?? r.total_rejets ?? r.bundle_reject ?? null) as number | null, den: (r.produced ?? r.total_inspections ?? r.bundle_inspected ?? null) as number | null } : undefined,
+              blocker: card?.blocker ?? null,
+            };
           }),
         );
       }
@@ -149,10 +154,18 @@ export default function Page() {
                   <Card key={k.id} className={!isOk ? "border-[#ef4444]/40 bg-[#fee2e2]/30" : ""}>
                     <ReqLabel id={k.id} title={k.title} />
                     <div className="text-2xl font-black mt-1" style={{ color }}>{k.v != null ? k.v.toString().replace(".", ",") : "–"} %</div>
+                    {k.raw && k.raw.num != null && k.raw.den != null && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {k.raw.num.toLocaleString()} / {k.raw.den.toLocaleString()} pcs
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mt-1">
                       <div className="text-[10px] text-muted-foreground">Objectif : {k.dir === "max" ? "≤" : "≥"} {k.target} %</div>
                       {isOk ? <CheckCircle className="h-4 w-4 text-[#22c55e]" /> : <AlertCircle className="h-4 w-4 text-[#ef4444]" />}
                     </div>
+                    {k.blocker && (
+                      <div className="mt-1 text-[9px] text-amber-600 font-medium truncate" title={k.blocker}>⚠ {k.blocker}</div>
+                    )}
                   </Card>
                 );
               })}

@@ -11,9 +11,9 @@ return new class extends Migration
         // M-008 — efficience_chaine
         Schema::create('efficience_chaine', function (Blueprint $table) {
             $table->id();
-            $table->string('chaine', 20);
-            $table->date('date');
-            $table->decimal('efficience_pct', 6, 2);
+            $table->string('chaine', 20)->nullable();
+            $table->date('date')->nullable();
+            $table->decimal('efficience_pct', 6, 2)->nullable();
             $table->timestamp('synced_at')->useCurrent();
             $table->index(['chaine', 'date']);
             $table->index('date');
@@ -22,7 +22,7 @@ return new class extends Migration
         // M-009 — wip_chaine
         Schema::create('wip_chaine', function (Blueprint $table) {
             $table->id();
-            $table->string('chaine', 20);
+            $table->string('chaine', 20)->nullable();
             $table->string('of_number', 50)->nullable();
             $table->integer('en_cours')->default(0);
             $table->integer('entree_jour')->default(0);
@@ -60,7 +60,7 @@ return new class extends Migration
         Schema::create('qcm_defect_trx', function (Blueprint $table) {
             $table->id();
             $table->date('log_date');
-            $table->string('item_id', 100);
+            $table->string('item_id', 100)->nullable();
             $table->string('shift_code', 10)->nullable();
             $table->integer('occurrence_count')->default(1);
             $table->timestamp('synced_at')->useCurrent();

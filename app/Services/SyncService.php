@@ -21,10 +21,16 @@ class SyncService
         'vw_defects' => [
             'LOGDATE' => 'log_date', 'ShiftCode' => 'shift_code',
             'ProdGroup' => 'prod_group', 'OpNo' => 'op_no', 'Qty' => 'qty',
+            'DefectQty' => 'defect_qty', 'QCCheckpointQty' => 'qccheckpoint_qty',
         ],
         'qcm_defect_trx' => [
             'LOGDATE' => 'log_date', 'ShiftCode' => 'shift_code',
-            'GROUPID' => 'group_id', 'TicketID' => 'ticket_id', 'ITEMID' => 'item_id',
+            'GROUPID' => 'group_id', 'TicketID' => 'ticket_id',
+            'DefectCategoryName' => 'defect_category_name', 'DEFECTCODEID' => 'defectcodeid',
+            'DEFECTCODENAME' => 'defectcodename', 'DEFECTQUANTITY' => 'defectquantity',
+            'ITEMNO' => 'itemno', 'LinkedID' => 'linked_id', 'OPERATIONNO' => 'operationno',
+            'QCCheckPointOP' => 'qccheck_point_op', 'TerminalNo' => 'terminal_no',
+            'TransactionTime' => 'transaction_time',
         ],
         'pieces_ok_jour' => ['FirstPassToday' => 'first_pass_today'],
         'pieces_produites_jour' => ['ProducedToday' => 'produced_today'],
@@ -33,54 +39,74 @@ class SyncService
 
         // Production tables
         'wip_chaine' => [
-            'chaine' => 'chaine', 'en_cours' => 'en_cours',
-            'entree_jour' => 'entree_jour', 'sortie_jour' => 'sortie_jour',
-            'of' => 'of_number', 'article' => 'article',
+            'ProdGroup' => 'chaine', 'WIP_Chaine' => 'en_cours',
         ],
         'item_trx_enq' => [
             'TransactionID' => 'transaction_id', 'SONo' => 'so_no',
             'ItemNo' => 'item_no', 'OpNo' => 'op_no', 'IsSplit' => 'is_split',
+            'ActionType' => 'action_type', 'Atelier' => 'atelier',
+            'BuyerEPC' => 'buyer_epc', 'CutLotBundleNo' => 'cut_lot_bundle_no',
+            'CutLotNo' => 'cut_lot_no', 'DailyWorkScheduleID' => 'daily_work_schedule_id',
+            'EmpGroup' => 'emp_group', 'EmpGrpID' => 'emp_grp_id',
+            'EmployeeName' => 'employee_name', 'EndTime' => 'end_time',
+            'EPCTagDTime' => 'epctag_dtime', 'ItemCard' => 'item_card',
+            'LastUpdate' => 'last_update', 'LogDate' => 'log_date',
+            'MasterItemNo' => 'master_item_no', 'MoBundleNo' => 'mo_bundle_no',
+            'MoCutLotNo' => 'mo_cut_lot_no', 'OpCode' => 'op_code',
+            'PartialClaim' => 'partial_claim', 'PayRate' => 'pay_rate',
+            'ProdGroup' => 'prod_group', 'ProdGrpID' => 'prod_grp_id',
+            'Quantity' => 'quantity', 'SAM' => 'sam', 'ShiftCode' => 'shift_code',
+            'StartTime' => 'start_time', 'TagDTime' => 'tag_dtime',
+            'TerminalNo' => 'terminal_no', 'UHFEPC' => 'uhfepc',
+            'WorkstageNo' => 'workstage_no',
         ],
         'etat_avancement' => [
-            'of' => 'of', 'avancement_pct' => 'avancement_pct',
-            'quantite_prevue' => 'quantite_prevue', 'quantite_realisee' => 'quantite_realisee',
-            'statut' => 'statut', 'chaine' => 'chaine',
+            'OF_No' => 'of', 'ProdGroup' => 'chaine',
+            'departage' => 'departage', 'vigniette_coupe' => 'vigniette_coupe',
+            'envoie_serigraphie' => 'envoie_serigraphie', 'sortie_serigraphie' => 'sortie_serigraphie',
+            'sortie_coupe' => 'sortie_coupe', 'entree_chaine' => 'entree_chaine',
+            'engagement' => 'engagement', 'sortie_montage' => 'sortie_montage',
+            'controle_qualite' => 'controle_qualite', 'conditionement' => 'conditionement',
+            'embalage' => 'embalage',
         ],
         'efficience_chaine' => [
-            'chaine' => 'chaine', 'date' => 'date', 'efficience_pct' => 'efficience_pct',
-            'heures_prod' => 'heures_prod', 'heures_standards' => 'heures_standards',
+            'ProdGroup' => 'chaine', 'TempsStandard' => 'heures_standards',
+            'TempsPresence' => 'heures_prod', 'Efficience_Pourcentage' => 'efficience_pct',
         ],
         'qte_produite' => [
-            'date' => 'date', 'chaine' => 'chaine', 'shift' => 'shift',
-            'quantite' => 'quantite',
+            'DateProduction' => 'date', 'OF_No' => 'of_no',
+            'Article' => 'article', 'Chaine' => 'chaine',
+            'Quantite_Produite' => 'quantite',
         ],
         'lost_time' => [
-            'date' => 'date', 'chaine' => 'chaine', 'motif' => 'motif',
-            'minutes_perdues' => 'minutes_perdues',
+            'LostTypeCode' => 'motif', 'LostTypeDesc' => 'motif',
+            'TotalLostTime' => 'minutes_perdues',
         ],
         'taging_reel' => [
-            'chaine' => 'chaine', 'shift' => 'shift',
-            'tag_theorique' => 'tag_theorique', 'tag_reel' => 'tag_reel',
-            'ecart_pct' => 'ecart_pct',
+            'MONo' => 'mono', 'ProdGroup' => 'chaine',
+            'TotalEngagement' => 'total_engagement', 'TotalEmbalage' => 'total_embalage',
+            'StatutTagging' => 'statut_tagging',
         ],
         'packets_rejetes' => [
-            'IDColis' => 'id_colis', 'reference' => 'reference',
-            'motif' => 'motif', 'qtte' => 'qtte', 'date_rejet' => 'date_rejet',
+            'Jour' => 'date_rejet', 'RFID_introuvable' => 'rfid_introuvable',
+            'Packet_annule' => 'packet_annule',
         ],
         'sortie_coupe' => [
-            'commande' => 'commande', 'date' => 'date', 'quantite_coupee' => 'quantite_coupee',
+            'DateProduction' => 'date', 'Commande' => 'commande',
+            'OpNo' => 'op_no', 'Quantite_Sortie_Coupe' => 'quantite_coupee',
         ],
         'qte_engagement' => [
-            'commande' => 'commande', 'of' => 'of', 'article' => 'article',
-            'quantite_engagee' => 'quantite_engagee',
+            'DateEngagement' => 'date', 'Commande' => 'commande',
+            'OpNo' => 'op_no', 'Quantite_Engagement' => 'quantite_engagee',
         ],
         'qte_entree_serigraphie' => [
-            'date' => 'date', 'article' => 'article', 'couleur' => 'couleur',
-            'quantite' => 'quantite',
+            'DateEntreeSerigraphie' => 'date', 'OF_No' => 'of',
+            'Article' => 'article', 'Chaine' => 'chaine',
+            'Quantite_Entree_Serigraphie' => 'quantite',
         ],
         'sortie_serigraphie' => [
-            'date' => 'date', 'article' => 'article', 'couleur' => 'couleur',
-            'quantite' => 'quantite',
+            'DateSerigraphie' => 'date', 'Commande' => 'commande',
+            'OpNo' => 'op_no', 'Quantite_Sortie_Serigraphie' => 'quantite',
         ],
         'of_fabrication' => [
             'IDOFabrication' => 'idofabrication', 'OFabrication' => 'of_number',
@@ -91,25 +117,27 @@ class SyncService
             'SHORTNAME' => 'shortname', 'OPERA' => 'opera',
         ],
         'qte_produit_individuel_jour' => [
-            'date' => 'date', 'employe' => 'employee_id', 'chaine' => 'chaine',
-            'quantite' => 'quantite', 'minutes_produites' => 'minutes_produites',
+            'DateProduction' => 'date', 'EmployeeNo' => 'employee_id',
+            'EmployeeName' => 'employee_name', 'Quantite_Produite' => 'quantite',
             'OpNo' => 'poste', 'OpLib' => 'poste',
         ],
         'qte_depart_chaine_article_of' => [
-            'of' => 'of', 'chaine' => 'chaine', 'article' => 'article',
-            'quantite' => 'quantite', 'date' => 'date',
+            'DateDepartage' => 'date', 'Chaine' => 'chaine',
+            'Article' => 'article', 'OF_No' => 'of',
+            'Quantite_Departage' => 'quantite',
         ],
         'minutes_presence' => [
-            'employe' => 'employee_id', 'date' => 'date',
-            'minutes_presence' => 'minutes_presence', 'chaine' => 'chaine',
+            'ProdGroup' => 'chaine', 'EmployeeNo' => 'employee_id',
+            'EmployeeName' => 'employee_name', 'TempsPresence_Min' => 'minutes_presence',
         ],
         'minutes_produites' => [
-            'employe' => 'employee_id', 'date' => 'date', 'chaine' => 'chaine',
-            'minutes_produites' => 'minutes_produites',
+            'ProdGroup' => 'prod_group', 'EmployeeNo' => 'employee_no',
+            'EmployeeName' => 'employee_name', 'TotalQuantite' => 'total_quantite',
+            'MinuteProduite' => 'minute_produite',
         ],
         'temps_operation' => [
-            'operation' => 'operation_code', 'temps_standard_s' => 'temps_standard_s',
-            'temps_reel_s' => 'temps_reel_s', 'ecart_pct' => 'ecart_pct',
+            'ProdGroup' => 'chaine', 'OpNo' => 'operation_code',
+            'OpCode' => 'op_code', 'TempsOperation' => 'temps_reel_s',
         ],
 
         // Logistics tables
@@ -233,7 +261,7 @@ class SyncService
 
     public function syncQuality(): void
     {
-        $this->syncTable('check_pass_qte', fn () => $this->novacity->fetchEndpoint('check_pass_qte'));
+        // check_pass_qte removed: Novacity endpoint returns 500 timeout (confirmed broken §1)
         $this->syncTable('vw_defects', fn () => $this->novacity->fetchEndpoint('vw_defect'));
         $this->syncTable('qcm_defect_trx', fn () => $this->novacity->fetchEndpoint('qcm_defect_trx'));
         $this->syncTable('pieces_ok_jour', fn () => $this->novacity->fetchQuery('pieces_ok_jour'));
@@ -336,7 +364,7 @@ class SyncService
         $this->syncTable('qte_engagement', fn () => $this->novacity->fetchQuery('qte_engagement'));
         $this->syncTable('qte_entree_serigraphie', fn () => $this->novacity->fetchQuery('qte_entree_serigraphie'));
         $this->syncTable('sortie_serigraphie', fn () => $this->novacity->fetchQuery('sortie_serigraphie'));
-        $this->syncTable('of_fabrication', fn () => $this->novacity->fetchEndpoint('of_fabrication'));
+        // of_fabrication removed: Novacity endpoint returns 500 (confirmed broken §1)
         $this->syncTable('inline_vs_endline_comparison', fn () => $this->novacity->fetchEndpoint('inline_vs_endline_comparison'));
         $this->syncTable('qte_produit_individuel_jour', fn () => $this->novacity->fetchQuery('qte_produit_indiv_jour'));
         $this->syncTable('qte_depart_chaine_article_of', fn () => $this->novacity->fetchQuery('qte_depart_chaine'));
@@ -462,7 +490,7 @@ class SyncService
                 $now = now();
                 foreach ($chunks as $chunk) {
                     $insert = array_map(function ($r) use ($fieldMap, $now, $table, $hasAtelier) {
-                        $needsDate = in_array($table, ['pieces_ok_jour', 'pieces_produites_jour', 'taging_reel', 'qte_engagement']);
+                        $needsDate = in_array($table, ['pieces_ok_jour', 'pieces_produites_jour', 'taging_reel', 'qte_engagement', 'minutes_presence', 'minutes_produites', 'sortie_serigraphie', 'qte_produit_individuel_jour', 'qte_entree_serigraphie', 'sortie_coupe', 'lost_time', 'qte_produite', 'efficience_chaine']);
                         $needsYear = in_array($table, ['pieces_ok_annee', 'pieces_produites_annee']);
                         $mapped = [];
                         foreach ((array) $r as $key => $value) {
@@ -616,6 +644,17 @@ class SyncService
                         return $mapped;
                     }, $chunk);
 
+                    // Filter rows to only include columns that exist in the DB table
+                    static $tableColumns = [];
+                    if (! isset($tableColumns[$table])) {
+                        $tableColumns[$table] = array_flip(Schema::getColumnListing($table));
+                    }
+                    $validColumns = $tableColumns[$table];
+                    foreach ($insert as &$row) {
+                        $row = array_intersect_key($row, $validColumns);
+                    }
+                    unset($row);
+
                     if ($upsertKeys !== null && $historyEnabled) {
                         // Use upsert to preserve history
                         DB::table($table)->upsert($insert, $upsertKeys);
@@ -630,12 +669,17 @@ class SyncService
                 SyncLog::record('syncTable', $table, count($rows), 'ok', null, (int) ((microtime(true) - $start) * 1000));
             }
         } catch (\Throwable $e) {
-            $this->updateJobStatus($table, 'error', 0, 0, $e->getMessage());
-            if ($historyEnabled) {
-                AuditLog::error("Sync {$table} échouée — {$e->getMessage()}");
-                SyncLog::record('syncTable', $table, 0, 'error', $e->getMessage(), (int) ((microtime(true) - $start) * 1000));
+            $errorMsg = $e->getMessage();
+            // Truncate to 5000 chars to prevent audit_logs overflow
+            if (strlen($errorMsg) > 5000) {
+                $errorMsg = substr($errorMsg, 0, 5000) . '...[truncated]';
             }
-            Log::error("SyncService [{$table}]: {$e->getMessage()}");
+            $this->updateJobStatus($table, 'error', 0, 0, $errorMsg);
+            if ($historyEnabled) {
+                AuditLog::error("Sync {$table} échouée — {$errorMsg}");
+                SyncLog::record('syncTable', $table, 0, 'error', $errorMsg, (int) ((microtime(true) - $start) * 1000));
+            }
+            Log::error("SyncService [{$table}]: {$errorMsg}");
         }
     }
 

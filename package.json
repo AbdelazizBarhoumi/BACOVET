@@ -9,7 +9,9 @@
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
         "lint": "eslint . --fix",
-        "types": "tsc --noEmit"
+        "types": "tsc --noEmit",
+        "dev:all": "node scripts/dev-servers.cjs",
+        "mocks": "node scripts/mock-servers.cjs"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.2",

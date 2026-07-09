@@ -11,7 +11,7 @@ return new class extends Migration
         // M-019 — qte_produite
         Schema::create('qte_produite', function (Blueprint $table) {
             $table->id();
-            $table->date('date');
+            $table->date('date')->nullable();
             $table->string('chaine', 20)->nullable();
             $table->string('shift_code', 10)->nullable();
             $table->integer('quantite')->default(0);
@@ -35,7 +35,7 @@ return new class extends Migration
         // M-021 — etat_avancement
         Schema::create('etat_avancement', function (Blueprint $table) {
             $table->id();
-            $table->string('of', 50);
+            $table->string('of', 50)->nullable();
             $table->string('chaine', 20)->nullable();
             $table->decimal('avancement_pct', 5, 2)->default(0);
             $table->integer('quantite_prevue')->default(0);

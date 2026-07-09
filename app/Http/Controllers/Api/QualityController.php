@@ -83,9 +83,11 @@ class QualityController extends Controller
             'rft_jour' => [
                 'value' => $rftJour,
                 'status' => $this->kpi->rftStatus($rftJour),
-                'blocker' => $piecesOkJour && $piecesOkJour->date !== $today->toDateString()
-                    ? 'RFT data stale — last update: '.$piecesOkJour->date
-                    : null,
+                'blocker' => ($rftJour !== null && $rftJour > 100)
+                    ? 'Anomalie RFT > 100% — données incohérentes'
+                    : ($piecesOkJour && $piecesOkJour->date !== $today->toDateString()
+                        ? 'RFT data stale — last update: '.$piecesOkJour->date
+                        : null),
                 'raw' => [
                     'first_pass' => $piecesOkJour?->first_pass_today,
                     'produced' => $piecesProduiteJour?->produced_today,

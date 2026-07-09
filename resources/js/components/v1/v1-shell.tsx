@@ -89,6 +89,30 @@ export function FilterPill({ label, value, icon: Icon }: { label: string; value:
     </div>
   );
 }
+export function FilterSelect({
+  label, value, options, onChange, icon: Icon,
+}: {
+  label: string; value: string; options: { value: string; label: string }[];
+  onChange: (v: string) => void; icon: any;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-1.5 min-w-[140px]">
+      <div className="text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-1.5 mt-0.5">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="bg-transparent text-sm font-semibold outline-none cursor-pointer truncate w-full"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
 export const Filters = { Calendar, Layers, Factory, Users };
 function LiveClock() {
   const [now, setNow] = useState(new Date(2026, 3, 4, 16, 25, 43));

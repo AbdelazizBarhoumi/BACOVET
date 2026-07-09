@@ -14,6 +14,8 @@ class NovacityService
 
     private int $timeout;
 
+    private int $connectTimeout;
+
     // Maps internal alias → actual Novacity query slug
     // The aliases are short names used in SyncService; the values are the full Novacity slugs
     private const QUERY_SLUGS = [
@@ -74,7 +76,8 @@ class NovacityService
         $this->baseUrl = (string) config('novacity.base_url');
         $this->apiKey = (string) config('novacity.api_key');
         $this->adminToken = (string) config('novacity.admin_token', 'SYSTEM_TOKEN');
-        $this->timeout = (int) config('novacity.timeout', 10);
+        $this->timeout = (int) config('novacity.timeout', 30);
+        $this->connectTimeout = (int) config('novacity.connect_timeout', 15);
     }
 
     public function fetchEndpoint(string $key, int $limit = 1000, int $offset = 0): array
@@ -120,6 +123,7 @@ class NovacityService
 
         $response = Http::withHeaders($headers)
             ->timeout($this->timeout)
+            ->connectTimeout($this->connectTimeout)
             ->get($this->baseUrl.$path, $query);
 
         if ($response->failed()) {

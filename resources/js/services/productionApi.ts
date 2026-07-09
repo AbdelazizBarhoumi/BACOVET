@@ -18,7 +18,10 @@ async function apiGet<T>(
     const url = new URL(`/production${path}`, window.location.origin);
     if (params) {
         Object.entries(params).forEach(([k, v]) => {
-            if (v != null && v !== '') url.searchParams.set(k, v);
+            if (v != null && v !== '') {
+                const backendKey = k === 'ligne' ? 'line' : k;
+                url.searchParams.set(backendKey, v);
+            }
         });
     }
 
