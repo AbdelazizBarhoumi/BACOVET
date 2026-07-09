@@ -1,0 +1,1 @@
+import{u as e,w as _}from"./xlsx-B53y2hEv.js";function i(n,s,r){const o=e.book_new();if(s.length){const t=e.json_to_sheet(s);e.book_append_sheet(o,t,"KPI Summary")}else{const t=e.aoa_to_sheet([["(aucune donnée)"]]);e.book_append_sheet(o,t,"KPI Summary")}const a=new Date().toISOString().slice(0,10);_(o,`${n}_${a}.xlsx`)}export{i as e};

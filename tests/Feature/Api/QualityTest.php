@@ -890,6 +890,7 @@ class QualityTest extends TestCase
         foreach ($tables as $table => $dateCol) {
             if (! Schema::hasTable($table)) {
                 $emptyTables[] = "{$table} (MISSING)";
+
                 continue;
             }
             $count = DB::table($table)->count();
@@ -901,7 +902,7 @@ class QualityTest extends TestCase
         // This test always passes — it's a diagnostic tool
         // Run with --verbose to see which tables are empty
         if (! empty($emptyTables)) {
-            echo "\n⚠ Empty quality tables: " . implode(', ', $emptyTables) . "\n";
+            echo "\n⚠ Empty quality tables: ".implode(', ', $emptyTables)."\n";
             echo "  These tables need data from sync:quality / sync:drive / sync:logistics\n";
             echo "  Run: php artisan sync:quality && php artisan sync:drive && php artisan sync:logistics\n";
         }

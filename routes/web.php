@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DataMappingController;
 use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
 use App\Http\Controllers\Api\LogisticsController;
 use App\Http\Controllers\Api\MethodesController;
+use App\Http\Controllers\Api\NovacityEndpointsController;
 use App\Http\Controllers\Api\ProductionController;
 use App\Http\Controllers\Api\QualityController;
 use App\Http\Controllers\BrowserLogController;
@@ -173,4 +175,17 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
     // ── FILTERS ──────────────────────────────────────────────────────────
     Route::get('/filters/options', [FilterController::class, 'options']);
+
+    // ── DATA MAPPINGS ────────────────────────────────────────────────────
+    Route::prefix('data-mappings')->group(function () {
+        Route::get('/', [DataMappingController::class, 'index']);
+        Route::post('/', [DataMappingController::class, 'store']);
+        Route::put('/{id}', [DataMappingController::class, 'update']);
+        Route::delete('/{id}', [DataMappingController::class, 'destroy']);
+        Route::post('/batch', [DataMappingController::class, 'batchUpdate']);
+        Route::post('/seed', [DataMappingController::class, 'seedFromKpiSeed']);
+    });
 });
+
+// ── NOVACITY ENDPOINTS (from data.json) ─────────────────────────────────
+Route::get('/novacity-endpoints', NovacityEndpointsController::class);

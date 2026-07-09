@@ -78,7 +78,6 @@ class EndpointAuditTest extends TestCase
         $this->assertEquals(3.8, $data['br_gtd_jour']['value']);
         $this->assertEquals('green', $data['br_gtd_jour']['status']); // <=4% = green
 
-
         // F-REQ-106: BR Bundling — inactive (B-01)
         $this->assertEquals('inactive', $data['br_bundling_jour']['status']);
     }

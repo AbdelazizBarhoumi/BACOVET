@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             NovacityJobSeeder::class,
             ManualKpiSeeder::class,
             SyncSettingSeeder::class,
+            DataMappingSeeder::class,
         ]);
 
         User::updateOrCreate(

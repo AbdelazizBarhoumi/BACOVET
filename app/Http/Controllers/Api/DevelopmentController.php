@@ -156,7 +156,7 @@ class DevelopmentController extends Controller
             ->whereNotNull('date')
             ->selectRaw("DATE_FORMAT(date, '%Y-%m') as mois")
             ->selectRaw('modele')
-            ->selectRaw("COUNT(CASE WHEN est_reclamation = 1 THEN 1 END) as reclamations")
+            ->selectRaw('COUNT(CASE WHEN est_reclamation = 1 THEN 1 END) as reclamations')
             ->selectRaw('COUNT(*) as total')
             ->groupBy('mois', 'modele')
             ->orderBy('mois');

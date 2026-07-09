@@ -672,7 +672,7 @@ class SyncService
             $errorMsg = $e->getMessage();
             // Truncate to 5000 chars to prevent audit_logs overflow
             if (strlen($errorMsg) > 5000) {
-                $errorMsg = substr($errorMsg, 0, 5000) . '...[truncated]';
+                $errorMsg = substr($errorMsg, 0, 5000).'...[truncated]';
             }
             $this->updateJobStatus($table, 'error', 0, 0, $errorMsg);
             if ($historyEnabled) {

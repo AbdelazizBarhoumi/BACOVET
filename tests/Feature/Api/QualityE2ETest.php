@@ -22,6 +22,7 @@ use Tests\TestCase;
 class QualityE2ETest extends TestCase
 {
     protected $user;
+
     protected bool $isMysql = false;
 
     protected function setUp(): void
@@ -34,6 +35,7 @@ class QualityE2ETest extends TestCase
         if (! $this->isMysql) {
             echo "\n⚠  Database driver is '{$driver}' — some tests will be skipped.\n";
             echo "   To test against real MySQL, set DB_CONNECTION=mysql in phpunit.xml\n\n";
+
             return;
         }
 
@@ -201,7 +203,7 @@ class QualityE2ETest extends TestCase
             $avg = DB::table('check_pass_qte')->whereDate('log_date', $today)->avg('defect_pct');
             echo "  Today AVG(defect_pct)={$avg}\n";
             $chains = DB::table('check_pass_qte')->whereDate('log_date', $today)->distinct('shortname')->pluck('shortname');
-            echo "  Today chains: " . $chains->implode(', ') . "\n";
+            echo '  Today chains: '.$chains->implode(', ')."\n";
         }
 
         $this->assertGreaterThan(0, $count, 'check_pass_qte is empty');
@@ -371,10 +373,10 @@ class QualityE2ETest extends TestCase
             if ($blocker) {
                 $line .= ", BLOCKER={$blocker}";
             }
-            echo $line . "\n";
+            echo $line."\n";
         }
 
-        echo "\nsynced_at: " . ($data['synced_at'] ?? 'null') . "\n";
+        echo "\nsynced_at: ".($data['synced_at'] ?? 'null')."\n";
 
         foreach ($kpiKeys as $key) {
             $this->assertArrayHasKey($key, $data, "Missing key: {$key}");
@@ -416,7 +418,7 @@ class QualityE2ETest extends TestCase
         $data = $response->json();
 
         echo "\n=== Annual Trend Endpoint Response ===\n";
-        echo "Months: " . count($data['data'] ?? []) . "\n";
+        echo 'Months: '.count($data['data'] ?? [])."\n";
         foreach ($data['data'] ?? [] as $row) {
             echo "  {$row['month']}: rft={$row['rft']}, br_gtd={$row['br_gtd']}, br_bundling={$row['br_bundling']}, br_print={$row['br_print']}, br_care_label={$row['br_care_label']}, br_accessoires={$row['br_accessoires']}, br_compo={$row['br_compo']}\n";
         }
@@ -435,7 +437,7 @@ class QualityE2ETest extends TestCase
         $data = $response->json();
 
         echo "\n=== Pareto RFT Endpoint Response ===\n";
-        echo "Items: " . count($data['data'] ?? []) . "\n";
+        echo 'Items: '.count($data['data'] ?? [])."\n";
         foreach ($data['data'] ?? [] as $item) {
             echo "  {$item['label']}: value={$item['value']}, cumulative={$item['cumulative']}%\n";
         }
@@ -454,7 +456,7 @@ class QualityE2ETest extends TestCase
         $data = $response->json();
 
         echo "\n=== Pareto Inspection Endpoint Response ===\n";
-        echo "Items: " . count($data['data'] ?? []) . "\n";
+        echo 'Items: '.count($data['data'] ?? [])."\n";
         foreach ($data['data'] ?? [] as $item) {
             echo "  {$item['label']}: value={$item['value']}, cumulative={$item['cumulative']}%\n";
         }
@@ -496,6 +498,7 @@ class QualityE2ETest extends TestCase
             $exists = Schema::hasTable($table);
             if (! $exists) {
                 echo "[{$table}] TABLE DOES NOT EXIST\n\n";
+
                 continue;
             }
 
@@ -515,9 +518,9 @@ class QualityE2ETest extends TestCase
 
             $sample = DB::table($table)->limit(3)->get();
             if ($sample->isNotEmpty()) {
-                echo "  Columns: " . implode(', ', array_keys((array) $sample->first())) . "\n";
+                echo '  Columns: '.implode(', ', array_keys((array) $sample->first()))."\n";
                 foreach ($sample as $row) {
-                    echo "  -> " . json_encode((array) $row) . "\n";
+                    echo '  -> '.json_encode((array) $row)."\n";
                 }
             } else {
                 echo "  (empty table)\n";

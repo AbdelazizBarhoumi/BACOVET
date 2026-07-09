@@ -11,6 +11,7 @@ import ProductionConfection from '@/routes-v1/pages/production-confection';
 import ProductionFlux from '@/routes-v1/pages/production-flux';
 import Qualite from '@/routes-v1/pages/qualite';
 import Comparaison from '@/routes-v1/pages/comparaison';
+import DataMapping from '@/routes-v1/pages/data';
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -72,12 +73,19 @@ const v1ComparaisonRoute = createRoute({
   component: Comparaison,
 });
 
+const v1DataRoute = createRoute({
+  getParentRoute: () => v1LayoutRoute,
+  path: '/data',
+  component: DataMapping,
+});
+
 const v1LayoutWithChildren = v1LayoutRoute.addChildren([
   v1IndexRoute,
   v1ProdConfRoute,
   v1ProdFluxRoute,
   v1QualiteRoute,
   v1ComparaisonRoute,
+  v1DataRoute,
 ]);
 
 const routeTree = rootRoute.addChildren([v1LayoutWithChildren]);

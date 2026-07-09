@@ -8,6 +8,8 @@ import LogisticsController from './LogisticsController'
 import MethodesController from './MethodesController'
 import DevelopmentController from './DevelopmentController'
 import FilterController from './FilterController'
+import DataMappingController from './DataMappingController'
+import NovacityEndpointsController from './NovacityEndpointsController'
 const Api = {
     NovacityProxyController: Object.assign(NovacityProxyController, NovacityProxyController),
 AuthController: Object.assign(AuthController, AuthController),
@@ -19,6 +21,8 @@ LogisticsController: Object.assign(LogisticsController, LogisticsController),
 MethodesController: Object.assign(MethodesController, MethodesController),
 DevelopmentController: Object.assign(DevelopmentController, DevelopmentController),
 FilterController: Object.assign(FilterController, FilterController),
+DataMappingController: Object.assign(DataMappingController, DataMappingController),
+NovacityEndpointsController: Object.assign(NovacityEndpointsController, NovacityEndpointsController),
 }
 
 export default Api

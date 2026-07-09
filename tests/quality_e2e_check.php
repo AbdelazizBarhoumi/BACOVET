@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Quality Page E2E Verification Script
  *
@@ -32,21 +33,21 @@ echo "  Today: {$today} | Year: {$year}\n";
 echo "========================================\n\n";
 
 $tables = [
-    'sync_drive_br_print'          => ['date_col' => 'date',       'spec' => 'F-REQ-108 BR Print jour'],
-    'sync_drive_br_care_label'     => ['date_col' => 'date',       'spec' => 'F-REQ-110 BR Care Label jour'],
-    'sync_drive_br_accessoires'    => ['date_col' => 'date',       'spec' => 'F-REQ-112 BR Accessoires jour'],
-    'sync_drive_br_compo'          => ['date_col' => 'date',       'spec' => 'F-REQ-114 BR Compo jour'],
+    'sync_drive_br_print' => ['date_col' => 'date',       'spec' => 'F-REQ-108 BR Print jour'],
+    'sync_drive_br_care_label' => ['date_col' => 'date',       'spec' => 'F-REQ-110 BR Care Label jour'],
+    'sync_drive_br_accessoires' => ['date_col' => 'date',       'spec' => 'F-REQ-112 BR Accessoires jour'],
+    'sync_drive_br_compo' => ['date_col' => 'date',       'spec' => 'F-REQ-114 BR Compo jour'],
     'sync_drive_inspection_commande' => ['date_col' => 'date',     'spec' => 'F-REQ-101 BR Commande'],
-    'packets_rejetes'              => ['date_col' => 'date_rejet', 'spec' => 'F-REQ-102 BR GTD numerateur'],
-    'colis_total_var'              => ['date_col' => null,         'spec' => 'F-REQ-102 BR GTD denominateur'],
-    'check_pass_qte'               => ['date_col' => 'log_date',   'spec' => 'QP Teams per-chain BR GTD'],
-    'pieces_ok_jour'               => ['date_col' => 'date',       'spec' => 'F-REQ-104 RFT numerateur'],
-    'pieces_produites_jour'        => ['date_col' => 'date',       'spec' => 'F-REQ-104 RFT denominateur'],
-    'pieces_ok_annee'              => ['date_col' => null,         'spec' => 'F-REQ-105 RFT DDA numerateur'],
-    'pieces_produites_annee'       => ['date_col' => null,         'spec' => 'F-REQ-105 RFT DDA denominateur'],
-    'rejets_inspection_paquet'     => ['date_col' => 'date',       'spec' => 'F-REQ-106/107 BR Bundling'],
-    'vw_defects'                   => ['date_col' => 'log_date',   'spec' => 'F-REQ-116 Pareto RFT'],
-    'qcm_defect_trx'               => ['date_col' => 'log_date',   'spec' => 'F-REQ-117 Pareto Inspection'],
+    'packets_rejetes' => ['date_col' => 'date_rejet', 'spec' => 'F-REQ-102 BR GTD numerateur'],
+    'colis_total_var' => ['date_col' => null,         'spec' => 'F-REQ-102 BR GTD denominateur'],
+    'check_pass_qte' => ['date_col' => 'log_date',   'spec' => 'QP Teams per-chain BR GTD'],
+    'pieces_ok_jour' => ['date_col' => 'date',       'spec' => 'F-REQ-104 RFT numerateur'],
+    'pieces_produites_jour' => ['date_col' => 'date',       'spec' => 'F-REQ-104 RFT denominateur'],
+    'pieces_ok_annee' => ['date_col' => null,         'spec' => 'F-REQ-105 RFT DDA numerateur'],
+    'pieces_produites_annee' => ['date_col' => null,         'spec' => 'F-REQ-105 RFT DDA denominateur'],
+    'rejets_inspection_paquet' => ['date_col' => 'date',       'spec' => 'F-REQ-106/107 BR Bundling'],
+    'vw_defects' => ['date_col' => 'log_date',   'spec' => 'F-REQ-116 Pareto RFT'],
+    'qcm_defect_trx' => ['date_col' => 'log_date',   'spec' => 'F-REQ-117 Pareto Inspection'],
 ];
 
 $issues = [];
@@ -58,6 +59,7 @@ foreach ($tables as $table => $config) {
         echo "✗ [{$table}] TABLE DOES NOT EXIST\n";
         $issues[] = "{$table}: table missing";
         echo "\n";
+
         continue;
     }
 
@@ -71,7 +73,7 @@ foreach ($tables as $table => $config) {
         $yearRows = DB::table($table)->whereYear($dateCol, $year)->count();
         $line .= ", latest={$latestDate}, today={$todayRows}, year={$yearRows}";
     }
-    echo $line . "\n";
+    echo $line."\n";
 
     if ($totalRows == 0) {
         $issues[] = "{$table}: EMPTY ({$config['spec']})";
@@ -85,7 +87,7 @@ foreach ($tables as $table => $config) {
     // Show sample
     $sample = DB::table($table)->limit(2)->get();
     if ($sample->isNotEmpty()) {
-        echo "  Sample: " . json_encode((array) $sample->first()) . "\n";
+        echo '  Sample: '.json_encode((array) $sample->first())."\n";
     }
     echo "\n";
 }
@@ -187,7 +189,7 @@ if ($jour) {
 // QP Teams
 $chains = DB::table('check_pass_qte')->whereDate('log_date', $today)->groupBy('shortname')
     ->select('shortname', DB::raw('AVG(defect_pct) as avg_defect'))->get();
-echo "\n  [QP Teams] chains today: " . $chains->count() . "\n";
+echo "\n  [QP Teams] chains today: ".$chains->count()."\n";
 foreach ($chains as $c) {
     echo "    {$c->shortname}: avg_defect_pct={$c->avg_defect}\n";
 }
@@ -201,7 +203,7 @@ echo "========================================\n\n";
 if (empty($issues)) {
     echo "  ✓ All checks passed\n";
 } else {
-    echo "  ✗ " . count($issues) . " issue(s) found:\n";
+    echo '  ✗ '.count($issues)." issue(s) found:\n";
     foreach ($issues as $issue) {
         echo "    - {$issue}\n";
     }

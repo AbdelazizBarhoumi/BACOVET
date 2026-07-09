@@ -41,6 +41,7 @@ class MethodesController extends Controller
                 $sortieJour = $wipData->get($row->chaine)?->sortie_jour ?? 0;
                 $tagReel = $row->tag_reel ?? 0;
                 $denominator = max($sortieJour, 1);
+
                 return abs($tagReel - $sortieJour) / $denominator * 100;
             });
 
