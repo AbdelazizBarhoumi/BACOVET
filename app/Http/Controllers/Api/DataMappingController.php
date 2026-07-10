@@ -30,6 +30,8 @@ class DataMappingController extends Controller
             'fn' => 'nullable|string|in:Latest,First,Sum,Average,Min,Max,Count',
             'modules' => 'nullable|array',
             'modules.*' => 'string',
+            'formula' => 'nullable|array',
+            'highlight_color' => 'nullable|string|max:20',
         ]);
 
         $validated['user_id'] = $request->user()?->id;
@@ -57,6 +59,8 @@ class DataMappingController extends Controller
             'fn' => 'nullable|string|in:Latest,First,Sum,Average,Min,Max,Count',
             'modules' => 'nullable|array',
             'modules.*' => 'string',
+            'formula' => 'nullable|array',
+            'highlight_color' => 'nullable|string|max:20',
         ]);
 
         $mapping->update($validated);
@@ -96,6 +100,8 @@ class DataMappingController extends Controller
             'mappings.*.fn' => 'nullable|string|in:Latest,First,Sum,Average,Min,Max,Count',
             'mappings.*.modules' => 'sometimes|array',
             'mappings.*.modules.*' => 'string',
+            'mappings.*.formula' => 'nullable|array',
+            'mappings.*.highlight_color' => 'nullable|string|max:20',
         ]);
 
         foreach ($validated['mappings'] as $item) {

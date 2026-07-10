@@ -45,23 +45,13 @@ export const KPI_SEED: KpiSeed[] = [
   { "kpi": "F-REQ-115", "name": "BR Compo DDA", "variable": "Nombre de rejet suite inspection livraison Compo" },
   { "kpi": "F-REQ-115", "name": "BR Compo DDA", "variable": "Nombre d'inspection livraison Compo" },
 
-  { "kpi": "F-REQ-116", "name": "Pareto defects", "variable": "Défauts opération" },
-  { "kpi": "F-REQ-116", "name": "Pareto defects", "variable": "Poste 93" },
-  { "kpi": "F-REQ-116", "name": "Pareto defects", "variable": "Poste 100" },
-  { "kpi": "F-REQ-116", "name": "Pareto defects", "variable": "Poste 102" },
+  { "kpi": "F-REQ-116", "name": "Pareto defects", "variable": "Pareto defects au niveau opération" },
 
   { "kpi": "F-REQ-117", "name": "Pareto defects FG", "variable": "Défauts inspection AQL colis" },
   { "kpi": "F-REQ-117", "name": "Pareto defects FG", "variable": "Défauts contrôle RFID" },
 
-  { "kpi": "F-REQ-118", "name": "Best QP team", "variable": "BR" },
-  { "kpi": "F-REQ-118", "name": "Best QP team", "variable": "BR IN" },
-  { "kpi": "F-REQ-118", "name": "Best QP team", "variable": "BR GTD" },
-  { "kpi": "F-REQ-118", "name": "Best QP team", "variable": "RFT" },
-
-  { "kpi": "F-REQ-119", "name": "Low QP team", "variable": "BR" },
-  { "kpi": "F-REQ-119", "name": "Low QP team", "variable": "BR IN" },
-  { "kpi": "F-REQ-119", "name": "Low QP team", "variable": "BR GTD" },
-  { "kpi": "F-REQ-119", "name": "Low QP team", "variable": "RFT" },
+  { "kpi": "F-REQ-118", "name": "Best QP team", "variable": "Top 3 chaine" },
+  { "kpi": "F-REQ-119", "name": "Low QP team", "variable": "Les 3 chaines" },
 
   { "kpi": "F-REQ-120", "name": "BR IN", "variable": "Nombre de rejet suite inspection colis" },
   { "kpi": "F-REQ-120", "name": "BR IN", "variable": "Nombre d'inspection colis" },
@@ -88,12 +78,8 @@ export const KPI_SEED: KpiSeed[] = [
 
   { "kpi": "F-REQ-205", "name": "WIP par chaine", "variable": "Quantité engagement par chaîne" },
   { "kpi": "F-REQ-205", "name": "WIP par chaine", "variable": "Quantité sortie par chaîne" },
-  { "kpi": "F-REQ-205", "name": "WIP par chaine", "variable": "Poste 93" },
 
   { "kpi": "F-REQ-206", "name": "WIP OPTIMAL", "variable": "Quantité engagement" },
-  { "kpi": "F-REQ-206", "name": "WIP OPTIMAL", "variable": "Chaîne" },
-  { "kpi": "F-REQ-206", "name": "WIP OPTIMAL", "variable": "Article" },
-  { "kpi": "F-REQ-206", "name": "WIP OPTIMAL", "variable": "OF" },
   { "kpi": "F-REQ-206", "name": "WIP OPTIMAL", "variable": "Quantité sortie coupe" },
 
   { "kpi": "F-REQ-207", "name": "Arrêts non planifiés par chaine", "variable": "Temps d'arrêt" },

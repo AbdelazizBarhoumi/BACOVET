@@ -47,12 +47,26 @@ export interface DataMappingRow {
     has_function: boolean;
     fn: string;
     modules: string[];
+    formula: FormulaDef | null;
+    highlight_color: string | null;
     user_id: number | null;
     created_at: string;
     updated_at: string;
 }
 
 export type DataMappingPayload = Partial<Omit<DataMappingRow, 'id' | 'created_at' | 'updated_at'>>;
+
+export interface FormulaItem {
+    type: 'variable' | 'operator' | 'number';
+    ref?: number;   // row id for variable
+    label?: string; // display label for variable
+    op?: string;    // +, -, *, /
+    value?: number; // for number type
+}
+
+export interface FormulaDef {
+    items: FormulaItem[];
+}
 
 export const fetchMappings = async (): Promise<DataMappingRow[]> => {
     const result = await fetchWithToken(BASE_URL);
@@ -88,4 +102,13 @@ export const batchUpdateMappings = async (mappings: DataMappingPayload[]): Promi
 
 export const seedMappings = async (): Promise<{ count: number }> => {
     return fetchWithToken(`${BASE_URL}/seed`, { method: 'POST' });
+};
+
+export const fetchSampleData = async (slug: string): Promise<unknown> => {
+    const res = await fetch(`/novacity-endpoints/sample/${slug}`, {
+        headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data ?? null;
 };

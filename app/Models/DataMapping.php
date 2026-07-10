@@ -19,6 +19,8 @@ class DataMapping extends Model
         'has_function',
         'fn',
         'modules',
+        'formula',
+        'highlight_color',
         'user_id',
     ];
 
@@ -26,6 +28,7 @@ class DataMapping extends Model
         'is_filtered' => 'boolean',
         'has_function' => 'boolean',
         'modules' => 'array',
+        'formula' => 'array',
     ];
 
     public function user()

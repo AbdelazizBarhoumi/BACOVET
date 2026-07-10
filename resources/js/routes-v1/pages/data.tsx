@@ -1,6 +1,6 @@
 // Route registered in v1-main.tsx
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Download, Search, Database, Play, Loader2, Plus, Trash2, Save } from "lucide-react";
+import { Download, Search, Database, Play, Loader2, Plus, Trash2, Save, Info, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useNovacityEndpoints } from "@/lib/data-endpoints";
 import { PageHeader, StatusFooter, BacovetLogo } from "@/components/v1/v1-shell";
 import { exportToCsv } from "@/lib/export";
@@ -12,6 +12,9 @@ import {
   seedMappings,
   type DataMappingRow,
   type DataMappingPayload,
+  type FormulaDef,
+  type FormulaItem,
+  fetchSampleData,
 } from "@/services/dataMappingApi";
 
 export default DataMappingPage;
@@ -35,6 +38,76 @@ const MODULE_LABELS: Record<string, string> = {
   flux: "Sérigraphie",
 };
 
+// -------- Shared cell styles --------
+// Inline text fields (KPI / Name / Variable / free-form expressions): invisible until
+// touched, then clearly editable — hover previews the field, focus commits to it.
+const fieldBase =
+  "bg-transparent border border-transparent rounded px-1.5 py-1 w-full transition-colors duration-150 " +
+  "hover:border-border hover:bg-muted/40 " +
+  "focus:outline-none focus:bg-card focus:border-primary focus:ring-2 focus:ring-primary/20 " +
+  "placeholder:text-muted-foreground/50 placeholder:italic";
+
+// Dropdowns: consistent hover/focus affordance, clear disabled state.
+const selectBase =
+  "bg-card border border-border rounded px-1.5 py-1 transition-colors duration-150 cursor-pointer " +
+  "hover:border-primary/50 " +
+  "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 " +
+  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border";
+
+// Checkboxes: native element, themed via accent-color + a visible keyboard-focus ring.
+const checkboxBase =
+  "h-3.5 w-3.5 rounded accent-primary cursor-pointer " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 " +
+  "disabled:cursor-not-allowed disabled:opacity-40";
+
+// -------- Result Badge --------
+// Used by the Test / Preview / Exec columns so every computed value reads the same way:
+// a color-coded, icon-led pill instead of bare colored text. Green background wash keeps
+// the eye anchored down a dense column and lets errors pop by contrast.
+type ResultState = "idle" | "loading" | "ok" | "error";
+
+function ResultBadge({
+  state,
+  value,
+  loadingLabel = "calcul…",
+  emptyLabel = "—",
+  onInfoClick,
+}: {
+  state: ResultState;
+  value?: string;
+  loadingLabel?: string;
+  emptyLabel?: string;
+  onInfoClick?: () => void;
+}) {
+  if (state === "loading") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
+        <span className="text-[10px]">{loadingLabel}</span>
+      </span>
+    );
+  }
+  if (state === "idle" || !value) {
+    return <span className="text-muted-foreground/40">{emptyLabel}</span>;
+  }
+  const isError = state === "error";
+  const colorClasses = isError
+    ? "bg-destructive/10 text-destructive border-destructive/20"
+    : "bg-green-500/10 text-green-600 border-green-500/20";
+  return (
+    <span className="inline-flex items-center gap-1 max-w-full">
+      <span
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-mono text-[10.5px] truncate max-w-[160px] ${colorClasses}`}
+        title={value}
+      >
+        {isError ? <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0" /> : <CheckCircle2 className="h-2.5 w-2.5 flex-shrink-0" />}
+        <span className="truncate">{value}</span>
+      </span>
+      {onInfoClick && <TraceBtn onClick={onInfoClick} />}
+    </span>
+  );
+}
+
 // -------- Executor --------
 function extractRecords(json: unknown): Record<string, unknown>[] {
   if (Array.isArray(json)) return json as Record<string, unknown>[];
@@ -48,16 +121,83 @@ function extractRecords(json: unknown): Record<string, unknown>[] {
   return [];
 }
 
-function aggregate(values: unknown[], fn: AggFn): unknown {
+function aggregateSelection(values: unknown[], projection: unknown[], fn: AggFn): unknown {
   const nums = values.map((v) => Number(v)).filter((n) => Number.isFinite(n));
   switch (fn) {
-    case "First": return values[0];
-    case "Latest": return values[values.length - 1];
-    case "Count": return values.length;
+    case "First": return projection[0];
+    case "Latest": return projection[projection.length - 1];
+    case "Count": return projection;
     case "Sum": return nums.reduce((a, b) => a + b, 0);
     case "Average": return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
     case "Min": return nums.length ? Math.min(...nums) : null;
     case "Max": return nums.length ? Math.max(...nums) : null;
+  }
+}
+
+function stringifyResult(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
+
+function computeFormulaForTest(row: DataMappingRow, testValues: Record<number, string>): string {
+  if (!row.formula || !row.formula.items || row.formula.items.length === 0) return "—";
+
+  const items = row.formula.items;
+  let expr = "";
+  for (const item of items) {
+    if (item.type === "variable" && item.ref != null) {
+      const val = testValues[item.ref];
+      if (val === undefined || val === "Erreur" || val === "") return "—";
+      const num = Number(val);
+      expr += isNaN(num) ? `("${val}")` : String(num);
+    } else if (item.type === "operator") {
+      expr += ` ${item.op} `;
+    } else if (item.type === "number") {
+      expr += String(item.value);
+    }
+  }
+  if (!expr) return "—";
+  try {
+    // eslint-disable-next-line no-eval
+    const result = eval(expr);
+    return typeof result === "number" ? (Number.isInteger(result) ? String(result) : result.toFixed(2)) : String(result);
+  } catch {
+    return "Erreur";
+  }
+}
+
+function buildExecutionResult(row: DataMappingRow, records: Record<string, unknown>[]) {
+  let filteredRecords = records;
+  if (row.is_filtered && row.filter_key) {
+    filteredRecords = filteredRecords.filter((r) => String(r[row.filter_key] ?? "") === row.filter_value);
+  }
+
+  if (row.variable_type === "Direct") {
+    if (!row.variable_key) throw new Error("Variable JSON manquante");
+    const projection = filteredRecords.map((r) => ({ [row.variable_key!]: r[row.variable_key!] }));
+    const values = projection.map((item) => Object.values(item)[0]);
+    if (row.has_function) {
+      const out = aggregateSelection(values, projection, row.fn as AggFn);
+      return { output: stringifyResult(out), detail: out };
+    }
+    const detail = projection.length === 1 ? projection[0] : projection;
+    return { output: stringifyResult(detail), detail };
+  }
+
+  try {
+    // eslint-disable-next-line no-new-func
+    const fn = new Function("r", `with(r){return (${row.variable_key || "null"});}`);
+    const values = filteredRecords.map((r) => fn(r));
+    if (row.has_function) {
+      const out = aggregateSelection(values, values, row.fn as AggFn);
+      return { output: stringifyResult(out), detail: out };
+    }
+    const detail = values.length === 1 ? values[0] : values;
+    return { output: stringifyResult(detail), detail };
+  } catch (e) {
+    throw new Error(`Expression invalide: ${(e as Error).message}`);
   }
 }
 
@@ -67,29 +207,186 @@ async function executeRow(row: DataMappingRow, baseUrl: string): Promise<string>
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
-  let records = extractRecords(json);
-  if (row.is_filtered && row.filter_key) {
-    records = records.filter((r) => String(r[row.filter_key] ?? "") === row.filter_value);
-  }
-  let values: unknown[];
-  if (row.variable_type === "Direct") {
-    if (!row.variable_key) throw new Error("Variable JSON manquante");
-    values = records.map((r) => r[row.variable_key]);
-  } else {
-    try {
-      // eslint-disable-next-line no-new-func
-      const fn = new Function("r", `with(r){return (${row.variable_key || "null"});}`);
-      values = records.map((r) => fn(r));
-    } catch (e) {
-      throw new Error(`Expression invalide: ${(e as Error).message}`);
+  const records = extractRecords(json);
+  return buildExecutionResult(row, records).output;
+}
+
+// -------- Trace Modal --------
+function TraceModal({ open, title, content, onClose }: { open: boolean; title: string; content: unknown; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-card border border-border rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg">×</button>
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          <pre className="text-[11px] font-mono whitespace-pre-wrap break-words text-foreground bg-muted/30 rounded p-3">
+            {content === null ? "Aucune donnée" : JSON.stringify(content, null, 2)}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -------- Trace Button --------
+function TraceBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-muted text-muted-foreground ml-1 flex-shrink-0 transition-colors hover:bg-primary/15 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      title="Voir le détail"
+      aria-label="Voir le détail"
+    >
+      <Info className="h-2.5 w-2.5" />
+    </button>
+  );
+}
+
+// -------- Formula Builder --------
+function computeFormula(items: FormulaItem[], previewValues: Record<number, string>): string {
+  // Build expression string from items
+  let expr = "";
+  for (const item of items) {
+    if (item.type === "variable" && item.ref != null) {
+      const val = previewValues[item.ref];
+      if (val === undefined || val === "Erreur" || val === "") return "—";
+      const num = Number(val);
+      expr += isNaN(num) ? `("${val}")` : String(num);
+    } else if (item.type === "operator") {
+      expr += ` ${item.op} `;
+    } else if (item.type === "number") {
+      expr += String(item.value);
     }
   }
-  const out = row.has_function ? aggregate(values, row.fn as AggFn) : (values.length === 1 ? values[0] : values);
-  return typeof out === "object" ? JSON.stringify(out) : String(out);
+  if (!expr) return "—";
+  try {
+    // Safe eval for simple math
+    // eslint-disable-next-line no-eval
+    const result = eval(expr);
+    return typeof result === "number" ? (Number.isInteger(result) ? String(result) : result.toFixed(2)) : String(result);
+  } catch {
+    return "Erreur";
+  }
+}
+
+function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChange }: {
+  kpi: string;
+  groupRows: DataMappingRow[];
+  previewValues: Record<number, string>;
+  formula: FormulaDef | null;
+  onFormulaChange: (f: FormulaDef) => void;
+}) {
+  const items: FormulaItem[] = formula?.items ?? [];
+
+  const addItem = (item: FormulaItem) => {
+    const newItems = [...items, item];
+    onFormulaChange({ items: newItems });
+  };
+
+  const removeItem = (index: number) => {
+    const newItems = items.filter((_, i) => i !== index);
+    onFormulaChange({ items: newItems });
+  };
+
+  const updateItem = (index: number, patch: Partial<FormulaItem>) => {
+    const newItems = items.map((it, i) => i === index ? { ...it, ...patch } as FormulaItem : it);
+    onFormulaChange({ items: newItems });
+  };
+
+  const result = computeFormula(items, previewValues);
+
+  return (
+    <div className="text-[10px] flex flex-col gap-1.5 min-w-[170px] bg-muted/20 border border-border/50 rounded-md p-2">
+      <div className="font-semibold text-muted-foreground uppercase tracking-wide text-[9px]">Formule</div>
+      {/* Variable chips */}
+      <div className="flex flex-wrap gap-1 items-center">
+        {groupRows.map((gr) => (
+          <span key={gr.id} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+            {gr.variable || gr.name || `Var ${gr.id}`}
+            {previewValues[gr.id] && (
+              <span className="text-muted-foreground font-mono">={previewValues[gr.id]}</span>
+            )}
+          </span>
+        ))}
+      </div>
+      {/* Formula items */}
+      <div className="flex flex-wrap gap-1 items-center mt-1">
+        {items.map((item, i) => (
+          <span key={i} className="inline-flex items-center gap-0.5">
+            {item.type === "variable" && (
+              <select
+                value={item.ref}
+                onChange={(e) => updateItem(i, { ref: Number(e.target.value), label: groupRows.find((gr) => gr.id === Number(e.target.value))?.variable || "" })}
+                className="border border-border rounded px-1 py-0.5 text-[10px] bg-card"
+              >
+                {groupRows.map((gr) => (
+                  <option key={gr.id} value={gr.id}>{gr.variable || gr.name || `Var ${gr.id}`}</option>
+                ))}
+              </select>
+            )}
+            {item.type === "operator" && (
+              <select
+                value={item.op}
+                onChange={(e) => updateItem(i, { op: e.target.value })}
+                className="border border-border rounded px-1 py-0.5 text-[10px] bg-card w-10 text-center font-bold"
+              >
+                {["+", "-", "*", "/"].map((op) => <option key={op} value={op}>{op}</option>)}
+              </select>
+            )}
+            {item.type === "number" && (
+              <input
+                type="number"
+                value={item.value}
+                onChange={(e) => updateItem(i, { value: Number(e.target.value) })}
+                className="border border-border rounded px-1 py-0.5 text-[10px] bg-card w-16 font-mono"
+              />
+            )}
+            <button onClick={() => removeItem(i)} className="text-destructive hover:text-destructive/80 ml-0.5">×</button>
+          </span>
+        ))}
+      </div>
+      {/* Add buttons */}
+      <div className="flex gap-1 mt-1">
+        <select
+          onChange={(e) => { if (e.target.value) { addItem({ type: "operator", op: e.target.value }); e.target.value = ""; } }}
+          className="border border-border rounded px-1 py-0.5 text-[10px] bg-card w-10 text-center font-bold"
+          defaultValue=""
+        >
+          <option value="" disabled>+</option>
+          {["+", "-", "*", "/"].map((op) => <option key={op} value={op}>{op}</option>)}
+        </select>
+        <select
+          onChange={(e) => { if (e.target.value) { addItem({ type: "variable", ref: Number(e.target.value), label: groupRows.find((gr) => gr.id === Number(e.target.value))?.variable || "" }); e.target.value = ""; } }}
+          className="border border-border rounded px-1 py-0.5 text-[10px] bg-card"
+          defaultValue=""
+        >
+          <option value="" disabled>+ Variable</option>
+          {groupRows.map((gr) => (
+            <option key={gr.id} value={gr.id}>{gr.variable || gr.name || `Var ${gr.id}`}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => addItem({ type: "number", value: 0 })}
+          className="border border-border rounded px-1.5 py-0.5 text-[10px] bg-card hover:bg-secondary"
+        >
+          + Nombre
+        </button>
+      </div>
+      {/* Result */}
+      {items.length > 0 && (
+        <div className={`mt-0.5 px-2 py-1 rounded border font-mono font-bold ${result === "Erreur" ? "bg-destructive/10 border-destructive/20 text-destructive" : "bg-green-500/10 border-green-500/20 text-green-600"}`}>
+          = {result}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DataMappingPage() {
-  const { dataEndpoints, endpointList, loading: endpointsLoading } = useNovacityEndpoints();
+  const { dataEndpoints, endpointMeta, endpointList, loading: endpointsLoading } = useNovacityEndpoints();
   const [rows, setRows] = useState<DataMappingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -102,6 +399,30 @@ function DataMappingPage() {
   const dirtyRef = useRef<Set<number>>(new Set());
   const rowsRef = useRef<DataMappingRow[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Preview values: row id → computed value string
+  const [previewValues, setPreviewValues] = useState<Record<number, string>>({});
+  const [previewLoading, setPreviewLoading] = useState<Record<number, boolean>>({});
+
+  // Test Exec values: row id → computed value from data.json
+  const [testValues, setTestValues] = useState<Record<number, string>>({});
+  const [testLoading, setTestLoading] = useState<Record<number, boolean>>({});
+
+  // Live exec state for Test Live column
+  const [liveExecState, setLiveExecState] = useState<Record<number, { s: ExecState; msg: string }>>({});
+
+  const runLiveRow = async (row: DataMappingRow) => {
+    setLiveExecState((m) => ({ ...m, [row.id]: { s: "loading", msg: "…" } }));
+    try {
+      const out = await executeRow(row, baseUrl);
+      setLiveExecState((m) => ({ ...m, [row.id]: { s: "ok", msg: out } }));
+    } catch (e) {
+      setLiveExecState((m) => ({ ...m, [row.id]: { s: "error", msg: (e as Error).message } }));
+    }
+  };
+
+  // Trace modal
+  const [traceModal, setTraceModal] = useState<{ open: boolean; title: string; content: unknown }>({ open: false, title: "", content: null });
 
   // Keep refs in sync
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -128,6 +449,56 @@ function DataMappingPage() {
 
   useEffect(() => { loadRows(); }, [loadRows]);
 
+  // Auto-fetch preview values for all rows with endpoints
+  const [baseUrl, setBaseUrl] = useState("");
+
+  const fetchPreview = useCallback(async (row: DataMappingRow) => {
+    if (!row.endpoint || !baseUrl) return;
+    setPreviewLoading((m) => ({ ...m, [row.id]: true }));
+    try {
+      const val = await executeRow(row, baseUrl);
+      setPreviewValues((m) => ({ ...m, [row.id]: val }));
+    } catch {
+      setPreviewValues((m) => ({ ...m, [row.id]: "Erreur" }));
+    } finally {
+      setPreviewLoading((m) => ({ ...m, [row.id]: false }));
+    }
+  }, [baseUrl]);
+
+  // Fetch all previews when rows or baseUrl change
+  useEffect(() => {
+    if (!baseUrl || rows.length === 0) return;
+    for (const r of rows) {
+      if (r.endpoint && r.variable_key) {
+        fetchPreview(r);
+      }
+    }
+  }, [rows, baseUrl, fetchPreview]);
+
+  // Auto-fetch test values from data.json samples
+  useEffect(() => {
+    if (rows.length === 0) return;
+    for (const r of rows) {
+      if (r.endpoint && r.variable_key && !testValues[r.id] && !testLoading[r.id]) {
+        (async () => {
+          setTestLoading((m) => ({ ...m, [r.id]: true }));
+          try {
+            const sampleData = await fetchSampleData(r.endpoint!);
+            if (!sampleData) { setTestValues((m) => ({ ...m, [r.id]: "Pas de sample" })); setTestLoading((m) => ({ ...m, [r.id]: false })); return; }
+            const records = extractRecords(sampleData);
+            const result = buildExecutionResult(r, records);
+            setTestValues((m) => ({ ...m, [r.id]: result.output }));
+          } catch {
+            setTestValues((m) => ({ ...m, [r.id]: "Erreur" }));
+          } finally {
+            setTestLoading((m) => ({ ...m, [r.id]: false }));
+          }
+        })();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
   // Flush dirty rows to API
   const flushDirty = useCallback(async () => {
     const ids = Array.from(dirtyRef.current);
@@ -150,6 +521,8 @@ function DataMappingPage() {
         has_function: row.has_function,
         fn: row.fn,
         modules: row.modules ?? [],
+        formula: row.formula ?? null,
+        highlight_color: row.highlight_color ?? null,
       };
     }).filter(Boolean) as DataMappingPayload[];
 
@@ -342,9 +715,7 @@ function DataMappingPage() {
     exportToCsv("bacovet-mapping-kpis", exportData as unknown as Record<string, unknown>[]);
   };
 
-  // ---- Base URL + live exec state ----
-  const [baseUrl, setBaseUrl] = useState("");
-
+  // ---- Live exec state ----
   const [execState, setExecState] = useState<Record<number, { s: ExecState; msg: string }>>({});
 
   const runRow = async (row: DataMappingRow) => {
@@ -396,7 +767,7 @@ function DataMappingPage() {
         }
       />
       <div className="px-4 py-3 border-b border-border flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 border border-border bg-card rounded-md px-2 py-1">
+        <div className="flex items-center gap-2 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input
             value={q}
@@ -408,11 +779,11 @@ function DataMappingPage() {
         <select
           value={filterKpi}
           onChange={(e) => setFilterKpi(e.target.value)}
-          className="border border-border bg-card rounded-md px-2 py-1.5 text-sm"
+          className="border border-border bg-card rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         >
           {kpiGroups.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
-        <div className="flex items-center gap-2 border border-border bg-card rounded-md px-2 py-1">
+        <div className="flex items-center gap-2 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
           <Database className="h-4 w-4 text-muted-foreground" />
           <input
             value={baseUrl}
@@ -453,7 +824,7 @@ function DataMappingPage() {
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              {["KPI", "Modules", "Name", "Variable", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Exec", "Résultat", ""].map((h) => (
+              {["", "KPI", "Modules", "Name", "Variable", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Test Live", ""].map((h) => (
                 <th key={h} className="text-left font-semibold px-2 py-2 border-b border-border whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -469,135 +840,365 @@ function DataMappingPage() {
               const ms = spans.moduleSpan[i];
               const isFirstInModule = ms > 0;
               return (
-                <tr key={r.id} className={`border-b border-border/50 hover:bg-secondary/30 ${isDirty ? "bg-yellow-500/5" : ""} ${isFirstInKpi && i > 0 ? "border-t-2 border-t-border" : ""}`}>
+                <tr key={r.id} style={r.highlight_color ? { backgroundColor: r.highlight_color + "30" } : undefined} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors duration-150 ${isDirty ? "bg-amber-500/5" : ""} ${isFirstInKpi && i > 0 ? "border-t-2 border-t-border" : ""}`}>
+                  {/* Color picker */}
+                  <td className="px-1.5 py-1.5 w-8">
+                    <div className="relative group flex items-center justify-center">
+                      {isDirty && (
+                        <span className="absolute -top-1 -left-1 h-1.5 w-1.5 rounded-full bg-amber-500 ring-2 ring-background" title="Modification non sauvegardée" />
+                      )}
+                      <div
+                        className="w-4 h-4 rounded-full border border-border cursor-pointer transition-shadow ring-0 ring-primary/40 group-hover:ring-2"
+                        style={
+                          r.highlight_color
+                            ? { backgroundColor: r.highlight_color }
+                            : {
+                                backgroundImage:
+                                  "linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)",
+                                backgroundSize: "6px 6px",
+                                backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
+                              }
+                        }
+                        title="Surligner cette ligne"
+                      />
+                      <input
+                        type="color"
+                        value={r.highlight_color ?? "#3b82f6"}
+                        onChange={(e) => updateImmediate(r.id, { highlight_color: e.target.value })}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        aria-label="Choisir une couleur de surlignage"
+                      />
+                      {r.highlight_color && (
+                        <button
+                          onClick={() => updateImmediate(r.id, { highlight_color: null })}
+                          className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/80"
+                          title="Effacer la couleur"
+                          aria-label="Effacer la couleur"
+                        >×</button>
+                      )}
+                    </div>
+                  </td>
                   {isFirstInKpi ? (
                     <td rowSpan={ks} className="px-2 py-1.5 font-mono text-[11px] whitespace-nowrap border-r border-border/30 align-top">
                       <input value={r.kpi} onChange={(e) => updateLocal(r.id, { kpi: e.target.value })}
-                        className="w-24 bg-transparent border border-transparent hover:border-border rounded px-1 py-0.5" />
+                        placeholder="F-REQ-XXX"
+                        className={`${fieldBase} w-24`} />
                     </td>
                   ) : null}
                   {isFirstInModule ? (
                     <td rowSpan={ms} className="px-2 py-1.5 border-r border-border/30 align-top">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                          {MODULES.map((mod) => (
-                            <label key={mod} className="inline-flex items-center gap-1 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={(r.modules ?? []).includes(mod)}
-                                onChange={() => toggleModule(r.id, mod)}
-                                className="h-3 w-3"
-                              />
-                              <span className="text-[10px]">{MODULE_LABELS[mod]}</span>
-                            </label>
-                          ))}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap gap-x-2.5 gap-y-1">
+                          {MODULES.map((mod) => {
+                            const checked = (r.modules ?? []).includes(mod);
+                            return (
+                              <label key={mod} className={`inline-flex items-center gap-1 cursor-pointer rounded px-0.5 -mx-0.5 transition-colors ${checked ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleModule(r.id, mod)}
+                                  className={checkboxBase}
+                                />
+                                <span className="text-[10px] font-medium">{MODULE_LABELS[mod]}</span>
+                              </label>
+                            );
+                          })}
                         </div>
                         {(r.modules ?? []).includes("production") && (
-                          <div className="flex flex-wrap gap-x-2 gap-y-0.5 pl-2 border-l-2 border-primary/20 mt-0.5">
-                            {PROD_SUBS.map((sub) => (
-                              <label key={sub} className="inline-flex items-center gap-1 cursor-pointer">
-                                <input
-                                type="checkbox"
-                                checked={(r.modules ?? []).includes(`production:${sub}`)}
-                                onChange={() => toggleModule(r.id, `production:${sub}`)}
-                                className="h-3 w-3"
-                              />
-                              <span className="text-[10px] text-muted-foreground">{MODULE_LABELS[sub]}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </td>
+                          <div className="flex flex-wrap gap-x-2.5 gap-y-1 pl-2 border-l-2 border-primary/25">
+                            {PROD_SUBS.map((sub) => {
+                              const checked = (r.modules ?? []).includes(`production:${sub}`);
+                              return (
+                                <label key={sub} className={`inline-flex items-center gap-1 cursor-pointer transition-colors ${checked ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleModule(r.id, `production:${sub}`)}
+                                    className={checkboxBase}
+                                  />
+                                  <span className="text-[10px]">{MODULE_LABELS[sub]}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </td>
                   ) : null}
                   {isFirstInName ? (
                     <td rowSpan={ns} className="px-2 py-1.5 border-r border-border/30 align-top">
                       <input value={r.name} onChange={(e) => updateLocal(r.id, { name: e.target.value })}
-                        className="w-52 bg-transparent border border-transparent hover:border-border rounded px-1 py-0.5" />
+                        placeholder="Nom du KPI"
+                        className={`${fieldBase} w-52`} />
                     </td>
                   ) : null}
                   <td className="px-2 py-1.5 text-muted-foreground italic">
                     <input value={r.variable} onChange={(e) => updateLocal(r.id, { variable: e.target.value })}
-                      className="w-56 bg-transparent border border-transparent hover:border-border rounded px-1 py-0.5" />
+                      placeholder="nom.variable"
+                      className={`${fieldBase} w-56`} />
                   </td>
                   <td className="px-2 py-1.5">
-                    <select value={r.endpoint ?? ""} onChange={(e) => updateImmediate(r.id, { endpoint: e.target.value || null, variable_key: "" })}
-                      className="w-64 bg-card border border-border rounded px-1.5 py-1">
-                      <option value="">— sélectionner —</option>
-                      {endpointList.map((ep) => <option key={ep} value={ep}>{ep}</option>)}
-                    </select>
+                    <div className="flex items-center">
+                      <select value={r.endpoint ?? ""} onChange={(e) => updateImmediate(r.id, { endpoint: e.target.value || null, variable_key: "" })}
+                        className={`${selectBase} w-64 ${!r.endpoint ? "text-muted-foreground border-dashed" : ""}`}>
+                        <option value="">— sélectionner —</option>
+                        {endpointList.map((ep) => <option key={ep} value={ep}>{ep}</option>)}
+                      </select>
+                      {r.endpoint && (
+                        <TraceBtn onClick={async () => {
+                          const ep = r.endpoint!;
+                          const sample = await fetchSampleData(ep);
+                          const records = extractRecords(sample);
+                          setTraceModal({
+                            open: true,
+                            title: `Endpoint: ${ep}`,
+                            content: {
+                              slug: ep,
+                              name: endpointMeta[ep]?.name ?? ep,
+                              method: endpointMeta[ep]?.method ?? "GET",
+                              fields: dataEndpoints[ep] ?? [],
+                              total_records: records.length,
+                              all_records: records,
+                            },
+                          });
+                        }} />
+                      )}
+                    </div>
                   </td>
                   <td className="px-2 py-1.5">
                     <select value={r.variable_type} onChange={(e) => updateImmediate(r.id, { variable_type: e.target.value as VarType })}
-                      className="bg-card border border-border rounded px-1.5 py-1">
+                      className={selectBase}>
                       <option>Direct</option>
                       <option>Complex</option>
                     </select>
                   </td>
                   <td className="px-2 py-1.5">
-                    {r.variable_type === "Direct" ? (
-                      <select value={r.variable_key ?? ""} onChange={(e) => updateImmediate(r.id, { variable_key: e.target.value })}
-                        disabled={!r.endpoint}
-                        className="w-56 bg-card border border-border rounded px-1.5 py-1 disabled:opacity-40">
-                        <option value="">{r.endpoint ? "— clé JSON —" : "sélectionner endpoint d'abord"}</option>
-                        {keys.map((k) => <option key={k} value={k}>{k}</option>)}
-                      </select>
-                    ) : (
-                      <input value={r.variable_key ?? ""} onChange={(e) => updateLocal(r.id, { variable_key: e.target.value })}
-                        placeholder="ex: SUM(a)/COUNT(b)"
-                        className="w-56 bg-card border border-border rounded px-1.5 py-1 font-mono text-[11px]" />
-                    )}
+                    <div className="flex items-center">
+                      {r.variable_type === "Direct" ? (
+                        <select value={r.variable_key ?? ""} onChange={(e) => updateImmediate(r.id, { variable_key: e.target.value })}
+                          disabled={!r.endpoint}
+                          className={`${selectBase} w-56`}>
+                          <option value="">{r.endpoint ? "— clé JSON —" : "sélectionner endpoint d'abord"}</option>
+                          {keys.map((k) => <option key={k} value={k}>{k}</option>)}
+                        </select>
+                      ) : (
+                        <input value={r.variable_key ?? ""} onChange={(e) => updateLocal(r.id, { variable_key: e.target.value })}
+                          placeholder="ex: SUM(a)/COUNT(b)"
+                          className="w-56 bg-card border border-border rounded px-1.5 py-1 font-mono text-[11px] transition-colors focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 hover:border-primary/40" />
+                      )}
+                      {r.variable_key && (
+                        <TraceBtn onClick={async () => {
+                          if (!r.endpoint) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas d'endpoint sélectionné" }); return; }
+                          const sample = await fetchSampleData(r.endpoint);
+                          if (!sample) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas de sample data" }); return; }
+                          const records = extractRecords(sample);
+
+                          // ONLY project the selected key from ALL records - NO filter
+                          const projected = records.map((rec) => ({ [r.variable_key!]: rec[r.variable_key!] }));
+
+                          setTraceModal({
+                            open: true,
+                            title: `Clé: ${r.variable_key}`,
+                            content: {
+                              variable_key: r.variable_key,
+                              total_records: records.length,
+                              values: projected,
+                            },
+                          });
+                        }} />
+                      )}
+                    </div>
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    <input type="checkbox" checked={r.is_filtered} onChange={(e) => updateImmediate(r.id, { is_filtered: e.target.checked })} />
+                    <input type="checkbox" checked={r.is_filtered} onChange={(e) => updateImmediate(r.id, { is_filtered: e.target.checked })} className={checkboxBase} />
                   </td>
                   <td className="px-2 py-1.5">
                     <select value={r.filter_key ?? ""} disabled={!r.is_filtered || !r.endpoint}
                       onChange={(e) => updateImmediate(r.id, { filter_key: e.target.value })}
-                      className="w-44 bg-card border border-border rounded px-1.5 py-1 disabled:opacity-40">
+                      className={`${selectBase} w-44`}>
                       <option value="">{r.endpoint ? "— clé JSON —" : "endpoint requis"}</option>
                       {keys.map((k) => <option key={k} value={k}>{k}</option>)}
                     </select>
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={r.filter_value ?? ""} disabled={!r.is_filtered}
-                      onChange={(e) => updateLocal(r.id, { filter_value: e.target.value })}
-                      placeholder="ex: CH01"
-                      className="w-44 bg-card border border-border rounded px-1.5 py-1 disabled:opacity-40 font-mono text-[11px]" />
+                    <div className="flex items-center">
+                      <input value={r.filter_value ?? ""} disabled={!r.is_filtered}
+                        onChange={(e) => updateLocal(r.id, { filter_value: e.target.value })}
+                        placeholder="ex: CH01"
+                        className="w-44 bg-card border border-border rounded px-1.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-[11px] transition-colors focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 hover:enabled:border-primary/40" />
+                      {r.is_filtered && r.filter_key && r.filter_value && (
+                        <TraceBtn onClick={async () => {
+                          if (!r.endpoint) return;
+                          const sample = await fetchSampleData(r.endpoint);
+                          if (!sample) return;
+                          const records = extractRecords(sample);
+                          const filtered = records.filter((rec) => String(rec[r.filter_key] ?? "") === r.filter_value);
+                          const projected = r.variable_key
+                            ? filtered.map((rec) => ({ [r.variable_key!]: rec[r.variable_key!] }))
+                            : filtered;
+                          setTraceModal({
+                            open: true,
+                            title: `Filtre: ${r.filter_key} = ${r.filter_value}`,
+                            content: {
+                              filter_key: r.filter_key,
+                              filter_value: r.filter_value,
+                              variable_key: r.variable_key ?? null,
+                              total_records: records.length,
+                              filtered_count: filtered.length,
+                              filtered_values: projected,
+                            },
+                          });
+                        }} />
+                      )}
+                    </div>
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    <input type="checkbox" checked={r.has_function} onChange={(e) => updateImmediate(r.id, { has_function: e.target.checked })} />
+                    <input type="checkbox" checked={r.has_function} onChange={(e) => updateImmediate(r.id, { has_function: e.target.checked })} className={checkboxBase} />
                   </td>
                   <td className="px-2 py-1.5">
                     <select value={r.fn} disabled={!r.has_function}
                       onChange={(e) => updateImmediate(r.id, { fn: e.target.value as AggFn })}
-                      className="bg-card border border-border rounded px-1.5 py-1 disabled:opacity-40">
+                      className={selectBase}>
                       {AGG_FNS.map((f) => <option key={f} value={f}>{f}</option>)}
                     </select>
                   </td>
-                  <td className="px-2 py-1.5">
-                    <button
-                      onClick={() => runRow(r)}
-                      disabled={!r.endpoint || !baseUrl || execState[r.id]?.s === "loading"}
-                      className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40"
-                    >
-                      {execState[r.id]?.s === "loading"
-                        ? <Loader2 className="h-3 w-3 animate-spin" />
-                        : <Play className="h-3 w-3" />}
-                      Exec
-                    </button>
+                  {/* Test column (from data.json samples) */}
+                  <td className="px-2 py-1.5 max-w-[180px]">
+                    <ResultBadge
+                      state={testLoading[r.id] ? "loading" : testValues[r.id] ? (testValues[r.id].startsWith("Erreur") || testValues[r.id] === "Pas de sample" ? "error" : "ok") : "idle"}
+                      value={testValues[r.id]}
+                      loadingLabel="test…"
+                      onInfoClick={testValues[r.id] ? async () => {
+                        if (!r.endpoint) return;
+                        const sample = await fetchSampleData(r.endpoint);
+                        if (!sample) return;
+                        const records = extractRecords(sample);
+                        let filteredRecords = records;
+                        if (r.is_filtered && r.filter_key) {
+                          filteredRecords = records.filter((rec) => String(rec[r.filter_key] ?? "") === r.filter_value);
+                        }
+                        const projected = filteredRecords.map((rec) => ({ [r.variable_key!]: rec[r.variable_key!] }));
+                        const values = projected.map((item) => Object.values(item)[0]);
+
+                        let aggregatedResult = null;
+                        if (r.has_function) {
+                          aggregatedResult = aggregateSelection(values, projected, r.fn as AggFn);
+                        }
+
+                        // For Test: show values array without aggregation, or just the value with aggregation
+                        const testResult = r.has_function
+                          ? (aggregatedResult !== null && typeof aggregatedResult === 'object' && !Array.isArray(aggregatedResult)
+                              ? Object.values(aggregatedResult)[0]
+                              : aggregatedResult)
+                          : values;
+
+                        setTraceModal({
+                          open: true,
+                          title: `Test: ${r.name || r.variable}`,
+                          content: {
+                            filter_key: r.filter_key || null,
+                            filter_value: r.filter_value || null,
+                            variable_key: r.variable_key,
+                            total_records: records.length,
+                            filtered_count: filteredRecords.length,
+                            values: testResult,
+                          },
+                        });
+                      } : undefined}
+                    />
                   </td>
-                  <td className="px-2 py-1.5 font-mono text-[11px] max-w-[280px]">
+                  <td className="px-2 py-1.5">
                     {(() => {
-                      const st = execState[r.id];
-                      if (!st) return <span className="text-muted-foreground">—</span>;
-                      if (st.s === "loading") return <span className="text-muted-foreground">chargement…</span>;
-                      if (st.s === "error") return <span className="text-destructive truncate block" title={st.msg}>⚠ {st.msg}</span>;
-                      return <span className="text-green-500 truncate block" title={st.msg}>{st.msg}</span>;
+                      const st = execState[r.id]?.s;
+                      const toneClasses =
+                        st === "error"
+                          ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                          : st === "ok"
+                          ? "border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20"
+                          : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20";
+                      return (
+                        <button
+                          onClick={() => runRow(r)}
+                          disabled={!r.endpoint || !baseUrl || st === "loading"}
+                          title={!r.endpoint || !baseUrl ? "Renseignez un endpoint et une base URL" : "Exécuter cette ligne"}
+                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${toneClasses}`}
+                        >
+                          {st === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                          Exec
+                        </button>
+                      );
                     })()}
                   </td>
+                  <td className="px-2 py-1.5 max-w-[280px]">
+                    <ResultBadge
+                      state={execState[r.id]?.s ?? "idle"}
+                      value={execState[r.id]?.msg}
+                      loadingLabel="exécution…"
+                    />
+                  </td>
+                  {/* Formula column — only on first row of KPI group */}
+                  {isFirstInKpi ? (
+                    <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top">
+                      <FormulaBuilder
+                        kpi={r.kpi}
+                        groupRows={filtered.slice(i, i + ks)}
+                        previewValues={testValues}
+                        formula={r.formula}
+                        onFormulaChange={(f) => {
+                          for (const gr of filtered.slice(i, i + ks)) {
+                            updateLocal(gr.id, { formula: f });
+                          }
+                        }}
+                      />
+                    </td>
+                  ) : null}
+                  {/* Formula Result column — shows computed formula from local test values */}
+                  {isFirstInKpi ? (
+                    <td rowSpan={ks} className="px-2 py-1.5 max-w-[180px]">
+                      <ResultBadge
+                        state={testValues[r.id] ? "ok" : "idle"}
+                        value={computeFormulaForTest(r, testValues)}
+                        loadingLabel="calcul…"
+                      />
+                    </td>
+                  ) : null}
+                  {/* Test Live column — manual live API execution */}
                   <td className="px-2 py-1.5">
-                    <button onClick={() => remove(r.id)} className="text-destructive hover:bg-destructive/10 rounded p-1">
+                    {(() => {
+                      const st = liveExecState[r.id]?.s;
+                      const toneClasses =
+                        st === "error"
+                          ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                          : st === "ok"
+                          ? "border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20"
+                          : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20";
+                      return (
+                        <button
+                          onClick={() => runLiveRow(r)}
+                          disabled={!r.endpoint || !baseUrl || st === "loading"}
+                          title={!r.endpoint || !baseUrl ? "Renseignez un endpoint et une base URL" : "Exécuter en live"}
+                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${toneClasses}`}
+                        >
+                          {st === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                          Test Live
+                        </button>
+                      );
+                    })()}
+                  </td>
+                  <td className="px-2 py-1.5 max-w-[280px]">
+                    <ResultBadge
+                      state={liveExecState[r.id]?.s ?? "idle"}
+                      value={liveExecState[r.id]?.msg}
+                      loadingLabel="exécution…"
+                    />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <button
+                      onClick={() => remove(r.id)}
+                      title="Supprimer cette ligne"
+                      aria-label="Supprimer cette ligne"
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </td>
@@ -605,7 +1206,14 @@ function DataMappingPage() {
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={15} className="text-center text-muted-foreground py-8">Aucune ligne.</td></tr>
+              <tr>
+                <td colSpan={20} className="py-12">
+                  <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                    <Search className="h-5 w-5 opacity-40" />
+                    <span className="text-xs">Aucune ligne ne correspond à ces filtres.</span>
+                  </div>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -617,6 +1225,7 @@ function DataMappingPage() {
         <div className="ml-auto flex items-center gap-2"><BacovetLogo /></div>
       </div>
       <StatusFooter user="MAPPING" />
+      <TraceModal open={traceModal.open} title={traceModal.title} content={traceModal.content} onClose={() => setTraceModal({ open: false, title: "", content: null })} />
     </div>
   );
 }
