@@ -66,10 +66,11 @@ export function computeFormulaForTest(row: DataMappingRow, testValues: Record<nu
       const val = testValues[item.ref];
       if (val === undefined || val === "Erreur" || val === "") return "—";
       if (val === "null") {
-        expr += "null";
+        expr += "0";
       } else {
         const num = Number(val);
-        expr += isNaN(num) ? `("${val}")` : String(num);
+        if (isNaN(num)) return "—"; // non-numeric values can't be used in safe math
+        expr += String(num);
       }
     } else if (item.type === "operator") {
       expr += ` ${item.op} `;
@@ -79,9 +80,48 @@ export function computeFormulaForTest(row: DataMappingRow, testValues: Record<nu
   }
   if (!expr) return "—";
   try {
-    // eslint-disable-next-line no-eval
-    const result = eval(expr);
-    return typeof result === "number" ? (Number.isInteger(result) ? String(result) : result.toFixed(2)) : String(result);
+    // Safe arithmetic parser — no eval, no new Function
+    let pos = 0;
+    const s = expr.replace(/\s+/g, "");
+    function parseExpr(): number {
+      let left = parseTerm();
+      while (pos < s.length && (s[pos] === "+" || s[pos] === "-")) {
+        const op = s[pos++];
+        const right = parseTerm();
+        left = op === "+" ? left + right : left - right;
+      }
+      return left;
+    }
+    function parseTerm(): number {
+      let left = parseFactor();
+      while (pos < s.length && (s[pos] === "*" || s[pos] === "/")) {
+        const op = s[pos++];
+        const right = parseFactor();
+        left = op === "*" ? left * right : left / right;
+      }
+      return left;
+    }
+    function parseFactor(): number {
+      if (pos < s.length && s[pos] === "(") {
+        pos++;
+        const val = parseExpr();
+        if (pos < s.length && s[pos] === ")") pos++;
+        return val;
+      }
+      if (pos < s.length && s[pos] === "-") {
+        pos++;
+        return -parseFactor();
+      }
+      let start = pos;
+      while (pos < s.length && ((s[pos] >= "0" && s[pos] <= "9") || s[pos] === ".")) {
+        pos++;
+      }
+      if (start === pos) throw new Error("Unexpected character");
+      return Number(s.slice(start, pos));
+    }
+    const result = parseExpr();
+    if (pos !== s.length) throw new Error("Unexpected trailing characters");
+    return Number.isInteger(result) ? String(result) : result.toFixed(2);
   } catch {
     return "Erreur";
   }

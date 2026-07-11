@@ -41,7 +41,7 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const tick = setInterval(() => {
             setNow(Date.now());
-        }, 1000);
+        }, 30_000);
         return () => clearInterval(tick);
     }, []);
 

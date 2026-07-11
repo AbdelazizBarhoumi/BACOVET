@@ -7,13 +7,6 @@ import { PageHeader, StatusFooter, BacovetLogo } from "@/components/v1/v1-shell"
 import { exportToCsv } from "@/lib/export";
 import { cn } from "@/lib/utils";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   fetchMappings,
   createMapping,
   deleteMapping,
@@ -82,26 +75,25 @@ function autoSize(el: HTMLTextAreaElement | null) {
   el.style.height = el.scrollHeight + 'px';
 }
 
-// Dropdowns: consistent hover/focus affordance, clear disabled state, custom chevron arrow.
+// Dropdowns: consistent hover/focus affordance, clear disabled state.
 const selectBase =
-  "bg-card border border-border rounded-md px-2.5 py-1.5 pr-7 text-xs transition-colors cursor-pointer " +
+  "bg-card border border-border rounded-md px-2.5 py-1.5 text-xs transition-colors cursor-pointer " +
   "hover:border-primary/50 hover:bg-muted/20 " +
   "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 " +
-  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:bg-transparent disabled:text-muted-foreground disabled:border-dashed " +
-  "appearance-none bg-no-repeat bg-[length:12px] bg-[right_8px_center] " +
-  "bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")]";
+  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:bg-transparent disabled:text-muted-foreground disabled:border-dashed";
 
-// Formula builder selects: smaller variant with same chevron treatment.
+// Formula builder selects: smaller variant.
 const formulaSelectBase =
   "bg-card border border-border rounded px-1.5 py-0.5 text-[10px] transition-colors " +
-  "hover:border-primary/50 focus:outline-none focus:border-primary " +
-  "appearance-none bg-no-repeat bg-[length:8px] bg-[right_4px_center] " +
-  "bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")]";
+  "hover:border-primary/50 focus:outline-none focus:border-primary";
 
-// -------- Custom Dropdown (Radix Select wrapper) --------
-function DataSelect({
+// -------- Lightweight Dropdown (no Portal, no Popper.js, no animations) --------
+// Replaces Radix Select which creates a Portal + Popper.js positioning on every
+// open/close. With 350+ Select instances in the table, the Portal DOM operations
+// were causing 3-second lag. This uses position:fixed instead.
+
+const LightDropdown = React.memo(function LightDropdown({
   value,
-  defaultValue,
   onValueChange,
   disabled,
   className,
@@ -109,34 +101,135 @@ function DataSelect({
   children,
 }: {
   value?: string;
-  defaultValue?: string;
   onValueChange?: (val: string) => void;
   disabled?: boolean;
   className?: string;
   placeholder?: string;
   children: React.ReactNode;
 }) {
-  return (
-    <Select value={value} defaultValue={defaultValue} onValueChange={onValueChange} disabled={disabled}>
-      <SelectTrigger
-        className={cn(
-          "h-auto min-h-[28px] py-1.5 px-2.5 text-xs bg-card border border-border rounded-md cursor-pointer " +
-          "hover:border-primary/50 hover:bg-muted/20 " +
-          "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 " +
-          "disabled:opacity-40 disabled:cursor-not-allowed disabled:border-dashed disabled:text-muted-foreground",
-          className,
-        )}
-      >
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent className="bg-popover border border-border shadow-md">
-        {children}
-      </SelectContent>
-    </Select>
-  );
-}
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
-function DataSelectItem({
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 2, left: rect.left, width: rect.width });
+  }, []);
+
+  const handleToggle = useCallback(() => {
+    if (disabled) return;
+    if (open) {
+      setOpen(false);
+    } else {
+      updatePosition();
+      setOpen(true);
+    }
+  }, [disabled, open, updatePosition]);
+
+  // Close on outside click or scroll
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        contentRef.current && !contentRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    const handleScroll = (e: Event) => {
+      // Don't close if scrolling inside the dropdown content itself
+      const target = e.target as Node;
+      if (contentRef.current && contentRef.current.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick, true);
+    document.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClick, true);
+      document.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [open]);
+
+  // Find label for current value by scanning children
+  const selectedLabel = useMemo(() => {
+    let label: string | undefined;
+    React.Children.forEach(children, (child) => {
+      if (React.isValidElement(child) && (child.props as any).value === value) {
+        label = (child.props as any).children;
+        if (Array.isArray(label)) label = label[0];
+        if (typeof label === "object" && label?.props) label = label.props.children;
+        if (typeof label !== "string") label = String(label);
+      }
+    });
+    return label;
+  }, [value, children]);
+
+  const triggerClasses = cn(
+    "relative h-auto min-h-[28px] py-1.5 px-2.5 pr-7 text-xs bg-card border border-border rounded-md cursor-pointer text-left",
+    "hover:border-primary/50 hover:bg-muted/20",
+    "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
+    "disabled:opacity-40 disabled:cursor-not-allowed disabled:border-dashed disabled:text-muted-foreground",
+    !value && "text-muted-foreground",
+    className,
+  );
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={handleToggle}
+        disabled={disabled}
+        className={triggerClasses}
+      >
+        <span className="line-clamp-1">{selectedLabel || placeholder}</span>
+        <svg className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 opacity-50 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      {open && (
+        <div
+          ref={contentRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 50 }}
+          className="max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md p-1"
+        >
+          {React.Children.map(children, (child) => {
+            if (!React.isValidElement(child)) return child;
+            const childProps = child.props as any;
+            // DataSelectItem: add onClick to select + close
+            if (childProps.value !== undefined && childProps.value !== null && typeof childProps.value === "string") {
+              return (
+                <div
+                  role="option"
+                  aria-selected={childProps.value === value}
+                  onClick={() => { onValueChange?.(childProps.value); setOpen(false); }}
+                  className={cn(
+                    "text-xs cursor-pointer rounded-sm px-2 py-1.5 select-none",
+                    "hover:bg-accent hover:text-accent-foreground",
+                    "focus:bg-accent focus:text-accent-foreground",
+                    childProps.value === value && "bg-accent text-accent-foreground",
+                    childProps.className,
+                  )}
+                >
+                  {childProps.children}
+                </div>
+              );
+            }
+            // Non-item children (search input, etc.) — render as-is
+            return child;
+          })}
+        </div>
+      )}
+    </>
+  );
+});
+
+// -------- Custom Dropdown wrapper --------
+const DataSelect = LightDropdown;
+
+// -------- Dropdown Item (plain div, no Radix) --------
+const DataSelectItem = React.memo(function DataSelectItem({
   value,
   className,
   children,
@@ -145,21 +238,22 @@ function DataSelectItem({
   className?: string;
   children: React.ReactNode;
 }) {
+  // DataSelectItem is rendered inside LightDropdown's children iteration.
+  // LightDropdown detects items by their `value` prop and handles click/selection.
+  // This component just renders the visual — the interaction is handled by LightDropdown.
   return (
-    <SelectItem
-      value={value}
+    <div
+      data-value={value}
       className={cn(
-        "text-xs cursor-pointer rounded-sm px-2 py-1.5 " +
-        "hover:bg-accent hover:text-accent-foreground " +
-        "focus:bg-accent focus:text-accent-foreground " +
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "text-xs cursor-pointer rounded-sm px-2 py-1.5 select-none",
+        "hover:bg-accent hover:text-accent-foreground",
         className,
       )}
     >
       {children}
-    </SelectItem>
+    </div>
   );
-}
+});
 
 // Checkboxes: native element, themed via accent-color + a visible keyboard-focus ring.
 const checkboxBase =
@@ -173,7 +267,7 @@ const checkboxBase =
 // the eye anchored down a dense column and lets errors pop by contrast.
 type ResultState = "idle" | "loading" | "ok" | "error";
 
-function ResultBadge({
+const ResultBadge = React.memo(function ResultBadge({
   state,
   value,
   loadingLabel = "calcul…",
@@ -204,7 +298,7 @@ function ResultBadge({
   return (
     <span className="inline-flex items-center gap-1 max-w-full">
       <span
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-mono text-[10.5px] min-w-0 max-w-full break-all ${colorClasses}`}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-mono text-[10.5px] min-w-0 max-w-[200px] max-h-[40px] overflow-auto ${colorClasses}`}
         title={value}
       >
         {isError ? <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0" /> : <CheckCircle2 className="h-2.5 w-2.5 flex-shrink-0" />}
@@ -213,10 +307,10 @@ function ResultBadge({
       {onInfoClick && <TraceBtn onClick={onInfoClick} />}
     </span>
   );
-}
+});
 
 // -------- Trace Modal --------
-function TraceModal({ open, title, content, onClose }: { open: boolean; title: string; content: unknown; onClose: () => void }) {
+const TraceModal = React.memo(function TraceModal({ open, title, content, onClose }: { open: boolean; title: string; content: unknown; onClose: () => void }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -233,32 +327,85 @@ function TraceModal({ open, title, content, onClose }: { open: boolean; title: s
       </div>
     </div>
   );
-}
+});
 
 // -------- Trace Button --------
-function TraceBtn({ onClick }: { onClick: () => void }) {
+const TraceBtn = React.memo(function TraceBtn({ onClick, isLoading }: { onClick: () => void; isLoading?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-muted text-muted-foreground ml-1 flex-shrink-0 transition-colors hover:bg-primary/15 hover:text-primary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      disabled={isLoading}
+      className={`inline-flex items-center justify-center h-5 w-5 rounded-full bg-muted text-muted-foreground ml-1 flex-shrink-0 transition-colors hover:bg-primary/15 hover:text-primary disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${isLoading ? "cursor-wait" : "cursor-pointer"}`}
       title="Voir le détail"
       aria-label="Voir le détail"
     >
-      <Info className="h-2.5 w-2.5" />
+      {isLoading ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Info className="h-2.5 w-2.5" />}
     </button>
   );
-}
+});
 
 // -------- Formula Builder --------
+// Safe arithmetic parser — supports +, -, *, /, parentheses, decimal numbers, unary minus
+function safeMathEval(expr: string): number {
+  let pos = 0;
+  const s = expr.replace(/\s+/g, "");
+
+  function parseExpr(): number {
+    let left = parseTerm();
+    while (pos < s.length && (s[pos] === "+" || s[pos] === "-")) {
+      const op = s[pos++];
+      const right = parseTerm();
+      left = op === "+" ? left + right : left - right;
+    }
+    return left;
+  }
+
+  function parseTerm(): number {
+    let left = parseFactor();
+    while (pos < s.length && (s[pos] === "*" || s[pos] === "/")) {
+      const op = s[pos++];
+      const right = parseFactor();
+      left = op === "*" ? left * right : left / right;
+    }
+    return left;
+  }
+
+  function parseFactor(): number {
+    if (pos < s.length && s[pos] === "(") {
+      pos++; // skip (
+      const val = parseExpr();
+      if (pos < s.length && s[pos] === ")") pos++; // skip )
+      return val;
+    }
+    // Unary minus
+    if (pos < s.length && s[pos] === "-") {
+      pos++;
+      return -parseFactor();
+    }
+    // Number
+    let start = pos;
+    while (pos < s.length && (s[pos] >= "0" && s[pos] <= "9" || s[pos] === ".")) {
+      pos++;
+    }
+    if (start === pos) throw new Error("Unexpected character");
+    return Number(s.slice(start, pos));
+  }
+
+  const result = parseExpr();
+  if (pos !== s.length) throw new Error("Unexpected trailing characters");
+  return result;
+}
+
 function computeFormula(items: FormulaItem[], previewValues: Record<number, string>): string {
-  // Build expression string from items
+  // Build arithmetic expression from items
   let expr = "";
   for (const item of items) {
     if (item.type === "variable" && item.ref != null) {
       const val = previewValues[item.ref];
       if (val === undefined || val === "Erreur" || val === "") return "—";
       const num = Number(val);
-      expr += isNaN(num) ? `("${val}")` : String(num);
+      if (isNaN(num)) return "—"; // non-numeric values can't be used in safe math
+      expr += String(num);
     } else if (item.type === "operator") {
       expr += ` ${item.op} `;
     } else if (item.type === "number") {
@@ -267,16 +414,14 @@ function computeFormula(items: FormulaItem[], previewValues: Record<number, stri
   }
   if (!expr) return "—";
   try {
-    // Safe eval for simple math
-    // eslint-disable-next-line no-eval
-    const result = eval(expr);
-    return typeof result === "number" ? (Number.isInteger(result) ? String(result) : result.toFixed(2)) : String(result);
+    const result = safeMathEval(expr);
+    return Number.isInteger(result) ? String(result) : result.toFixed(2);
   } catch {
     return "Erreur";
   }
 }
 
-function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChange }: {
+const FormulaBuilder = React.memo(function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChange }: {
   kpi: string;
   groupRows: DataMappingRow[];
   previewValues: Record<number, string>;
@@ -308,7 +453,10 @@ function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChang
       <div className="px-2.5 py-1.5 bg-muted/30 border-b border-border/50 flex items-center gap-1.5">
         <span className="font-semibold text-muted-foreground uppercase tracking-wide text-[9px]">Formule</span>
         {items.length > 0 && (
-          <span className="ml-auto text-[9px] text-muted-foreground font-mono">{items.length} terme{items.length > 1 ? "s" : ""}</span>
+          <>
+            <span className="text-[9px] text-muted-foreground font-mono">{items.length} terme{items.length > 1 ? "s" : ""}</span>
+            <button onClick={() => onFormulaChange({ items: [] })} className="ml-auto text-[9px] text-destructive/70 hover:text-destructive cursor-pointer" title="Tout supprimer">Effacer</button>
+          </>
         )}
       </div>
       {/* Body */}
@@ -316,10 +464,10 @@ function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChang
         {/* Variable chips */}
         <div className="flex flex-wrap gap-1 items-center">
           {groupRows.map((gr) => (
-            <span key={gr.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium">
+            <span key={gr.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">
               {gr.variable || gr.name || `Var ${gr.id}`}
               {previewValues[gr.id] && (
-                <span className="text-muted-foreground font-mono text-[9px]">={previewValues[gr.id]}</span>
+                <span className="text-muted-foreground font-mono text-[9px] shrink-0">={previewValues[gr.id]}</span>
               )}
             </span>
           ))}
@@ -329,7 +477,7 @@ function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChang
         {/* Formula expression */}
         <div className="flex flex-wrap gap-1 items-center min-h-[24px]">
           {items.map((item, i) => (
-            <span key={i} className="inline-flex items-center gap-0.5">
+            <span key={i} className="inline-flex items-center gap-0.5 group/item">
               {item.type === "variable" && (
                 <DataSelect
                   value={String(item.ref)}
@@ -358,39 +506,34 @@ function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChang
                   className="border border-border rounded px-1.5 py-0.5 text-[10px] bg-card w-16 font-mono cursor-text focus:outline-none focus:border-primary"
                 />
               )}
-              <button
-                onClick={() => removeItem(i)}
-                className="w-4 h-4 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 flex items-center justify-center text-[9px] leading-none transition-colors flex-shrink-0 cursor-pointer"
-                title="Supprimer ce terme"
-              >×</button>
+              <button onClick={() => removeItem(i)} className="text-muted-foreground/40 hover:text-destructive text-[10px] leading-none cursor-pointer opacity-0 group-hover/item:opacity-100 transition-opacity" title="Supprimer">×</button>
             </span>
           ))}
-          {items.length === 0 && (
-            <span className="text-muted-foreground/50 italic text-[9px]">Ajoutez des termes ci-dessous</span>
-          )}
         </div>
         {/* Divider */}
         <div className="border-t border-border/30" />
         {/* Add buttons */}
         <div className="flex gap-1">
-          <select
-            onChange={(e) => { if (e.target.value) { addItem({ type: "operator", op: e.target.value }); e.target.value = ""; } }}
-            className={`${formulaSelectBase} w-10 text-center font-bold`}
-            defaultValue=""
+          <DataSelect
+            value={undefined}
+            onValueChange={(val) => { if (val) addItem({ type: "operator", op: val }); }}
+            className="w-10 text-center font-bold text-[10px]"
+            placeholder="+"
           >
-            <option value="" disabled>+</option>
-            {["+", "-", "*", "/"].map((op) => <option key={op} value={op}>{op}</option>)}
-          </select>
-          <select
-            onChange={(e) => { if (e.target.value) { addItem({ type: "variable", ref: Number(e.target.value), label: groupRows.find((gr) => gr.id === Number(e.target.value))?.variable || "" }); e.target.value = ""; } }}
-            className={formulaSelectBase}
-            defaultValue=""
+            {["+", "-", "*", "/"].map((op) => <DataSelectItem key={op} value={op}>{op}</DataSelectItem>)}
+          </DataSelect>
+          <DataSelect
+            value={undefined}
+            onValueChange={(val) => { if (val) addItem({ type: "variable", ref: Number(val), label: groupRows.find((gr) => gr.id === Number(val))?.variable || "" }); }}
+            className="text-[10px]"
+            placeholder="+ Variable"
           >
-            <option value="" disabled>+ Variable</option>
-            {groupRows.map((gr) => (
-              <option key={gr.id} value={gr.id}>{gr.variable || gr.name || `Var ${gr.id}`}</option>
-            ))}
-          </select>
+            {groupRows
+              .filter((gr) => !items.some((it) => it.type === "variable" && it.ref === gr.id))
+              .map((gr) => (
+                <DataSelectItem key={gr.id} value={String(gr.id)}>{gr.variable || gr.name || `Var ${gr.id}`}</DataSelectItem>
+              ))}
+          </DataSelect>
           <button
             onClick={() => addItem({ type: "number", value: 0 })}
             className="border border-dashed border-primary/30 rounded-full px-2 py-0.5 text-[10px] bg-primary/5 text-primary hover:bg-primary/15 hover:border-primary/50 transition-colors font-medium cursor-pointer"
@@ -408,10 +551,10 @@ function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChang
       </div>
     </div>
   );
-}
+});
 
 // -------- Nested Key Selector --------
-function NestedKeySelector({
+const NestedKeySelector = React.memo(function NestedKeySelector({
   keys,
   sampleData,
   value,
@@ -517,7 +660,64 @@ function NestedKeySelector({
       {selects}
     </div>
   );
-}
+});
+
+// -------- Endpoint Selector (self-contained, local search state) --------
+// Extracted from DataMappingPage so that typing in the search input does NOT
+// trigger a full page re-render (which would recreate all 350+ Select portals).
+const EndpointSelector = React.memo(function EndpointSelector({
+  row,
+  endpointList,
+  dataEndpoints,
+  endpointMeta,
+  onEndpointChange,
+  traceLoading,
+  onTrace,
+}: {
+  row: DataMappingRow;
+  endpointList: string[];
+  dataEndpoints: Record<string, string[]>;
+  endpointMeta: Record<string, { name: string; method: string; fields: string[] }>;
+  onEndpointChange: (newEndpoint: string | null) => void;
+  traceLoading: boolean;
+  onTrace: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 150);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const filtered = endpointList.filter(
+    (ep) => !debouncedSearch || ep.toLowerCase().includes(debouncedSearch.toLowerCase()),
+  );
+
+  return (
+    <DataSelect
+      value={row.endpoint ?? undefined}
+      onValueChange={(val) => onEndpointChange(val || null)}
+      className={`w-64 ${!row.endpoint ? "text-muted-foreground border-dashed" : ""}`}
+      placeholder="— sélectionner —"
+    >
+      <div className="px-2 py-1" role="presentation">
+        <input
+          type="text"
+          placeholder="Rechercher…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          className="w-full bg-transparent border-b border-border px-1 py-0.5 text-xs outline-none placeholder:text-muted-foreground/50"
+        />
+      </div>
+      {filtered.map((ep) => (
+        <DataSelectItem key={ep} value={ep}>{ep}</DataSelectItem>
+      ))}
+    </DataSelect>
+  );
+});
 
 function DataMappingPage() {
   const { dataEndpoints, endpointMeta, endpointList, loading: endpointsLoading } = useNovacityEndpoints();
@@ -566,6 +766,19 @@ function DataMappingPage() {
   // Health check state
   const [healthState, setHealthState] = useState<"idle" | "loading" | "healthy" | "error">("idle");
   const [healthMsg, setHealthMsg] = useState("");
+
+  // Exec All / Export loading states
+  const [execAllLoading, setExecAllLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // Trace button loading states (per-row, per-trace-type)
+  const [traceLoading, setTraceLoading] = useState<Record<number, Record<string, boolean>>>({});
+
+  // Variable key validation loading
+  const [validatingKeys, setValidatingKeys] = useState<Record<number, boolean>>({});
+
+  // Confirm reset dialog
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const runHealthCheck = async () => {
     if (!baseUrl) return;
@@ -974,9 +1187,9 @@ function DataMappingPage() {
   }, [loadRows]);
 
   const exportRows = async () => {
+    setExporting(true);
     try {
       const exportData = filtered.map((r) => {
-        // Handle modules as array or JSON string
         let mods: string[] = [];
         if (Array.isArray(r.modules)) {
           mods = r.modules;
@@ -1007,6 +1220,8 @@ function DataMappingPage() {
       toast.success("Export terminé");
     } catch {
       toast.error("Erreur lors de l'export");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -1023,7 +1238,14 @@ function DataMappingPage() {
     }
   };
 
-  const runAll = async () => { for (const r of filtered) await runRow(r); };
+  const runAll = async () => {
+    setExecAllLoading(true);
+    try {
+      for (const r of filtered) await runRow(r);
+    } finally {
+      setExecAllLoading(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const mapped = rows.filter((r) => r.endpoint && r.variable_key).length;
@@ -1035,6 +1257,34 @@ function DataMappingPage() {
   updateLocalRef.current = updateLocal;
   const filteredRef = useRef(filtered);
   filteredRef.current = filtered;
+
+  // Stable refs for row callbacks — prevents child re-renders
+  const updateImmediateRef = useRef(updateImmediate);
+  updateImmediateRef.current = updateImmediate;
+  const toggleModuleRef = useRef(toggleModule);
+  toggleModuleRef.current = toggleModule;
+  const runRowRef = useRef(runRow);
+  runRowRef.current = runRow;
+  const runLiveRowRef = useRef(runLiveRow);
+  runLiveRowRef.current = runLiveRow;
+  const removeRef = useRef(remove);
+  removeRef.current = remove;
+  const setTestValuesRef = useRef(setTestValues);
+  setTestValuesRef.current = setTestValues;
+  const setDirectErrorsRef = useRef(setDirectErrors);
+  setDirectErrorsRef.current = setDirectErrors;
+  const setSampleDataCacheRef = useRef(setSampleDataCache);
+  setSampleDataCacheRef.current = setSampleDataCache;
+  const setTraceModalRef = useRef(setTraceModal);
+  setTraceModalRef.current = setTraceModal;
+  const setTraceLoadingRef = useRef(setTraceLoading);
+  setTraceLoadingRef.current = setTraceLoading;
+  const setValidatingKeysRef = useRef(setValidatingKeys);
+  setValidatingKeysRef.current = setValidatingKeys;
+  const setLiveExecStateRef = useRef(setLiveExecState);
+  setLiveExecStateRef.current = setLiveExecState;
+  const setExecStateRef = useRef(setExecState);
+  setExecStateRef.current = setExecState;
 
   // Memoize formula callbacks per KPI group to prevent FormulaBuilder re-renders
   const formulaCallbacksRef = useRef<Map<string, (f: FormulaDef) => void>>(new Map());
@@ -1118,7 +1368,7 @@ function DataMappingPage() {
         <button
           onClick={flushDirty}
           disabled={dirtyIds.size === 0 || saving}
-          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-40 cursor-pointer shrink-0"
+          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-40 shrink-0 ${saving ? "cursor-wait" : "cursor-pointer"}`}
         >
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
           Save{dirtyIds.size > 0 ? ` (${dirtyIds.size})` : ""}
@@ -1126,7 +1376,9 @@ function DataMappingPage() {
         <button
           onClick={runHealthCheck}
           disabled={!baseUrl || healthState === "loading"}
-          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border cursor-pointer disabled:opacity-40 shrink-0 ${
+          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border disabled:opacity-40 shrink-0 ${
+            healthState === "loading" ? "cursor-wait" : "cursor-pointer"
+          } ${
             healthState === "healthy"
               ? "border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20"
               : healthState === "error"
@@ -1146,13 +1398,27 @@ function DataMappingPage() {
           )}
           {healthState === "healthy" ? "OK" : healthState === "error" ? "Error" : "Health"}
         </button>
-        <button onClick={runAll} disabled={!baseUrl} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 cursor-pointer shrink-0">
-          <Play className="h-3 w-3" /> Exec All
+        <button
+          onClick={runAll}
+          disabled={!baseUrl || execAllLoading}
+          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 shrink-0 ${execAllLoading ? "cursor-wait" : "cursor-pointer"}`}
+        >
+          {execAllLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+          {execAllLoading ? "Running…" : "Exec All"}
         </button>
-        <button onClick={exportRows} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border bg-card hover:bg-secondary cursor-pointer shrink-0">
-          <Download className="h-3 w-3" /> Excel
+        <button
+          onClick={exportRows}
+          disabled={exporting}
+          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border bg-card hover:bg-secondary disabled:opacity-40 shrink-0 ${exporting ? "cursor-wait" : "cursor-pointer"}`}
+        >
+          {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+          {exporting ? "Export…" : "Excel"}
         </button>
-        <button onClick={() => setConfirmReset(true)} className="text-[11px] px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 cursor-pointer shrink-0">
+        <button
+          onClick={() => setConfirmReset(true)}
+          disabled={saving}
+          className={`text-[11px] px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 disabled:opacity-40 shrink-0 ${saving ? "cursor-wait" : "cursor-pointer"}`}
+        >
           Reset
         </button>
       </div>
@@ -1161,7 +1427,7 @@ function DataMappingPage() {
           Dernière sauvegarde : {lastSaved}
         </div>
       )}
-      <div ref={tableScrollRef} className="flex-1 overflow-auto p-3" style={{ contain: "layout style" }}>
+      <div ref={tableScrollRef} className="flex-1 overflow-auto p-3">
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -1181,7 +1447,7 @@ function DataMappingPage() {
               const ms = spans.moduleSpan[i];
               const isFirstInModule = ms > 0;
               return (
-                <tr key={r.id} data-row-id={r.id} style={{ ...(r.highlight_color ? { backgroundColor: r.highlight_color + "30" } : {}), contentVisibility: "auto" }} className={`border-b border-border/50 hover:bg-secondary/30 ${isDirty ? "bg-amber-500/5" : ""} ${isFirstInKpi && i > 0 ? "border-t-2 border-t-border" : ""}`}>
+                <tr key={r.id} data-row-id={r.id} style={r.highlight_color ? { backgroundColor: r.highlight_color + "30" } : undefined} className={`border-b border-border/50 hover:bg-secondary/30 ${isDirty ? "bg-amber-500/5" : ""} ${isFirstInKpi && i > 0 ? "border-t-2 border-t-border" : ""}`}>
                   {/* Color picker */}
                   <td className="px-1.5 py-1.5 w-8">
                     <div className="relative group flex items-center justify-center">
@@ -1302,61 +1568,66 @@ function DataMappingPage() {
                   </td>
                   <td className="px-2 py-1.5">
                     <div className="flex items-center">
-                      <DataSelect value={r.endpoint ?? undefined} onValueChange={(val) => {
-                        const newEndpoint = val || null;
-                        updateImmediate(r.id, { endpoint: newEndpoint, variable_key: "" });
-                        // Clear test value and errors when endpoint changes
-                        setTestValues((m) => {
-                          const next = { ...m };
-                          delete next[r.id];
-                          return next;
-                        });
-                        setDirectErrors((m) => {
-                          const next = { ...m };
-                          delete next[r.id];
-                          return next;
-                        });
-                        // Fetch sample data for NestedKeySelector
-                        if (newEndpoint) {
-                          fetchSampleData(newEndpoint).then((sample) => {
-                            if (sample) {
-                              const records = extractRecords(sample);
-                              setSampleDataCache((m) => ({ ...m, [r.id]: records[0] ?? null }));
-                            } else {
-                              setSampleDataCache((m) => ({ ...m, [r.id]: null }));
-                            }
-                          });
-                        } else {
-                          setSampleDataCache((m) => {
+                      <EndpointSelector
+                        row={r}
+                        endpointList={endpointList}
+                        dataEndpoints={dataEndpoints}
+                        endpointMeta={endpointMeta}
+                        onEndpointChange={(newEndpoint) => {
+                          updateImmediate(r.id, { endpoint: newEndpoint, variable_key: "" });
+                          // Clear test value and errors when endpoint changes
+                          setTestValues((m) => {
                             const next = { ...m };
                             delete next[r.id];
                             return next;
                           });
-                        }
-                      }}
-                        className={`w-64 ${!r.endpoint ? "text-muted-foreground border-dashed" : ""}`}
-                        placeholder="— sélectionner —">
-                        {endpointList.map((ep) => <DataSelectItem key={ep} value={ep}>{ep}</DataSelectItem>)}
-                      </DataSelect>
-                      {r.endpoint && (
-                        <TraceBtn onClick={async () => {
-                          const ep = r.endpoint!;
-                          const sample = await fetchSampleData(ep);
-                          const records = extractRecords(sample);
-                          setTraceModal({
-                            open: true,
-                            title: `Endpoint: ${ep}`,
-                            content: {
-                              slug: ep,
-                              name: endpointMeta[ep]?.name ?? ep,
-                              method: endpointMeta[ep]?.method ?? "GET",
-                              fields: dataEndpoints[ep] ?? [],
-                              total_records: records.length,
-                              all_records: records,
-                            },
+                          setDirectErrors((m) => {
+                            const next = { ...m };
+                            delete next[r.id];
+                            return next;
                           });
-                        }} />
-                      )}
+                          // Fetch sample data for NestedKeySelector
+                          if (newEndpoint) {
+                            fetchSampleData(newEndpoint).then((sample) => {
+                              if (sample) {
+                                const records = extractRecords(sample);
+                                setSampleDataCache((m) => ({ ...m, [r.id]: records[0] ?? null }));
+                              } else {
+                                setSampleDataCache((m) => ({ ...m, [r.id]: null }));
+                              }
+                            });
+                          } else {
+                            setSampleDataCache((m) => {
+                              const next = { ...m };
+                              delete next[r.id];
+                              return next;
+                            });
+                          }
+                        }}
+                        traceLoading={!!traceLoading[r.id]?.endpoint}
+                        onTrace={async () => {
+                          setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], endpoint: true } }));
+                          try {
+                            const ep = r.endpoint!;
+                            const sample = await fetchSampleData(ep);
+                            const records = extractRecords(sample);
+                            setTraceModal({
+                              open: true,
+                              title: `Endpoint: ${ep}`,
+                              content: {
+                                slug: ep,
+                                name: endpointMeta[ep]?.name ?? ep,
+                                method: endpointMeta[ep]?.method ?? "GET",
+                                fields: dataEndpoints[ep] ?? [],
+                                total_records: records.length,
+                                all_records: records,
+                              },
+                            });
+                          } finally {
+                            setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], endpoint: false } }));
+                          }
+                        }}
+                      />
                     </div>
                   </td>
                   <td className="px-2 py-1.5">
@@ -1410,19 +1681,24 @@ function DataMappingPage() {
                         onChange={async (path) => {
                           updateImmediate(r.id, { variable_key: path });
                           if (r.variable_type === "Direct" && path && r.endpoint) {
-                            const sample = await fetchSampleData(r.endpoint);
-                            if (sample) {
-                              const records = extractRecords(sample);
-                              const error = validateDirectKeyType(records, path);
-                              setDirectErrors((m) => {
-                                const next = { ...m };
-                                if (error) {
-                                  next[r.id] = error;
-                                } else {
-                                  delete next[r.id];
-                                }
-                                return next;
-                              });
+                            setValidatingKeys((m) => ({ ...m, [r.id]: true }));
+                            try {
+                              const sample = await fetchSampleData(r.endpoint);
+                              if (sample) {
+                                const records = extractRecords(sample);
+                                const error = validateDirectKeyType(records, path);
+                                setDirectErrors((m) => {
+                                  const next = { ...m };
+                                  if (error) {
+                                    next[r.id] = error;
+                                  } else {
+                                    delete next[r.id];
+                                  }
+                                  return next;
+                                });
+                              }
+                            } finally {
+                              setValidatingKeys((m) => ({ ...m, [r.id]: false }));
                             }
                           } else {
                             setDirectErrors((m) => {
@@ -1435,25 +1711,33 @@ function DataMappingPage() {
                         disabled={!r.endpoint}
                       />
                       {r.variable_key && (
-                        <TraceBtn onClick={async () => {
-                          if (!r.endpoint) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas d'endpoint sélectionné" }); return; }
-                          const sample = await fetchSampleData(r.endpoint);
-                          if (!sample) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas de sample data" }); return; }
-                          const records = extractRecords(sample);
-
-                          // Project the selected key using nested path
-                          const projected = records.map((rec) => ({ [r.variable_key!]: getValueAtPath(rec, r.variable_key!) }));
-
-                          setTraceModal({
-                            open: true,
-                            title: `Clé: ${r.variable_key}`,
-                            content: {
-                              variable_key: r.variable_key,
-                              total_records: records.length,
-                              values: projected,
-                            },
-                          });
-                        }} />
+                        <TraceBtn
+                          isLoading={traceLoading[r.id]?.variableKey}
+                          onClick={async () => {
+                            setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], variableKey: true } }));
+                            try {
+                              if (!r.endpoint) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas d'endpoint sélectionné" }); return; }
+                              const sample = await fetchSampleData(r.endpoint);
+                              if (!sample) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas de sample data" }); return; }
+                              const records = extractRecords(sample);
+                              const projected = records.map((rec) => ({ [r.variable_key!]: getValueAtPath(rec, r.variable_key!) }));
+                              setTraceModal({
+                                open: true,
+                                title: `Clé: ${r.variable_key}`,
+                                content: {
+                                  variable_key: r.variable_key,
+                                  total_records: records.length,
+                                  values: projected,
+                                },
+                              });
+                            } finally {
+                              setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], variableKey: false } }));
+                            }
+                          }}
+                        />
+                      )}
+                      {validatingKeys[r.id] && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-1" />
                       )}
                     </div>
                     {directErrors[r.id] && (
@@ -1489,28 +1773,36 @@ function DataMappingPage() {
                         placeholder="ex: CH01"
                         className="w-44 bg-card border border-border rounded px-1.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-[11px] cursor-text transition-colors focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 hover:enabled:border-primary/40" />
                       {r.is_filtered && r.filter_key && r.filter_value && (
-                        <TraceBtn onClick={async () => {
-                          if (!r.endpoint) return;
-                          const sample = await fetchSampleData(r.endpoint);
-                          if (!sample) return;
-                          const records = extractRecords(sample);
-                          const filtered = records.filter((rec) => String(rec[r.filter_key] ?? "") === r.filter_value);
-                          const projected = r.variable_key
-                            ? filtered.map((rec) => ({ [r.variable_key!]: rec[r.variable_key!] }))
-                            : filtered;
-                          setTraceModal({
-                            open: true,
-                            title: `Filtre: ${r.filter_key} = ${r.filter_value}`,
-                            content: {
-                              filter_key: r.filter_key,
-                              filter_value: r.filter_value,
-                              variable_key: r.variable_key ?? null,
-                              total_records: records.length,
-                              filtered_count: filtered.length,
-                              filtered_values: projected,
-                            },
-                          });
-                        }} />
+                        <TraceBtn
+                          isLoading={traceLoading[r.id]?.filter}
+                          onClick={async () => {
+                            setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], filter: true } }));
+                            try {
+                              if (!r.endpoint) return;
+                              const sample = await fetchSampleData(r.endpoint);
+                              if (!sample) return;
+                              const records = extractRecords(sample);
+                              const filtered = records.filter((rec) => String(rec[r.filter_key] ?? "") === r.filter_value);
+                              const projected = r.variable_key
+                                ? filtered.map((rec) => ({ [r.variable_key!]: rec[r.variable_key!] }))
+                                : filtered;
+                              setTraceModal({
+                                open: true,
+                                title: `Filtre: ${r.filter_key} = ${r.filter_value}`,
+                                content: {
+                                  filter_key: r.filter_key,
+                                  filter_value: r.filter_value,
+                                  variable_key: r.variable_key ?? null,
+                                  total_records: records.length,
+                                  filtered_count: filtered.length,
+                                  filtered_values: projected,
+                                },
+                              });
+                            } finally {
+                              setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], filter: false } }));
+                            }
+                          }}
+                        />
                       )}
                     </div>
                   </td>
@@ -1585,7 +1877,7 @@ function DataMappingPage() {
                           onClick={() => runRow(r)}
                           disabled={!r.endpoint || !baseUrl || st === "loading"}
                           title={!r.endpoint || !baseUrl ? "Renseignez un endpoint et une base URL" : "Exécuter cette ligne"}
-                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${toneClasses}`}
+                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${st === "loading" ? "cursor-wait" : "cursor-pointer"} ${toneClasses}`}
                         >
                           {st === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                           Exec
@@ -1688,7 +1980,7 @@ function DataMappingPage() {
                           onClick={() => runLiveRow(r)}
                           disabled={!r.endpoint || !baseUrl || st === "loading"}
                           title={!r.endpoint || !baseUrl ? "Renseignez un endpoint et une base URL" : "Exécuter en live"}
-                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${toneClasses}`}
+                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${st === "loading" ? "cursor-wait" : "cursor-pointer"} ${toneClasses}`}
                         >
                           {st === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                           Test Live
@@ -1737,6 +2029,19 @@ function DataMappingPage() {
       </div>
       <StatusFooter user="MAPPING" />
       <TraceModal open={traceModal.open} title={traceModal.title} content={traceModal.content} onClose={() => setTraceModal({ open: false, title: "", content: null })} />
+      {/* Confirm Reset Dialog */}
+      {confirmReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmReset(false)}>
+          <div className="bg-card border border-border rounded-lg shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-2">Réinitialiser tout ?</h3>
+            <p className="text-xs text-muted-foreground mb-4">Toutes les lignes seront supprimées et remplacées par les données par défaut. Cette action est irréversible.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmReset(false)} className="text-xs px-3 py-1.5 rounded border border-border hover:bg-secondary cursor-pointer">Annuler</button>
+              <button onClick={() => { setConfirmReset(false); resetAll(); }} className="text-xs px-3 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 cursor-pointer">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

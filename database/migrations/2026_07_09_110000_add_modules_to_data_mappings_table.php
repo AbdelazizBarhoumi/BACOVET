@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('data_mappings', function (Blueprint $table) {
-            $table->json('modules')->default('[]');
+            $table->json('modules')->nullable();
         });
     }
 

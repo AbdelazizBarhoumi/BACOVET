@@ -28,6 +28,10 @@ class DataMapping extends Model
         'user_id',
     ];
 
+    protected $attributes = [
+        'modules' => '[]',
+    ];
+
     protected $casts = [
         'is_filtered' => 'boolean',
         'has_function' => 'boolean',

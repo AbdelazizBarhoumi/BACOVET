@@ -7,6 +7,9 @@ use Illuminate\Http\JsonResponse;
 
 class NovacityEndpointsController extends Controller
 {
+    /** @var array|null Cached parsed data.json — avoids re-reading 1.1MB file per request. */
+    private static ?array $cachedItems = null;
+
     /**
      * Parse data.json (flat array format) and return endpoint map.
      */
@@ -73,6 +76,10 @@ class NovacityEndpointsController extends Controller
      */
     private function loadItems(): ?array
     {
+        if (self::$cachedItems !== null) {
+            return self::$cachedItems;
+        }
+
         $path = storage_path('app/public/data.json');
 
         if (! file_exists($path)) {
@@ -90,6 +97,8 @@ class NovacityEndpointsController extends Controller
         if (! is_array($json)) {
             return null;
         }
+
+        self::$cachedItems = $json;
 
         return $json;
     }
