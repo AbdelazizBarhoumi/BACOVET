@@ -21,12 +21,17 @@ class DataMapping extends Model
         'modules',
         'formula',
         'highlight_color',
+        'cible_operator',
+        'cible_value',
+        'cible_is_percentage',
+        'refresh_frequency',
         'user_id',
     ];
 
     protected $casts = [
         'is_filtered' => 'boolean',
         'has_function' => 'boolean',
+        'cible_is_percentage' => 'boolean',
         'modules' => 'array',
         'formula' => 'array',
     ];

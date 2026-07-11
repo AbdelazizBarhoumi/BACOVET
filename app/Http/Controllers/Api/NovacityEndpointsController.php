@@ -26,7 +26,16 @@ class NovacityEndpointsController extends Controller
                 continue;
             }
 
+            // Try to get fields from columns first, then from first data record
             $fields = $item['response']['columns'] ?? [];
+
+            if (empty($fields) && isset($item['response']['data']) && is_array($item['response']['data']) && count($item['response']['data']) > 0) {
+                // Extract fields from the first data record
+                $firstRecord = $item['response']['data'][0];
+                if (is_array($firstRecord)) {
+                    $fields = array_keys($firstRecord);
+                }
+            }
 
             $endpoints[$slug] = [
                 'name' => $item['name'] ?? $slug,

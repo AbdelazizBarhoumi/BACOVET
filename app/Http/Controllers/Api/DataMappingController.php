@@ -163,6 +163,10 @@ class DataMappingController extends Controller
                 'kpi' => $s['kpi'] ?? 'F-REQ-XXX',
                 'name' => $s['name'] ?? '',
                 'variable' => $s['variable'] ?? '',
+                'cible_operator' => $s['cible_operator'] ?? '=',
+                'cible_value' => $s['cible_value'] ?? null,
+                'cible_is_percentage' => $s['cible_is_percentage'] ?? false,
+                'refresh_frequency' => $s['refresh_frequency'] ?? 'instant',
                 'user_id' => $userId,
             ]);
             $created++;

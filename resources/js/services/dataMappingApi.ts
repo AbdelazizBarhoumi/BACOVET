@@ -26,6 +26,15 @@ async function fetchWithToken(url: string, options: RequestInit = {}) {
         },
     });
 
+    if (response.status === 401) {
+        sessionStorage.setItem('v1_returnTo', window.location.pathname);
+        window.location.href = '/login';
+        throw new Error('Non authentifié');
+    }
+    if (response.status === 403) {
+        window.location.href = '/unauthorized';
+        throw new Error('Accès refusé');
+    }
     if (!response.ok) {
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
@@ -49,6 +58,10 @@ export interface DataMappingRow {
     modules: string[];
     formula: FormulaDef | null;
     highlight_color: string | null;
+    cible_operator: string;
+    cible_value: number | null;
+    cible_is_percentage: boolean;
+    refresh_frequency: string;
     user_id: number | null;
     created_at: string;
     updated_at: string;

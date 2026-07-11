@@ -95,8 +95,16 @@ export default function LoginPage() {
                 return;
             }
 
-            const redirectTo = payload?.redirect ?? '/dashboard';
-            router.visit(redirectTo);
+            const returnTo = sessionStorage.getItem('v1_returnTo');
+            sessionStorage.removeItem('v1_returnTo');
+            const redirectTo = (returnTo && returnTo.startsWith('/v1/'))
+                ? returnTo
+                : (payload?.redirect ?? '/dashboard');
+            if (returnTo && returnTo.startsWith('/v1/')) {
+                window.location.href = redirectTo;
+            } else {
+                router.visit(redirectTo);
+            }
         } catch {
             setLocalErr("Impossible de joindre le serveur d'authentification.");
             toast.error('Échec de la connexion');
