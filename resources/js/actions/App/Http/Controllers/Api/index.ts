@@ -8,6 +8,7 @@ import LogisticsController from './LogisticsController'
 import MethodesController from './MethodesController'
 import DevelopmentController from './DevelopmentController'
 import FilterController from './FilterController'
+import HealthController from './HealthController'
 import DataMappingController from './DataMappingController'
 import NovacityEndpointsController from './NovacityEndpointsController'
 const Api = {
@@ -21,6 +22,7 @@ LogisticsController: Object.assign(LogisticsController, LogisticsController),
 MethodesController: Object.assign(MethodesController, MethodesController),
 DevelopmentController: Object.assign(DevelopmentController, DevelopmentController),
 FilterController: Object.assign(FilterController, FilterController),
+HealthController: Object.assign(HealthController, HealthController),
 DataMappingController: Object.assign(DataMappingController, DataMappingController),
 NovacityEndpointsController: Object.assign(NovacityEndpointsController, NovacityEndpointsController),
 }

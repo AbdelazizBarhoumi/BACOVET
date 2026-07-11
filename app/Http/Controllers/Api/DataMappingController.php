@@ -32,7 +32,19 @@ class DataMappingController extends Controller
             'modules.*' => 'string',
             'formula' => 'nullable|array',
             'highlight_color' => 'nullable|string|max:20',
+            'cible_operator' => 'nullable|string|max:5',
+            'cible_value' => 'nullable|numeric',
+            'cible_is_percentage' => 'nullable|boolean',
+            'refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
         ]);
+
+        // Coerce null to '' for columns with NOT NULL default
+        if (array_key_exists('name', $validated) && $validated['name'] === null) {
+            $validated['name'] = '';
+        }
+        if (array_key_exists('variable', $validated) && $validated['variable'] === null) {
+            $validated['variable'] = '';
+        }
 
         $validated['user_id'] = $request->user()?->id;
 
@@ -61,6 +73,10 @@ class DataMappingController extends Controller
             'modules.*' => 'string',
             'formula' => 'nullable|array',
             'highlight_color' => 'nullable|string|max:20',
+            'cible_operator' => 'nullable|string|max:5',
+            'cible_value' => 'nullable|numeric',
+            'cible_is_percentage' => 'nullable|boolean',
+            'refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
         ]);
 
         $mapping->update($validated);
@@ -102,6 +118,10 @@ class DataMappingController extends Controller
             'mappings.*.modules.*' => 'string',
             'mappings.*.formula' => 'nullable|array',
             'mappings.*.highlight_color' => 'nullable|string|max:20',
+            'mappings.*.cible_operator' => 'nullable|string|max:5',
+            'mappings.*.cible_value' => 'nullable|numeric',
+            'mappings.*.cible_is_percentage' => 'nullable|boolean',
+            'mappings.*.refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
         ]);
 
         foreach ($validated['mappings'] as $item) {

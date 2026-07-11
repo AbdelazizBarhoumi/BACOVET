@@ -1,6 +1,5 @@
-import * as XLSX from 'xlsx';
-
-export function exportToCsv(filename: string, rows: Record<string, unknown>[], rawRows?: Record<string, unknown>[]) {
+export async function exportToCsv(filename: string, rows: Record<string, unknown>[], rawRows?: Record<string, unknown>[]) {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
 
     if (!rows.length) {

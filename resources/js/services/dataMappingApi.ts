@@ -117,9 +117,10 @@ export const seedMappings = async (): Promise<{ count: number }> => {
     return fetchWithToken(`${BASE_URL}/seed`, { method: 'POST' });
 };
 
-export const fetchSampleData = async (slug: string): Promise<unknown> => {
+export const fetchSampleData = async (slug: string, signal?: AbortSignal): Promise<unknown> => {
     const res = await fetch(`/novacity-endpoints/sample/${slug}`, {
         headers: { Accept: 'application/json' },
+        signal,
     });
     if (!res.ok) return null;
     const json = await res.json();

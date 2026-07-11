@@ -1,6 +1,7 @@
 // Route registered in v1-main.tsx
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Download, Search, Database, Play, Loader2, Plus, Trash2, Save, Info, CheckCircle2, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import { useNovacityEndpoints } from "@/lib/data-endpoints";
 import { PageHeader, StatusFooter, BacovetLogo } from "@/components/v1/v1-shell";
 import { exportToCsv } from "@/lib/export";
@@ -25,21 +26,32 @@ import {
   fetchSampleData,
 } from "@/services/dataMappingApi";
 
+import {
+  extractRecords,
+  aggregateSelection,
+  getValueAtPath,
+  stringifyResult,
+  computeFormulaForTest,
+  validateDirectKeyType,
+  buildExecutionResult,
+  executeRow,
+  AGG_FNS,
+  type AggFn,
+  type ExecState,
+} from "@/lib/exec";
+
 export default DataMappingPage;
 
 // -------- Batch fetch helper --------
 const BATCH_SIZE = 8;
-async function fetchInBatches<T>(items: T[], batchSize: number, fn: (item: T) => Promise<void>) {
+async function fetchInBatches<T>(items: T[], batchSize: number, fn: (item: T, signal?: AbortSignal) => Promise<void>, signal?: AbortSignal) {
   for (let i = 0; i < items.length; i += batchSize) {
-    await Promise.allSettled(items.slice(i, i + batchSize).map(fn));
+    if (signal?.aborted) return;
+    await Promise.allSettled(items.slice(i, i + batchSize).map((item) => fn(item, signal)));
   }
 }
 
 type VarType = "Direct" | "Complex";
-type AggFn = "Latest" | "First" | "Sum" | "Average" | "Min" | "Max" | "Count";
-type ExecState = "idle" | "loading" | "ok" | "error";
-
-const AGG_FNS: AggFn[] = ["Latest", "First", "Sum", "Average", "Min", "Max", "Count"];
 
 const MODULES = ["quality", "production", "methodes", "development", "logistics"] as const;
 const PROD_SUBS = ["coupe", "confection", "flux"] as const;
@@ -201,156 +213,6 @@ function ResultBadge({
       {onInfoClick && <TraceBtn onClick={onInfoClick} />}
     </span>
   );
-}
-
-// -------- Executor --------
-function extractRecords(json: unknown): Record<string, unknown>[] {
-  if (Array.isArray(json)) return json as Record<string, unknown>[];
-  if (json && typeof json === "object") {
-    const o = json as Record<string, unknown>;
-    for (const k of ["data", "items", "result", "results", "records", "rows", "value"]) {
-      if (Array.isArray(o[k])) return o[k] as Record<string, unknown>[];
-    }
-    return [o];
-  }
-  return [];
-}
-
-function aggregateSelection(values: unknown[], projection: unknown[], fn: AggFn): unknown {
-  const nums = values.map((v) => Number(v)).filter((n) => Number.isFinite(n));
-  switch (fn) {
-    case "First": return values[0];
-    case "Latest": return values[values.length - 1];
-    case "Count": return values.length;
-    case "Sum": return nums.reduce((a, b) => a + b, 0);
-    case "Average": return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
-    case "Min": return nums.length ? Math.min(...nums) : null;
-    case "Max": return nums.length ? Math.max(...nums) : null;
-  }
-}
-
-function getValueAtPath(obj: Record<string, unknown>, path: string): unknown {
-  const parts = path.split('.');
-  let current: unknown = obj;
-  for (const part of parts) {
-    if (current && typeof current === 'object' && !Array.isArray(current) && part in (current as Record<string, unknown>)) {
-      current = (current as Record<string, unknown>)[part];
-    } else {
-      return undefined;
-    }
-  }
-  return current;
-}
-
-function stringifyResult(value: unknown): string {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value);
-}
-
-function computeFormulaForTest(row: DataMappingRow, testValues: Record<number, string>): string {
-  if (!row.formula || !row.formula.items || row.formula.items.length === 0) return "—";
-
-  const items = row.formula.items;
-  let expr = "";
-  for (const item of items) {
-    if (item.type === "variable" && item.ref != null) {
-      const val = testValues[item.ref];
-      if (val === undefined || val === "Erreur" || val === "") return "—";
-      if (val === "null") {
-        expr += "null";
-      } else {
-        const num = Number(val);
-        expr += isNaN(num) ? `("${val}")` : String(num);
-      }
-    } else if (item.type === "operator") {
-      expr += ` ${item.op} `;
-    } else if (item.type === "number") {
-      expr += String(item.value);
-    }
-  }
-  if (!expr) return "—";
-  try {
-    // eslint-disable-next-line no-eval
-    const result = eval(expr);
-    return typeof result === "number" ? (Number.isInteger(result) ? String(result) : result.toFixed(2)) : String(result);
-  } catch {
-    return "Erreur";
-  }
-}
-
-function validateDirectKeyType(records: Record<string, unknown>[], key: string): string | null {
-  if (records.length === 0) return null;
-
-  // Check each record's value using nested path
-  const values = records.map(r => getValueAtPath(r, key));
-
-  for (let i = 0; i < values.length; i++) {
-    const val = values[i];
-    if (Array.isArray(val)) {
-      return `La clé "${key}" contient un tableau (enregistrement ${i + 1}). Utilisez le type Complex.`;
-    }
-    if (typeof val === "object" && val !== null && Object.keys(val as Record<string, unknown>).length > 1) {
-      return `La clé "${key}" contient un objet avec plusieurs clés (enregistrement ${i + 1}). Utilisez le type Complex.`;
-    }
-  }
-
-  // Check if all values are the same
-  const uniqueValues = new Set(values.map(v => JSON.stringify(v)));
-  if (uniqueValues.size > 1) {
-    return `La clé "${key}" a ${uniqueValues.size} valeurs différentes. Utilisez le type Complex.`;
-  }
-
-  return null;
-}
-
-function buildExecutionResult(row: DataMappingRow, records: Record<string, unknown>[], directError?: string) {
-  if (directError) {
-    throw new Error(directError);
-  }
-
-  let filteredRecords = records;
-  if (row.is_filtered && row.filter_key) {
-    filteredRecords = filteredRecords.filter((r) => String(r[row.filter_key] ?? "") === row.filter_value);
-  }
-
-  if (row.variable_type === "Direct") {
-    if (!row.variable_key) throw new Error("Variable JSON manquante");
-    const projection = filteredRecords.map((r) => ({ [row.variable_key!]: getValueAtPath(r, row.variable_key!) }));
-    const values = projection.map((item) => Object.values(item)[0]);
-    if (row.has_function) {
-      const out = aggregateSelection(values, projection, row.fn as AggFn);
-      return { output: stringifyResult(out), detail: out };
-    }
-    // Return just the values, not the projection objects
-    const detail = values.length === 1 ? values[0] : values;
-    return { output: stringifyResult(detail), detail };
-  }
-
-  try {
-    // eslint-disable-next-line no-new-func
-    const fn = new Function("r", `with(r){return (${row.variable_key || "null"});}`);
-    const values = filteredRecords.map((r) => fn(r));
-    if (row.has_function) {
-      const out = aggregateSelection(values, values, row.fn as AggFn);
-      return { output: stringifyResult(out), detail: out };
-    }
-    const detail = values.length === 1 ? values[0] : values;
-    return { output: stringifyResult(detail), detail };
-  } catch (e) {
-    throw new Error(`Expression invalide: ${(e as Error).message}`);
-  }
-}
-
-async function executeRow(row: DataMappingRow, baseUrl: string): Promise<string> {
-  if (!row.endpoint) throw new Error("Endpoint manquant");
-  const url = `${baseUrl.replace(/\/+$/, "")}/${row.endpoint.replace(/^\/+/, "")}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  const records = extractRecords(json);
-  return buildExecutionResult(row, records).output;
 }
 
 // -------- Trace Modal --------
@@ -671,6 +533,8 @@ function DataMappingPage() {
   const dirtyRef = useRef<Set<number>>(new Set());
   const rowsRef = useRef<DataMappingRow[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollToId, setScrollToId] = useState<number | null>(null);
 
   // Preview values: row id → computed value string
   const [previewValues, setPreviewValues] = useState<Record<number, string>>({});
@@ -699,11 +563,52 @@ function DataMappingPage() {
   // Direct type validation errors
   const [directErrors, setDirectErrors] = useState<Record<number, string>>({});
 
+  // Health check state
+  const [healthState, setHealthState] = useState<"idle" | "loading" | "healthy" | "error">("idle");
+  const [healthMsg, setHealthMsg] = useState("");
+
+  const runHealthCheck = async () => {
+    if (!baseUrl) return;
+    setHealthState("loading");
+    setHealthMsg("");
+    try {
+      const url = `${baseUrl.replace(/\/+$/, "")}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        setHealthState("healthy");
+        setHealthMsg(`HTTP ${res.status} — API accessible`);
+      } else {
+        setHealthState("error");
+        setHealthMsg(`HTTP ${res.status} — ${res.statusText}`);
+      }
+    } catch (e) {
+      setHealthState("error");
+      setHealthMsg((e as Error).name === "AbortError" ? "Timeout (10s)" : (e as Error).message);
+    }
+  };
+
   // Trace modal
   const [traceModal, setTraceModal] = useState<{ open: boolean; title: string; content: unknown }>({ open: false, title: "", content: null });
 
   // Keep refs in sync
   useEffect(() => { rowsRef.current = rows; }, [rows]);
+
+  // Scroll to newly added row
+  useEffect(() => {
+    if (scrollToId === null) return;
+    const timer = setTimeout(() => {
+      const el = tableScrollRef.current?.querySelector(`[data-row-id="${scrollToId}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setScrollToId(null);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [scrollToId, rows]);
 
   const loadRows = useCallback(async () => {
     try {
@@ -729,26 +634,52 @@ function DataMappingPage() {
 
   // Auto-fetch preview values for all rows with endpoints
   const [baseUrl, setBaseUrl] = useState("");
+  const [debouncedBaseUrl, setDebouncedBaseUrl] = useState("");
 
-  const fetchPreview = useCallback(async (row: DataMappingRow) => {
-    if (!row.endpoint || !baseUrl) return;
-    setPreviewLoading((m) => ({ ...m, [row.id]: true }));
-    try {
-      const val = await executeRow(row, baseUrl);
-      setPreviewValues((m) => ({ ...m, [row.id]: val }));
-    } catch {
-      setPreviewValues((m) => ({ ...m, [row.id]: "Erreur" }));
-    } finally {
-      setPreviewLoading((m) => ({ ...m, [row.id]: false }));
-    }
+  // Debounce baseUrl for preview fetching (400ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedBaseUrl(baseUrl), 400);
+    return () => clearTimeout(timer);
   }, [baseUrl]);
 
-  // Fetch all previews when rows or baseUrl change (batched)
+  const fetchPreview = useCallback(async (row: DataMappingRow, signal?: AbortSignal) => {
+    if (!row.endpoint || !debouncedBaseUrl) return;
+    React.startTransition(() => setPreviewLoading((m) => ({ ...m, [row.id]: true })));
+    try {
+      const val = await executeRow(row, debouncedBaseUrl, signal);
+      React.startTransition(() => {
+        setPreviewValues((m) => ({ ...m, [row.id]: val }));
+        setPreviewLoading((m) => ({ ...m, [row.id]: false }));
+      });
+    } catch {
+      if (!signal?.aborted) {
+        React.startTransition(() => {
+          setPreviewValues((m) => ({ ...m, [row.id]: "Erreur" }));
+          setPreviewLoading((m) => ({ ...m, [row.id]: false }));
+        });
+      }
+    }
+  }, [debouncedBaseUrl]);
+
+  // Fetch all previews when rows or debouncedBaseUrl change (batched)
+  // Only re-fetch rows whose endpoint+variable_key signature changed
+  const prevPreviewSigRef = useRef<Record<number, string>>({});
   useEffect(() => {
-    if (!baseUrl || rows.length === 0) return;
-    const targets = rows.filter((r) => r.endpoint && r.variable_key);
-    fetchInBatches(targets, BATCH_SIZE, fetchPreview);
-  }, [rows, baseUrl, fetchPreview]);
+    if (!debouncedBaseUrl || rows.length === 0) return;
+    const controller = new AbortController();
+    const targets = rows.filter((r) => {
+      if (!r.endpoint || !r.variable_key) return false;
+      const sig = `${r.endpoint}|${r.variable_key}`;
+      const prev = prevPreviewSigRef.current[r.id];
+      if (sig === prev) return false;
+      prevPreviewSigRef.current[r.id] = sig;
+      return true;
+    });
+    if (targets.length > 0) {
+      fetchInBatches(targets, BATCH_SIZE, fetchPreview, controller.signal);
+    }
+    return () => controller.abort();
+  }, [rows, debouncedBaseUrl, fetchPreview]);
 
   // Track previous aggregation settings to only recompute changed rows
   const prevAggSettingsRef = useRef<Record<number, string>>({});
@@ -756,6 +687,7 @@ function DataMappingPage() {
   // Auto-fetch test values from data.json samples (batched)
   useEffect(() => {
     if (rows.length === 0) return;
+    const controller = new AbortController();
     const targets = rows.filter((r) => {
       if (!r.endpoint || !r.variable_key) return false;
       const aggSignature = `${r.variable_type}-${r.has_function}-${r.fn}-${r.is_filtered}-${r.filter_key}-${r.filter_value}-${directErrors[r.id] || ''}`;
@@ -765,20 +697,28 @@ function DataMappingPage() {
       return needsRecompute && !testLoading[r.id];
     });
 
-    fetchInBatches(targets, BATCH_SIZE, async (r) => {
-      setTestLoading((m) => ({ ...m, [r.id]: true }));
+    fetchInBatches(targets, BATCH_SIZE, async (r, signal) => {
+      React.startTransition(() => setTestLoading((m) => ({ ...m, [r.id]: true })));
       try {
-        const sampleData = await fetchSampleData(r.endpoint!);
-        if (!sampleData) { setTestValues((m) => ({ ...m, [r.id]: "Pas de sample" })); setTestLoading((m) => ({ ...m, [r.id]: false })); return; }
+        const sampleData = await fetchSampleData(r.endpoint!, signal);
+        if (!sampleData) {
+          React.startTransition(() => {
+            setTestValues((m) => ({ ...m, [r.id]: "Pas de sample" }));
+            setTestLoading((m) => ({ ...m, [r.id]: false }));
+          });
+          return;
+        }
         const records = extractRecords(sampleData);
 
         // Validate Direct type BEFORE computing
         if (r.variable_type === "Direct") {
           const directError = validateDirectKeyType(records, r.variable_key!);
           if (directError) {
-            setDirectErrors((m) => ({ ...m, [r.id]: directError }));
-            setTestValues((m) => ({ ...m, [r.id]: directError }));
-            setTestLoading((m) => ({ ...m, [r.id]: false }));
+            React.startTransition(() => {
+              setDirectErrors((m) => ({ ...m, [r.id]: directError }));
+              setTestValues((m) => ({ ...m, [r.id]: directError }));
+              setTestLoading((m) => ({ ...m, [r.id]: false }));
+            });
             return;
           } else {
             setDirectErrors((m) => {
@@ -790,13 +730,19 @@ function DataMappingPage() {
         }
 
         const result = buildExecutionResult(r, records);
-        setTestValues((m) => ({ ...m, [r.id]: result.output }));
+        React.startTransition(() => {
+          setTestValues((m) => ({ ...m, [r.id]: result.output }));
+          setTestLoading((m) => ({ ...m, [r.id]: false }));
+        });
       } catch (e) {
-        setTestValues((m) => ({ ...m, [r.id]: (e as Error).message || "Erreur" }));
-      } finally {
-        setTestLoading((m) => ({ ...m, [r.id]: false }));
+        if (signal?.aborted) return;
+        React.startTransition(() => {
+          setTestValues((m) => ({ ...m, [r.id]: (e as Error).message || "Erreur" }));
+          setTestLoading((m) => ({ ...m, [r.id]: false }));
+        });
       }
-    });
+    }, controller.signal);
+    return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, directErrors]);
 
@@ -963,12 +909,21 @@ function DataMappingPage() {
   }, [flushDirty]);
 
   const remove = useCallback(async (id: number) => {
-    setRows((rs) => rs.filter((r) => r.id !== id));
+    let removedRow: DataMappingRow | undefined;
+    setRows((rs) => {
+      const idx = rs.findIndex((r) => r.id === id);
+      if (idx !== -1) removedRow = rs[idx];
+      return rs.filter((r) => r.id !== id);
+    });
     dirtyRef.current.delete(id);
     try {
       await deleteMapping(id);
+      toast.success("Ligne supprimée");
     } catch {
-      // Row already removed from UI, will resync on next load
+      if (removedRow) {
+        setRows((rs) => [...rs, removedRow!]);
+        toast.error("Échec de la suppression — ligne restaurée");
+      }
     }
   }, []);
 
@@ -986,10 +941,16 @@ function DataMappingPage() {
         filter_value: "",
         has_function: false,
         fn: "Latest",
+        cible_operator: "=",
+        cible_value: null,
+        cible_is_percentage: false,
+        refresh_frequency: "instant",
       });
       setRows((rs) => [...rs, mapping]);
+      setScrollToId(mapping.id);
+      toast.success("Ligne ajoutée");
     } catch {
-      // Silently fail — user can retry
+      toast.error("Erreur lors de l'ajout de la ligne");
     }
   }, []);
 
@@ -1012,12 +973,41 @@ function DataMappingPage() {
     }
   }, [loadRows]);
 
-  const exportRows = () => {
-    const exportData = filtered.map((r) => ({
-      ...r,
-      modules: (r.modules ?? []).join(", "),
-    }));
-    exportToCsv("bacovet-mapping-kpis", exportData as unknown as Record<string, unknown>[]);
+  const exportRows = async () => {
+    try {
+      const exportData = filtered.map((r) => {
+        // Handle modules as array or JSON string
+        let mods: string[] = [];
+        if (Array.isArray(r.modules)) {
+          mods = r.modules;
+        } else if (typeof r.modules === "string" && r.modules) {
+          try { mods = JSON.parse(r.modules); } catch { mods = [r.modules]; }
+        }
+        return {
+          "KPI": r.kpi,
+          "Nom": r.name,
+          "Variable": r.variable,
+          "Endpoint": r.endpoint ?? "",
+          "Type": r.variable_type,
+          "Clé JSON": r.variable_key,
+          "Filtré": r.is_filtered ? "Oui" : "Non",
+          "Clé filtre": r.filter_key,
+          "Valeur filtre": r.filter_value,
+          "Fonction": r.has_function ? "Oui" : "Non",
+          "Agrégation": r.fn,
+          "Modules": mods.join(", "),
+          "Couleur": r.highlight_color ?? "",
+          "Opérateur cible": r.cible_operator ?? "=",
+          "Cible": r.cible_value ?? "",
+          "Cible %": r.cible_is_percentage ? "Oui" : "Non",
+          "Fréquence": r.refresh_frequency ?? "",
+        };
+      });
+      await exportToCsv("bacovet-mapping-kpis", exportData as Record<string, unknown>[]);
+      toast.success("Export terminé");
+    } catch {
+      toast.error("Erreur lors de l'export");
+    }
   };
 
   // ---- Live exec state ----
@@ -1039,6 +1029,26 @@ function DataMappingPage() {
     const mapped = rows.filter((r) => r.endpoint && r.variable_key).length;
     return { total: rows.length, mapped, pending: rows.length - mapped };
   }, [rows]);
+
+  // Keep latest updateLocal and filtered in refs for stable formula callbacks
+  const updateLocalRef = useRef(updateLocal);
+  updateLocalRef.current = updateLocal;
+  const filteredRef = useRef(filtered);
+  filteredRef.current = filtered;
+
+  // Memoize formula callbacks per KPI group to prevent FormulaBuilder re-renders
+  const formulaCallbacksRef = useRef<Map<string, (f: FormulaDef) => void>>(new Map());
+
+  // Pre-compute formula results for all KPI group leaders (avoids eval() per render per group)
+  const formulaResults = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (let i = 0; i < filtered.length; i++) {
+      if (spans.kpiSpan[i] > 0) {
+        map[filtered[i].id] = computeFormulaForTest(filtered[i], testValues);
+      }
+    }
+    return map;
+  }, [filtered, testValues, spans.kpiSpan]);
 
   if (loading || endpointsLoading) {
     return (
@@ -1071,61 +1081,87 @@ function DataMappingPage() {
           </>
         }
       />
-      <div className="px-4 py-3 border-b border-border flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-          <Search className="h-4 w-4 text-muted-foreground" />
+      <div className="px-4 py-2 border-b border-border flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 shrink-0">
+          <Search className="h-3.5 w-3.5 text-muted-foreground" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher KPI, variable, endpoint…"
-            className="bg-transparent outline-none text-sm w-72 cursor-text"
+            placeholder="Rechercher…"
+            className="bg-transparent outline-none text-xs w-36 cursor-text"
           />
         </div>
         <DataSelect
           value={filterKpi}
           onValueChange={(val) => setFilterKpi(val)}
-          className="text-sm"
+          className="text-xs shrink-0 w-28"
         >
           {kpiGroups.map((g) => <DataSelectItem key={g} value={g}>{g}</DataSelectItem>)}
         </DataSelect>
-        <div className="flex items-center gap-2 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-          <Database className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 min-w-0 flex-1">
+          <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="Base URL API (ex: https://novacity.local)"
-            className="bg-transparent outline-none text-sm w-72 cursor-text"
+            placeholder="Base URL API"
+            className="bg-transparent outline-none text-xs min-w-0 flex-1 cursor-text"
           />
+          {healthState !== "idle" && (
+            <span className={`text-[10px] shrink-0 ${healthState === "healthy" ? "text-green-500" : healthState === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+              {healthMsg}
+            </span>
+          )}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <button onClick={addRow} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border bg-card hover:bg-secondary cursor-pointer">
-            <Plus className="h-3.5 w-3.5" /> Ajouter
-          </button>
-          <button
-            onClick={flushDirty}
-            disabled={dirtyIds.size === 0 || saving}
-            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-40 cursor-pointer"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Sauvegarder{dirtyIds.size > 0 ? ` (${dirtyIds.size})` : ""}
-          </button>
-          <button onClick={runAll} disabled={!baseUrl} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 cursor-pointer">
-            <Play className="h-3.5 w-3.5" /> Exécuter tout
-          </button>
-          <button onClick={exportRows} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border bg-card hover:bg-secondary cursor-pointer">
-            <Download className="h-3.5 w-3.5" /> Exporter CSV
-          </button>
-          <button onClick={resetAll} className="text-xs px-3 py-1.5 rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 cursor-pointer">
-            Réinitialiser
-          </button>
-        </div>
+        <button onClick={addRow} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border bg-card hover:bg-secondary cursor-pointer shrink-0">
+          <Plus className="h-3 w-3" /> Ajouter
+        </button>
+        <button
+          onClick={flushDirty}
+          disabled={dirtyIds.size === 0 || saving}
+          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-40 cursor-pointer shrink-0"
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          Save{dirtyIds.size > 0 ? ` (${dirtyIds.size})` : ""}
+        </button>
+        <button
+          onClick={runHealthCheck}
+          disabled={!baseUrl || healthState === "loading"}
+          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border cursor-pointer disabled:opacity-40 shrink-0 ${
+            healthState === "healthy"
+              ? "border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20"
+              : healthState === "error"
+              ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
+              : "border-border bg-card hover:bg-secondary"
+          }`}
+          title={healthMsg || "Tester la connexion à l'API"}
+        >
+          {healthState === "loading" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : healthState === "healthy" ? (
+            <CheckCircle2 className="h-3 w-3" />
+          ) : healthState === "error" ? (
+            <AlertTriangle className="h-3 w-3" />
+          ) : (
+            <Database className="h-3 w-3" />
+          )}
+          {healthState === "healthy" ? "OK" : healthState === "error" ? "Error" : "Health"}
+        </button>
+        <button onClick={runAll} disabled={!baseUrl} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 cursor-pointer shrink-0">
+          <Play className="h-3 w-3" /> Exec All
+        </button>
+        <button onClick={exportRows} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border bg-card hover:bg-secondary cursor-pointer shrink-0">
+          <Download className="h-3 w-3" /> Excel
+        </button>
+        <button onClick={() => setConfirmReset(true)} className="text-[11px] px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 cursor-pointer shrink-0">
+          Reset
+        </button>
       </div>
       {lastSaved && (
         <div className="px-4 py-1 text-[10px] text-muted-foreground border-b border-border/50">
           Dernière sauvegarde : {lastSaved}
         </div>
       )}
-      <div className="flex-1 overflow-auto p-3" style={{ contain: "layout style" }}>
+      <div ref={tableScrollRef} className="flex-1 overflow-auto p-3" style={{ contain: "layout style" }}>
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -1145,7 +1181,7 @@ function DataMappingPage() {
               const ms = spans.moduleSpan[i];
               const isFirstInModule = ms > 0;
               return (
-                <tr key={r.id} style={{ ...(r.highlight_color ? { backgroundColor: r.highlight_color + "30" } : {}), contentVisibility: "auto" }} className={`border-b border-border/50 hover:bg-secondary/30 ${isDirty ? "bg-amber-500/5" : ""} ${isFirstInKpi && i > 0 ? "border-t-2 border-t-border" : ""}`}>
+                <tr key={r.id} data-row-id={r.id} style={{ ...(r.highlight_color ? { backgroundColor: r.highlight_color + "30" } : {}), contentVisibility: "auto" }} className={`border-b border-border/50 hover:bg-secondary/30 ${isDirty ? "bg-amber-500/5" : ""} ${isFirstInKpi && i > 0 ? "border-t-2 border-t-border" : ""}`}>
                   {/* Color picker */}
                   <td className="px-1.5 py-1.5 w-8">
                     <div className="relative group flex items-center justify-center">
@@ -1565,27 +1601,34 @@ function DataMappingPage() {
                     />
                   </td>
                   {/* Formula column — only on first row of KPI group */}
-                  {isFirstInKpi ? (
-                    <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top">
-                      <FormulaBuilder
-                        kpi={r.kpi}
-                        groupRows={filtered.slice(i, i + ks)}
-                        previewValues={testValues}
-                        formula={r.formula}
-                        onFormulaChange={(f) => {
-                          for (const gr of filtered.slice(i, i + ks)) {
-                            updateLocal(gr.id, { formula: f });
-                          }
-                        }}
-                      />
-                    </td>
-                  ) : null}
+                  {isFirstInKpi ? (() => {
+                    const groupKey = `${r.kpi}-${i}`;
+                    const groupRows = filtered.slice(i, i + ks);
+                    if (!formulaCallbacksRef.current.has(groupKey)) {
+                      formulaCallbacksRef.current.set(groupKey, (f: FormulaDef) => {
+                        for (const gr of filteredRef.current.slice(i, i + ks)) {
+                          updateLocalRef.current(gr.id, { formula: f });
+                        }
+                      });
+                    }
+                    return (
+                      <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top">
+                        <FormulaBuilder
+                          kpi={r.kpi}
+                          groupRows={groupRows}
+                          previewValues={testValues}
+                          formula={r.formula}
+                          onFormulaChange={formulaCallbacksRef.current.get(groupKey)!}
+                        />
+                      </td>
+                    );
+                  })() : null}
                   {/* Formula Result column — shows computed formula from local test values */}
                   {isFirstInKpi ? (
                     <td rowSpan={ks} className="px-2 py-1.5 min-w-[120px]">
                       <ResultBadge
                         state={testValues[r.id] ? "ok" : "idle"}
-                        value={computeFormulaForTest(r, testValues)}
+                        value={formulaResults[r.id] ?? "—"}
                         loadingLabel="calcul…"
                       />
                     </td>
@@ -1662,7 +1705,7 @@ function DataMappingPage() {
                   </td>
                   <td className="px-2 py-1.5">
                     <button
-                      onClick={() => remove(r.id)}
+                      onClick={() => { if (confirm("Supprimer cette ligne ? Cette action est irréversible.")) remove(r.id); }}
                       title="Supprimer cette ligne"
                       aria-label="Supprimer cette ligne"
                       className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded p-1 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"

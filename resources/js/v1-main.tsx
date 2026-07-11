@@ -1,5 +1,7 @@
 import { createRouter, createRoute, createRootRoute, RouterProvider, Outlet, redirect } from '@tanstack/react-router';
 import { createRoot } from 'react-dom/client';
+import React, { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 import '../css/app.css';
 import { initializeTheme } from './hooks/use-appearance';
 import { V1Shell } from '@/components/v1/v1-shell';
@@ -7,11 +9,26 @@ import { useRouterState } from '@tanstack/react-router';
 import { FilterProvider } from '@/context/FilterContext';
 import { LiveDataProvider } from '@/hooks/use-live-data';
 
-import ProductionConfection from '@/routes-v1/pages/production-confection';
-import ProductionFlux from '@/routes-v1/pages/production-flux';
-import Qualite from '@/routes-v1/pages/qualite';
-import Comparaison from '@/routes-v1/pages/comparaison';
-import DataMapping from '@/routes-v1/pages/data';
+const ProductionConfection = React.lazy(() => import('@/routes-v1/pages/production-confection'));
+const ProductionFlux = React.lazy(() => import('@/routes-v1/pages/production-flux'));
+const Qualite = React.lazy(() => import('@/routes-v1/pages/qualite'));
+const Comparaison = React.lazy(() => import('@/routes-v1/pages/comparaison'));
+const DataMapping = React.lazy(() => import('@/routes-v1/pages/data'));
+
+function PageSuspense({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-xs">Chargement…</span>
+        </div>
+      }
+    >
+      {children}
+    </Suspense>
+  );
+}
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -52,31 +69,31 @@ const v1IndexRoute = createRoute({
 const v1ProdConfRoute = createRoute({
   getParentRoute: () => v1LayoutRoute,
   path: '/production-confection',
-  component: ProductionConfection,
+  component: () => <PageSuspense><ProductionConfection /></PageSuspense>,
 });
 
 const v1ProdFluxRoute = createRoute({
   getParentRoute: () => v1LayoutRoute,
   path: '/production-flux',
-  component: ProductionFlux,
+  component: () => <PageSuspense><ProductionFlux /></PageSuspense>,
 });
 
 const v1QualiteRoute = createRoute({
   getParentRoute: () => v1LayoutRoute,
   path: '/qualite',
-  component: Qualite,
+  component: () => <PageSuspense><Qualite /></PageSuspense>,
 });
 
 const v1ComparaisonRoute = createRoute({
   getParentRoute: () => v1LayoutRoute,
   path: '/comparaison',
-  component: Comparaison,
+  component: () => <PageSuspense><Comparaison /></PageSuspense>,
 });
 
 const v1DataRoute = createRoute({
   getParentRoute: () => v1LayoutRoute,
   path: '/data',
-  component: DataMapping,
+  component: () => <PageSuspense><DataMapping /></PageSuspense>,
 });
 
 const v1LayoutWithChildren = v1LayoutRoute.addChildren([

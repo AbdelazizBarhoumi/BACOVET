@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DataMappingController;
 use App\Http\Controllers\Api\DataSnapshotController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
 use App\Http\Controllers\Api\LogisticsController;
@@ -175,6 +176,9 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
     // ── FILTERS ──────────────────────────────────────────────────────────
     Route::get('/filters/options', [FilterController::class, 'options']);
+
+    // ── HEALTH CHECK ─────────────────────────────────────────────────────
+    Route::get('/health', [HealthController::class, 'check']);
 
     // ── DATA MAPPINGS ────────────────────────────────────────────────────
     Route::prefix('data-mappings')->group(function () {
