@@ -78,8 +78,86 @@ NovacityEndpointsController.head = (options?: RouteQueryOptions): RouteDefinitio
     
     NovacityEndpointsController.form = NovacityEndpointsControllerForm
 /**
-* @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::allSamples
  * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @route '/novacity-endpoints/all'
+ */
+export const allSamples = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: allSamples.url(options),
+    method: 'get',
+})
+
+allSamples.definition = {
+    methods: ["get","head"],
+    url: '/novacity-endpoints/all',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::allSamples
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @route '/novacity-endpoints/all'
+ */
+allSamples.url = (options?: RouteQueryOptions) => {
+    return allSamples.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::allSamples
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @route '/novacity-endpoints/all'
+ */
+allSamples.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: allSamples.url(options),
+    method: 'get',
+})
+/**
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::allSamples
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @route '/novacity-endpoints/all'
+ */
+allSamples.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: allSamples.url(options),
+    method: 'head',
+})
+
+    /**
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::allSamples
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @route '/novacity-endpoints/all'
+ */
+    const allSamplesForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: allSamples.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::allSamples
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @route '/novacity-endpoints/all'
+ */
+        allSamplesForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: allSamples.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::allSamples
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @route '/novacity-endpoints/all'
+ */
+        allSamplesForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: allSamples.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    allSamples.form = allSamplesForm
+/**
+* @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:101
  * @route '/novacity-endpoints/sample/{slug}'
  */
 export const sample = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +172,7 @@ sample.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:101
  * @route '/novacity-endpoints/sample/{slug}'
  */
 sample.url = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -122,7 +200,7 @@ sample.url = (args: { slug: string | number } | [slug: string | number ] | strin
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:101
  * @route '/novacity-endpoints/sample/{slug}'
  */
 sample.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -131,7 +209,7 @@ sample.get = (args: { slug: string | number } | [slug: string | number ] | strin
 })
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:101
  * @route '/novacity-endpoints/sample/{slug}'
  */
 sample.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -141,7 +219,7 @@ sample.head = (args: { slug: string | number } | [slug: string | number ] | stri
 
     /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:101
  * @route '/novacity-endpoints/sample/{slug}'
  */
     const sampleForm = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -151,7 +229,7 @@ sample.head = (args: { slug: string | number } | [slug: string | number ] | stri
 
             /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:101
  * @route '/novacity-endpoints/sample/{slug}'
  */
         sampleForm.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -160,7 +238,7 @@ sample.head = (args: { slug: string | number } | [slug: string | number ] | stri
         })
             /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::sample
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:56
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:101
  * @route '/novacity-endpoints/sample/{slug}'
  */
         sampleForm.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -174,6 +252,7 @@ sample.head = (args: { slug: string | number } | [slug: string | number ] | stri
         })
     
     sample.form = sampleForm
+NovacityEndpointsController.allSamples = allSamples
 NovacityEndpointsController.sample = sample
 
 export default NovacityEndpointsController

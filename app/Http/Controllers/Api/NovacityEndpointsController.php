@@ -51,6 +51,51 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
+     * Return all endpoint records (slug + metadata + response) in one call.
+     */
+    public function allSamples(): JsonResponse
+    {
+        $items = $this->loadItems();
+
+        if ($items === null) {
+            return response()->json(['endpoints' => [], 'error' => 'data.json not found or invalid'], 404);
+        }
+
+        $result = [];
+
+        foreach ($items as $item) {
+            $slug = $this->extractSlug($item['endpoint'] ?? '');
+            if ($slug === '') {
+                continue;
+            }
+
+            $fields = $item['response']['columns'] ?? [];
+            if (empty($fields) && isset($item['response']['data']) && is_array($item['response']['data']) && count($item['response']['data']) > 0) {
+                $firstRecord = $item['response']['data'][0];
+                if (is_array($firstRecord)) {
+                    $fields = array_keys($firstRecord);
+                }
+            }
+
+            $records = [];
+            if (isset($item['response']['data']) && is_array($item['response']['data'])) {
+                $records = $item['response']['data'];
+            }
+
+            $result[$slug] = [
+                'name' => $item['name'] ?? $slug,
+                'method' => strtoupper($item['method'] ?? 'GET'),
+                'endpoint' => $item['endpoint'] ?? '',
+                'status' => $item['status'] ?? null,
+                'fields' => $fields,
+                'response' => $records,
+            ];
+        }
+
+        return response()->json(['endpoints' => $result]);
+    }
+
+    /**
      * Return sample response data for a given endpoint slug.
      */
     public function sample(string $slug): JsonResponse

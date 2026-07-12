@@ -126,3 +126,21 @@ export const fetchSampleData = async (slug: string, signal?: AbortSignal): Promi
     const json = await res.json();
     return json.data ?? null;
 };
+
+export interface AllEndpointRecord {
+    name: string;
+    method: string;
+    endpoint: string;
+    status: number | null;
+    fields: string[];
+    response: Record<string, unknown>[];
+}
+
+export const fetchAllSamples = async (): Promise<Record<string, AllEndpointRecord>> => {
+    const res = await fetch('/novacity-endpoints/all', {
+        headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return {};
+    const json = await res.json();
+    return json.endpoints ?? {};
+};

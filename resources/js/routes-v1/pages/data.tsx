@@ -1,6 +1,6 @@
 // Route registered in v1-main.tsx
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Download, Search, Database, Play, Loader2, Plus, Trash2, Save, Info, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Download, Search, Database, Play, Loader2, Plus, Trash2, Save, Info, CheckCircle2, AlertTriangle, FileJson } from "lucide-react";
 import { toast } from "sonner";
 import { useNovacityEndpoints } from "@/lib/data-endpoints";
 import { PageHeader, StatusFooter, BacovetLogo } from "@/components/v1/v1-shell";
@@ -17,6 +17,8 @@ import {
   type FormulaDef,
   type FormulaItem,
   fetchSampleData,
+  fetchAllSamples,
+  type AllEndpointRecord,
 } from "@/services/dataMappingApi";
 
 import {
@@ -310,8 +312,28 @@ const ResultBadge = React.memo(function ResultBadge({
 });
 
 // -------- Trace Modal --------
-const TraceModal = React.memo(function TraceModal({ open, title, content, onClose }: { open: boolean; title: string; content: unknown; onClose: () => void }) {
+const TraceModal = React.memo(function TraceModal({ open, title, content, onClose, highlight }: { open: boolean; title: string; content: unknown; onClose: () => void; highlight?: string }) {
   if (!open) return null;
+
+  const jsonStr = content === null ? "Aucune donnée" : JSON.stringify(content, null, 2);
+
+  const renderContent = () => {
+    if (!highlight || highlight.trim() === "" || jsonStr === "Aucune donnée") {
+      return <pre className="text-[11px] font-mono whitespace-pre-wrap break-words text-foreground bg-muted/30 rounded p-3">{jsonStr}</pre>;
+    }
+    const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const parts = jsonStr.split(new RegExp(`(${escaped})`, "gi"));
+    return (
+      <pre className="text-[11px] font-mono whitespace-pre-wrap break-words text-foreground bg-muted/30 rounded p-3">
+        {parts.map((part, i) =>
+          part.toLowerCase() === highlight.toLowerCase()
+            ? <mark key={i} className="bg-yellow-300/70 text-foreground rounded-sm px-0.5">{part}</mark>
+            : part
+        )}
+      </pre>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-card border border-border rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -320,9 +342,7 @@ const TraceModal = React.memo(function TraceModal({ open, title, content, onClos
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg cursor-pointer">×</button>
         </div>
         <div className="flex-1 overflow-auto p-4">
-          <pre className="text-[11px] font-mono whitespace-pre-wrap break-words text-foreground bg-muted/30 rounded p-3">
-            {content === null ? "Aucune donnée" : JSON.stringify(content, null, 2)}
-          </pre>
+          {renderContent()}
         </div>
       </div>
     </div>
@@ -343,6 +363,138 @@ const TraceBtn = React.memo(function TraceBtn({ onClick, isLoading }: { onClick:
     </button>
   );
 });
+
+// -------- JSON Preview Modal (all endpoints with search + highlight) --------
+function JsonPreviewModal({ open, onClose, allData }: { open: boolean; onClose: () => void; allData: Record<string, { name: string; method: string; endpoint: string; status: number | null; fields: string[]; response: Record<string, unknown>[] }> }) {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 200);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const entries = useMemo(() => {
+    const list = Object.entries(allData);
+    if (!debouncedSearch.trim()) return list;
+    const needle = debouncedSearch.toLowerCase();
+    return list.filter(([slug, rec]) => {
+      if (slug.toLowerCase().includes(needle)) return true;
+      if (rec.name.toLowerCase().includes(needle)) return true;
+      if (rec.method.toLowerCase().includes(needle)) return true;
+      if (rec.fields.some((f) => f.toLowerCase().includes(needle))) return true;
+      // Search in response data
+      const jsonStr = JSON.stringify(rec.response).toLowerCase();
+      if (jsonStr.includes(needle)) return true;
+      return false;
+    });
+  }, [allData, debouncedSearch]);
+
+  const highlightText = (text: string, needle: string) => {
+    if (!needle.trim()) return text;
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+    return parts.map((part, i) =>
+      part.toLowerCase() === needle.toLowerCase()
+        ? <mark key={i} className="bg-yellow-300/70 text-foreground rounded-sm px-0.5">{part}</mark>
+        : part
+    );
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-card border border-border rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold">Tous les endpoints JSON</h3>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+              <Search className="h-3 w-3 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher dans les JSON..."
+                className="bg-transparent outline-none text-xs w-48 cursor-text"
+                autoFocus
+              />
+            </div>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg cursor-pointer">×</button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          {entries.length === 0 ? (
+            <div className="text-center text-muted-foreground text-xs py-8">Aucun endpoint trouvé</div>
+          ) : (
+            <div className="space-y-2">
+              {entries.map(([slug, rec]) => {
+                const isExpanded = expandedSlug === slug;
+                const jsonStr = JSON.stringify(rec.response, null, 2);
+                return (
+                  <div key={slug} className="border border-border rounded-md overflow-hidden">
+                    <button
+                      onClick={() => setExpandedSlug(isExpanded ? null : slug)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-secondary/30 transition-colors cursor-pointer"
+                    >
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{rec.method}</span>
+                      <span className="text-xs font-medium truncate flex-1">{highlightText(slug, debouncedSearch)}</span>
+                      <span className="text-[10px] text-muted-foreground">{rec.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{rec.response.length} records</span>
+                      <span className={`text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`}>▸</span>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-border bg-muted/20 p-3 max-h-80 overflow-auto">
+                        {debouncedSearch.trim() ? (
+                          // Show individual matching records
+                          (() => {
+                            const needle = debouncedSearch.toLowerCase();
+                            const matchingRecords = rec.response.filter((record) =>
+                              JSON.stringify(record).toLowerCase().includes(needle)
+                            );
+                            if (matchingRecords.length === 0) {
+                              return <div className="text-[10px] text-muted-foreground">Aucun record ne correspond</div>;
+                            }
+                            return (
+                              <div className="space-y-2">
+                                <div className="text-[10px] text-muted-foreground mb-1">{matchingRecords.length} record(s) correspondant(s)</div>
+                                {matchingRecords.map((record, ri) => {
+                                  const recordJson = JSON.stringify(record, null, 2);
+                                  const escaped = debouncedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                                  const parts = recordJson.split(new RegExp(`(${escaped})`, "gi"));
+                                  return (
+                                    <pre key={ri} className="text-[10px] font-mono whitespace-pre-wrap break-words text-foreground bg-background/50 rounded p-2 border border-border/50">
+                                      {parts.map((part, i) =>
+                                        part.toLowerCase() === debouncedSearch.toLowerCase()
+                                          ? <mark key={i} className="bg-yellow-300/70 text-foreground rounded-sm px-0.5">{part}</mark>
+                                          : part
+                                      )}
+                                    </pre>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <pre className="text-[10px] font-mono whitespace-pre-wrap break-words text-foreground">
+                            {jsonStr}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground">
+          {entries.length} endpoint(s) affiché(s) sur {Object.keys(allData).length}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // -------- Formula Builder --------
 // Safe arithmetic parser — supports +, -, *, /, parentheses, decimal numbers, unary minus
@@ -464,7 +616,7 @@ const FormulaBuilder = React.memo(function FormulaBuilder({ kpi, groupRows, prev
         {/* Variable chips */}
         <div className="flex flex-wrap gap-1 items-center">
           {groupRows.map((gr) => (
-            <span key={gr.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">
+            <span key={gr.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium w-auto overflow-hidden text-ellipsis whitespace-nowrap">
               {gr.variable || gr.name || `Var ${gr.id}`}
               {previewValues[gr.id] && (
                 <span className="text-muted-foreground font-mono text-[9px] shrink-0">={previewValues[gr.id]}</span>
@@ -743,6 +895,7 @@ function DataMappingPage() {
   // Test Exec values: row id → computed value from data.json
   const [testValues, setTestValues] = useState<Record<number, string>>({});
   const [testLoading, setTestLoading] = useState<Record<number, boolean>>({});
+  const fetchingRef = useRef<Set<number>>(new Set());
 
   // Sample data for each row (for NestedKeySelector)
   const [sampleDataCache, setSampleDataCache] = useState<Record<number, Record<string, unknown> | null>>({});
@@ -808,6 +961,24 @@ function DataMappingPage() {
 
   // Trace modal
   const [traceModal, setTraceModal] = useState<{ open: boolean; title: string; content: unknown }>({ open: false, title: "", content: null });
+
+  // JSON preview modal (for Aperçu JSON column)
+  const [jsonPreview, setJsonPreview] = useState<{ open: boolean; title: string; content: unknown; highlight?: string }>({ open: false, title: "", content: null });
+
+  // All endpoint data (for JSON preview column + search)
+  const [allEndpointData, setAllEndpointData] = useState<Record<string, AllEndpointRecord>>({});
+  const [allDataLoading, setAllDataLoading] = useState(false);
+  const [allEndpointsModalOpen, setAllEndpointsModalOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllSamples().then((data) => {
+      if (!cancelled) setAllEndpointData(data);
+    }).finally(() => {
+      if (!cancelled) setAllDataLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Keep refs in sync
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -907,10 +1078,11 @@ function DataMappingPage() {
       const prevSignature = prevAggSettingsRef.current[r.id];
       const needsRecompute = !testValues[r.id] || aggSignature !== prevSignature || testValues[r.id] === "Erreur" || testValues[r.id] === "Pas de sample";
       prevAggSettingsRef.current[r.id] = aggSignature;
-      return needsRecompute && !testLoading[r.id];
+      return needsRecompute && !fetchingRef.current.has(r.id);
     });
 
     fetchInBatches(targets, BATCH_SIZE, async (r, signal) => {
+      fetchingRef.current.add(r.id);
       React.startTransition(() => setTestLoading((m) => ({ ...m, [r.id]: true })));
       try {
         const sampleData = await fetchSampleData(r.endpoint!, signal);
@@ -953,9 +1125,16 @@ function DataMappingPage() {
           setTestValues((m) => ({ ...m, [r.id]: (e as Error).message || "Erreur" }));
           setTestLoading((m) => ({ ...m, [r.id]: false }));
         });
+      } finally {
+        fetchingRef.current.delete(r.id);
       }
     }, controller.signal);
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      for (const r of targets) {
+        fetchingRef.current.delete(r.id);
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, directErrors]);
 
@@ -1058,12 +1237,30 @@ function DataMappingPage() {
         r.name.toLowerCase().includes(needle) ||
         r.variable.toLowerCase().includes(needle) ||
         (r.endpoint ?? "").toLowerCase().includes(needle) ||
-        (r.variable_key ?? "").toLowerCase().includes(needle)
+        (r.variable_key ?? "").toLowerCase().includes(needle) ||
+        (() => {
+          const meta = r.endpoint ? endpointMeta[r.endpoint] : null;
+          if (meta) {
+            if (meta.name.toLowerCase().includes(needle)) return true;
+            if (meta.method.toLowerCase().includes(needle)) return true;
+            if (meta.fields.some((f) => f.toLowerCase().includes(needle))) return true;
+          }
+          // Also search in full endpoint data (response content)
+          const rec = r.endpoint ? allEndpointData[r.endpoint] : null;
+          if (rec) {
+            if (rec.name.toLowerCase().includes(needle)) return true;
+            if (rec.method.toLowerCase().includes(needle)) return true;
+            if (rec.fields.some((f) => f.toLowerCase().includes(needle))) return true;
+            const responseStr = JSON.stringify(rec.response).toLowerCase();
+            if (responseStr.includes(needle)) return true;
+          }
+          return false;
+        })()
       );
     });
     result.sort((a, b) => a.kpi.localeCompare(b.kpi) || a.name.localeCompare(b.name));
     return result;
-  }, [rows, q, filterKpi]);
+  }, [rows, q, filterKpi, endpointMeta, allEndpointData]);
 
   // Compute rowspan spans for KPI, Name, and Modules columns
   const spans = useMemo(() => {
@@ -1118,8 +1315,8 @@ function DataMappingPage() {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     setDirtyIds((prev) => { const next = new Set(prev); next.add(id); return next; });
     dirtyRef.current.add(id);
-    await flushDirty();
-  }, [flushDirty]);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const remove = useCallback(async (id: number) => {
     let removedRow: DataMappingRow | undefined;
@@ -1431,8 +1628,21 @@ function DataMappingPage() {
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              {["", "KPI", "Modules", "Name", "Variable", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Test Live", ""].map((h, i) => (
-                <th key={`th-${i}`} className="text-left font-semibold px-2 py-2 border-b border-border whitespace-nowrap">{h}</th>
+              {["", "KPI", "Modules", "Name", "Variable", "Aperçu JSON", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Test Live", ""].map((h, i) => (
+                <th key={`th-${i}`} className="text-left font-semibold px-2 py-2 border-b border-border whitespace-nowrap">
+                  {h === "Aperçu JSON" ? (
+                    <span className="inline-flex items-center gap-1">
+                      {h}
+                      <button
+                        onClick={() => setAllEndpointsModalOpen(true)}
+                        className="inline-flex items-center justify-center h-4 w-4 rounded bg-muted text-muted-foreground hover:bg-primary/15 hover:text-primary transition-colors cursor-pointer"
+                        title="Voir tous les endpoints JSON"
+                      >
+                        <FileJson className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ) : h}
+                </th>
               ))}
             </tr>
           </thead>
@@ -1565,6 +1775,16 @@ function DataMappingPage() {
                       ref={autoSize}
                       onInput={(e) => autoSize(e.currentTarget)}
                     />
+                  </td>
+                  <td className="px-2 py-1.5 text-center">
+                    <button
+                      onClick={() => setAllEndpointsModalOpen(true)}
+                      className="inline-flex items-center justify-center h-7 w-10 rounded-md bg-muted text-muted-foreground transition-colors hover:bg-primary/15 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"
+                      title="Voir tous les endpoints JSON"
+                      aria-label="Voir tous les endpoints JSON"
+                    >
+                      <FileJson className="h-3.5 w-3.5" />
+                    </button>
                   </td>
                   <td className="px-2 py-1.5">
                     <div className="flex items-center">
@@ -1819,7 +2039,7 @@ function DataMappingPage() {
                     </DataSelect>
                   </td>
                   {/* Test column (from data.json samples) */}
-                  <td className="px-2 py-1.5 min-w-[120px]">
+                  <td className="px-2 py-1.5 min-w-[240px]">
                     <ResultBadge
                       state={testLoading[r.id] ? "loading" : testValues[r.id] ? (testValues[r.id].startsWith("Erreur") || testValues[r.id] === "Pas de sample" ? "error" : "ok") : "idle"}
                       value={testValues[r.id]}
@@ -1904,7 +2124,7 @@ function DataMappingPage() {
                       });
                     }
                     return (
-                      <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top">
+                      <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top w-auto">
                         <FormulaBuilder
                           kpi={r.kpi}
                           groupRows={groupRows}
@@ -2010,7 +2230,7 @@ function DataMappingPage() {
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={22} className="py-12">
+                <td colSpan={23} className="py-12">
                   <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
                     <Search className="h-5 w-5 opacity-40" />
                     <span className="text-xs">Aucune ligne ne correspond à ces filtres.</span>
@@ -2029,6 +2249,8 @@ function DataMappingPage() {
       </div>
       <StatusFooter user="MAPPING" />
       <TraceModal open={traceModal.open} title={traceModal.title} content={traceModal.content} onClose={() => setTraceModal({ open: false, title: "", content: null })} />
+      <TraceModal open={jsonPreview.open} title={jsonPreview.title} content={jsonPreview.content} highlight={jsonPreview.highlight} onClose={() => setJsonPreview({ open: false, title: "", content: null })} />
+      <JsonPreviewModal open={allEndpointsModalOpen} onClose={() => setAllEndpointsModalOpen(false)} allData={allEndpointData} />
       {/* Confirm Reset Dialog */}
       {confirmReset && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmReset(false)}>

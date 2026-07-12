@@ -193,4 +193,5 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
 // ── NOVACITY ENDPOINTS (from data.json) ─────────────────────────────────
 Route::get('/novacity-endpoints', NovacityEndpointsController::class);
+Route::get('/novacity-endpoints/all', [NovacityEndpointsController::class, 'allSamples']);
 Route::get('/novacity-endpoints/sample/{slug}', [NovacityEndpointsController::class, 'sample'])->where('slug', '.*');
