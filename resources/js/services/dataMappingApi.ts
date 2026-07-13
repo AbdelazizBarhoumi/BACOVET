@@ -144,3 +144,40 @@ export const fetchAllSamples = async (): Promise<Record<string, AllEndpointRecor
     const json = await res.json();
     return json.endpoints ?? {};
 };
+
+// ── Audit Log ──────────────────────────────────────────────────────────────
+
+export interface AuditLogEntry {
+    id: number;
+    user_id: number | null;
+    data_mapping_id: number | null;
+    kpi: string;
+    action: 'created' | 'updated' | 'deleted';
+    field: string;
+    old_value: string | null;
+    new_value: string | null;
+    created_at: string;
+    user: { id: number; name: string } | null;
+}
+
+export interface PaginatedAuditLogs {
+    data: AuditLogEntry[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+}
+
+export const fetchAuditLogs = async (params: {
+    page?: number;
+    per_page?: number;
+    kpi?: string;
+    action?: string;
+}): Promise<PaginatedAuditLogs> => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', String(params.page));
+    if (params.per_page) qs.set('per_page', String(params.per_page));
+    if (params.kpi) qs.set('kpi', params.kpi);
+    if (params.action) qs.set('action', params.action);
+    return fetchWithToken(`${BASE_URL}/audit-logs?${qs}`);
+};

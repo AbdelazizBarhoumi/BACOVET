@@ -40,9 +40,12 @@ Route::get('/v1/{any?}', fn () => view('v1'))->where('any', '.*')->name('v1');
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 
-Route::middleware(['auth', 'active.user'])->prefix('api/novacity')->group(function () {
-    Route::get('/{path}', [App\Http\Controllers\Api\NovacityProxyController::class, 'proxy'])
-        ->where('path', '.*');
+Route::middleware(['auth', 'active.user'])->prefix('api')->group(function () {
+    Route::post('/settings', [App\Http\Controllers\Api\SettingController::class, 'store']);
+    Route::prefix('novacity')->group(function () {
+        Route::get('/{path}', [App\Http\Controllers\Api\NovacityProxyController::class, 'proxy'])
+            ->where('path', '.*');
+    });
 });
 
 require __DIR__.'/settings.php';
@@ -188,6 +191,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         Route::delete('/{id}', [DataMappingController::class, 'destroy']);
         Route::post('/batch', [DataMappingController::class, 'batchUpdate']);
         Route::post('/seed', [DataMappingController::class, 'seedFromKpiSeed']);
+        Route::get('/audit-logs', [DataMappingController::class, 'auditLogs']);
     });
 });
 
@@ -195,3 +199,4 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 Route::get('/novacity-endpoints', NovacityEndpointsController::class);
 Route::get('/novacity-endpoints/all', [NovacityEndpointsController::class, 'allSamples']);
 Route::get('/novacity-endpoints/sample/{slug}', [NovacityEndpointsController::class, 'sample'])->where('slug', '.*');
+Route::get('/novacity-config', [NovacityEndpointsController::class, 'config']);

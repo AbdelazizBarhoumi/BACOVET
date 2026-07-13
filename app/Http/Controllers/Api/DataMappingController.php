@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DataMapping;
+use App\Models\DataMappingAuditLog;
+use App\Services\DataMappingAuditor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -50,6 +52,9 @@ class DataMappingController extends Controller
 
         $mapping = DataMapping::create($validated);
 
+        $auditor = new DataMappingAuditor($request->user()?->id);
+        $auditor->recordCreated($mapping);
+
         return response()->json(['message' => 'Mapping created.', 'mapping' => $mapping], 201);
     }
 
@@ -79,7 +84,12 @@ class DataMappingController extends Controller
             'refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
         ]);
 
+        $old = $mapping->only(DataMappingAuditor::AUDITABLE_FIELDS);
         $mapping->update($validated);
+        $new = $mapping->only(DataMappingAuditor::AUDITABLE_FIELDS);
+
+        $auditor = new DataMappingAuditor($request->user()?->id);
+        $auditor->recordUpdated($mapping, $old, $new);
 
         // Sync modules across all rows with same KPI
         if (isset($validated['modules'])) {
@@ -93,7 +103,12 @@ class DataMappingController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        DataMapping::findOrFail($id)->delete();
+        $mapping = DataMapping::findOrFail($id);
+
+        $auditor = new DataMappingAuditor(request()->user()?->id);
+        $auditor->recordDeleted($mapping);
+
+        $mapping->delete();
 
         return response()->json(['message' => 'Mapping deleted.']);
     }
@@ -124,6 +139,8 @@ class DataMappingController extends Controller
             'mappings.*.refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
         ]);
 
+        $auditor = new DataMappingAuditor($request->user()?->id);
+
         foreach ($validated['mappings'] as $item) {
             $id = $item['id'];
             unset($item['id']);
@@ -138,7 +155,10 @@ class DataMappingController extends Controller
 
             $row = DataMapping::find($id);
             if ($row) {
+                $old = $row->only(DataMappingAuditor::AUDITABLE_FIELDS);
                 $row->update($item);
+                $new = $row->only(DataMappingAuditor::AUDITABLE_FIELDS);
+                $auditor->recordUpdated($row, $old, $new);
             }
         }
 
@@ -193,5 +213,23 @@ class DataMappingController extends Controller
         }
 
         return response()->json(['message' => "Seeded {$created} mappings.", 'count' => $created]);
+    }
+
+    public function auditLogs(Request $request): JsonResponse
+    {
+        $query = DataMappingAuditLog::with('user')
+            ->orderByDesc('created_at');
+
+        if ($kpi = $request->input('kpi')) {
+            $query->where('kpi', $kpi);
+        }
+        if ($action = $request->input('action')) {
+            $query->where('action', $action);
+        }
+
+        $perPage = min((int) $request->input('per_page', 25), 100);
+        $logs = $query->paginate($perPage);
+
+        return response()->json($logs);
     }
 }

@@ -11,21 +11,22 @@ class NovacityProxyController extends Controller
 {
     public function proxy(Request $request, string $path): JsonResponse
     {
-        if (! str_starts_with($path, 'data/')) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Unsupported Novacity path.',
-            ], 404);
+        $baseUrl = rtrim((string) ($request->query('baseUrl') ?: config('novacity.base_url')), '/');
+        $query = collect($request->query())->except('baseUrl')->all();
+
+        $headers = [
+            'x-api-key' => (string) config('novacity.api_key'),
+            'Accept' => 'application/json',
+        ];
+
+        $token = config('novacity.admin_token');
+        if ($token) {
+            $headers['Authorization'] = 'Bearer ' . $token;
         }
 
-        $baseUrl = rtrim((string) config('novacity.base_url'), '/');
-        $query = collect($request->query())->only(['limit', 'offset'])->all();
-
-        $response = Http::withHeaders([
-            'x-api-key' => (string) config('novacity.api_key'),
-        ])
-            ->timeout((int) config('novacity.timeout', 10))
-            ->get($baseUrl.'/api/'.$path, $query);
+        $response = Http::withHeaders($headers)
+            ->timeout((int) config('novacity.timeout', 30))
+            ->get($baseUrl . '/' . ltrim($path, '/'), $query);
 
         if ($response->failed()) {
             return response()->json([

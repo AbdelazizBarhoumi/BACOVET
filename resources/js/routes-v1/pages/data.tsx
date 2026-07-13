@@ -6,6 +6,7 @@ import { useNovacityEndpoints } from "@/lib/data-endpoints";
 import { PageHeader, StatusFooter, BacovetLogo } from "@/components/v1/v1-shell";
 import { exportToCsv } from "@/lib/export";
 import { cn } from "@/lib/utils";
+import { LightDropdown, LightDropdownItem } from "@/components/LightDropdown";
 import {
   fetchMappings,
   createMapping,
@@ -20,6 +21,7 @@ import {
   fetchAllSamples,
   type AllEndpointRecord,
 } from "@/services/dataMappingApi";
+import DataMappingAuditLog from "@/components/DataMappingAuditLog";
 
 import {
   extractRecords,
@@ -89,173 +91,11 @@ const formulaSelectBase =
   "bg-card border border-border rounded px-1.5 py-0.5 text-[10px] transition-colors " +
   "hover:border-primary/50 focus:outline-none focus:border-primary";
 
-// -------- Lightweight Dropdown (no Portal, no Popper.js, no animations) --------
-// Replaces Radix Select which creates a Portal + Popper.js positioning on every
-// open/close. With 350+ Select instances in the table, the Portal DOM operations
-// were causing 3-second lag. This uses position:fixed instead.
-
-const LightDropdown = React.memo(function LightDropdown({
-  value,
-  onValueChange,
-  disabled,
-  className,
-  placeholder,
-  children,
-}: {
-  value?: string;
-  onValueChange?: (val: string) => void;
-  disabled?: boolean;
-  className?: string;
-  placeholder?: string;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
-
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 2, left: rect.left, width: rect.width });
-  }, []);
-
-  const handleToggle = useCallback(() => {
-    if (disabled) return;
-    if (open) {
-      setOpen(false);
-    } else {
-      updatePosition();
-      setOpen(true);
-    }
-  }, [disabled, open, updatePosition]);
-
-  // Close on outside click or scroll
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        contentRef.current && !contentRef.current.contains(e.target as Node) &&
-        triggerRef.current && !triggerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    const handleScroll = (e: Event) => {
-      // Don't close if scrolling inside the dropdown content itself
-      const target = e.target as Node;
-      if (contentRef.current && contentRef.current.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick, true);
-    document.addEventListener("scroll", handleScroll, true);
-    return () => {
-      document.removeEventListener("mousedown", handleClick, true);
-      document.removeEventListener("scroll", handleScroll, true);
-    };
-  }, [open]);
-
-  // Find label for current value by scanning children
-  const selectedLabel = useMemo(() => {
-    let label: string | undefined;
-    React.Children.forEach(children, (child) => {
-      if (React.isValidElement(child) && (child.props as any).value === value) {
-        label = (child.props as any).children;
-        if (Array.isArray(label)) label = label[0];
-        if (typeof label === "object" && label?.props) label = label.props.children;
-        if (typeof label !== "string") label = String(label);
-      }
-    });
-    return label;
-  }, [value, children]);
-
-  const triggerClasses = cn(
-    "relative h-auto min-h-[28px] py-1.5 px-2.5 pr-7 text-xs bg-card border border-border rounded-md cursor-pointer text-left",
-    "hover:border-primary/50 hover:bg-muted/20",
-    "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
-    "disabled:opacity-40 disabled:cursor-not-allowed disabled:border-dashed disabled:text-muted-foreground",
-    !value && "text-muted-foreground",
-    className,
-  );
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={handleToggle}
-        disabled={disabled}
-        className={triggerClasses}
-      >
-        <span className="line-clamp-1">{selectedLabel || placeholder}</span>
-        <svg className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 opacity-50 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-      {open && (
-        <div
-          ref={contentRef}
-          style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 50 }}
-          className="max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md p-1"
-        >
-          {React.Children.map(children, (child) => {
-            if (!React.isValidElement(child)) return child;
-            const childProps = child.props as any;
-            // DataSelectItem: add onClick to select + close
-            if (childProps.value !== undefined && childProps.value !== null && typeof childProps.value === "string") {
-              return (
-                <div
-                  role="option"
-                  aria-selected={childProps.value === value}
-                  onClick={() => { onValueChange?.(childProps.value); setOpen(false); }}
-                  className={cn(
-                    "text-xs cursor-pointer rounded-sm px-2 py-1.5 select-none",
-                    "hover:bg-accent hover:text-accent-foreground",
-                    "focus:bg-accent focus:text-accent-foreground",
-                    childProps.value === value && "bg-accent text-accent-foreground",
-                    childProps.className,
-                  )}
-                >
-                  {childProps.children}
-                </div>
-              );
-            }
-            // Non-item children (search input, etc.) — render as-is
-            return child;
-          })}
-        </div>
-      )}
-    </>
-  );
-});
-
 // -------- Custom Dropdown wrapper --------
 const DataSelect = LightDropdown;
 
-// -------- Dropdown Item (plain div, no Radix) --------
-const DataSelectItem = React.memo(function DataSelectItem({
-  value,
-  className,
-  children,
-}: {
-  value: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  // DataSelectItem is rendered inside LightDropdown's children iteration.
-  // LightDropdown detects items by their `value` prop and handles click/selection.
-  // This component just renders the visual — the interaction is handled by LightDropdown.
-  return (
-    <div
-      data-value={value}
-      className={cn(
-        "text-xs cursor-pointer rounded-sm px-2 py-1.5 select-none",
-        "hover:bg-accent hover:text-accent-foreground",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-});
+// -------- Dropdown Item --------
+const DataSelectItem = LightDropdownItem;
 
 // Checkboxes: native element, themed via accent-color + a visible keyboard-focus ring.
 const checkboxBase =
@@ -888,6 +728,9 @@ function DataMappingPage() {
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [scrollToId, setScrollToId] = useState<number | null>(null);
 
+  // Audit log refresh trigger
+  const [auditRefreshKey, setAuditRefreshKey] = useState(0);
+
   // Preview values: row id → computed value string
   const [previewValues, setPreviewValues] = useState<Record<number, string>>({});
   const [previewLoading, setPreviewLoading] = useState<Record<number, boolean>>({});
@@ -901,16 +744,41 @@ function DataMappingPage() {
   const [sampleDataCache, setSampleDataCache] = useState<Record<number, Record<string, unknown> | null>>({});
 
   // Live exec state for Test Live column
-  const [liveExecState, setLiveExecState] = useState<Record<number, { s: ExecState; msg: string }>>({});
+  // (removed: replaced by liveFormulaResults + liveFormulaLoading)
 
-  const runLiveRow = async (row: DataMappingRow) => {
-    setLiveExecState((m) => ({ ...m, [row.id]: { s: "loading", msg: "…" } }));
-    try {
-      const out = await executeRow(row, baseUrl);
-      setLiveExecState((m) => ({ ...m, [row.id]: { s: "ok", msg: out } }));
-    } catch (e) {
-      setLiveExecState((m) => ({ ...m, [row.id]: { s: "error", msg: (e as Error).message } }));
+  // Live formula results (per KPI group leader)
+  const [liveFormulaResults, setLiveFormulaResults] = useState<Record<number, string>>({});
+  const [liveFormulaLoading, setLiveFormulaLoading] = useState<Record<number, boolean>>({});
+
+  const runLiveKpiGroup = async (groupRows: DataMappingRow[], leaderId: number) => {
+    setLiveFormulaLoading((m) => ({ ...m, [leaderId]: true }));
+    setLiveFormulaResults((m) => ({ ...m, [leaderId]: "" }));
+
+    const results = await Promise.allSettled(
+      groupRows.map(async (row) => {
+        try {
+          const out = await executeRow(row, effectiveBaseUrl);
+          return { id: row.id, value: out };
+        } catch (e) {
+          return { id: row.id, value: `Erreur: ${(e as Error).message}` };
+        }
+      })
+    );
+
+    // Build testValues-like map from live results
+    const liveTestValues: Record<number, string> = {};
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        liveTestValues[r.value.id] = r.value.value;
+      }
     }
+
+    // Apply formula using the leader row
+    const leader = groupRows[0];
+    const formulaResult = computeFormulaForTest(leader, liveTestValues);
+
+    setLiveFormulaResults((m) => ({ ...m, [leaderId]: formulaResult }));
+    setLiveFormulaLoading((m) => ({ ...m, [leaderId]: false }));
   };
 
   // Direct type validation errors
@@ -934,15 +802,15 @@ function DataMappingPage() {
   const [confirmReset, setConfirmReset] = useState(false);
 
   const runHealthCheck = async () => {
-    if (!baseUrl) return;
+    if (!effectiveBaseUrl) return;
     setHealthState("loading");
     setHealthMsg("");
     try {
-      const url = `${baseUrl.replace(/\/+$/, "")}`;
+      const url = `${effectiveBaseUrl.replace(/\/+$/, "")}`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       const res = await fetch(url, {
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", ...authHeaders },
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -967,6 +835,8 @@ function DataMappingPage() {
 
   // All endpoint data (for JSON preview column + search)
   const [allEndpointData, setAllEndpointData] = useState<Record<string, AllEndpointRecord>>({});
+  const allEndpointDataRef = useRef(allEndpointData);
+  allEndpointDataRef.current = allEndpointData;
   const [allDataLoading, setAllDataLoading] = useState(false);
   const [allEndpointsModalOpen, setAllEndpointsModalOpen] = useState(false);
 
@@ -1020,17 +890,64 @@ function DataMappingPage() {
   const [baseUrl, setBaseUrl] = useState("");
   const [debouncedBaseUrl, setDebouncedBaseUrl] = useState("");
 
+  // Novacity connection config (base URL, API key, JWT)
+  const [novacityConfig, setNovacityConfig] = useState<{ base_url: string; api_key: string; token: string } | null>(null);
+  useEffect(() => {
+    fetch("/novacity-config", { headers: { Accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setNovacityConfig(data); })
+      .catch(() => {});
+  }, []);
+
+  // Effective base URL: user input > novacity config fallback
+  const effectiveBaseUrl = baseUrl || novacityConfig?.base_url || "";
+
+  // Auth headers for live API calls
+  const authHeaders = useMemo(() => {
+    if (!novacityConfig) return {};
+    const h: Record<string, string> = {};
+    if (novacityConfig.api_key) h["x-api-key"] = novacityConfig.api_key;
+    if (novacityConfig.token) h["Authorization"] = `Bearer ${novacityConfig.token}`;
+    return h;
+  }, [novacityConfig]);
+
   // Debounce baseUrl for preview fetching (400ms)
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedBaseUrl(baseUrl), 400);
     return () => clearTimeout(timer);
   }, [baseUrl]);
 
+  // Save base URL to DB when it changes (debounced)
+  useEffect(() => {
+    if (!debouncedBaseUrl) return;
+    const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    const token = xsrf ? decodeURIComponent(xsrf[1]) : "";
+    const controller = new AbortController();
+    fetch("/api/settings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-XSRF-TOKEN": token,
+      },
+      body: JSON.stringify({ key: "novacity_base_url", value: debouncedBaseUrl }),
+      signal: controller.signal,
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [debouncedBaseUrl]);
+
+  // Effective debounced base URL for preview fetching
+  const effectiveDebouncedBaseUrl = debouncedBaseUrl || novacityConfig?.base_url || "";
+  const effectiveDebouncedBaseUrlRef = useRef(effectiveDebouncedBaseUrl);
+  effectiveDebouncedBaseUrlRef.current = effectiveDebouncedBaseUrl;
+
   const fetchPreview = useCallback(async (row: DataMappingRow, signal?: AbortSignal) => {
-    if (!row.endpoint || !debouncedBaseUrl) return;
+    const url = effectiveDebouncedBaseUrlRef.current;
+    if (!row.endpoint || !url) return;
     React.startTransition(() => setPreviewLoading((m) => ({ ...m, [row.id]: true })));
     try {
-      const val = await executeRow(row, debouncedBaseUrl, signal);
+      const val = await executeRow(row, url, signal);
       React.startTransition(() => {
         setPreviewValues((m) => ({ ...m, [row.id]: val }));
         setPreviewLoading((m) => ({ ...m, [row.id]: false }));
@@ -1043,13 +960,18 @@ function DataMappingPage() {
         });
       }
     }
-  }, [debouncedBaseUrl]);
+  }, []);
 
-  // Fetch all previews when rows or debouncedBaseUrl change (batched)
+  // Fetch all previews when rows change (batched)
   // Only re-fetch rows whose endpoint+variable_key signature changed
   const prevPreviewSigRef = useRef<Record<number, string>>({});
+
+  // Clear preview signatures when user types a new base URL (forces re-fetch)
   useEffect(() => {
-    if (!debouncedBaseUrl || rows.length === 0) return;
+    if (debouncedBaseUrl) prevPreviewSigRef.current = {};
+  }, [debouncedBaseUrl]);
+  useEffect(() => {
+    if (!effectiveDebouncedBaseUrlRef.current || rows.length === 0) return;
     const controller = new AbortController();
     const targets = rows.filter((r) => {
       if (!r.endpoint || !r.variable_key) return false;
@@ -1063,7 +985,7 @@ function DataMappingPage() {
       fetchInBatches(targets, BATCH_SIZE, fetchPreview, controller.signal);
     }
     return () => controller.abort();
-  }, [rows, debouncedBaseUrl, fetchPreview]);
+  }, [rows, fetchPreview]);
 
   // Track previous aggregation settings to only recompute changed rows
   const prevAggSettingsRef = useRef<Record<number, string>>({});
@@ -1177,6 +1099,7 @@ function DataMappingPage() {
       setDirtyIds(new Set());
       dirtyRef.current = new Set();
       setLastSaved(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+      setAuditRefreshKey((k) => k + 1);
     } catch {
       // Keep dirty state so user can retry
     } finally {
@@ -1329,6 +1252,7 @@ function DataMappingPage() {
     try {
       await deleteMapping(id);
       toast.success("Ligne supprimée");
+      setAuditRefreshKey((k) => k + 1);
     } catch {
       if (removedRow) {
         setRows((rs) => [...rs, removedRow!]);
@@ -1359,6 +1283,7 @@ function DataMappingPage() {
       setRows((rs) => [...rs, mapping]);
       setScrollToId(mapping.id);
       toast.success("Ligne ajoutée");
+      setAuditRefreshKey((k) => k + 1);
     } catch {
       toast.error("Erreur lors de l'ajout de la ligne");
     }
@@ -1428,7 +1353,7 @@ function DataMappingPage() {
   const runRow = async (row: DataMappingRow) => {
     setExecState((m) => ({ ...m, [row.id]: { s: "loading", msg: "…" } }));
     try {
-      const out = await executeRow(row, baseUrl);
+      const out = await executeRow(row, effectiveBaseUrl);
       setExecState((m) => ({ ...m, [row.id]: { s: "ok", msg: out } }));
     } catch (e) {
       setExecState((m) => ({ ...m, [row.id]: { s: "error", msg: (e as Error).message } }));
@@ -1462,8 +1387,6 @@ function DataMappingPage() {
   toggleModuleRef.current = toggleModule;
   const runRowRef = useRef(runRow);
   runRowRef.current = runRow;
-  const runLiveRowRef = useRef(runLiveRow);
-  runLiveRowRef.current = runLiveRow;
   const removeRef = useRef(remove);
   removeRef.current = remove;
   const setTestValuesRef = useRef(setTestValues);
@@ -1478,8 +1401,6 @@ function DataMappingPage() {
   setTraceLoadingRef.current = setTraceLoading;
   const setValidatingKeysRef = useRef(setValidatingKeys);
   setValidatingKeysRef.current = setValidatingKeys;
-  const setLiveExecStateRef = useRef(setLiveExecState);
-  setLiveExecStateRef.current = setLiveExecState;
   const setExecStateRef = useRef(setExecState);
   setExecStateRef.current = setExecState;
 
@@ -1528,7 +1449,7 @@ function DataMappingPage() {
           </>
         }
       />
-      <div className="px-4 py-2 border-b border-border flex items-center gap-1.5 min-w-0">
+      <div className="px-4 py-2 border-b border-border flex flex-wrap items-center gap-1.5">
         <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 shrink-0">
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
           <input
@@ -1545,7 +1466,7 @@ function DataMappingPage() {
         >
           {kpiGroups.map((g) => <DataSelectItem key={g} value={g}>{g}</DataSelectItem>)}
         </DataSelect>
-        <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 min-w-[180px] flex-1">
           <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <input
             value={baseUrl}
@@ -1572,7 +1493,7 @@ function DataMappingPage() {
         </button>
         <button
           onClick={runHealthCheck}
-          disabled={!baseUrl || healthState === "loading"}
+          disabled={!effectiveBaseUrl || healthState === "loading"}
           className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border disabled:opacity-40 shrink-0 ${
             healthState === "loading" ? "cursor-wait" : "cursor-pointer"
           } ${
@@ -1597,7 +1518,7 @@ function DataMappingPage() {
         </button>
         <button
           onClick={runAll}
-          disabled={!baseUrl || execAllLoading}
+          disabled={!effectiveBaseUrl || execAllLoading}
           className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 shrink-0 ${execAllLoading ? "cursor-wait" : "cursor-pointer"}`}
         >
           {execAllLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
@@ -2095,8 +2016,8 @@ function DataMappingPage() {
                       return (
                         <button
                           onClick={() => runRow(r)}
-                          disabled={!r.endpoint || !baseUrl || st === "loading"}
-                          title={!r.endpoint || !baseUrl ? "Renseignez un endpoint et une base URL" : "Exécuter cette ligne"}
+                          disabled={!r.endpoint || !effectiveBaseUrl || st === "loading"}
+                          title={!r.endpoint || !effectiveBaseUrl ? "Renseignez un endpoint et une base URL" : "Exécuter cette ligne"}
                           className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${st === "loading" ? "cursor-wait" : "cursor-pointer"} ${toneClasses}`}
                         >
                           {st === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
@@ -2185,36 +2106,31 @@ function DataMappingPage() {
                       </DataSelect>
                     </td>
                   ) : null}
-                  {/* Test Live column — manual live API execution */}
-                  <td className="px-2 py-1.5">
-                    {(() => {
-                      const st = liveExecState[r.id]?.s;
-                      const toneClasses =
-                        st === "error"
-                          ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
-                          : st === "ok"
-                          ? "border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20"
-                          : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20";
-                      return (
-                        <button
-                          onClick={() => runLiveRow(r)}
-                          disabled={!r.endpoint || !baseUrl || st === "loading"}
-                          title={!r.endpoint || !baseUrl ? "Renseignez un endpoint et une base URL" : "Exécuter en live"}
-                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${st === "loading" ? "cursor-wait" : "cursor-pointer"} ${toneClasses}`}
-                        >
-                          {st === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                          Test Live
-                        </button>
-                      );
-                    })()}
-                  </td>
-                  <td className="px-2 py-1.5 min-w-[120px]">
-                    <ResultBadge
-                      state={liveExecState[r.id]?.s ?? "idle"}
-                      value={liveExecState[r.id]?.msg}
-                      loadingLabel="exécution…"
-                    />
-                  </td>
+                  {/* Test Live column — one button per KPI group, formula result */}
+                  {isFirstInKpi ? (() => {
+                    const groupRows = filtered.slice(i, i + ks);
+                    const isLoading = liveFormulaLoading[r.id];
+                    return (
+                      <td rowSpan={ks} className="px-2 py-1.5">
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            onClick={() => runLiveKpiGroup(groupRows, r.id)}
+                            disabled={!effectiveBaseUrl || isLoading}
+                            title={!effectiveBaseUrl ? "Renseignez une base URL" : "Exécuter toutes les lignes du KPI en live"}
+                            className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isLoading ? "cursor-wait border-primary/40 bg-primary/10 text-primary" : "cursor-pointer border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"}`}
+                          >
+                            {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                            Test Live
+                          </button>
+                          <ResultBadge
+                            state={isLoading ? "loading" : liveFormulaResults[r.id] ? "ok" : "idle"}
+                            value={liveFormulaResults[r.id]}
+                            loadingLabel="exécution…"
+                          />
+                        </div>
+                      </td>
+                    );
+                  })() : null}
                   <td className="px-2 py-1.5">
                     <button
                       onClick={() => { if (confirm("Supprimer cette ligne ? Cette action est irréversible.")) remove(r.id); }}
@@ -2248,6 +2164,7 @@ function DataMappingPage() {
         <div className="ml-auto flex items-center gap-2"><BacovetLogo /></div>
       </div>
       <StatusFooter user="MAPPING" />
+      <DataMappingAuditLog refreshKey={auditRefreshKey} />
       <TraceModal open={traceModal.open} title={traceModal.title} content={traceModal.content} onClose={() => setTraceModal({ open: false, title: "", content: null })} />
       <TraceModal open={jsonPreview.open} title={jsonPreview.title} content={jsonPreview.content} highlight={jsonPreview.highlight} onClose={() => setJsonPreview({ open: false, title: "", content: null })} />
       <JsonPreviewModal open={allEndpointsModalOpen} onClose={() => setAllEndpointsModalOpen(false)} allData={allEndpointData} />

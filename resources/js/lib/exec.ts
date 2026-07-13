@@ -190,12 +190,36 @@ export function buildExecutionResult(row: DataMappingRow, records: Record<string
 }
 
 // -------- Execute Row --------
+// Routes through the Laravel proxy (/api/novacity/{path}) which adds auth headers server-side.
 export async function executeRow(row: DataMappingRow, baseUrl: string, signal?: AbortSignal): Promise<string> {
   if (!row.endpoint) throw new Error("Endpoint manquant");
-  const url = `${baseUrl.replace(/\/+$/, "")}/${row.endpoint.replace(/^\/+/, "")}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  const records = extractRecords(json);
-  return buildExecutionResult(row, records).output;
+  const url = `/api/novacity/${row.endpoint.replace(/^\/+/, "")}?baseUrl=${encodeURIComponent(baseUrl)}`;
+
+  // Frontend timeout: 15s — prevents hanging on wrong URLs
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), 15_000);
+  const onAbort = () => timeoutController.abort();
+  if (signal) {
+    if (signal.aborted) { clearTimeout(timeoutId); throw new Error("Aborted"); }
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: timeoutController.signal });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || `HTTP ${res.status}`);
+    }
+    const json = await res.json();
+    const records = extractRecords(json);
+    return buildExecutionResult(row, records).output;
+  } catch (e) {
+    if (timeoutController.signal.aborted && !(signal?.aborted)) {
+      throw new Error("Timeout (15s) — vérifiez l'URL de base");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener("abort", onAbort);
+  }
 }

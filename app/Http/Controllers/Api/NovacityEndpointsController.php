@@ -171,4 +171,16 @@ class NovacityEndpointsController extends Controller
 
         return $path;
     }
+
+    /**
+     * Return Novacity connection config (base URL, API key, JWT token) from env.
+     */
+    public function config(): JsonResponse
+    {
+        return response()->json([
+            'base_url' => env('NOVACITY_BASE_URL', ''),
+            'api_key'  => env('NOVACITY_API_KEY', ''),
+            'token'    => env('NOVACITY_ADMIN_TOKEN', ''),
+        ]);
+    }
 }
