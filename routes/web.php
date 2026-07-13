@@ -40,12 +40,14 @@ Route::get('/v1/{any?}', fn () => view('v1'))->where('any', '.*')->name('v1');
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 
-Route::middleware(['auth', 'active.user'])->prefix('api')->group(function () {
-    Route::post('/settings', [App\Http\Controllers\Api\SettingController::class, 'store']);
-    Route::prefix('novacity')->group(function () {
-        Route::get('/{path}', [App\Http\Controllers\Api\NovacityProxyController::class, 'proxy'])
-            ->where('path', '.*');
-    });
+// Settings routes — public (used by standalone data page auth)
+Route::post('/api/settings', [App\Http\Controllers\Api\SettingController::class, 'store']);
+Route::get('/api/settings/{key}', [App\Http\Controllers\Api\SettingController::class, 'show']);
+
+// Novacity proxy — authenticated via data_users guard
+Route::prefix('api/novacity')->middleware('auth:data_users')->group(function () {
+    Route::get('/{path}', [App\Http\Controllers\Api\NovacityProxyController::class, 'proxy'])
+        ->where('path', '.*');
 });
 
 require __DIR__.'/settings.php';
@@ -54,6 +56,10 @@ require __DIR__.'/settings.php';
 
 // ─── PUBLIC ──────────────────────────────────────────────────────────────
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/api/data-auth/login', [App\Http\Controllers\Api\DataAuthController::class, 'login']);
+Route::post('/api/data-auth/check', [App\Http\Controllers\Api\DataAuthController::class, 'check']);
+Route::post('/api/data-auth/set-password', [App\Http\Controllers\Api\DataAuthController::class, 'setPassword']);
+Route::get('/api/data-auth/me', [App\Http\Controllers\Api\DataAuthController::class, 'me']);
 
 // ─── AUTHENTICATED ───────────────────────────────────────────────────────
 Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
@@ -182,17 +188,17 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
     // ── HEALTH CHECK ─────────────────────────────────────────────────────
     Route::get('/health', [HealthController::class, 'check']);
+});
 
-    // ── DATA MAPPINGS ────────────────────────────────────────────────────
-    Route::prefix('data-mappings')->group(function () {
-        Route::get('/', [DataMappingController::class, 'index']);
-        Route::post('/', [DataMappingController::class, 'store']);
-        Route::put('/{id}', [DataMappingController::class, 'update']);
-        Route::delete('/{id}', [DataMappingController::class, 'destroy']);
-        Route::post('/batch', [DataMappingController::class, 'batchUpdate']);
-        Route::post('/seed', [DataMappingController::class, 'seedFromKpiSeed']);
-        Route::get('/audit-logs', [DataMappingController::class, 'auditLogs']);
-    });
+// ── DATA MAPPINGS (standalone data page auth) ──────────────────────────
+Route::prefix('data-mappings')->middleware('auth:data_users')->group(function () {
+    Route::get('/', [DataMappingController::class, 'index']);
+    Route::post('/', [DataMappingController::class, 'store']);
+    Route::put('/{id}', [DataMappingController::class, 'update']);
+    Route::delete('/{id}', [DataMappingController::class, 'destroy']);
+    Route::post('/batch', [DataMappingController::class, 'batchUpdate']);
+    Route::post('/seed', [DataMappingController::class, 'seedFromKpiSeed']);
+    Route::get('/audit-logs', [DataMappingController::class, 'auditLogs']);
 });
 
 // ── NOVACITY ENDPOINTS (from data.json) ─────────────────────────────────

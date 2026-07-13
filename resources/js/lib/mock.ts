@@ -154,7 +154,7 @@ export const production = {
         nom: [
             'A. Belhaj',
             'S. Karoui',
-            'M. Trabelsi',
+            'User',
             'N. Saidi',
             'I. Mansouri',
             'L. Bouzid',
@@ -375,7 +375,7 @@ export const adminData = {
     ],
     users: [
         {
-            name: 'Ahmed Belhaj',
+            name: 'Super admin',
             matricule: 'P-1042',
             role: 'resp_production',
             email: 'a.belhaj@bacovet.com',

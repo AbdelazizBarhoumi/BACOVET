@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
             'audit' => \App\Http\Middleware\LogAuditTrail::class,
             'active.user' => \App\Http\Middleware\EnsureActiveUser::class,
+            'standalone.user' => \App\Http\Middleware\ResolveStandaloneUser::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -25,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'browser-log',
             'auth/login',
+            'api/data-auth/*',
         ]);
 
         $middleware->web(append: [

@@ -14,6 +14,7 @@ const ProductionFlux = React.lazy(() => import('@/routes-v1/pages/production-flu
 const Qualite = React.lazy(() => import('@/routes-v1/pages/qualite'));
 const Comparaison = React.lazy(() => import('@/routes-v1/pages/comparaison'));
 const DataMapping = React.lazy(() => import('@/routes-v1/pages/data'));
+const DataLogin = React.lazy(() => import('@/routes-v1/pages/login'));
 
 function PageSuspense({ children }: { children: React.ReactNode }) {
   return (
@@ -93,7 +94,24 @@ const v1ComparaisonRoute = createRoute({
 const v1DataRoute = createRoute({
   getParentRoute: () => v1LayoutRoute,
   path: '/data',
+  beforeLoad: async () => {
+    try {
+      const res = await fetch("/api/data-auth/me", { headers: { Accept: "application/json" } });
+      if (!res.ok) throw redirect({ to: '/v1/login' });
+      const data = await res.json();
+      localStorage.setItem("data_auth_user", JSON.stringify(data));
+    } catch {
+      throw redirect({ to: '/v1/login' });
+    }
+  },
   component: () => <PageSuspense><DataMapping /></PageSuspense>,
+});
+
+// Login route — outside v1 layout (no shell)
+const v1LoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/v1/login',
+  component: () => <PageSuspense><DataLogin /></PageSuspense>,
 });
 
 const v1LayoutWithChildren = v1LayoutRoute.addChildren([
@@ -105,7 +123,7 @@ const v1LayoutWithChildren = v1LayoutRoute.addChildren([
   v1DataRoute,
 ]);
 
-const routeTree = rootRoute.addChildren([v1LayoutWithChildren]);
+const routeTree = rootRoute.addChildren([v1LayoutWithChildren, v1LoginRoute]);
 
 const router = createRouter({ routeTree });
 

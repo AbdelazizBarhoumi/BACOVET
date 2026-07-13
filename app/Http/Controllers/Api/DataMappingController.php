@@ -217,8 +217,7 @@ class DataMappingController extends Controller
 
     public function auditLogs(Request $request): JsonResponse
     {
-        $query = DataMappingAuditLog::with('user')
-            ->orderByDesc('created_at');
+        $query = DataMappingAuditLog::orderByDesc('created_at');
 
         if ($kpi = $request->input('kpi')) {
             $query->where('kpi', $kpi);
@@ -229,6 +228,23 @@ class DataMappingController extends Controller
 
         $perPage = min((int) $request->input('per_page', 25), 100);
         $logs = $query->paginate($perPage);
+
+        // Manually resolve user names from both data_users and users tables
+        $userIds = $logs->pluck('user_id')->filter()->unique()->values();
+        $userMap = [];
+
+        if ($userIds->isNotEmpty()) {
+            $dataUsers = \App\Models\DataUser::whereIn('id', $userIds)->get()->keyBy('id');
+            $mainUsers = \App\Models\User::whereIn('id', $userIds)->get()->keyBy('id');
+            foreach ($userIds as $uid) {
+                $userMap[$uid] = $dataUsers->get($uid) ?? $mainUsers->get($uid);
+            }
+        }
+
+        $logs->getCollection()->transform(function ($log) use ($userMap) {
+            $log->user = $log->user_id ? ($userMap[$log->user_id] ?? null) : null;
+            return $log;
+        });
 
         return response()->json($logs);
     }

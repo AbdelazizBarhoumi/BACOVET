@@ -79,6 +79,22 @@ function autoSize(el: HTMLTextAreaElement | null) {
   el.style.height = el.scrollHeight + 'px';
 }
 
+// Truncate long preview values (arrays, long strings) for compact display in FormulaBuilder chips
+function formatPreviewValue(val: string): string {
+  if (!val) return val;
+  if (val.startsWith("[") && val.endsWith("]")) {
+    try {
+      const arr = JSON.parse(val);
+      if (Array.isArray(arr)) {
+        return arr.length <= 3 ? val : `[${arr.length} valeurs]`;
+      }
+    } catch {
+      return val.length > 40 ? val.slice(0, 37) + "…" : val;
+    }
+  }
+  return val.length > 40 ? val.slice(0, 37) + "…" : val;
+}
+
 // Dropdowns: consistent hover/focus affordance, clear disabled state.
 const selectBase =
   "bg-card border border-border rounded-md px-2.5 py-1.5 text-xs transition-colors cursor-pointer " +
@@ -440,7 +456,7 @@ const FormulaBuilder = React.memo(function FormulaBuilder({ kpi, groupRows, prev
   const result = computeFormula(items, previewValues);
 
   return (
-    <div className="text-[10px] min-w-[200px] bg-card border border-border rounded-lg overflow-hidden">
+    <div className="text-[10px] min-w-[200px]  bg-card border border-border rounded-lg overflow-hidden">
       {/* Header */}
       <div className="px-2.5 py-1.5 bg-muted/30 border-b border-border/50 flex items-center gap-1.5">
         <span className="font-semibold text-muted-foreground uppercase tracking-wide text-[9px]">Formule</span>
@@ -459,7 +475,7 @@ const FormulaBuilder = React.memo(function FormulaBuilder({ kpi, groupRows, prev
             <span key={gr.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium w-auto overflow-hidden text-ellipsis whitespace-nowrap">
               {gr.variable || gr.name || `Var ${gr.id}`}
               {previewValues[gr.id] && (
-                <span className="text-muted-foreground font-mono text-[9px] shrink-0">={previewValues[gr.id]}</span>
+                <span className="text-muted-foreground font-mono text-[9px] shrink-0">={formatPreviewValue(previewValues[gr.id])}</span>
               )}
             </span>
           ))}
@@ -687,27 +703,32 @@ const EndpointSelector = React.memo(function EndpointSelector({
   );
 
   return (
-    <DataSelect
-      value={row.endpoint ?? undefined}
-      onValueChange={(val) => onEndpointChange(val || null)}
-      className={`w-64 ${!row.endpoint ? "text-muted-foreground border-dashed" : ""}`}
-      placeholder="— sélectionner —"
-    >
-      <div className="px-2 py-1" role="presentation">
-        <input
-          type="text"
-          placeholder="Rechercher…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          className="w-full bg-transparent border-b border-border px-1 py-0.5 text-xs outline-none placeholder:text-muted-foreground/50"
-        />
-      </div>
-      {filtered.map((ep) => (
-        <DataSelectItem key={ep} value={ep}>{ep}</DataSelectItem>
-      ))}
-    </DataSelect>
+    <>
+      <DataSelect
+        value={row.endpoint ?? undefined}
+        onValueChange={(val) => onEndpointChange(val || null)}
+        className={`w-64 ${!row.endpoint ? "text-muted-foreground border-dashed" : ""}`}
+        placeholder="— sélectionner —"
+      >
+        <div className="px-2 py-1" role="presentation">
+          <input
+            type="text"
+            placeholder="Rechercher…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            className="w-full bg-transparent border-b border-border px-1 py-0.5 text-xs outline-none placeholder:text-muted-foreground/50"
+          />
+        </div>
+        {filtered.map((ep) => (
+          <DataSelectItem key={ep} value={ep}>{ep}</DataSelectItem>
+        ))}
+      </DataSelect>
+      {row.endpoint && (
+        <TraceBtn isLoading={traceLoading} onClick={onTrace} />
+      )}
+    </>
   );
 });
 
@@ -899,8 +920,36 @@ function DataMappingPage() {
       .catch(() => {});
   }, []);
 
-  // Effective base URL: user input > novacity config fallback
-  const effectiveBaseUrl = baseUrl || novacityConfig?.base_url || "";
+  // User role for page-only RBAC (temporary — remove with this block)
+  const [userRole, setUserRole] = useState(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("data_auth_user") || "{}");
+      return user.role || "";
+    } catch { return ""; }
+  });
+  const isSuperadmin = userRole === "it";
+  const isAdmin = userRole === "direction" || isSuperadmin;
+  const isNormal = !isAdmin;
+
+  // Fetch saved base URL from DB (used for API calls by all users)
+  const [savedBaseUrl, setSavedBaseUrl] = useState("");
+  useEffect(() => {
+    fetch("/api/settings/novacity_base_url", { headers: { Accept: "application/json" } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.value) setSavedBaseUrl(d.value); })
+      .catch(() => {});
+  }, []);
+
+  // Superadmin: also load saved URL into input field on mount
+  useEffect(() => {
+    if (!isSuperadmin || !savedBaseUrl) return;
+    setBaseUrl(savedBaseUrl);
+  }, [isSuperadmin, savedBaseUrl]);
+
+  // Effective base URL for API calls: superadmin uses input > saved > config; non-superadmin uses saved > static
+  const effectiveBaseUrl = isSuperadmin
+    ? (baseUrl || savedBaseUrl || novacityConfig?.base_url || "")
+    : (savedBaseUrl || "http://192.168.2.17:4100");
 
   // Auth headers for live API calls
   const authHeaders = useMemo(() => {
@@ -938,7 +987,7 @@ function DataMappingPage() {
   }, [debouncedBaseUrl]);
 
   // Effective debounced base URL for preview fetching
-  const effectiveDebouncedBaseUrl = debouncedBaseUrl || novacityConfig?.base_url || "";
+  const effectiveDebouncedBaseUrl = debouncedBaseUrl || savedBaseUrl || novacityConfig?.base_url || "";
   const effectiveDebouncedBaseUrlRef = useRef(effectiveDebouncedBaseUrl);
   effectiveDebouncedBaseUrlRef.current = effectiveDebouncedBaseUrl;
 
@@ -998,7 +1047,7 @@ function DataMappingPage() {
       if (!r.endpoint || !r.variable_key) return false;
       const aggSignature = `${r.variable_type}-${r.has_function}-${r.fn}-${r.is_filtered}-${r.filter_key}-${r.filter_value}-${directErrors[r.id] || ''}`;
       const prevSignature = prevAggSettingsRef.current[r.id];
-      const needsRecompute = !testValues[r.id] || aggSignature !== prevSignature || testValues[r.id] === "Erreur" || testValues[r.id] === "Pas de sample";
+      const needsRecompute = !testValues[r.id] || testLoading[r.id] || aggSignature !== prevSignature || testValues[r.id] === "Erreur" || testValues[r.id] === "Pas de sample";
       prevAggSettingsRef.current[r.id] = aggSignature;
       return needsRecompute && !fetchingRef.current.has(r.id);
     });
@@ -1042,7 +1091,10 @@ function DataMappingPage() {
           setTestLoading((m) => ({ ...m, [r.id]: false }));
         });
       } catch (e) {
-        if (signal?.aborted) return;
+        if (signal?.aborted) {
+          React.startTransition(() => setTestLoading((m) => ({ ...m, [r.id]: false })));
+          return;
+        }
         React.startTransition(() => {
           setTestValues((m) => ({ ...m, [r.id]: (e as Error).message || "Erreur" }));
           setTestLoading((m) => ({ ...m, [r.id]: false }));
@@ -1466,20 +1518,27 @@ function DataMappingPage() {
         >
           {kpiGroups.map((g) => <DataSelectItem key={g} value={g}>{g}</DataSelectItem>)}
         </DataSelect>
-        <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 min-w-[180px] flex-1">
-          <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="Base URL API"
-            className="bg-transparent outline-none text-xs min-w-0 flex-1 cursor-text"
-          />
-          {healthState !== "idle" && (
-            <span className={`text-[10px] shrink-0 ${healthState === "healthy" ? "text-green-500" : healthState === "error" ? "text-destructive" : "text-muted-foreground"}`}>
-              {healthMsg}
-            </span>
-          )}
-        </div>
+        {isSuperadmin ? (
+          <div className="flex items-center gap-1.5 border border-border bg-card rounded-md px-2 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 min-w-[180px] flex-1">
+            <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="Base URL API"
+              className="bg-transparent outline-none text-xs min-w-0 flex-1 cursor-text"
+            />
+            {healthState !== "idle" && (
+              <span className={`text-[10px] shrink-0 ${healthState === "healthy" ? "text-green-500" : healthState === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+                {healthMsg}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 border border-border/50 bg-muted/30 rounded-md px-2 py-1 min-w-[180px] flex-1">
+            <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground">http://192.168.2.17:4100</span>
+          </div>
+        )}
         <button onClick={addRow} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border bg-card hover:bg-secondary cursor-pointer shrink-0">
           <Plus className="h-3 w-3" /> Ajouter
         </button>
@@ -1532,13 +1591,15 @@ function DataMappingPage() {
           {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
           {exporting ? "Export…" : "Excel"}
         </button>
-        <button
-          onClick={() => setConfirmReset(true)}
-          disabled={saving}
-          className={`text-[11px] px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 disabled:opacity-40 shrink-0 ${saving ? "cursor-wait" : "cursor-pointer"}`}
-        >
-          Reset
-        </button>
+        {isSuperadmin && (
+          <button
+            onClick={() => setConfirmReset(true)}
+            disabled={saving}
+            className={`text-[11px] px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 disabled:opacity-40 shrink-0 ${saving ? "cursor-wait" : "cursor-pointer"}`}
+          >
+            Reset
+          </button>
+        )}
       </div>
       {lastSaved && (
         <div className="px-4 py-1 text-[10px] text-muted-foreground border-b border-border/50">
@@ -1618,10 +1679,15 @@ function DataMappingPage() {
                   </td>
                   {isFirstInKpi ? (
                     <td rowSpan={ks} className="px-2 py-1.5 font-mono text-[11px] border-r border-border/30 align-top min-w-[100px]">
-                      <input value={r.kpi} onChange={(e) => updateLocal(r.id, { kpi: e.target.value })}
+                      <input value={r.kpi}
+                        onChange={isNormal ? undefined : (e) => updateLocal(r.id, { kpi: e.target.value })}
                         placeholder="F-REQ-XXX"
                         title={r.kpi}
-                        className={`${fieldBase}`} />
+                        readOnly={isNormal}
+                        tabIndex={isNormal ? -1 : undefined}
+                        className={isNormal
+                          ? "bg-transparent border border-transparent rounded px-1.5 py-1 w-full text-muted-foreground cursor-default"
+                          : fieldBase} />
                     </td>
                   ) : null}
                   {isFirstInModule ? (
@@ -1677,24 +1743,34 @@ function DataMappingPage() {
 ) : null}
                   {isFirstInName ? (
                     <td rowSpan={ns} className="px-2 py-1.5 border-r border-border/30 align-top min-w-[160px]">
-                      <textarea value={r.name} onChange={(e) => updateLocal(r.id, { name: e.target.value })}
+                      <textarea value={r.name}
+                        onChange={isNormal ? undefined : (e) => updateLocal(r.id, { name: e.target.value })}
                         placeholder="Nom du KPI"
                         title={r.name}
                         rows={1}
-                        className={`${fieldBase} resize-none overflow-hidden min-h-[28px] leading-snug`}
+                        readOnly={isNormal}
+                        tabIndex={isNormal ? -1 : undefined}
+                        className={isNormal
+                          ? "bg-transparent border border-transparent rounded px-1.5 py-1 w-full text-muted-foreground cursor-default resize-none overflow-hidden min-h-[28px] leading-snug"
+                          : `${fieldBase} resize-none overflow-hidden min-h-[28px] leading-snug`}
                         ref={autoSize}
-                        onInput={(e) => autoSize(e.currentTarget)}
+                        onInput={isNormal ? undefined : (e) => autoSize(e.currentTarget)}
                       />
                     </td>
                   ) : null}
                   <td className="px-2 py-1.5 text-muted-foreground italic min-w-[160px]">
-                    <textarea value={r.variable} onChange={(e) => updateLocal(r.id, { variable: e.target.value })}
+                    <textarea value={r.variable}
+                      onChange={isNormal ? undefined : (e) => updateLocal(r.id, { variable: e.target.value })}
                       placeholder="nom.variable"
                       title={r.variable}
                       rows={1}
-                      className={`${fieldBase} resize-none overflow-hidden min-h-[28px] leading-snug`}
+                      readOnly={isNormal}
+                      tabIndex={isNormal ? -1 : undefined}
+                      className={isNormal
+                        ? "bg-transparent border border-transparent rounded px-1.5 py-1 w-full text-muted-foreground italic cursor-default resize-none overflow-hidden min-h-[28px] leading-snug"
+                        : `${fieldBase} resize-none overflow-hidden min-h-[28px] leading-snug`}
                       ref={autoSize}
-                      onInput={(e) => autoSize(e.currentTarget)}
+                      onInput={isNormal ? undefined : (e) => autoSize(e.currentTarget)}
                     />
                   </td>
                   <td className="px-2 py-1.5 text-center">
@@ -1727,6 +1803,7 @@ function DataMappingPage() {
                             delete next[r.id];
                             return next;
                           });
+                          setTestLoading((m) => ({ ...m, [r.id]: false }));
                           // Fetch sample data for NestedKeySelector
                           if (newEndpoint) {
                             fetchSampleData(newEndpoint).then((sample) => {
@@ -1783,6 +1860,15 @@ function DataMappingPage() {
                         patch.fn = "Latest";
                       }
                       updateImmediate(r.id, patch);
+
+                      // Clear direct errors when switching to Complex (errors only apply to Direct)
+                      if (newType === "Complex") {
+                        setDirectErrors((m) => {
+                          const next = { ...m };
+                          delete next[r.id];
+                          return next;
+                        });
+                      }
 
                       // Validate Direct type immediately
                       if (newType === "Direct" && r.variable_key && r.endpoint) {
@@ -2045,7 +2131,7 @@ function DataMappingPage() {
                       });
                     }
                     return (
-                      <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top w-auto">
+                      <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top">
                         <FormulaBuilder
                           kpi={r.kpi}
                           groupRows={groupRows}
@@ -2131,22 +2217,24 @@ function DataMappingPage() {
                       </td>
                     );
                   })() : null}
-                  <td className="px-2 py-1.5">
-                    <button
-                      onClick={() => { if (confirm("Supprimer cette ligne ? Cette action est irréversible.")) remove(r.id); }}
-                      title="Supprimer cette ligne"
-                      aria-label="Supprimer cette ligne"
-                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded p-1 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
+                  {!isNormal ? (
+                    <td className="px-2 py-1.5">
+                      <button
+                        onClick={() => { if (confirm("Supprimer cette ligne ? Cette action est irréversible.")) remove(r.id); }}
+                        title="Supprimer cette ligne"
+                        aria-label="Supprimer cette ligne"
+                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded p-1 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={23} className="py-12">
+                <td colSpan={isNormal ? 22 : 23} className="py-12">
                   <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
                     <Search className="h-5 w-5 opacity-40" />
                     <span className="text-xs">Aucune ligne ne correspond à ces filtres.</span>

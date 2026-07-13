@@ -75,7 +75,7 @@ export const DEMO_ACCOUNTS: Record<string, { name: string; role: Role }> = {
     'ADMIN-001': { name: 'IT Admin', role: 'admin' },
     'DIR-001': { name: 'M. Director', role: 'direction' },
     'P-1042': { name: 'A. Belhaj', role: 'resp_production' },
-    'P-2017': { name: 'M. Trabelsi', role: 'chef_atelier' },
+    'P-2017': { name: 'User', role: 'chef_atelier' },
     'Q-0210': { name: 'S. Karoui', role: 'resp_qualite' },
     'L-3308': { name: 'N. Saidi', role: 'methodes' },
     'C-4421': { name: 'K. Hammami', role: 'planning_coupe' },
