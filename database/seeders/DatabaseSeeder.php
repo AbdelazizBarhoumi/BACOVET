@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             ManualKpiSeeder::class,
             SyncSettingSeeder::class,
             DataMappingSeeder::class,
+            DataUserSeeder::class,
         ]);
 
         User::updateOrCreate(

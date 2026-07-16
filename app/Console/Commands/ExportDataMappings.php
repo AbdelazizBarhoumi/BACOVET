@@ -51,6 +51,7 @@ class ExportDataMappings extends Command
                     'variables' => $variables,
                     'formula' => $first->formula,
                     'highlight_color' => $first->highlight_color,
+                    'graph_types' => $first->graph_types,
                     'target' => [
                         'operator' => $first->cible_operator,
                         'value' => $first->cible_value,
@@ -116,9 +117,20 @@ class ExportDataMappings extends Command
 
                 // Formula
                 $lines[] = "                'formula' => " . $this->exportFormula($kpi['formula'] ?? null) . ",";
+                $lines[] = "                'formula_readable' => " . $this->buildReadableFormula($kpi['formula'] ?? null) . ",";
 
                 // Highlight color
                 $lines[] = "                'highlight_color' => " . $this->exportNullableStr($kpi['highlight_color'] ?? null) . ",";
+
+                // Graph types
+                $graphTypes = $kpi['graph_types'] ?? null;
+                if ($graphTypes && is_array($graphTypes)) {
+                    $escaped = array_map(fn($v) => addslashes($v), $graphTypes);
+                    $quoted = array_map(fn($v) => "'{$v}'", $escaped);
+                    $lines[] = "                'graph_types' => [" . implode(', ', $quoted) . "],";
+                } else {
+                    $lines[] = "                'graph_types' => null,";
+                }
 
                 // Target
                 $target = $kpi['target'] ?? [];
@@ -127,6 +139,7 @@ class ExportDataMappings extends Command
                 $lines[] = "                    'value' => " . $this->exportNumber($target['value'] ?? null) . ",";
                 $lines[] = "                    'is_percentage' => " . $this->exportBool($target['is_percentage'] ?? false) . ",";
                 $lines[] = "                ],";
+                $lines[] = "                'target_readable' => " . $this->buildReadableTarget($target) . ",";
 
                 $lines[] = "                'refresh_frequency' => " . $this->exportStr($kpi['refresh_frequency'] ?? null) . ",";
                 $lines[] = "            ],";
@@ -205,5 +218,45 @@ class ExportDataMappings extends Command
         $lines[] = "        ]";
 
         return implode("\n", $lines);
+    }
+
+    private function buildReadableFormula($formula): string
+    {
+        if ($formula === null || !isset($formula['items'])) {
+            return 'null';
+        }
+
+        $parts = [];
+
+        foreach ($formula['items'] as $item) {
+            $parts[] = match ($item['type'] ?? '') {
+                'variable' => $item['label'] ?? "Var[{$item['ref']}]",
+                'operator' => " {$item['op']} ",
+                'number' => (string) $item['value'],
+                default => '',
+            };
+        }
+
+        $readable = trim(implode('', $parts));
+        $escaped = addslashes($readable);
+
+        return "'{$escaped}'";
+    }
+
+    private function buildReadableTarget(array $target): string
+    {
+        $operator = $target['operator'] ?? null;
+        $value = $target['value'] ?? null;
+        $isPercentage = $target['is_percentage'] ?? false;
+
+        if ($operator === null || $value === null) {
+            return 'null';
+        }
+
+        $suffix = $isPercentage ? '%' : '';
+        $readable = "{$operator} {$value}{$suffix}";
+        $escaped = addslashes($readable);
+
+        return "'{$escaped}'";
     }
 }

@@ -11,6 +11,7 @@ export const LightDropdown = React.memo(function LightDropdown({
   disabled,
   className,
   placeholder,
+  allowDeselect,
   children,
 }: {
   value?: string;
@@ -18,6 +19,7 @@ export const LightDropdown = React.memo(function LightDropdown({
   disabled?: boolean;
   className?: string;
   placeholder?: string;
+  allowDeselect?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -114,7 +116,11 @@ export const LightDropdown = React.memo(function LightDropdown({
                 <div
                   role="option"
                   aria-selected={childProps.value === value}
-                  onClick={() => { onValueChange?.(childProps.value); setOpen(false); }}
+                  onClick={() => {
+                    const newVal = allowDeselect && childProps.value === value ? "" : childProps.value;
+                    onValueChange?.(newVal);
+                    setOpen(false);
+                  }}
                   className={cn(
                     "text-xs cursor-pointer rounded-sm px-2 py-1.5 select-none",
                     "hover:bg-accent hover:text-accent-foreground",

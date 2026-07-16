@@ -33,6 +33,7 @@ class KpiEndpointController extends Controller
                     $status = $dbRow?->last_status ?? 'pending';
                     $error = $dbRow?->last_error;
                     $lastSynced = $dbRow?->last_synced_at;
+                    $lastValidSynced = $dbRow?->last_valid_synced_at;
                     $freq = $keyConfig['refresh_frequency'] ?? $endpointConfig['refresh_frequency'] ?? 'instant';
 
                     // Build diagnostic string
@@ -75,6 +76,7 @@ class KpiEndpointController extends Controller
                         'refresh_frequency' => $freq,
                         'last_status' => $status,
                         'last_synced_at' => $lastSynced?->toISOString(),
+                        'last_valid_synced_at' => $lastValidSynced?->toISOString(),
                         'last_error' => $error,
                         'response_data' => $dbRow?->response_data,
                         'computed_data' => $dbRow?->computed_data,

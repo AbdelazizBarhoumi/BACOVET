@@ -184,6 +184,7 @@ class SyncInstantEndpoints extends Command
             'last_status' => 'ok',
             'last_error' => null,
             'last_synced_at' => $syncedAt,
+            'last_valid_synced_at' => $syncedAt,
         ];
 
         if ($existing) {

@@ -40,6 +40,7 @@ export type KpiEndpointRow = {
     refresh_frequency: string;
     last_status: 'ok' | 'error' | 'pending';
     last_synced_at: string | null;
+    last_valid_synced_at: string | null;
     last_error: string | null;
     response_data: unknown;
     computed_data: unknown;

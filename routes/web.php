@@ -40,6 +40,8 @@ Route::get('/unauthorized', fn () => Inertia::render('unauthorized'))->name('una
 
 Route::get('/v1/{any?}', fn () => view('v1'))->where('any', '.*')->name('v1');
 
+Route::get('/v2/{any?}', fn () => view('v2'))->where('any', '.*')->name('v2');
+
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 
 // Settings routes — public (used by standalone data page auth)
@@ -132,6 +134,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
             Route::get('/chain-info', [ProductionController::class, 'chainInfo']);
             Route::get('/kpis', [ProductionController::class, 'kpis']);
             Route::get('/confection-kpis', [ProductionController::class, 'confectionKpis']);
+            Route::get('/v2-kpis', [ProductionController::class, 'v2Kpis']);
             Route::get('/efficience-gauges', [ProductionController::class, 'efficienceGauges']);
             Route::get('/wip-gauges', [ProductionController::class, 'wipGauges']);
             Route::get('/stoppage-timeline', [ProductionController::class, 'stoppageTimeline']);

@@ -95,6 +95,77 @@ function formatPreviewValue(val: string): string {
   return val.length > 40 ? val.slice(0, 37) + "…" : val;
 }
 
+// -------- Graph Type Picker --------
+const GRAPH_TYPE_OPTIONS = [
+  "Big Number avec couleur",
+  "Line Chart (Courbe)",
+  "Gauge Chart (Jauge)",
+  "Combo Bar/Line",
+  "Pareto Chart (Interactif)",
+  "Horizontal Bar Chart",
+  "Area Chart (Graph. aires)",
+  "Chronologie (Timeline)",
+  "Bar Chart (par chaîne)",
+  "Donut Chart (Anneau)",
+  "Jauge Radiale",
+  "Pie Chart (Secteurs)",
+  "Podium ou Top 3 List",
+  "Scatter Plot (Nuage)",
+  "Line Chart mensuel",
+  "Liste de OF en cours non soldés",
+  "Not specified",
+];
+
+function GraphTypePicker({ value, onChange }: { value: string[]; onChange: (types: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const toggle = (type: string) => {
+    const next = value.includes(type) ? value.filter((t) => t !== type) : [...value, type];
+    onChange(next);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full text-left bg-card border border-border rounded px-2 py-1 text-[11px] hover:border-primary/50 transition-colors cursor-pointer min-h-[28px]"
+      >
+        {value.length === 0 ? (
+          <span className="text-muted-foreground italic">Aucun</span>
+        ) : value.length <= 2 ? (
+          value.join(", ")
+        ) : (
+          <span>{value[0]} +{value.length - 1}</span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-64 max-h-60 overflow-auto bg-card border border-border rounded-md shadow-lg p-2">
+          {GRAPH_TYPE_OPTIONS.map((type) => (
+            <label key={type} className="flex items-center gap-2 py-1 px-1 text-[11px] hover:bg-muted/50 rounded cursor-pointer">
+              <input
+                type="checkbox"
+                checked={value.includes(type)}
+                onChange={() => toggle(type)}
+                className="h-3 w-3 rounded border-border"
+              />
+              {type}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Dropdowns: consistent hover/focus affordance, clear disabled state.
 const selectBase =
   "bg-card border border-border rounded-md px-2.5 py-1.5 text-xs transition-colors cursor-pointer " +
@@ -709,6 +780,7 @@ const EndpointSelector = React.memo(function EndpointSelector({
         onValueChange={(val) => onEndpointChange(val || null)}
         className={`w-64 ${!row.endpoint ? "text-muted-foreground border-dashed" : ""}`}
         placeholder="— sélectionner —"
+        allowDeselect
       >
         <div className="px-2 py-1" role="presentation">
           <input
@@ -1610,7 +1682,7 @@ function DataMappingPage() {
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              {["", "KPI", "Modules", "Name", "Variable", "Aperçu JSON", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Test Live", ""].map((h, i) => (
+              {["", "KPI", "Modules", "Name", "Variable", "Aperçu JSON", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Type de graphique", "Test Live", ""].map((h, i) => (
                 <th key={`th-${i}`} className="text-left font-semibold px-2 py-2 border-b border-border whitespace-nowrap">
                   {h === "Aperçu JSON" ? (
                     <span className="inline-flex items-center gap-1">
@@ -2190,6 +2262,15 @@ function DataMappingPage() {
                         <DataSelectItem value="monthly">Mensuel</DataSelectItem>
                         <DataSelectItem value="yearly">Annuel</DataSelectItem>
                       </DataSelect>
+                    </td>
+                  ) : null}
+                  {/* Type de graphique column */}
+                  {isFirstInKpi ? (
+                    <td rowSpan={ks} className="px-2 py-1.5 min-w-[180px]">
+                      <GraphTypePicker
+                        value={r.graph_types ?? []}
+                        onChange={(types) => updateImmediate(r.id, { graph_types: types })}
+                      />
                     </td>
                   ) : null}
                   {/* Test Live column — one button per KPI group, formula result */}

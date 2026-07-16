@@ -62,6 +62,7 @@ export interface DataMappingRow {
     cible_value: number | null;
     cible_is_percentage: boolean;
     refresh_frequency: string;
+    graph_types: string[] | null;
     user_id: number | null;
     created_at: string;
     updated_at: string;

@@ -1505,6 +1505,326 @@ class ProductionController extends Controller
         return response()->json(['data' => $result]);
     }
 
+    /**
+     * V2 KPIs: reads metadata from config/data-mappings.php, values from kpi_data table
+     */
+    public function v2Kpis(Request $request): JsonResponse
+    {
+        $module = $request->query('module', 'production');
+
+        // 1. Read KPI definitions from config file
+        $config = config('data-mappings');
+        $kpis = $config[$module]['kpis'] ?? [];
+
+        if (empty($kpis)) {
+            return response()->json(['data' => []]);
+        }
+
+        // 2. Get kpi_data rows for these KPI codes
+        $kpiCodes = array_unique(array_column($kpis, 'kpi'));
+        $kpiDataRows = \App\Models\KpiData::whereIn('kpi_code', $kpiCodes)->get();
+
+        // Index kpi_data by kpi_code -> variable_key -> row
+        $kpiDataIndex = [];
+        foreach ($kpiDataRows as $row) {
+            $kpiDataIndex[$row->kpi_code][$row->variable_key] = $row;
+        }
+
+        $result = [];
+        foreach ($kpis as $kpiDef) {
+            $kpiCode = $kpiDef['kpi'];
+            $variables = $kpiDef['variables'] ?? [];
+
+            // Process each variable
+            $variableValues = [];
+            $variableRawArrays = []; // full raw_data per variable
+            $rawData = [];
+            $latestStatus = 'pending';
+            $latestSyncedAt = null;
+            $latestValidSyncedAt = null;
+            $filterKey = null;
+            $filterOptions = null;
+
+            foreach ($variables as $varDef) {
+                $varKey = $varDef['variable_key'] ?? null;
+                if (empty($varKey)) continue;
+
+                $dataRow = $kpiDataIndex[$kpiCode][$varKey] ?? null;
+                if (!$dataRow) continue;
+
+                // Track status and sync times
+                if ($latestSyncedAt === null || $dataRow->last_synced_at?->greaterThan($latestSyncedAt)) {
+                    $latestStatus = $dataRow->last_status ?? 'pending';
+                    $latestSyncedAt = $dataRow->last_synced_at;
+                }
+                if ($dataRow->last_valid_synced_at && ($latestValidSyncedAt === null || $dataRow->last_valid_synced_at?->greaterThan($latestValidSyncedAt))) {
+                    $latestValidSyncedAt = $dataRow->last_valid_synced_at;
+                }
+
+                $raw = $dataRow->response_data['raw'] ?? null;
+                $isComplex = ($varDef['variable_type'] ?? 'Direct') === 'Complex';
+
+                if ($isComplex && is_array($raw) && !empty($raw)) {
+                    $hasFn = !empty($varDef['has_function']);
+                    if ($hasFn) {
+                        // has_function=true: apply fn to get scalar
+                        $fn = $varDef['fn'] ?? 'Latest';
+                        $variableValues[$varKey] = $this->applyFunction($raw, $varKey, $fn);
+                    } else {
+                        // has_function=false/null: store full raw array for row-by-row computation
+                        $variableValues[$varKey] = array_column($raw, $varKey);
+                    }
+                    $variableRawArrays[$varKey] = $raw;
+                    $rawData = array_merge($rawData, $raw);
+
+                    // Collect filter options if is_filtered
+                    if (!empty($varDef['is_filtered']) && !empty($varDef['filter_key'])) {
+                        $filterKey = $varDef['filter_key'];
+                        $filterOptions = array_unique(array_column($raw, $filterKey));
+                        $filterOptions = array_values(array_filter($filterOptions));
+                    }
+                } else {
+                    // Direct: use computed_data value as-is
+                    $val = $dataRow->computed_data['value'] ?? $dataRow->response_data['extracted'] ?? null;
+                    $variableValues[$varKey] = $val;
+                    if (is_array($raw)) {
+                        $rawData = array_merge($rawData, $raw);
+                    }
+                }
+            }
+
+            // Compute value: apply formula if available
+            $computedValue = null;
+            $formula = $kpiDef['formula'] ?? null;
+            if ($formula && isset($formula['items']) && !empty($variableValues)) {
+                // Check if any variable is an array (needs row-by-row computation)
+                $hasArrayVar = false;
+                foreach ($variableValues as $vv) {
+                    if (is_array($vv)) { $hasArrayVar = true; break; }
+                }
+
+                if ($hasArrayVar && count($variableRawArrays) >= 2) {
+                    // Row-by-row: join raw arrays by common key and compute per row
+                    $computedValue = $this->computeFormulaRowByRow($formula['items'], $variableRawArrays);
+                } else {
+                    $computedValue = $this->computeFormula($formula['items'], $variableValues);
+                }
+            } elseif (!empty($variableValues)) {
+                $computedValue = reset($variableValues);
+            }
+
+            // Target from config
+            $target = $kpiDef['target'] ?? [];
+            $targetOp = $target['operator'] ?? null;
+            $targetVal = $target['value'] ?? null;
+            $targetIsPct = $target['is_percentage'] ?? false;
+            $targetReadable = $kpiDef['target_readable'] ?? null;
+
+            // Collect endpoint URLs, check for missing data
+            $endpoints = array_unique(array_filter(array_column($variables, 'endpoint')));
+            $hasMissingData = false;
+            foreach ($variables as $var) {
+                if (empty($var['endpoint']) || empty($var['variable_key'])) {
+                    $hasMissingData = true;
+                    break;
+                }
+            }
+
+            $result[] = [
+                'kpi_code' => $kpiCode,
+                'name' => $kpiDef['name'] ?? '',
+                'variable' => $variables[0]['variable'] ?? '',
+                'value' => $computedValue,
+                'status' => $latestStatus,
+                'synced_at' => $latestSyncedAt?->toISOString(),
+                'last_valid_synced_at' => $latestValidSyncedAt?->toISOString(),
+                'formula_readable' => $kpiDef['formula_readable'] ?? null,
+                'target_operator' => $targetOp,
+                'target_value' => $targetVal,
+                'target_is_percentage' => $targetIsPct,
+                'target_readable' => $targetReadable,
+                'refresh_frequency' => $kpiDef['refresh_frequency'] ?? 'instant',
+                'highlight_color' => $kpiDef['highlight_color'] ?? null,
+                'endpoints' => array_values($endpoints),
+                'has_missing_data' => $hasMissingData,
+                'graph_types' => $kpiDef['graph_types'] ?? null,
+                'raw_data' => !empty($rawData) ? $rawData : null,
+                'filter_key' => $filterKey,
+            ];
+        }
+
+        return response()->json(['data' => $result]);
+    }
+
+    /**
+     * Apply aggregation function to raw_data rows for a variable
+     */
+    private function applyFunction(array $raw, string $varKey, string $fn)
+    {
+        $values = [];
+        foreach ($raw as $row) {
+            if (is_array($row) && array_key_exists($varKey, $row)) {
+                $v = $row[$varKey];
+                if (is_numeric($v)) $values[] = (float) $v;
+            }
+        }
+        if (empty($values)) return null;
+
+        return match ($fn) {
+            'Sum' => array_sum($values),
+            'Average' => array_sum($values) / count($values),
+            'Min' => min($values),
+            'Max' => max($values),
+            'Count' => count($values),
+            'First' => $values[0],
+            'Latest' => end($values),
+            default => end($values),
+        };
+    }
+
+    /**
+     * Compute formula value from items array and variable values.
+     * Formula variables are matched positionally to config variables.
+     */
+    private function computeFormula(array $items, array $variableValues)
+    {
+        // Build ordered list of variable values (by position in config)
+        $orderedValues = array_values($variableValues);
+        $varIndex = 0;
+        $result = null;
+        $operator = null;
+
+        foreach ($items as $item) {
+            $type = $item['type'] ?? '';
+
+            if ($type === 'variable') {
+                // Use positional matching: first formula var = first config var, etc.
+                $val = $varIndex < count($orderedValues) ? $orderedValues[$varIndex] : null;
+                $varIndex++;
+
+                if ($val === null) return null;
+                // If value is an array (has_function=false), use first element for formula
+                if (is_array($val)) {
+                    $val = reset($val);
+                }
+                $numVal = is_numeric($val) ? (float) $val : null;
+                if ($numVal === null) return null;
+
+                if ($result === null) {
+                    $result = $numVal;
+                } elseif ($operator !== null) {
+                    $result = match ($operator) {
+                        '*' => $result * $numVal,
+                        '/' => $numVal != 0 ? $result / $numVal : null,
+                        '+' => $result + $numVal,
+                        '-' => $result - $numVal,
+                        default => $result,
+                    };
+                    $operator = null;
+                }
+            } elseif ($type === 'operator') {
+                $operator = $item['op'] ?? null;
+            } elseif ($type === 'number') {
+                $numVal = (float) ($item['value'] ?? 0);
+                if ($operator !== null && $result !== null) {
+                    $result = match ($operator) {
+                        '*' => $result * $numVal,
+                        '/' => $numVal != 0 ? $result / $numVal : null,
+                        '+' => $result + $numVal,
+                        '-' => $result - $numVal,
+                        default => $result,
+                    };
+                    $operator = null;
+                } elseif ($result === null) {
+                    $result = $numVal;
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Compute formula row-by-row across multiple variable raw arrays.
+     * Joins rows by common fields and applies formula per row.
+     */
+    private function computeFormulaRowByRow(array $items, array $variableRawArrays)
+    {
+        $varKeys = array_keys($variableRawArrays);
+        if (count($varKeys) < 2) return null;
+
+        // Find common fields across all raw arrays for joining
+        $allKeys = array_keys($variableRawArrays);
+        $firstRaw = reset($variableRawArrays);
+        if (!is_array($firstRaw) || empty($firstRaw)) return null;
+
+        $commonFields = array_keys($firstRaw[0]);
+        foreach ($variableRawArrays as $raw) {
+            if (!empty($raw) && is_array($raw[0])) {
+                $commonFields = array_intersect($commonFields, array_keys($raw[0]));
+            }
+        }
+
+        // Use the most specific common field as join key (prefer EmployeeName, then ProdGroup, then first common)
+        $joinKey = null;
+        foreach (['EmployeeName', 'EmployeeNo', 'ProdGroup', 'Chaine', 'IDOFabrication'] as $candidate) {
+            if (in_array($candidate, $commonFields)) {
+                $joinKey = $candidate;
+                break;
+            }
+        }
+        if (!$joinKey && !empty($commonFields)) {
+            $joinKey = reset($commonFields);
+        }
+        if (!$joinKey) return null;
+
+        // Build index for each variable's raw_data by join key
+        $indexed = [];
+        foreach ($variableRawArrays as $varKey => $raw) {
+            foreach ($raw as $row) {
+                $joinVal = $row[$joinKey] ?? null;
+                if ($joinVal !== null) {
+                    $indexed[$varKey][$joinVal] = $row;
+                }
+            }
+        }
+
+        // Get all unique join values
+        $allJoinValues = [];
+        foreach ($indexed as $varIdx) {
+            $allJoinValues = array_merge($allJoinValues, array_keys($varIdx));
+        }
+        $allJoinValues = array_unique($allJoinValues);
+
+        // For each join value, extract variable values and compute formula
+        $results = [];
+        foreach ($allJoinValues as $joinVal) {
+            $rowValues = [];
+            foreach ($varKeys as $varKey) {
+                $row = $indexed[$varKey][$joinVal] ?? null;
+                $rowValues[$varKey] = $row[$varKey] ?? null;
+            }
+
+            // Check if all values are present
+            $allPresent = true;
+            foreach ($rowValues as $rv) {
+                if ($rv === null) { $allPresent = false; break; }
+            }
+            if (!$allPresent) continue;
+
+            // Compute formula for this row
+            $computed = $this->computeFormula($items, $rowValues);
+            if ($computed !== null) {
+                $results[] = [
+                    $joinKey => $joinVal,
+                    'value' => round($computed, 2),
+                ];
+            }
+        }
+
+        return $results;
+    }
+
     private function getKpiValue(array $kpiMap, string $kpiCode): ?array
     {
         if (!isset($kpiMap[$kpiCode])) {

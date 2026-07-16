@@ -4,8 +4,13 @@ import { Loader2, Lock, Mail, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const EMAILS = [
   { email: "superadmin@bacovet.com", name: "Super admin" },
-  { email: "admin@bacovet.com", name: "Admin" },
-  { email: "user@bacovet.com", name: "User" },
+  { email: "m.chrifa@novationcity.com", name: "M. Chrifa" },
+  { email: "benhadjmbareknourhene@gmail.com", name: "Ben Hadj Mbarek Nourhene" },
+  { email: "intissar@bacovet.com", name: "Intissar" },
+  { email: "azer.boughrara@bacovet.com", name: "Azer Boughrara" },
+  { email: "amira@bacovet.com", name: "Amira" },
+  { email: "qualite@bacovet.com", name: "Qualite" },
+  { email: "saadia@bacovet.com", name: "Saadia" },
 ];
 
 type Step = "email" | "password" | "create-password";

@@ -369,6 +369,7 @@ export default function KpiEndpointsPage() {
                                             <th className="py-2 px-3 text-left">Freq</th>
                                             <th className="py-2 px-3 text-left">Status</th>
                                             <th className="py-2 px-3 text-left">Last Sync</th>
+                                            <th className="py-2 px-3 text-left">Last Valid Sync</th>
                                             <th className="py-2 px-3 text-left">Value</th>
                                             <th className="py-2 px-3 text-left">Diagnostic</th>
                                             <th className="py-2 px-3 text-right">Actions</th>
@@ -403,6 +404,9 @@ export default function KpiEndpointsPage() {
                                                     </td>
                                                     <td className="px-3 text-xs text-muted-foreground">
                                                         {timeAgo(row.last_synced_at)}
+                                                    </td>
+                                                    <td className="px-3 text-xs text-muted-foreground">
+                                                        {row.last_valid_synced_at ? timeAgo(row.last_valid_synced_at) : 'jamais'}
                                                     </td>
                                                     <td className="px-3 text-xs font-bold tabular-nums">
                                                         {extractedVal != null ? String(extractedVal) : '—'}

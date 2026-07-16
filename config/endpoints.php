@@ -1225,23 +1225,6 @@ return [
             ],
         ],
     ],
-    'api/data/q/wip_chaine' => [
-        'refresh_frequency' => 'instant',
-        'all_frequencies' => ['instant'],
-        'keys' => [
-            [
-                'variable_key' => 'WIP_Chaine',
-                'variable_type' => 'Complex',
-                'is_filtered' => true,
-                'filter_key' => 'ProdGroup',
-                'filter_value' => null,
-                'has_function' => true,
-                'fn' => 'First',
-                'refresh_frequency' => 'instant',
-                'kpis' => ['F-REQ-205'],
-            ],
-        ],
-    ],
     'api/data/vwdefect' => [
         'refresh_frequency' => 'instant',
         'all_frequencies' => ['instant'],

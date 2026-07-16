@@ -17,11 +17,13 @@ class KpiData extends Model
         'last_status',
         'last_error',
         'last_synced_at',
+        'last_valid_synced_at',
     ];
 
     protected $casts = [
         'response_data' => 'array',
         'computed_data' => 'array',
         'last_synced_at' => 'datetime',
+        'last_valid_synced_at' => 'datetime',
     ];
 }

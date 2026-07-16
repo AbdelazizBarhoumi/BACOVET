@@ -163,6 +163,7 @@ class KpiEndpointService
                 'last_status' => 'ok',
                 'last_error' => null,
                 'last_synced_at' => now(),
+                'last_valid_synced_at' => now(),
             ]);
         } else {
             KpiData::create([
@@ -176,6 +177,7 @@ class KpiEndpointService
                 'last_status' => 'ok',
                 'last_error' => null,
                 'last_synced_at' => now(),
+                'last_valid_synced_at' => now(),
             ]);
         }
     }

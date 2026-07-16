@@ -25,6 +25,7 @@ class DataMapping extends Model
         'cible_value',
         'cible_is_percentage',
         'refresh_frequency',
+        'graph_types',
         'user_id',
     ];
 
@@ -38,6 +39,7 @@ class DataMapping extends Model
         'cible_is_percentage' => 'boolean',
         'modules' => 'array',
         'formula' => 'array',
+        'graph_types' => 'array',
     ];
 
     public function user()

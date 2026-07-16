@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::show
- * @see app/Http/Controllers/Api/KpiEndpointController.php:92
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:94
  * @route '/admin/kpi-endpoints/{kpiCode}'
  */
 export const show = (args: { kpiCode: string | number } | [kpiCode: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ show.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::show
- * @see app/Http/Controllers/Api/KpiEndpointController.php:92
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:94
  * @route '/admin/kpi-endpoints/{kpiCode}'
  */
 show.url = (args: { kpiCode: string | number } | [kpiCode: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -122,7 +122,7 @@ show.url = (args: { kpiCode: string | number } | [kpiCode: string | number ] | s
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::show
- * @see app/Http/Controllers/Api/KpiEndpointController.php:92
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:94
  * @route '/admin/kpi-endpoints/{kpiCode}'
  */
 show.get = (args: { kpiCode: string | number } | [kpiCode: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -131,7 +131,7 @@ show.get = (args: { kpiCode: string | number } | [kpiCode: string | number ] | s
 })
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::show
- * @see app/Http/Controllers/Api/KpiEndpointController.php:92
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:94
  * @route '/admin/kpi-endpoints/{kpiCode}'
  */
 show.head = (args: { kpiCode: string | number } | [kpiCode: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -141,7 +141,7 @@ show.head = (args: { kpiCode: string | number } | [kpiCode: string | number ] | 
 
     /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::show
- * @see app/Http/Controllers/Api/KpiEndpointController.php:92
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:94
  * @route '/admin/kpi-endpoints/{kpiCode}'
  */
     const showForm = (args: { kpiCode: string | number } | [kpiCode: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -151,7 +151,7 @@ show.head = (args: { kpiCode: string | number } | [kpiCode: string | number ] | 
 
             /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::show
- * @see app/Http/Controllers/Api/KpiEndpointController.php:92
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:94
  * @route '/admin/kpi-endpoints/{kpiCode}'
  */
         showForm.get = (args: { kpiCode: string | number } | [kpiCode: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -160,7 +160,7 @@ show.head = (args: { kpiCode: string | number } | [kpiCode: string | number ] | 
         })
             /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::show
- * @see app/Http/Controllers/Api/KpiEndpointController.php:92
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:94
  * @route '/admin/kpi-endpoints/{kpiCode}'
  */
         showForm.head = (args: { kpiCode: string | number } | [kpiCode: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -176,7 +176,7 @@ show.head = (args: { kpiCode: string | number } | [kpiCode: string | number ] | 
     show.form = showForm
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fire
- * @see app/Http/Controllers/Api/KpiEndpointController.php:103
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:105
  * @route '/admin/kpi-endpoints/fire'
  */
 export const fire = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -191,7 +191,7 @@ fire.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fire
- * @see app/Http/Controllers/Api/KpiEndpointController.php:103
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:105
  * @route '/admin/kpi-endpoints/fire'
  */
 fire.url = (options?: RouteQueryOptions) => {
@@ -200,7 +200,7 @@ fire.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fire
- * @see app/Http/Controllers/Api/KpiEndpointController.php:103
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:105
  * @route '/admin/kpi-endpoints/fire'
  */
 fire.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -210,7 +210,7 @@ fire.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fire
- * @see app/Http/Controllers/Api/KpiEndpointController.php:103
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:105
  * @route '/admin/kpi-endpoints/fire'
  */
     const fireForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -220,7 +220,7 @@ fire.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fire
- * @see app/Http/Controllers/Api/KpiEndpointController.php:103
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:105
  * @route '/admin/kpi-endpoints/fire'
  */
         fireForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -231,7 +231,7 @@ fire.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     fire.form = fireForm
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:153
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:155
  * @route '/admin/kpi-endpoints/fire-all'
  */
 export const fireAll = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -246,7 +246,7 @@ fireAll.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:153
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:155
  * @route '/admin/kpi-endpoints/fire-all'
  */
 fireAll.url = (options?: RouteQueryOptions) => {
@@ -255,7 +255,7 @@ fireAll.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:153
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:155
  * @route '/admin/kpi-endpoints/fire-all'
  */
 fireAll.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -265,7 +265,7 @@ fireAll.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:153
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:155
  * @route '/admin/kpi-endpoints/fire-all'
  */
     const fireAllForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -275,7 +275,7 @@ fireAll.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:153
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:155
  * @route '/admin/kpi-endpoints/fire-all'
  */
         fireAllForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

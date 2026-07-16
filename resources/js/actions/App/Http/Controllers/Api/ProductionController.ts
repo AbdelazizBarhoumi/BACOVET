@@ -234,6 +234,84 @@ confectionKpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => 
     
     confectionKpis.form = confectionKpisForm
 /**
+* @see \App\Http\Controllers\Api\ProductionController::v2Kpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1511
+ * @route '/production/v2-kpis'
+ */
+export const v2Kpis = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: v2Kpis.url(options),
+    method: 'get',
+})
+
+v2Kpis.definition = {
+    methods: ["get","head"],
+    url: '/production/v2-kpis',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\Api\ProductionController::v2Kpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1511
+ * @route '/production/v2-kpis'
+ */
+v2Kpis.url = (options?: RouteQueryOptions) => {
+    return v2Kpis.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Api\ProductionController::v2Kpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1511
+ * @route '/production/v2-kpis'
+ */
+v2Kpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: v2Kpis.url(options),
+    method: 'get',
+})
+/**
+* @see \App\Http\Controllers\Api\ProductionController::v2Kpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1511
+ * @route '/production/v2-kpis'
+ */
+v2Kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: v2Kpis.url(options),
+    method: 'head',
+})
+
+    /**
+* @see \App\Http\Controllers\Api\ProductionController::v2Kpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1511
+ * @route '/production/v2-kpis'
+ */
+    const v2KpisForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: v2Kpis.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\Api\ProductionController::v2Kpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1511
+ * @route '/production/v2-kpis'
+ */
+        v2KpisForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: v2Kpis.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\Api\ProductionController::v2Kpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1511
+ * @route '/production/v2-kpis'
+ */
+        v2KpisForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: v2Kpis.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    v2Kpis.form = v2KpisForm
+/**
 * @see \App\Http\Controllers\Api\ProductionController::efficienceGauges
  * @see app/Http/Controllers/Api/ProductionController.php:360
  * @route '/production/efficience-gauges'
@@ -2046,6 +2124,6 @@ serigraphieRejets.head = (options?: RouteQueryOptions): RouteDefinition<'head'> 
         })
     
     serigraphieRejets.form = serigraphieRejetsForm
-const ProductionController = { chainInfo, kpis, confectionKpis, efficienceGauges, wipGauges, stoppageTimeline, ofDonuts, efficienceTrend, topOperators, wip, soProgress, orderTracking, breakdown, inlineEndline, tauxArchivage, respectTempsEstime, tauxTempsAcceptes, coupeCoverage, coupeChainCoverage, coupeTagging, coupeOfs, coupeDepartage, coupeQteDepartage, serigraphieCoverage, serigraphieFlux, serigraphieRejets }
+const ProductionController = { chainInfo, kpis, confectionKpis, v2Kpis, efficienceGauges, wipGauges, stoppageTimeline, ofDonuts, efficienceTrend, topOperators, wip, soProgress, orderTracking, breakdown, inlineEndline, tauxArchivage, respectTempsEstime, tauxTempsAcceptes, coupeCoverage, coupeChainCoverage, coupeTagging, coupeOfs, coupeDepartage, coupeQteDepartage, serigraphieCoverage, serigraphieFlux, serigraphieRejets }
 
 export default ProductionController
