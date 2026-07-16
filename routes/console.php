@@ -57,3 +57,24 @@ Schedule::command('sync:gpro')
     ->everyMinute()
     ->name('sync-gpro')
     ->withoutOverlapping(5);
+
+// KPI Endpoint scheduling — instant fired concurrently, others dispatched to queue
+Schedule::command('sync:instant-endpoints')
+    ->everyMinute()
+    ->name('kpi-instant')
+    ->withoutOverlapping();
+
+Schedule::command('sync:kpi-endpoints', ['--frequency=daily', '--queue'])
+    ->dailyAt('02:00')
+    ->name('kpi-daily')
+    ->withoutOverlapping(10);
+
+Schedule::command('sync:kpi-endpoints', ['--frequency=weekly', '--queue'])
+    ->weeklyOn(1, '03:00')
+    ->name('kpi-weekly')
+    ->withoutOverlapping(10);
+
+Schedule::command('sync:kpi-endpoints', ['--frequency=monthly', '--queue'])
+    ->monthlyOn(1, '04:00')
+    ->name('kpi-monthly')
+    ->withoutOverlapping(10);

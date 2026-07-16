@@ -3,6 +3,7 @@ import NovacityProxyController from './NovacityProxyController'
 import AuthController from './AuthController'
 import DataAuthController from './DataAuthController'
 import AdminController from './AdminController'
+import KpiEndpointController from './KpiEndpointController'
 import DataSnapshotController from './DataSnapshotController'
 import QualityController from './QualityController'
 import ProductionController from './ProductionController'
@@ -19,6 +20,7 @@ NovacityProxyController: Object.assign(NovacityProxyController, NovacityProxyCon
 AuthController: Object.assign(AuthController, AuthController),
 DataAuthController: Object.assign(DataAuthController, DataAuthController),
 AdminController: Object.assign(AdminController, AdminController),
+KpiEndpointController: Object.assign(KpiEndpointController, KpiEndpointController),
 DataSnapshotController: Object.assign(DataSnapshotController, DataSnapshotController),
 QualityController: Object.assign(QualityController, QualityController),
 ProductionController: Object.assign(ProductionController, ProductionController),

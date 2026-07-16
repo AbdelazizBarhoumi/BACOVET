@@ -25,6 +25,7 @@ export type RolePage =
     | '/developpement'
     | '/admin'
     | '/methods'
+    | '/kpi-endpoints'
     | '/unauthorized'
     | '/dashboard';
 
@@ -47,6 +48,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/developpement',
         '/admin',
         '/methods',
+        '/kpi-endpoints',
         '/unauthorized',
     ],
     direction: [

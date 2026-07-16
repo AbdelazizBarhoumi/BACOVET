@@ -1447,4 +1447,77 @@ class ProductionController extends Controller
 
         return response()->json(['data' => $data]);
     }
+
+    /**
+     * Confection KPIs from kpi_data table
+     */
+    public function confectionKpis(Request $request): JsonResponse
+    {
+        $kpiCodes = [
+            'F-REQ-102', 'F-REQ-104', 'F-REQ-201', 'F-REQ-202', 'F-REQ-203',
+            'F-REQ-204', 'F-REQ-205', 'F-REQ-206', 'F-REQ-207', 'F-REQ-210',
+            'F-REQ-211', 'F-REQ-212', 'F-REQ-213', 'F-REQ-214', 'F-REQ-215',
+            'F-REQ-301', 'F-REQ-303', 'F-REQ-304', 'F-REQ-305', 'F-REQ-306',
+            'F-REQ-307', 'F-REQ-308', 'F-REQ-310', 'F-REQ-312',
+        ];
+
+        $rows = \App\Models\KpiData::whereIn('kpi_code', $kpiCodes)->get();
+
+        $kpiMap = [];
+        foreach ($rows as $row) {
+            $kpiMap[$row->kpi_code][] = [
+                'variable_key' => $row->variable_key,
+                'value' => $row->computed_data['value'] ?? $row->response_data['extracted'] ?? null,
+                'raw' => $row->response_data,
+                'last_status' => $row->last_status,
+                'last_synced_at' => $row->last_synced_at?->toISOString(),
+            ];
+        }
+
+        // Map to named fields for the frontend
+        $result = [
+            'br_gtd' => $this->getKpiValue($kpiMap, 'F-REQ-102'),
+            'rft' => $this->getKpiValue($kpiMap, 'F-REQ-104'),
+            'efficience_operateur' => $this->getKpiValue($kpiMap, 'F-REQ-201'),
+            'efficience_chaine' => $this->getKpiValue($kpiMap, 'F-REQ-202'),
+            'efficience_cumulee' => $this->getKpiValue($kpiMap, 'F-REQ-203'),
+            'owe' => $this->getKpiValue($kpiMap, 'F-REQ-204'),
+            'wip' => $this->getKpiValue($kpiMap, 'F-REQ-205'),
+            'wip_optimal' => $this->getKpiValue($kpiMap, 'F-REQ-206'),
+            'arrets_non_planifies' => $this->getKpiValue($kpiMap, 'F-REQ-207'),
+            'top_operateurs' => $this->getKpiValue($kpiMap, 'F-REQ-210'),
+            'sam' => $this->getKpiValue($kpiMap, 'F-REQ-211'),
+            'sot' => $this->getKpiValue($kpiMap, 'F-REQ-212'),
+            'effectifs' => $this->getKpiValue($kpiMap, 'F-REQ-213'),
+            'code_article' => $this->getKpiValue($kpiMap, 'F-REQ-214'),
+            'designation_article' => $this->getKpiValue($kpiMap, 'F-REQ-215'),
+            'of_confection' => $this->getKpiValue($kpiMap, 'F-REQ-301'),
+            'quantite_of' => $this->getKpiValue($kpiMap, 'F-REQ-303'),
+            'so_progress' => $this->getKpiValue($kpiMap, 'F-REQ-304'),
+            'taux_avancement_of' => $this->getKpiValue($kpiMap, 'F-REQ-305'),
+            'bpd' => $this->getKpiValue($kpiMap, 'F-REQ-306'),
+            'epd' => $this->getKpiValue($kpiMap, 'F-REQ-307'),
+            'ehd' => $this->getKpiValue($kpiMap, 'F-REQ-308'),
+            'couverture_chaine' => $this->getKpiValue($kpiMap, 'F-REQ-310'),
+            'objectif_chaine' => $this->getKpiValue($kpiMap, 'F-REQ-312'),
+        ];
+
+        return response()->json(['data' => $result]);
+    }
+
+    private function getKpiValue(array $kpiMap, string $kpiCode): ?array
+    {
+        if (!isset($kpiMap[$kpiCode])) {
+            return null;
+        }
+
+        $entries = $kpiMap[$kpiCode];
+        $latest = collect($entries)->sortByDesc('last_synced_at')->first();
+
+        return [
+            'value' => $latest['value'],
+            'status' => $latest['last_status'],
+            'synced_at' => $latest['last_synced_at'],
+        ];
+    }
 }

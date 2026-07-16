@@ -257,3 +257,43 @@ export const fetchRespectTempsEstime = () =>
 export const fetchTauxTempsAcceptes = () =>
     apiGet<MethodsKpiResponse & { accepted: number }>('/taux-temps-acceptes');
 
+// ── Confection KPIs from kpi_data table ─────────────────────────────────────
+
+export type ConfectionKpiValue = {
+    value: number | string | null;
+    status: string;
+    synced_at: string | null;
+};
+
+export type ConfectionKpisResponse = {
+    data: {
+        br_gtd: ConfectionKpiValue | null;
+        rft: ConfectionKpiValue | null;
+        efficience_operateur: ConfectionKpiValue | null;
+        efficience_chaine: ConfectionKpiValue | null;
+        efficience_cumulee: ConfectionKpiValue | null;
+        owe: ConfectionKpiValue | null;
+        wip: ConfectionKpiValue | null;
+        wip_optimal: ConfectionKpiValue | null;
+        arrets_non_planifies: ConfectionKpiValue | null;
+        top_operateurs: ConfectionKpiValue | null;
+        sam: ConfectionKpiValue | null;
+        sot: ConfectionKpiValue | null;
+        effectifs: ConfectionKpiValue | null;
+        code_article: ConfectionKpiValue | null;
+        designation_article: ConfectionKpiValue | null;
+        of_confection: ConfectionKpiValue | null;
+        quantite_of: ConfectionKpiValue | null;
+        so_progress: ConfectionKpiValue | null;
+        taux_avancement_of: ConfectionKpiValue | null;
+        bpd: ConfectionKpiValue | null;
+        epd: ConfectionKpiValue | null;
+        ehd: ConfectionKpiValue | null;
+        couverture_chaine: ConfectionKpiValue | null;
+        objectif_chaine: ConfectionKpiValue | null;
+    };
+};
+
+export const fetchConfectionKpis = (filters?: Record<string, string>) =>
+    apiGet<ConfectionKpisResponse>('/confection-kpis', filters);
+

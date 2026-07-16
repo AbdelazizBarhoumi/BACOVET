@@ -2,16 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import { Card, LineKpi, BarKpi, DonutKpi } from "@/components/v1/primitives";
 import {
-  fetchProductionChainInfo,
-  fetchOrderTracking,
-  fetchProductionTrend,
-  fetchProductionStoppages,
-  type ChainInfo,
-  type OrderTrackingItem,
-  type TrendItem,
-  type StoppageItem,
+  fetchConfectionKpis,
+  type ConfectionKpisResponse,
 } from "@/services/productionApi";
-import { useLiveData } from "@/hooks/use-live-data";
 
 // ─── Data shape matching the mock structure ──────────────────────────────────
 
@@ -51,52 +44,54 @@ interface ConfectionData {
   cumulRestant: number;
 }
 
+// ─── Helper to extract numeric value from kpi_data ──────────────────────────
+
+function extractNumber(val: number | string | null | undefined): number {
+  if (val == null) return 0;
+  const n = typeof val === "string" ? parseFloat(val) : val;
+  return isNaN(n) ? 0 : n;
+}
+
+function extractString(val: number | string | null | undefined, fallback: string = "—"): string {
+  if (val == null) return fallback;
+  return String(val);
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Page() {
   const [data, setData] = useState<ConfectionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { refreshIntervalSec } = useLiveData();
 
   const fetchData = useCallback(async () => {
     try {
-      const [chainsRes, orderRes, trendRes, stoppagesRes] = await Promise.allSettled([
-        fetchProductionChainInfo(),
-        fetchOrderTracking(),
-        fetchProductionTrend(),
-        fetchProductionStoppages(),
-      ]);
+      const res = await fetchConfectionKpis();
+      const kpi = res.data;
 
-      const chains =
-        chainsRes.status === "fulfilled"
-          ? (chainsRes.value as { data: ChainInfo[] }).data
-          : [];
-      const orders =
-        orderRes.status === "fulfilled"
-          ? (orderRes.value as { data: OrderTrackingItem[] }).data
-          : [];
-      const trend =
-        trendRes.status === "fulfilled"
-          ? (trendRes.value as { data: TrendItem[] }).data
-          : [];
-      const stoppages =
-        stoppagesRes.status === "fulfilled"
-          ? (stoppagesRes.value as { data: StoppageItem[] }).data
-          : [];
-
-      const chain = chains[0];
-      const order = orders[0];
-
-      if (!chain && !order) {
+      if (!kpi) {
         setData(null);
         return;
       }
 
-      // ── EfficienceSerie from trend ──
-      const efficienceSerie = trend.map((t) => ({ x: t.jour, v: t.eff }));
+      // ── Map kpi_data values to page fields ──
+      const of = extractString(kpi.of_confection?.value);
+      const designation = extractString(kpi.designation_article?.value);
+      const effectif = extractNumber(kpi.effectifs?.value);
+      const sot = extractNumber(kpi.sot?.value);
+      const sam = extractNumber(kpi.sam?.value);
+      const objectifJour = extractNumber(kpi.objectif_chaine?.value);
+      const qteCde = extractNumber(kpi.quantite_of?.value);
+      const bpd = extractString(kpi.bpd?.value);
+      const epd = extractString(kpi.epd?.value);
+      const ehd = extractString(kpi.ehd?.value);
+      const wip1Pct = extractNumber(kpi.wip?.value);
+      const efficienceJ1 = kpi.efficience_operateur?.value != null ? extractNumber(kpi.efficience_operateur.value) : null;
+      const oweJ1 = kpi.owe?.value != null ? extractNumber(kpi.owe.value) : null;
+      const gtdValue = kpi.br_gtd?.value != null ? `${extractNumber(kpi.br_gtd.value).toFixed(1)}%` : "No data";
+      const tauxAvancement = extractNumber(kpi.taux_avancement_of?.value);
 
-      // ── HourlySchedule — distribute cumulQty across elapsed time slots ──
+      // ── HourlySchedule — distribute across elapsed time slots ──
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
@@ -104,8 +99,7 @@ export default function Page() {
       const elapsed = Math.max(0, currentHour + currentMinute / 60 - workStart);
 
       const totalSlots = 8;
-      const dailyTarget = order?.dailyTarget ?? Number(chain?.objectif) ?? 0;
-      const cumulQty = order?.cumulQty ?? 0;
+      const cumulQty = extractNumber(kpi.couverture_chaine?.value);
 
       const plages = [
         "7:30-8:30", "8:30-9:30", "9:30-10:30", "10:30-11:30",
@@ -117,7 +111,7 @@ export default function Page() {
         const slotEnd = slotStart + 1;
         const inSlot = elapsed >= slotEnd ? 1 : elapsed > slotStart ? elapsed - slotStart : 0;
 
-        const dem = dailyTarget > 0 ? Math.round(dailyTarget / totalSlots) : 0;
+        const dem = objectifJour > 0 ? Math.round(objectifJour / totalSlots) : 0;
         const reel = inSlot > 0 && elapsed > 0
           ? Math.round(cumulQty * inSlot / elapsed)
           : 0;
@@ -126,43 +120,41 @@ export default function Page() {
         return { plage, dem, reel, eff };
       });
 
-      // ── Problemes / Detail from stoppages ──
-      const lastStop = stoppages.length > 0 ? stoppages[stoppages.length - 1] : null;
-      const problemes = lastStop ? lastStop.motif : "Aucun arrêt";
-      const detail = lastStop
-        ? `${Math.round(lastStop.duration * 60)} min — chaine ${lastStop.chaine}`
-        : "—";
+      // ── Problemes / Detail from arrets ──
+      const arretsValue = kpi.arrets_non_planifies?.value;
+      const problemes = arretsValue != null ? extractString(arretsValue) : "Aucun arrêt";
+      const detail = arretsValue != null ? `Arrêts: ${extractString(arretsValue)}` : "—";
+
+      // ── EfficienceSerie from efficience_cumulee (placeholder) ──
+      const efficienceSerie = [{ x: "Aujourd'hui", v: extractNumber(kpi.efficience_chaine?.value) }];
 
       setData({
-        of: order?.orderId ?? chain?.of ?? "—",
-        designation: order?.designation ?? chain?.designation ?? "—",
-        efficienceJ1: order?.priorEff ?? null,
-        oweJ1: order?.priorOwe ?? null,
-        ofProgressPct: order?.overallPct ?? 0,
-        wip1Pct: chain?.wip ?? 0,
+        of,
+        designation,
+        efficienceJ1,
+        oweJ1,
+        ofProgressPct: tauxAvancement,
+        wip1Pct,
         samMidPct: null,
-        effectif: chain?.effectif ?? 0,
-        sot: chain?.sot ?? 0,
-        sam: chain?.sam ?? 0,
-        qteCde: order?.qtyOrdered ?? 0,
-        bpd: order?.bpd ?? chain?.bpd ?? "—",
-        epd: order?.epd ?? chain?.epd ?? "—",
-        ehd: order?.ehd ?? chain?.ehd ?? "—",
-        objectifJour: order?.dailyTarget ?? chain?.objectif ?? 0,
-        gtd:
-          chain?.br_gtd != null
-            ? `${chain.br_gtd.toFixed(1)}%`
-            : (order?.gtd ?? "No data"),
-        objectifsAM: order?.amObjective ?? 0,
-        objectifsOJ: order?.soObjective ?? 0,
-        gapSamSot: order?.gapSamSo ?? 0,
+        effectif,
+        sot,
+        sam,
+        qteCde,
+        bpd,
+        epd,
+        ehd,
+        objectifJour,
+        gtd: gtdValue,
+        objectifsAM: 0,
+        objectifsOJ: 0,
+        gapSamSot: 0,
         problemes,
         detail,
         efficienceSerie,
         hourlySchedule,
-        progressionRealise: order?.overallPct ?? 0,
-        cumulQty: order?.cumulQty ?? 0,
-        cumulRestant: order?.cumulRestant ?? 0,
+        progressionRealise: tauxAvancement,
+        cumulQty,
+        cumulRestant: Math.max(0, objectifJour - cumulQty),
       });
 
       setError(null);
@@ -177,9 +169,9 @@ export default function Page() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, refreshIntervalSec * 1000);
+    const interval = setInterval(fetchData, 60_000); // refetch every minute
     return () => clearInterval(interval);
-  }, [fetchData, refreshIntervalSec]);
+  }, [fetchData]);
 
   const d = data;
 
@@ -365,39 +357,8 @@ export default function Page() {
                 </div>
                 {/* HOURLY TABLE + 2×2 CHART GRID */}
                 <div className="grid grid-cols-11 gap-3">
-                  <Card className="rounded-none !p-0 overflow-hidden border-0 col-span-5">
-                    <table className="w-full text-[12px] border-0">
-                      <thead className="bg-secondary/60 text-[9px] uppercase">
-                        <tr>
-                          <th className="px-2 py-1.5 text-center">PLAGE HORAIRE</th>
-                          <th>QTE DEMANDÉE</th>
-                          <th>QTE RÉELLE/H</th>
-                          <th>EFFIC( EN MULTIP DES</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {d.hourlySchedule.map((h, i) => (
-                          <tr key={i} className="border-0">
-                            <td className="px-2 py-1.5 font-bold bg-[#fde047]/10 text-center">
-                              {h.plage}
-                            </td>
-                            <td className="text-center">{h.dem}</td>
-                            <td className={`text-center font-bold ${h.reel > 0 ? "text-foreground" : ""}`}>
-                              {h.reel}
-                            </td>
-                            <td
-                              className={`text-center font-black text-white ${h.eff >= 100 ? "bg-[#22c55e]" : "bg-[#ef4444]"
-                                }`}
-                            >
-                              {h.eff}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </Card>
 
-                  <div className="grid grid-cols-2 col-span-6 gap-3 mr-3">
+                  <div className="grid grid-cols-4 col-span-11 gap-3 mr-3">
                     <Card className="rounded-sm">
                       <div className="text-xs font-bold mb-1">EFFICENCE (%)</div>
                       <LineKpi data={d.efficienceSerie} target={90} domain={[0, 100]} color="#3b82f6" />

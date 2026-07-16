@@ -3,6 +3,7 @@ import {
     Activity,
     BarChart3,
     Boxes,
+    Database,
     FlaskConical,
     LogOut,
     Settings,
@@ -45,6 +46,7 @@ const NAV_ITEMS: {
         icon: Activity,
     },
     { href: '/methods', label: 'MÉTHODES', code: '', icon: LayoutDashboard },
+    { href: '/kpi-endpoints', label: 'KPI ENDPOINTS', code: '', icon: Database },
 ];
 
 const Sidebar = () => {

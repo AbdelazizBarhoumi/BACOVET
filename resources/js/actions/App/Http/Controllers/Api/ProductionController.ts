@@ -156,6 +156,84 @@ kpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     kpis.form = kpisForm
 /**
+* @see \App\Http\Controllers\Api\ProductionController::confectionKpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1454
+ * @route '/production/confection-kpis'
+ */
+export const confectionKpis = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: confectionKpis.url(options),
+    method: 'get',
+})
+
+confectionKpis.definition = {
+    methods: ["get","head"],
+    url: '/production/confection-kpis',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\Api\ProductionController::confectionKpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1454
+ * @route '/production/confection-kpis'
+ */
+confectionKpis.url = (options?: RouteQueryOptions) => {
+    return confectionKpis.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Api\ProductionController::confectionKpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1454
+ * @route '/production/confection-kpis'
+ */
+confectionKpis.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: confectionKpis.url(options),
+    method: 'get',
+})
+/**
+* @see \App\Http\Controllers\Api\ProductionController::confectionKpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1454
+ * @route '/production/confection-kpis'
+ */
+confectionKpis.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: confectionKpis.url(options),
+    method: 'head',
+})
+
+    /**
+* @see \App\Http\Controllers\Api\ProductionController::confectionKpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1454
+ * @route '/production/confection-kpis'
+ */
+    const confectionKpisForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: confectionKpis.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\Api\ProductionController::confectionKpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1454
+ * @route '/production/confection-kpis'
+ */
+        confectionKpisForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: confectionKpis.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\Api\ProductionController::confectionKpis
+ * @see app/Http/Controllers/Api/ProductionController.php:1454
+ * @route '/production/confection-kpis'
+ */
+        confectionKpisForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: confectionKpis.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    confectionKpis.form = confectionKpisForm
+/**
 * @see \App\Http\Controllers\Api\ProductionController::efficienceGauges
  * @see app/Http/Controllers/Api/ProductionController.php:360
  * @route '/production/efficience-gauges'
@@ -1968,6 +2046,6 @@ serigraphieRejets.head = (options?: RouteQueryOptions): RouteDefinition<'head'> 
         })
     
     serigraphieRejets.form = serigraphieRejetsForm
-const ProductionController = { chainInfo, kpis, efficienceGauges, wipGauges, stoppageTimeline, ofDonuts, efficienceTrend, topOperators, wip, soProgress, orderTracking, breakdown, inlineEndline, tauxArchivage, respectTempsEstime, tauxTempsAcceptes, coupeCoverage, coupeChainCoverage, coupeTagging, coupeOfs, coupeDepartage, coupeQteDepartage, serigraphieCoverage, serigraphieFlux, serigraphieRejets }
+const ProductionController = { chainInfo, kpis, confectionKpis, efficienceGauges, wipGauges, stoppageTimeline, ofDonuts, efficienceTrend, topOperators, wip, soProgress, orderTracking, breakdown, inlineEndline, tauxArchivage, respectTempsEstime, tauxTempsAcceptes, coupeCoverage, coupeChainCoverage, coupeTagging, coupeOfs, coupeDepartage, coupeQteDepartage, serigraphieCoverage, serigraphieFlux, serigraphieRejets }
 
 export default ProductionController

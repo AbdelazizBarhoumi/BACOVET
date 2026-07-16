@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
+use App\Http\Controllers\Api\KpiEndpointController;
 use App\Http\Controllers\Api\LogisticsController;
 use App\Http\Controllers\Api\MethodesController;
 use App\Http\Controllers\Api\NovacityEndpointsController;
@@ -32,6 +33,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/developpement', fn () => Inertia::render('development'))->name('development');
     Route::get('/methods', fn () => Inertia::render('methods'))->name('methods');
     Route::get('/admin', fn () => Inertia::render('admin'))->name('admin');
+    Route::get('/kpi-endpoints', fn () => Inertia::render('kpi-endpoints'))->name('kpi-endpoints');
 });
 
 Route::get('/unauthorized', fn () => Inertia::render('unauthorized'))->name('unauthorized');
@@ -96,6 +98,12 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         Route::get('/pipeline/status', [AdminController::class, 'pipelineStatus']);
         Route::post('/pipeline/sync/{source}', [AdminController::class, 'triggerSync']);
         Route::post('/pipeline/sync-all', [AdminController::class, 'triggerSyncAll']);
+
+        // ── KPI ENDPOINTS ────────────────────────────────────────────────
+        Route::get('/kpi-endpoints', [KpiEndpointController::class, 'index']);
+        Route::get('/kpi-endpoints/{kpiCode}', [KpiEndpointController::class, 'show']);
+        Route::post('/kpi-endpoints/fire', [KpiEndpointController::class, 'fire']);
+        Route::post('/kpi-endpoints/fire-all', [KpiEndpointController::class, 'fireAll']);
     });
 
     // ── DATA SNAPSHOTS ─────────────────────────────────────────────────
@@ -123,6 +131,7 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         ->group(function () {
             Route::get('/chain-info', [ProductionController::class, 'chainInfo']);
             Route::get('/kpis', [ProductionController::class, 'kpis']);
+            Route::get('/confection-kpis', [ProductionController::class, 'confectionKpis']);
             Route::get('/efficience-gauges', [ProductionController::class, 'efficienceGauges']);
             Route::get('/wip-gauges', [ProductionController::class, 'wipGauges']);
             Route::get('/stoppage-timeline', [ProductionController::class, 'stoppageTimeline']);
