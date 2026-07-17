@@ -211,7 +211,10 @@ Route::prefix('data-mappings')->middleware('auth:data_users')->group(function ()
     Route::post('/batch', [DataMappingController::class, 'batchUpdate']);
     Route::post('/seed', [DataMappingController::class, 'seedFromKpiSeed']);
     Route::get('/audit-logs', [DataMappingController::class, 'auditLogs']);
+    Route::post('/sync-sql', [DataMappingController::class, 'syncFromSql']);
 });
+
+Route::get('/data-mappings/export-sql', [DataMappingController::class, 'exportSql']);
 
 // ── NOVACITY ENDPOINTS (from data.json) ─────────────────────────────────
 Route::get('/novacity-endpoints', NovacityEndpointsController::class);

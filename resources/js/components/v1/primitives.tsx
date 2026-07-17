@@ -1,9 +1,10 @@
-import { HTMLAttributes, ReactNode, useId } from "react";
-type CardProps = HTMLAttributes<HTMLDivElement> & {
-  children: ReactNode;
-};
-import { ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ComposedChart, Legend } from "recharts";
 import { Check, AlertTriangle } from "lucide-react";
+import type { HTMLAttributes, ReactNode} from "react";
+import { useId } from "react";
+import { ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ComposedChart, Legend } from "recharts";
+type CardProps = HTMLAttributes<HTMLDivElement> & {
+  children?: ReactNode;
+};
 
 export function Card({
   children,
@@ -192,8 +193,11 @@ export function BarKpi({
 
 export function ParetoChart({ data, height = 180 }: { data: { label: string; v: number }[]; height?: number }) {
   const total = data.reduce((s, d) => s + d.v, 0);
-  let acc = 0;
-  const enriched = data.map((d) => { acc += d.v; return { ...d, cum: (acc / total) * 100 }; });
+  const enriched = data.reduce<{ label: string; v: number; cum: number }[]>((acc, d) => {
+    const prev = acc.length > 0 ? acc[acc.length - 1].cum : 0;
+    acc.push({ ...d, cum: ((prev * total / 100) + d.v) / total * 100 });
+    return acc;
+  }, []);
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={enriched} margin={{ top: 14, right: 30, left: 0, bottom: 0 }}>

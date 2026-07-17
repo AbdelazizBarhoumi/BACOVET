@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { DataMappingRow } from '@/services/dataMappingApi';
 import {
   extractRecords,
   aggregateSelection,
@@ -10,7 +11,6 @@ import {
   executeRow,
   AGG_FNS,
 } from './exec';
-import type { DataMappingRow } from '@/services/dataMappingApi';
 
 // -------- Helper: create a minimal DataMappingRow --------
 function makeRow(overrides: Partial<DataMappingRow> = {}): DataMappingRow {
@@ -33,6 +33,7 @@ function makeRow(overrides: Partial<DataMappingRow> = {}): DataMappingRow {
     cible_operator: '>=',
     cible_value: 95,
     cible_is_percentage: false,
+    graph_types: null,
     refresh_frequency: '',
     user_id: null,
     created_at: '',

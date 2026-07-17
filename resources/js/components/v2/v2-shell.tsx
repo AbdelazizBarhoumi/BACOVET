@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ReactNode } from "react";
 import { Sun, Moon } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTheme } from "@/hooks/use-theme";
 
 const NAV = [
@@ -19,7 +19,7 @@ export function V2Shell({ children, pathname }: { children: ReactNode; pathname:
             return (
               <Link
                 key={n.to}
-                to={n.to}
+                to={n.to as string}
                 className={`text-[11px] uppercase tracking-wider px-3 py-1 rounded ${
                   active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
                 }`}

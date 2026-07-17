@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import { Card, LineKpi, BarKpi, DonutKpi } from "@/components/v1/primitives";
+import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import {
   fetchConfectionKpis,
-  type ConfectionKpisResponse,
 } from "@/services/productionApi";
 
 // ─── Data shape matching the mock structure ──────────────────────────────────
@@ -244,7 +243,7 @@ export default function Page() {
             <FilterPill
               label="Dernière mise à jour"
               value={new Date().toLocaleTimeString("fr-FR") + " · " + new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
-              icon={Filters.Clock ?? Filters.Calendar}
+              icon={Filters.Calendar}
             />
           </>
         }
@@ -512,7 +511,7 @@ function FootCard({
   big = true,
 }: {
   label: string;
-  value: any;
+  value: number | string | null;
   unit?: string;
   color: string;
   big?: boolean;

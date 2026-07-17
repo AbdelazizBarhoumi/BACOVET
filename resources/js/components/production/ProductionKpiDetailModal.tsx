@@ -298,11 +298,9 @@ function HorizontalBarViz({ data }: { data: BreakdownRow[] }) {
 function BreakdownTable({
     type,
     rows,
-    target: _target,
 }: {
     type: string;
     rows: BreakdownRow[];
-    target: number | string;
 }) {
     if (!rows || rows.length === 0)
         return (
@@ -760,7 +758,6 @@ export default function ProductionKpiDetailModal({
                                     <BreakdownTable
                                         type={config.breakdownType}
                                         rows={breakdownData?.rows || []}
-                                        target={config.target.value}
                                     />
                                 </div>
                             )}

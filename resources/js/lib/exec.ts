@@ -112,7 +112,7 @@ export function computeFormulaForTest(row: DataMappingRow, testValues: Record<nu
         pos++;
         return -parseFactor();
       }
-      let start = pos;
+      const start = pos;
       while (pos < s.length && ((s[pos] >= "0" && s[pos] <= "9") || s[pos] === ".")) {
         pos++;
       }
@@ -175,7 +175,7 @@ export function buildExecutionResult(row: DataMappingRow, records: Record<string
   }
 
   try {
-    // eslint-disable-next-line no-new-func
+     
     const fn = new Function("r", `with(r){return (${row.variable_key || "null"});}`);
     const values = filteredRecords.map((r) => fn(r));
     if (row.has_function) {

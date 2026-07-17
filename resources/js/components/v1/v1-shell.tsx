@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { ReactNode, useEffect, useState } from "react";
-import { Calendar, Layers, Factory, Users, Circle, Clock, Sun, Moon } from "lucide-react";
+import { Calendar, Layers, Factory, Users, Circle, Sun, Moon } from "lucide-react";
+import type { ComponentType, ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "@/hooks/use-theme";
 const NAV = [
   { to: "/v1/production-confection", label: "Prod. Confection" },
@@ -31,7 +32,7 @@ export function V1Shell({ children, pathname }: { children: ReactNode; pathname:
             );
           })}
           <div className="ml-auto flex items-center gap-2">
-            <Link to="/login" className="text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+            <Link to="/v1/login" className="text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
               ← /v0
             </Link>
             <button onClick={toggle} className="p-1.5 rounded hover:bg-secondary text-muted-foreground">
@@ -78,7 +79,7 @@ export function PageHeader({
     </div>
   );
 }
-export function FilterPill({ label, value, icon: Icon }: { label: string; value: string; icon: any }) {
+export function FilterPill({ label, value, icon: Icon }: { label: string; value: string; icon: ComponentType<{ className?: string }> }) {
   return (
     <div className="rounded-md border border-border bg-card px-3 py-1.5 min-w-[140px]">
       <div className="text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
@@ -93,7 +94,7 @@ export function FilterSelect({
   label, value, options, onChange, icon: Icon,
 }: {
   label: string; value: string; options: { value: string; label: string }[];
-  onChange: (v: string) => void; icon: any;
+  onChange: (v: string) => void; icon: ComponentType<{ className?: string }>;
 }) {
   return (
     <div className="rounded-md border border-border bg-card px-3 py-1.5 min-w-[140px]">

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ProductionKpiCard } from "@/components/production/ProductionKpiCard";
-import V2KpiDetailModal from "@/components/v2/V2KpiDetailModal";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { V2ChartType } from "@/components/v2/V2ChartTypes";
+import V2KpiDetailModal from "@/components/v2/V2KpiDetailModal";
+import { useFilters } from "@/context/FilterContext";
+import type { Status } from "@/lib/mock";
 import { fetchProductionBreakdown } from "@/services/productionApi";
 import { fetchV2ProductionKpis, type V2KpiItem } from "@/services/v2ProductionApi";
 import type { BreakdownData } from "@/types/production";
-import { useFilters } from "@/context/FilterContext";
-import type { Status } from "@/lib/mock";
 
 type Tab = "confection" | "coupe" | "flux";
 
@@ -126,7 +126,7 @@ export default function Production() {
                     <ProductionKpiCard key={i} label="" value="" isLoading />
                   ))}
                 </div>
-              ) : bigNumbers.length === 0 && chartTypes.length === 0 ? (
+              ) : bigNumbers.length === 0 && chartKpis.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border py-6 text-center font-mono text-xs tracking-widest text-muted-foreground uppercase">
                   Aucune donnée KPI disponible
                 </div>
@@ -139,7 +139,7 @@ export default function Production() {
                       value={formatValue(item)}
                       unit={item.target_is_percentage ? "%" : ""}
                       target={item.target_readable ?? undefined}
-                      freq={syncLabel(item)}
+                      source={syncLabel(item)}
                       status={statusFromKpi(item)}
                       isLoading={loading}
                       onClick={() => handleKpiClick(item.kpi_code)}

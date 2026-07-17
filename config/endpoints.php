@@ -6,7 +6,7 @@ return [
         'all_frequencies' => ['daily'],
         'keys' => [
             [
-                'variable_key' => 'Qtte',
+                'variable_key' => 'IDMagasin',
                 'variable_type' => 'Complex',
                 'is_filtered' => false,
                 'filter_key' => null,
@@ -571,8 +571,8 @@ return [
             [
                 'variable_key' => 'MinuteProduite',
                 'variable_type' => 'Complex',
-                'is_filtered' => false,
-                'filter_key' => null,
+                'is_filtered' => true,
+                'filter_key' => 'ProdGroup',
                 'filter_value' => null,
                 'has_function' => false,
                 'fn' => 'Latest',
@@ -1077,6 +1077,17 @@ return [
         'refresh_frequency' => 'instant',
         'all_frequencies' => ['instant'],
         'keys' => [
+            [
+                'variable_key' => 'BundleRejectYear',
+                'variable_type' => 'Direct',
+                'is_filtered' => false,
+                'filter_key' => null,
+                'filter_value' => null,
+                'has_function' => false,
+                'fn' => 'Latest',
+                'refresh_frequency' => 'instant',
+                'kpis' => ['F-REQ-101'],
+            ],
             [
                 'variable_key' => 'BundleRejectYear',
                 'variable_type' => 'Direct',

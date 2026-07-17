@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { V1Shell } from "@/components/v1/v1-shell";
-export const Route = createFileRoute("/v1")({
+export const Route = createFileRoute("/v1" as never)({
   component: V1Layout,
 });
 function V1Layout() {

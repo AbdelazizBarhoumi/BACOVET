@@ -71,11 +71,9 @@ export const LightDropdown = React.memo(function LightDropdown({
   const selectedLabel = useMemo(() => {
     let label: string | undefined;
     React.Children.forEach(children, (child) => {
-      if (React.isValidElement(child) && (child.props as any).value === value) {
-        label = (child.props as any).children;
-        if (Array.isArray(label)) label = label[0];
-        if (typeof label === "object" && label?.props) label = label.props.children;
-        if (typeof label !== "string") label = String(label);
+      if (React.isValidElement(child) && (child.props as Record<string, unknown>).value === value) {
+        label = String((child.props as Record<string, unknown>).children ?? "");
+        if (Array.isArray(label)) label = String(label[0]);
       }
     });
     return label;
@@ -110,14 +108,14 @@ export const LightDropdown = React.memo(function LightDropdown({
         >
           {React.Children.map(children, (child) => {
             if (!React.isValidElement(child)) return child;
-            const childProps = child.props as any;
+            const childProps = child.props as Record<string, unknown>;
             if (childProps.value !== undefined && childProps.value !== null && typeof childProps.value === "string") {
               return (
                 <div
                   role="option"
                   aria-selected={childProps.value === value}
                   onClick={() => {
-                    const newVal = allowDeselect && childProps.value === value ? "" : childProps.value;
+                    const newVal = allowDeselect && childProps.value === value ? "" : String(childProps.value);
                     onValueChange?.(newVal);
                     setOpen(false);
                   }}
@@ -126,10 +124,10 @@ export const LightDropdown = React.memo(function LightDropdown({
                     "hover:bg-accent hover:text-accent-foreground",
                     "focus:bg-accent focus:text-accent-foreground",
                     childProps.value === value && "bg-accent text-accent-foreground",
-                    childProps.className,
+                    childProps.className as string,
                   )}
                 >
-                  {childProps.children}
+                  {childProps.children as React.ReactNode}
                 </div>
               );
             }

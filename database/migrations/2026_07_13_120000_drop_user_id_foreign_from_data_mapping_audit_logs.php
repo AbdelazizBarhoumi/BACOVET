@@ -9,7 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('data_mapping_audit_logs', function (Blueprint $table) {
-            $table->dropForeign('data_mapping_audit_logs_user_id_foreign');
+            if (config('database.default') !== 'sqlite') {
+                $table->dropForeign('data_mapping_audit_logs_user_id_foreign');
+            }
         });
     }
 

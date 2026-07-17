@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 
 const DARK_COLORS: Record<string, string> = {
   '--blue': '#1e88ff', '--green': '#65b83d', '--orange': '#ff9800',
@@ -19,28 +19,6 @@ function useThemeVersion() {
     return () => obs.disconnect();
   }, []);
   return v;
-}
-
-function axes(ctx: CanvasRenderingContext2D, w: number, h: number, max = 100) {
-  ctx.strokeStyle = getVar('--border');
-  ctx.fillStyle = getVar('--muted-foreground');
-  ctx.font = '11px Segoe UI';
-  for (let i = 0; i <= 4; i++) {
-    const y = 25 + (h - 50) * i / 4;
-    ctx.beginPath();
-    ctx.moveTo(40, y);
-    ctx.lineTo(w - 15, y);
-    ctx.stroke();
-    ctx.fillText(Math.round(max * (1 - i / 4)) + '%', 5, y + 4);
-  }
-  ctx.beginPath();
-  ctx.moveTo(40, 20);
-  ctx.lineTo(40, h - 25);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(40, h - 25);
-  ctx.lineTo(w - 15, h - 25);
-  ctx.stroke();
 }
 
 function setupCanvas(c: HTMLCanvasElement) {
@@ -133,7 +111,7 @@ export function ComboChart({ values, target = 90, labels }: { values: number[]; 
     values.forEach((v, i) => {
       const x = 55 + i * (w - 85) / values.length + ((w - 100) / values.length * .38) / 2;
       const y = barTopY(v);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      if (i) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); }
     });
     ctx.stroke();
     values.forEach((v, i) => {
@@ -226,7 +204,7 @@ export function GaugeChart({ value, target, color = 'green' }: { value: number; 
 
 /* ─── LINE CHART ─── */
 export function LineChart({ values, target = 85, timeLabels }: { values: number[]; target?: number; timeLabels?: string[] }) {
-  const labels = timeLabels ?? ['08:00', '09:00', '10:00', '11:00', '12:00', '16:00'];
+  const labels = useMemo(() => timeLabels ?? ['08:00', '09:00', '10:00', '11:00', '12:00', '16:00'], [timeLabels]);
   const { tip, onMove, onLeave } = useChartHover();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tv = useThemeVersion();
@@ -270,7 +248,7 @@ export function LineChart({ values, target = 85, timeLabels }: { values: number[
     values.forEach((v, i) => {
       const x = 45 + i * (w - 70) / (values.length - 1);
       const y = toY(v);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      if (i) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); }
     });
     ctx.stroke();
     values.forEach((v, i) => {
@@ -313,7 +291,7 @@ export function LineChart({ values, target = 85, timeLabels }: { values: number[
 
 /* ─── AREA CHART ─── */
 export function AreaChart({ values, yLabels }: { values: number[]; yLabels?: number[] }) {
-  const yTicks = yLabels ?? [0, 500, 1000, 1500, 2000];
+  const yTicks = useMemo(() => yLabels ?? [0, 500, 1000, 1500, 2000], [yLabels]);
   const maxY = yTicks[yTicks.length - 1];
   const { tip, onMove, onLeave } = useChartHover();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -350,7 +328,7 @@ export function AreaChart({ values, yLabels }: { values: number[]; yLabels?: num
     values.forEach((v, i) => {
       const x = 50 + i * (w - 80) / (values.length - 1);
       const y = h - 25 - (v / maxY) * (h - 55);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      if (i) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); }
     });
     ctx.lineTo(w - 30, h - 25);
     ctx.lineTo(50, h - 25);
@@ -363,7 +341,7 @@ export function AreaChart({ values, yLabels }: { values: number[]; yLabels?: num
     values.forEach((v, i) => {
       const x = 50 + i * (w - 80) / (values.length - 1);
       const y = h - 25 - (v / maxY) * (h - 55);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      if (i) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); }
     });
     ctx.stroke();
     values.forEach((v, i) => {
@@ -465,7 +443,7 @@ export function HBarChart({ names, values, target }: { names: string[]; values: 
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
-    const { ctx, w, h } = setupCanvas(c);
+    const { ctx, w } = setupCanvas(c);
     const green = getVar('--green');
     const text = getVar('--foreground');
     const muted = getVar('--muted-foreground');
@@ -563,7 +541,7 @@ export function SparkCanvas({ values, fullWidth }: { values?: number[]; fullWidt
     pts.forEach((v, i) => {
       const x = i * w / (pts.length - 1);
       const y = h - 4 - ((v - min) / range) * (h - 12);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      if (i) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); }
     });
     ctx.stroke();
   }, [values, tv]);

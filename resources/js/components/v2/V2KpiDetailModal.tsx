@@ -54,7 +54,7 @@ function formatValue(value: number | string | null | undefined | unknown[], unit
     return `${value}${unit}`;
 }
 
-function BreakdownTable({ type, rows, target }: { type: string; rows: BreakdownRow[]; target: number | string }) {
+function BreakdownTable({ type, rows }: { type: string; rows: BreakdownRow[] }) {
     if (!rows || rows.length === 0) return <div className="text-xs text-muted-foreground italic">Aucune donnée de ventilation disponible.</div>;
 
     switch (type) {
@@ -146,8 +146,6 @@ export default function V2KpiDetailModal({ kpi, breakdownData, onClose }: V2KpiD
 
     if (!kpi) return null;
 
-    const seriesNum = parseInt(kpi.kpi_code.replace('F-REQ-', ''));
-
     const cardStatus = kpi.status || 'grey';
     const borderColor = statusBorder(cardStatus);
     const valueColor = statusColor(cardStatus);
@@ -228,7 +226,7 @@ export default function V2KpiDetailModal({ kpi, breakdownData, onClose }: V2KpiD
                     {breakdownData?.rows && breakdownData.rows.length > 0 && (
                         <div className="mb-6">
                             <h4 className="mb-2 text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase">Ventilation</h4>
-                            <BreakdownTable type="default" rows={breakdownData.rows} target={kpi.target_value ?? 0} />
+                            <BreakdownTable type="default" rows={breakdownData.rows} />
                         </div>
                     )}
                 </div>

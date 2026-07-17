@@ -1,9 +1,9 @@
-import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
-import { Card, ReqLabel, BarKpi, Sparkline, DonutKpi, DonutMulti } from "@/components/v1/primitives";
-import { SparkCanvas } from "@/components/v1/canvas-charts";
-import { useLiveData } from "@/hooks/use-live-data";
-import { useFilters } from "@/context/FilterContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SparkCanvas } from "@/components/v1/canvas-charts";
+import { Card, ReqLabel, BarKpi, Sparkline, DonutMulti } from "@/components/v1/primitives";
+import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
+import { useFilters } from "@/context/FilterContext";
+import { useLiveData } from "@/hooks/use-live-data";
 import {
   fetchProductionChainInfo,
   fetchProductionWipGauges,
@@ -66,7 +66,8 @@ function computeStatus(eff: number): string {
   return "Critique";
 }
 
-function toNum(v: number | string): number {
+function toNum(v: number | string | undefined | null): number {
+  if (v == null) return 0;
   const n = typeof v === "string" ? parseFloat(v) : v;
   return Number.isFinite(n) ? n : 0;
 }
@@ -413,7 +414,7 @@ export default function Page() {
           <Card>
             <ReqLabel id="" title="TOP 5 À AMÉLIORER" />
             <ul className="space-y-1.5 mt-1">
-              {bottom5.map((r, i) => (
+              {bottom5.map((r) => (
                 <li key={r.n} className="flex items-center gap-2">
                   <span className="h-5 w-5 grid place-items-center bg-[#ef4444] text-white text-[10px] font-bold rounded">{r.n}</span>
                   <span className="text-[11px] flex-1">{r.name}</span>

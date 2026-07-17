@@ -1,9 +1,10 @@
-import { PageHeader, FilterPill, FilterSelect, Filters, StatusFooter } from "@/components/v1/v1-shell";
-import { Card, ReqLabel } from "@/components/v1/primitives";
-import { ComboChart, GaugeChart, LineChart, AreaChart, TimelineChart, HBarChart, SparkCanvas } from "@/components/v1/canvas-charts";
-import { useLiveData } from "@/hooks/use-live-data";
-import { useFilters } from "@/context/FilterContext";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ComboChart, GaugeChart, LineChart, AreaChart, TimelineChart, HBarChart, SparkCanvas } from "@/components/v1/canvas-charts";
+import { Card, ReqLabel } from "@/components/v1/primitives";
+import { PageHeader, FilterPill, FilterSelect, Filters, StatusFooter } from "@/components/v1/v1-shell";
+import { useFilters } from "@/context/FilterContext";
+import { useLiveData } from "@/hooks/use-live-data";
+import { fetchMethodesKpis, fetchRespectTempsDetail, fetchTempsAcceptesDetail, type MethodsKpisResponse, type RespectTempsDetailItem, type TempsAcceptesDetailItem } from "@/services/methodsApi";
 import {
   fetchProductionChainInfo,
   fetchProductionKpis,
@@ -22,7 +23,6 @@ import {
   type TopOpItem,
   type WipAreaItem,
 } from "@/services/productionApi";
-import { fetchMethodesKpis, fetchRespectTempsDetail, fetchTempsAcceptesDetail, type MethodsKpisResponse, type RespectTempsDetailItem, type TempsAcceptesDetailItem } from "@/services/methodsApi";
 import type { BreakdownRow } from "@/types/production";
 
 export default function Page() {
@@ -33,7 +33,6 @@ export default function Page() {
   const [selectedChain, setSelectedChain] = useState<string>("");
   const [kpis, setKpis] = useState<ProductionKpis | null>(null);
   const [gauges, setGauges] = useState<GaugeItem[]>([]);
-  const [wipGauges, setWipGauges] = useState<GaugeItem[]>([]);
   const [stoppages, setStoppages] = useState<StoppageItem[]>([]);
   const [trend, setTrend] = useState<TrendItem[]>([]);
   const [topOps, setTopOps] = useState<TopOpItem[]>([]);
@@ -73,7 +72,7 @@ export default function Page() {
         fetchTempsAcceptesDetail(),
       ]);
 
-      const r = (i: number) => results[i];
+      const r = (i: number) => results[i] as PromiseFulfilledResult<unknown>;
 
       if (r(0).status === "fulfilled") {
         const d = r(0).value as { data: ChainInfo[] };
@@ -81,7 +80,6 @@ export default function Page() {
       }
       if (r(1).status === "fulfilled") setKpis(r(1).value as ProductionKpis);
       if (r(2).status === "fulfilled") setGauges((r(2).value as { data: GaugeItem[] }).data);
-      if (r(3).status === "fulfilled") setWipGauges((r(3).value as { data: GaugeItem[] }).data);
       if (r(4).status === "fulfilled") setStoppages((r(4).value as { data: StoppageItem[] }).data);
       if (r(5).status === "fulfilled") setTrend((r(5).value as { data: TrendItem[] }).data);
       if (r(6).status === "fulfilled") setTopOps((r(6).value as { data: TopOpItem[] }).data);
@@ -93,7 +91,7 @@ export default function Page() {
       if (r(12).status === "fulfilled") setRespectDetail((r(12).value as { data: RespectTempsDetailItem[] }).data);
       if (r(13).status === "fulfilled") setAcceptDetail((r(13).value as { data: TempsAcceptesDetailItem[] }).data);
 
-      const criticalFailed = [r(0), r(1)].some((x) => x.status === "rejected");
+      const criticalFailed = [results[0], results[1]].some((x) => x.status === "rejected");
       if (criticalFailed) recordFetchError();
       else recordFetchSuccess();
     } catch {
@@ -107,7 +105,6 @@ export default function Page() {
     setChains([]);
     setKpis(null);
     setGauges([]);
-    setWipGauges([]);
     setStoppages([]);
     setTrend([]);
     setTopOps([]);
@@ -163,11 +160,11 @@ export default function Page() {
     min: Math.round(s.duration * 60),
   }));
 
-  const depVals = departage.map((d) => d.eff ?? 0);
-  const depLabels = departage.map((d) => d.employe ?? d.chaine ?? "");
+  const depVals = departage.map((d) => Number(d.eff ?? 0));
+  const depLabels = departage.map((d) => String(d.employe ?? d.chaine ?? ""));
 
-  const vigVals = vignettes.map((v) => v.eff ?? 0);
-  const vigLabels = vignettes.map((v) => v.employe ?? v.chaine ?? "");
+  const vigVals = vignettes.map((v) => Number(v.eff ?? 0));
+  const vigLabels = vignettes.map((v) => String(v.employe ?? v.chaine ?? ""));
 
   const topNames = topOps.map((o) => o.nom);
   const topEffs = topOps.map((o) => o.eff);

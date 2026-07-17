@@ -1,13 +1,12 @@
-import { createRouter, createRoute, createRootRoute, RouterProvider, Outlet, redirect } from '@tanstack/react-router';
-import { createRoot } from 'react-dom/client';
-import React, { Suspense } from 'react';
+import { createRouter, createRoute, createRootRoute, RouterProvider, Outlet, redirect, useRouterState } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
+import React, { Suspense } from 'react';
+import { createRoot } from 'react-dom/client';
 import '../css/app.css';
-import { initializeTheme } from './hooks/use-appearance';
 import { V1Shell } from '@/components/v1/v1-shell';
-import { useRouterState } from '@tanstack/react-router';
 import { FilterProvider } from '@/context/FilterContext';
 import { LiveDataProvider } from '@/hooks/use-live-data';
+import { initializeTheme } from './hooks/use-appearance';
 
 const ProductionConfection = React.lazy(() => import('@/routes-v1/pages/production-confection'));
 const ProductionFlux = React.lazy(() => import('@/routes-v1/pages/production-flux'));

@@ -9,10 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('data_mappings', function (Blueprint $table) {
-            $table->dropColumn([
-                'description', 'thresholds', 'source_system', 'source_status',
-                'breakdown_type', 'mini_viz_type', 'export_fields',
-            ]);
+            $columns = ['description', 'thresholds', 'source_system', 'source_status',
+                'breakdown_type', 'mini_viz_type', 'export_fields'];
+            $existing = array_filter($columns, fn ($col) => Schema::hasColumn('data_mappings', $col));
+            if (!empty($existing)) {
+                $table->dropColumn($existing);
+            }
         });
     }
 

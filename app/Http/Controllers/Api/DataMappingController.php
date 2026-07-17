@@ -8,9 +8,21 @@ use App\Models\DataMappingAuditLog;
 use App\Services\DataMappingAuditor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class DataMappingController extends Controller
 {
+    private const EXPORT_COLUMNS = [
+        'name', 'endpoint', 'variable_type', 'variable_key',
+        'is_filtered', 'filter_key', 'filter_value',
+        'has_function', 'fn', 'modules', 'formula',
+        'highlight_color', 'cible_operator', 'cible_value',
+        'cible_is_percentage', 'refresh_frequency', 'graph_types',
+    ];
+
     public function index(): JsonResponse
     {
         return response()->json(DataMapping::orderBy('id')->get());
@@ -247,5 +259,127 @@ class DataMappingController extends Controller
         });
 
         return response()->json($logs);
+    }
+
+    public function exportSql()
+    {
+        $mappings = DataMapping::orderBy('kpi')->orderBy('id')->get();
+        $sql = $this->buildExportSql($mappings);
+
+        return response($sql, 200, [
+            'Content-Type' => 'application/sql',
+            'Content-Disposition' => 'attachment; filename="data_mappings_export.sql"',
+        ]);
+    }
+
+    public function syncFromSql(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user || $user->role !== 'it') {
+            return response()->json(['message' => 'Unauthorized. Superadmin access required.'], 403);
+        }
+
+        $url = config('services.sql_dump_url');
+        if (empty($url)) {
+            return response()->json(['message' => 'SQL_DUMP_URL is not configured in .env'], 422);
+        }
+
+        try {
+            $response = Http::timeout(60)->get($url);
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'message' => 'Failed to fetch SQL from external API',
+                    'status' => $response->status(),
+                ], 502);
+            }
+
+            $sql = $response->body();
+
+            if (empty(trim($sql))) {
+                return response()->json(['message' => 'Received empty SQL content'], 422);
+            }
+
+            DB::unprepared($sql);
+
+            $exportMappings = Artisan::call('export:mappings');
+            $exportOutput = Artisan::output();
+
+            $exportEndpoints = Artisan::call('export:endpoints');
+            $endpointsOutput = Artisan::output();
+
+            $optimizeClear = Artisan::call('optimize:clear');
+            $optimizeOutput = Artisan::output();
+
+            return response()->json([
+                'message' => 'SQL sync completed successfully',
+                'sql_length' => strlen($sql),
+                'commands' => [
+                    'export:mappings' => ['exit' => $exportMappings, 'output' => $exportOutput],
+                    'export:endpoints' => ['exit' => $exportEndpoints, 'output' => $endpointsOutput],
+                    'optimize:clear' => ['exit' => $optimizeClear, 'output' => $optimizeOutput],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('SQL sync failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'SQL sync failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function buildExportSql($mappings): string
+    {
+        $lines = [];
+        $lines[] = '-- BACOVET data_mappings SQL export';
+        $lines[] = '-- Generated: ' . now()->toIso8601String();
+        $lines[] = '-- Rows: ' . $mappings->count();
+        $lines[] = '';
+        $lines[] = 'SET NAMES utf8mb4;';
+        $lines[] = '';
+
+        foreach ($mappings as $row) {
+            $sets = [];
+            foreach (self::EXPORT_COLUMNS as $col) {
+                $value = $row->getAttributes()[$col] ?? null;
+                $sets[] = "`{$col}` = " . $this->sqlValue($col, $value);
+            }
+
+            $kpi = $this->escapeSqlString($row->kpi);
+            $variable = $this->escapeSqlString($row->variable);
+
+            $lines[] = "UPDATE `data_mappings` SET " . implode(', ', $sets)
+                . " WHERE `kpi` = '{$kpi}' AND `variable` = '{$variable}';";
+        }
+
+        $lines[] = '';
+        return implode("\n", $lines);
+    }
+
+    private function sqlValue(string $column, mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        if (in_array($column, ['modules', 'formula', 'graph_types'])) {
+            $json = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE);
+            return "'" . $this->escapeSqlString($json) . "'";
+        }
+
+        if (in_array($column, ['is_filtered', 'has_function', 'cible_is_percentage'])) {
+            return $value ? '1' : '0';
+        }
+
+        if ($column === 'cible_value') {
+            return (string) $value;
+        }
+
+        return "'" . $this->escapeSqlString((string) $value) . "'";
+    }
+
+    private function escapeSqlString(string $value): string
+    {
+        return addslashes($value);
     }
 }

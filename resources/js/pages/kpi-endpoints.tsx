@@ -108,6 +108,7 @@ export default function KpiEndpointsPage() {
     const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSyncedAtRef = useRef<string>('');
     const lastFetchAtRef = useRef<number>(Date.now());
+    const runPollRef = useRef<(() => void) | null>(null);
 
     const clearPollTimer = () => {
         if (pollTimerRef.current) {
@@ -130,7 +131,7 @@ export default function KpiEndpointsPage() {
             , '');
 
         if (!latest || latest === lastSyncedAtRef.current) {
-            pollTimerRef.current = setTimeout(runPoll, 5_000);
+            pollTimerRef.current = setTimeout(() => runPollRef.current?.(), 5_000);
             return;
         }
 
@@ -139,7 +140,7 @@ export default function KpiEndpointsPage() {
         const elapsed = Date.now() - lastFetchAtRef.current;
         // Dynamic delay: when data hits 60s, but never within 10s of last fetch
         const delay = Math.max(10_000 - elapsed, 1_000, 60_000 - ageMs);
-        pollTimerRef.current = setTimeout(runPoll, delay);
+        pollTimerRef.current = setTimeout(() => runPollRef.current?.(), delay);
     }, []);
 
     const runPoll = useCallback(async () => {
@@ -153,11 +154,13 @@ export default function KpiEndpointsPage() {
             scheduleNextPoll(data);
         } catch {
             if (mountedRef.current) {
-                pollTimerRef.current = setTimeout(runPoll, 5_000);
+                pollTimerRef.current = setTimeout(() => runPollRef.current?.(), 5_000);
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [scheduleNextPoll]);
+
+    runPollRef.current = runPoll;
 
     // Single fetch function — used by manual refresh, fire, and fire all.
     // Also reschedules the auto-poll timer so manual actions stay in sync

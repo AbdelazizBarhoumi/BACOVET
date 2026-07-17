@@ -1,33 +1,14 @@
 // Route registered in v1-main.tsx
-import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Download, Search, Database, Play, Loader2, Plus, Trash2, Save, Info, CheckCircle2, AlertTriangle, FileJson } from "lucide-react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { useNovacityEndpoints } from "@/lib/data-endpoints";
-import { PageHeader, StatusFooter, BacovetLogo } from "@/components/v1/v1-shell";
-import { exportToCsv } from "@/lib/export";
-import { cn } from "@/lib/utils";
-import { LightDropdown, LightDropdownItem } from "@/components/LightDropdown";
-import {
-  fetchMappings,
-  createMapping,
-  deleteMapping,
-  batchUpdateMappings,
-  seedMappings,
-  type DataMappingRow,
-  type DataMappingPayload,
-  type FormulaDef,
-  type FormulaItem,
-  fetchSampleData,
-  fetchAllSamples,
-  type AllEndpointRecord,
-} from "@/services/dataMappingApi";
 import DataMappingAuditLog from "@/components/DataMappingAuditLog";
-
+import { LightDropdown, LightDropdownItem } from "@/components/LightDropdown";
+import { PageHeader, StatusFooter, BacovetLogo } from "@/components/v1/v1-shell";
+import { useNovacityEndpoints } from "@/lib/data-endpoints";
 import {
-  extractRecords,
   aggregateSelection,
   getValueAtPath,
-  stringifyResult,
   computeFormulaForTest,
   validateDirectKeyType,
   buildExecutionResult,
@@ -36,17 +17,24 @@ import {
   type AggFn,
   type ExecState,
 } from "@/lib/exec";
+import { exportToCsv } from "@/lib/export";
+import {
+  fetchMappings,
+  createMapping,
+  deleteMapping,
+  batchUpdateMappings,
+  seedMappings,
+  syncDataFromSql,
+  type DataMappingRow,
+  type DataMappingPayload,
+  type FormulaDef,
+  type FormulaItem,
+  fetchAllSamples,
+  type AllEndpointRecord,
+} from "@/services/dataMappingApi";
+
 
 export default DataMappingPage;
-
-// -------- Batch fetch helper --------
-const BATCH_SIZE = 8;
-async function fetchInBatches<T>(items: T[], batchSize: number, fn: (item: T, signal?: AbortSignal) => Promise<void>, signal?: AbortSignal) {
-  for (let i = 0; i < items.length; i += batchSize) {
-    if (signal?.aborted) return;
-    await Promise.allSettled(items.slice(i, i + batchSize).map((item) => fn(item, signal)));
-  }
-}
 
 type VarType = "Direct" | "Complex";
 
@@ -462,7 +450,7 @@ function safeMathEval(expr: string): number {
       return -parseFactor();
     }
     // Number
-    let start = pos;
+    const start = pos;
     while (pos < s.length && (s[pos] >= "0" && s[pos] <= "9" || s[pos] === ".")) {
       pos++;
     }
@@ -500,8 +488,7 @@ function computeFormula(items: FormulaItem[], previewValues: Record<number, stri
   }
 }
 
-const FormulaBuilder = React.memo(function FormulaBuilder({ kpi, groupRows, previewValues, formula, onFormulaChange }: {
-  kpi: string;
+const FormulaBuilder = React.memo(function FormulaBuilder({ groupRows, previewValues, formula, onFormulaChange }: {
   groupRows: DataMappingRow[];
   previewValues: Record<number, string>;
   formula: FormulaDef | null;
@@ -747,18 +734,12 @@ const NestedKeySelector = React.memo(function NestedKeySelector({
 const EndpointSelector = React.memo(function EndpointSelector({
   row,
   endpointList,
-  dataEndpoints,
-  endpointMeta,
   onEndpointChange,
-  traceLoading,
   onTrace,
 }: {
   row: DataMappingRow;
   endpointList: string[];
-  dataEndpoints: Record<string, string[]>;
-  endpointMeta: Record<string, { name: string; method: string; fields: string[] }>;
   onEndpointChange: (newEndpoint: string | null) => void;
-  traceLoading: boolean;
   onTrace: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -798,7 +779,7 @@ const EndpointSelector = React.memo(function EndpointSelector({
         ))}
       </DataSelect>
       {row.endpoint && (
-        <TraceBtn isLoading={traceLoading} onClick={onTrace} />
+        <TraceBtn onClick={onTrace} />
       )}
     </>
   );
@@ -824,14 +805,11 @@ function DataMappingPage() {
   // Audit log refresh trigger
   const [auditRefreshKey, setAuditRefreshKey] = useState(0);
 
-  // Preview values: row id → computed value string
-  const [previewValues, setPreviewValues] = useState<Record<number, string>>({});
-  const [previewLoading, setPreviewLoading] = useState<Record<number, boolean>>({});
 
   // Test Exec values: row id → computed value from data.json
   const [testValues, setTestValues] = useState<Record<number, string>>({});
-  const [testLoading, setTestLoading] = useState<Record<number, boolean>>({});
-  const fetchingRef = useRef<Set<number>>(new Set());
+
+
 
   // Sample data for each row (for NestedKeySelector)
   const [sampleDataCache, setSampleDataCache] = useState<Record<number, Record<string, unknown> | null>>({});
@@ -886,13 +864,17 @@ function DataMappingPage() {
   const [exporting, setExporting] = useState(false);
 
   // Trace button loading states (per-row, per-trace-type)
-  const [traceLoading, setTraceLoading] = useState<Record<number, Record<string, boolean>>>({});
+
 
   // Variable key validation loading
-  const [validatingKeys, setValidatingKeys] = useState<Record<number, boolean>>({});
+
 
   // Confirm reset dialog
   const [confirmReset, setConfirmReset] = useState(false);
+
+  // Sync SQL dialog
+  const [confirmSync, setConfirmSync] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const runHealthCheck = async () => {
     if (!effectiveBaseUrl) return;
@@ -930,18 +912,20 @@ function DataMappingPage() {
   const [allEndpointData, setAllEndpointData] = useState<Record<string, AllEndpointRecord>>({});
   const allEndpointDataRef = useRef(allEndpointData);
   allEndpointDataRef.current = allEndpointData;
-  const [allDataLoading, setAllDataLoading] = useState(false);
   const [allEndpointsModalOpen, setAllEndpointsModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetchAllSamples().then((data) => {
       if (!cancelled) setAllEndpointData(data);
-    }).finally(() => {
-      if (!cancelled) setAllDataLoading(false);
     });
     return () => { cancelled = true; };
   }, []);
+
+  const getRecordsFromAllData = useCallback(
+    (slug: string): Record<string, unknown>[] => allEndpointData[slug]?.response ?? [],
+    [allEndpointData]
+  );
 
   // Keep refs in sync
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -993,7 +977,7 @@ function DataMappingPage() {
   }, []);
 
   // User role for page-only RBAC (temporary — remove with this block)
-  const [userRole, setUserRole] = useState(() => {
+  const [userRole] = useState(() => {
     try {
       const user = JSON.parse(localStorage.getItem("data_auth_user") || "{}");
       return user.role || "";
@@ -1058,131 +1042,52 @@ function DataMappingPage() {
     return () => controller.abort();
   }, [debouncedBaseUrl]);
 
-  // Effective debounced base URL for preview fetching
-  const effectiveDebouncedBaseUrl = debouncedBaseUrl || savedBaseUrl || novacityConfig?.base_url || "";
-  const effectiveDebouncedBaseUrlRef = useRef(effectiveDebouncedBaseUrl);
-  effectiveDebouncedBaseUrlRef.current = effectiveDebouncedBaseUrl;
-
-  const fetchPreview = useCallback(async (row: DataMappingRow, signal?: AbortSignal) => {
-    const url = effectiveDebouncedBaseUrlRef.current;
-    if (!row.endpoint || !url) return;
-    React.startTransition(() => setPreviewLoading((m) => ({ ...m, [row.id]: true })));
-    try {
-      const val = await executeRow(row, url, signal);
-      React.startTransition(() => {
-        setPreviewValues((m) => ({ ...m, [row.id]: val }));
-        setPreviewLoading((m) => ({ ...m, [row.id]: false }));
-      });
-    } catch {
-      if (!signal?.aborted) {
-        React.startTransition(() => {
-          setPreviewValues((m) => ({ ...m, [row.id]: "Erreur" }));
-          setPreviewLoading((m) => ({ ...m, [row.id]: false }));
-        });
-      }
-    }
-  }, []);
-
-  // Fetch all previews when rows change (batched)
-  // Only re-fetch rows whose endpoint+variable_key signature changed
-  const prevPreviewSigRef = useRef<Record<number, string>>({});
-
-  // Clear preview signatures when user types a new base URL (forces re-fetch)
-  useEffect(() => {
-    if (debouncedBaseUrl) prevPreviewSigRef.current = {};
-  }, [debouncedBaseUrl]);
-  useEffect(() => {
-    if (!effectiveDebouncedBaseUrlRef.current || rows.length === 0) return;
-    const controller = new AbortController();
-    const targets = rows.filter((r) => {
-      if (!r.endpoint || !r.variable_key) return false;
-      const sig = `${r.endpoint}|${r.variable_key}`;
-      const prev = prevPreviewSigRef.current[r.id];
-      if (sig === prev) return false;
-      prevPreviewSigRef.current[r.id] = sig;
-      return true;
-    });
-    if (targets.length > 0) {
-      fetchInBatches(targets, BATCH_SIZE, fetchPreview, controller.signal);
-    }
-    return () => controller.abort();
-  }, [rows, fetchPreview]);
-
-  // Track previous aggregation settings to only recompute changed rows
-  const prevAggSettingsRef = useRef<Record<number, string>>({});
-
-  // Auto-fetch test values from data.json samples (batched)
+  // Auto-compute test values + preview values from pre-loaded allEndpointData
   useEffect(() => {
     if (rows.length === 0) return;
-    const controller = new AbortController();
-    const targets = rows.filter((r) => {
-      if (!r.endpoint || !r.variable_key) return false;
-      const aggSignature = `${r.variable_type}-${r.has_function}-${r.fn}-${r.is_filtered}-${r.filter_key}-${r.filter_value}-${directErrors[r.id] || ''}`;
-      const prevSignature = prevAggSettingsRef.current[r.id];
-      const needsRecompute = !testValues[r.id] || testLoading[r.id] || aggSignature !== prevSignature || testValues[r.id] === "Erreur" || testValues[r.id] === "Pas de sample";
-      prevAggSettingsRef.current[r.id] = aggSignature;
-      return needsRecompute && !fetchingRef.current.has(r.id);
-    });
+    const nextTest: Record<number, string> = {};
+    const nextErrors: Record<number, string> = {};
+    const errorsToDelete: number[] = [];
 
-    fetchInBatches(targets, BATCH_SIZE, async (r, signal) => {
-      fetchingRef.current.add(r.id);
-      React.startTransition(() => setTestLoading((m) => ({ ...m, [r.id]: true })));
+    for (const r of rows) {
+      if (!r.endpoint || !r.variable_key) continue;
+
       try {
-        const sampleData = await fetchSampleData(r.endpoint!, signal);
-        if (!sampleData) {
-          React.startTransition(() => {
-            setTestValues((m) => ({ ...m, [r.id]: "Pas de sample" }));
-            setTestLoading((m) => ({ ...m, [r.id]: false }));
-          });
-          return;
+        const records = getRecordsFromAllData(r.endpoint!);
+        if (records.length === 0) {
+          nextTest[r.id] = "Pas de sample";
+          continue;
         }
-        const records = extractRecords(sampleData);
 
         // Validate Direct type BEFORE computing
         if (r.variable_type === "Direct") {
           const directError = validateDirectKeyType(records, r.variable_key!);
           if (directError) {
-            React.startTransition(() => {
-              setDirectErrors((m) => ({ ...m, [r.id]: directError }));
-              setTestValues((m) => ({ ...m, [r.id]: directError }));
-              setTestLoading((m) => ({ ...m, [r.id]: false }));
-            });
-            return;
+            nextErrors[r.id] = directError;
+            nextTest[r.id] = directError;
+            continue;
           } else {
-            setDirectErrors((m) => {
-              const next = { ...m };
-              delete next[r.id];
-              return next;
-            });
+            errorsToDelete.push(r.id);
           }
         }
 
         const result = buildExecutionResult(r, records);
-        React.startTransition(() => {
-          setTestValues((m) => ({ ...m, [r.id]: result.output }));
-          setTestLoading((m) => ({ ...m, [r.id]: false }));
-        });
+        nextTest[r.id] = result.output;
       } catch (e) {
-        if (signal?.aborted) {
-          React.startTransition(() => setTestLoading((m) => ({ ...m, [r.id]: false })));
-          return;
-        }
-        React.startTransition(() => {
-          setTestValues((m) => ({ ...m, [r.id]: (e as Error).message || "Erreur" }));
-          setTestLoading((m) => ({ ...m, [r.id]: false }));
-        });
-      } finally {
-        fetchingRef.current.delete(r.id);
+        nextTest[r.id] = (e as Error).message || "Erreur";
       }
-    }, controller.signal);
-    return () => {
-      controller.abort();
-      for (const r of targets) {
-        fetchingRef.current.delete(r.id);
-      }
-    };
+    }
+
+    setTestValues(nextTest);
+    if (errorsToDelete.length > 0 || Object.keys(nextErrors).length > 0) {
+      setDirectErrors((m) => {
+        const merged = { ...m, ...nextErrors };
+        for (const id of errorsToDelete) delete merged[id];
+        return merged;
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, directErrors]);
+  }, [rows, directErrors, allEndpointData]);
 
   // Flush dirty rows to API
   const flushDirty = useCallback(async () => {
@@ -1270,7 +1175,7 @@ function DataMappingPage() {
       if (r.kpi === targetKpi) dirtyRef.current.add(r.id);
     }
     scheduleSave();
-  }, [scheduleSave, rows]);
+  }, [scheduleSave]);
 
   const kpiGroups = useMemo(() => ["Tous", ...Array.from(new Set(rows.map((r) => r.kpi)))], [rows]);
 
@@ -1432,6 +1337,20 @@ function DataMappingPage() {
     }
   }, [loadRows]);
 
+  const syncFromSql = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const result = await syncDataFromSql();
+      toast.success(result.message);
+      await loadRows();
+      setLastSaved(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+    } catch (e) {
+      toast.error((e as Error).message || "Erreur lors de la synchronisation SQL");
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadRows]);
+
   const exportRows = async () => {
     setExporting(true);
     try {
@@ -1521,10 +1440,6 @@ function DataMappingPage() {
   setSampleDataCacheRef.current = setSampleDataCache;
   const setTraceModalRef = useRef(setTraceModal);
   setTraceModalRef.current = setTraceModal;
-  const setTraceLoadingRef = useRef(setTraceLoading);
-  setTraceLoadingRef.current = setTraceLoading;
-  const setValidatingKeysRef = useRef(setValidatingKeys);
-  setValidatingKeysRef.current = setValidatingKeys;
   const setExecStateRef = useRef(setExecState);
   setExecStateRef.current = setExecState;
 
@@ -1664,13 +1579,23 @@ function DataMappingPage() {
           {exporting ? "Export…" : "Excel"}
         </button>
         {isSuperadmin && (
-          <button
-            onClick={() => setConfirmReset(true)}
-            disabled={saving}
-            className={`text-[11px] px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 disabled:opacity-40 shrink-0 ${saving ? "cursor-wait" : "cursor-pointer"}`}
-          >
-            Reset
-          </button>
+          <>
+            <button
+              onClick={() => setConfirmSync(true)}
+              disabled={syncing}
+              className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-blue-500/40 text-blue-600 hover:bg-blue-500/10 disabled:opacity-40 shrink-0 ${syncing ? "cursor-wait" : "cursor-pointer"}`}
+            >
+              {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Database className="h-3 w-3" />}
+              {syncing ? "Sync…" : "Sync SQL"}
+            </button>
+            <button
+              onClick={() => setConfirmReset(true)}
+              disabled={saving}
+              className={`text-[11px] px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 disabled:opacity-40 shrink-0 ${saving ? "cursor-wait" : "cursor-pointer"}`}
+            >
+              Reset
+            </button>
+          </>
         )}
       </div>
       {lastSaved && (
@@ -1860,8 +1785,6 @@ function DataMappingPage() {
                       <EndpointSelector
                         row={r}
                         endpointList={endpointList}
-                        dataEndpoints={dataEndpoints}
-                        endpointMeta={endpointMeta}
                         onEndpointChange={(newEndpoint) => {
                           updateImmediate(r.id, { endpoint: newEndpoint, variable_key: "" });
                           // Clear test value and errors when endpoint changes
@@ -1875,17 +1798,10 @@ function DataMappingPage() {
                             delete next[r.id];
                             return next;
                           });
-                          setTestLoading((m) => ({ ...m, [r.id]: false }));
-                          // Fetch sample data for NestedKeySelector
+                          // Populate sample data for NestedKeySelector from pre-loaded data
                           if (newEndpoint) {
-                            fetchSampleData(newEndpoint).then((sample) => {
-                              if (sample) {
-                                const records = extractRecords(sample);
-                                setSampleDataCache((m) => ({ ...m, [r.id]: records[0] ?? null }));
-                              } else {
-                                setSampleDataCache((m) => ({ ...m, [r.id]: null }));
-                              }
-                            });
+                            const records = getRecordsFromAllData(newEndpoint);
+                            setSampleDataCache((m) => ({ ...m, [r.id]: records[0] ?? null }));
                           } else {
                             setSampleDataCache((m) => {
                               const next = { ...m };
@@ -1894,28 +1810,21 @@ function DataMappingPage() {
                             });
                           }
                         }}
-                        traceLoading={!!traceLoading[r.id]?.endpoint}
-                        onTrace={async () => {
-                          setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], endpoint: true } }));
-                          try {
-                            const ep = r.endpoint!;
-                            const sample = await fetchSampleData(ep);
-                            const records = extractRecords(sample);
-                            setTraceModal({
-                              open: true,
-                              title: `Endpoint: ${ep}`,
-                              content: {
-                                slug: ep,
-                                name: endpointMeta[ep]?.name ?? ep,
-                                method: endpointMeta[ep]?.method ?? "GET",
-                                fields: dataEndpoints[ep] ?? [],
-                                total_records: records.length,
-                                all_records: records,
-                              },
-                            });
-                          } finally {
-                            setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], endpoint: false } }));
-                          }
+                        onTrace={() => {
+                          const ep = r.endpoint!;
+                          const records = getRecordsFromAllData(ep);
+                          setTraceModal({
+                            open: true,
+                            title: `Endpoint: ${ep}`,
+                            content: {
+                              slug: ep,
+                              name: endpointMeta[ep]?.name ?? ep,
+                              method: endpointMeta[ep]?.method ?? "GET",
+                              fields: dataEndpoints[ep] ?? [],
+                              total_records: records.length,
+                              all_records: records,
+                            },
+                          });
                         }}
                       />
                     </div>
@@ -1944,26 +1853,20 @@ function DataMappingPage() {
 
                       // Validate Direct type immediately
                       if (newType === "Direct" && r.variable_key && r.endpoint) {
-                        (async () => {
-                          const sample = await fetchSampleData(r.endpoint!);
-                          if (sample) {
-                            const records = extractRecords(sample);
-                            const error = validateDirectKeyType(records, r.variable_key!);
-                            setDirectErrors((m) => {
-                              const next = { ...m };
-                              if (error) {
-                                next[r.id] = error;
-                              } else {
-                                delete next[r.id];
-                              }
-                              return next;
-                            });
-                            // Clear test value if there's an error
-                            if (error) {
-                              setTestValues((m) => ({ ...m, [r.id]: error }));
-                            }
+                        const records = getRecordsFromAllData(r.endpoint!);
+                        const error = validateDirectKeyType(records, r.variable_key!);
+                        setDirectErrors((m) => {
+                          const next = { ...m };
+                          if (error) {
+                            next[r.id] = error;
+                          } else {
+                            delete next[r.id];
                           }
-                        })();
+                          return next;
+                        });
+                        if (error) {
+                          setTestValues((m) => ({ ...m, [r.id]: error }));
+                        }
                       }
                     }}
                       className={selectBase}>
@@ -1977,28 +1880,20 @@ function DataMappingPage() {
                         keys={keys}
                         sampleData={sampleDataCache[r.id] ?? null}
                         value={r.variable_key ?? ""}
-                        onChange={async (path) => {
+                        onChange={(path) => {
                           updateImmediate(r.id, { variable_key: path });
                           if (r.variable_type === "Direct" && path && r.endpoint) {
-                            setValidatingKeys((m) => ({ ...m, [r.id]: true }));
-                            try {
-                              const sample = await fetchSampleData(r.endpoint);
-                              if (sample) {
-                                const records = extractRecords(sample);
-                                const error = validateDirectKeyType(records, path);
-                                setDirectErrors((m) => {
-                                  const next = { ...m };
-                                  if (error) {
-                                    next[r.id] = error;
-                                  } else {
-                                    delete next[r.id];
-                                  }
-                                  return next;
-                                });
+                            const records = getRecordsFromAllData(r.endpoint);
+                            const error = validateDirectKeyType(records, path);
+                            setDirectErrors((m) => {
+                              const next = { ...m };
+                              if (error) {
+                                next[r.id] = error;
+                              } else {
+                                delete next[r.id];
                               }
-                            } finally {
-                              setValidatingKeys((m) => ({ ...m, [r.id]: false }));
-                            }
+                              return next;
+                            });
                           } else {
                             setDirectErrors((m) => {
                               const next = { ...m };
@@ -2011,33 +1906,25 @@ function DataMappingPage() {
                       />
                       {r.variable_key && (
                         <TraceBtn
-                          isLoading={traceLoading[r.id]?.variableKey}
-                          onClick={async () => {
-                            setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], variableKey: true } }));
-                            try {
-                              if (!r.endpoint) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas d'endpoint sélectionné" }); return; }
-                              const sample = await fetchSampleData(r.endpoint);
-                              if (!sample) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas de sample data" }); return; }
-                              const records = extractRecords(sample);
-                              const projected = records.map((rec) => ({ [r.variable_key!]: getValueAtPath(rec, r.variable_key!) }));
-                              setTraceModal({
-                                open: true,
-                                title: `Clé: ${r.variable_key}`,
-                                content: {
-                                  variable_key: r.variable_key,
-                                  total_records: records.length,
-                                  values: projected,
-                                },
-                              });
-                            } finally {
-                              setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], variableKey: false } }));
-                            }
+                          isLoading={false}
+                          onClick={() => {
+                            if (!r.endpoint) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas d'endpoint sélectionné" }); return; }
+                            const records = getRecordsFromAllData(r.endpoint);
+                            if (records.length === 0) { setTraceModal({ open: true, title: `Clé: ${r.variable_key}`, content: "Pas de sample data" }); return; }
+                            const projected = records.map((rec) => ({ [r.variable_key!]: getValueAtPath(rec, r.variable_key!) }));
+                            setTraceModal({
+                              open: true,
+                              title: `Clé: ${r.variable_key}`,
+                              content: {
+                                variable_key: r.variable_key,
+                                total_records: records.length,
+                                values: projected,
+                              },
+                            });
                           }}
                         />
                       )}
-                      {validatingKeys[r.id] && (
-                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-1" />
-                      )}
+
                     </div>
                     {directErrors[r.id] && (
                       <div className="text-[10px] mt-1">
@@ -2073,33 +1960,27 @@ function DataMappingPage() {
                         className="w-44 bg-card border border-border rounded px-1.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-[11px] cursor-text transition-colors focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 hover:enabled:border-primary/40" />
                       {r.is_filtered && r.filter_key && r.filter_value && (
                         <TraceBtn
-                          isLoading={traceLoading[r.id]?.filter}
-                          onClick={async () => {
-                            setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], filter: true } }));
-                            try {
-                              if (!r.endpoint) return;
-                              const sample = await fetchSampleData(r.endpoint);
-                              if (!sample) return;
-                              const records = extractRecords(sample);
-                              const filtered = records.filter((rec) => String(rec[r.filter_key] ?? "") === r.filter_value);
-                              const projected = r.variable_key
-                                ? filtered.map((rec) => ({ [r.variable_key!]: rec[r.variable_key!] }))
-                                : filtered;
-                              setTraceModal({
-                                open: true,
-                                title: `Filtre: ${r.filter_key} = ${r.filter_value}`,
-                                content: {
-                                  filter_key: r.filter_key,
-                                  filter_value: r.filter_value,
-                                  variable_key: r.variable_key ?? null,
-                                  total_records: records.length,
-                                  filtered_count: filtered.length,
-                                  filtered_values: projected,
-                                },
-                              });
-                            } finally {
-                              setTraceLoading((m) => ({ ...m, [r.id]: { ...m[r.id], filter: false } }));
-                            }
+                          isLoading={false}
+                          onClick={() => {
+                            if (!r.endpoint) return;
+                            const records = getRecordsFromAllData(r.endpoint);
+                            if (records.length === 0) return;
+                            const filtered = records.filter((rec) => String(rec[r.filter_key] ?? "") === r.filter_value);
+                            const projected = r.variable_key
+                              ? filtered.map((rec) => ({ [r.variable_key!]: rec[r.variable_key!] }))
+                              : filtered;
+                            setTraceModal({
+                              open: true,
+                              title: `Filtre: ${r.filter_key} = ${r.filter_value}`,
+                              content: {
+                                filter_key: r.filter_key,
+                                filter_value: r.filter_value,
+                                variable_key: r.variable_key ?? null,
+                                total_records: records.length,
+                                filtered_count: filtered.length,
+                                filtered_values: projected,
+                              },
+                            });
                           }}
                         />
                       )}
@@ -2120,14 +2001,13 @@ function DataMappingPage() {
                   {/* Test column (from data.json samples) */}
                   <td className="px-2 py-1.5 min-w-[240px]">
                     <ResultBadge
-                      state={testLoading[r.id] ? "loading" : testValues[r.id] ? (testValues[r.id].startsWith("Erreur") || testValues[r.id] === "Pas de sample" ? "error" : "ok") : "idle"}
+                      state={testValues[r.id] ? (testValues[r.id].startsWith("Erreur") || testValues[r.id] === "Pas de sample" ? "error" : "ok") : "idle"}
                       value={testValues[r.id]}
                       loadingLabel="test…"
-                      onInfoClick={testValues[r.id] ? async () => {
+                      onInfoClick={testValues[r.id] ? () => {
                         if (!r.endpoint) return;
-                        const sample = await fetchSampleData(r.endpoint);
-                        if (!sample) return;
-                        const records = extractRecords(sample);
+                        const records = getRecordsFromAllData(r.endpoint);
+                        if (records.length === 0) return;
                         let filteredRecords = records;
                         if (r.is_filtered && r.filter_key) {
                           filteredRecords = records.filter((rec) => String(rec[r.filter_key] ?? "") === r.filter_value);
@@ -2205,7 +2085,6 @@ function DataMappingPage() {
                     return (
                       <td rowSpan={ks} className="px-2 py-1.5 border-l border-border/30 align-top">
                         <FormulaBuilder
-                          kpi={r.kpi}
                           groupRows={groupRows}
                           previewValues={testValues}
                           formula={r.formula}
@@ -2346,6 +2225,23 @@ function DataMappingPage() {
             <div className="flex justify-end gap-2">
               <button onClick={() => setConfirmReset(false)} className="text-xs px-3 py-1.5 rounded border border-border hover:bg-secondary cursor-pointer">Annuler</button>
               <button onClick={() => { setConfirmReset(false); resetAll(); }} className="text-xs px-3 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 cursor-pointer">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Confirm Sync SQL Dialog */}
+      {confirmSync && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmSync(false)}>
+          <div className="bg-card border border-border rounded-lg shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-2">Synchroniser depuis SQL externe ?</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Les données seront remplacées par le fichier SQL depuis l'URL configurée (SQL_DUMP_URL).
+              Les commandes artisan export:mappings, export:endpoints et optimize:clear seront exécutées.
+              Cette action est irréversible.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmSync(false)} className="text-xs px-3 py-1.5 rounded border border-border hover:bg-secondary cursor-pointer">Annuler</button>
+              <button onClick={() => { setConfirmSync(false); syncFromSql(); }} className="text-xs px-3 py-1.5 rounded border border-blue-500/40 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 cursor-pointer">Confirmer</button>
             </div>
           </div>
         </div>

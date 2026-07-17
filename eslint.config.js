@@ -85,6 +85,20 @@ export default [
         },
     },
     {
+        files: ['scripts/**/*.cjs'],
+        languageOptions: {
+            sourceType: 'commonjs',
+            globals: {
+                ...globals.node,
+            },
+        },
+        rules: {
+            '@typescript-eslint/no-require-imports': 'off',
+            '@typescript-eslint/no-unused-vars': 'off',
+            'no-empty': 'warn',
+        },
+    },
+    {
         ignores: ['vendor', 'node_modules', 'public', 'bootstrap/ssr', 'tailwind.config.js', 'vite.config.ts'],
     },
     prettier, // Turn off all rules that might conflict with Prettier

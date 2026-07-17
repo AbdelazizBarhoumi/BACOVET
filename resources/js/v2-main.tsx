@@ -1,12 +1,11 @@
-import { createRouter, createRoute, createRootRoute, RouterProvider, Outlet, redirect } from '@tanstack/react-router';
-import { createRoot } from 'react-dom/client';
-import React, { Suspense } from 'react';
+import { createRouter, createRoute, createRootRoute, RouterProvider, Outlet, redirect, useRouterState } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
+import React, { Suspense } from 'react';
+import { createRoot } from 'react-dom/client';
 import '../css/app.css';
-import { initializeTheme } from './hooks/use-appearance';
 import { V2Shell } from '@/components/v2/v2-shell';
-import { useRouterState } from '@tanstack/react-router';
 import { FilterProvider } from '@/context/FilterContext';
+import { initializeTheme } from './hooks/use-appearance';
 
 const Production = React.lazy(() => import('@/routes-v2/pages/production'));
 
@@ -54,7 +53,7 @@ const v2IndexRoute = createRoute({
   getParentRoute: () => v2LayoutRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/v2/production' });
+    throw redirect({ to: '/v2/production' as string });
   },
   component: () => null,
 });
@@ -73,12 +72,6 @@ const v2LayoutWithChildren = v2LayoutRoute.addChildren([
 const routeTree = rootRoute.addChildren([v2LayoutWithChildren]);
 
 const router = createRouter({ routeTree });
-
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router;
-  }
-}
 
 function App() {
   return <RouterProvider router={router} />;

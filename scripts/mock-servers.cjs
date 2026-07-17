@@ -92,7 +92,7 @@ function killAll() {
 
     setTimeout(() => {
       for (const p of processes) {
-        try { p.kill('SIGKILL'); } catch {}
+        try { p.kill('SIGKILL'); } catch { /* process may already be dead */ }
       }
       resolve();
     }, 3000);

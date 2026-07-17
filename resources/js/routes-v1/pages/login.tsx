@@ -1,6 +1,6 @@
-import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Lock, Mail, ChevronRight, CheckCircle2 } from "lucide-react";
+import React, { useState } from "react";
 
 const EMAILS = [
   { email: "superadmin@bacovet.com", name: "Super admin" },

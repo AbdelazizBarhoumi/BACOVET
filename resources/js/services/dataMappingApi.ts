@@ -182,3 +182,33 @@ export const fetchAuditLogs = async (params: {
     if (params.action) qs.set('action', params.action);
     return fetchWithToken(`${BASE_URL}/audit-logs?${qs}`);
 };
+
+export interface SyncSqlResult {
+    message: string;
+    sql_length: number;
+    commands: {
+        'export:mappings': { exit: number; output: string };
+        'export:endpoints': { exit: number; output: string };
+        'optimize:clear': { exit: number; output: string };
+    };
+}
+
+export const syncDataFromSql = async (): Promise<SyncSqlResult> => {
+    return fetchWithToken(`${BASE_URL}/sync-sql`, { method: 'POST' });
+};
+
+export const exportSql = async (): Promise<void> => {
+    const response = await fetch(`${BASE_URL}/export-sql`);
+    if (!response.ok) {
+        throw new Error(`Export failed: ${response.status}`);
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'data_mappings_export.sql';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+};

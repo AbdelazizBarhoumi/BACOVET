@@ -9,7 +9,7 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from "@/components/ui/pagination";
-import { fetchAuditLogs, type AuditLogEntry, type PaginatedAuditLogs } from "@/services/dataMappingApi";
+import { fetchAuditLogs, type PaginatedAuditLogs } from "@/services/dataMappingApi";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 

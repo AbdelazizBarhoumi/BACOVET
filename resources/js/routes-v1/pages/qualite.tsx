@@ -1,5 +1,7 @@
-import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
+import { AlertCircle, AlertTriangle, CheckCircle, Trophy } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, ReqLabel, LineKpi, ParetoChart } from "@/components/v1/primitives";
+import { PageHeader, FilterPill, Filters, StatusFooter } from "@/components/v1/v1-shell";
 import {
   fetchQualityKpis,
   fetchQualityQpTeams,
@@ -11,8 +13,6 @@ import {
   type ParetoItem,
   type QpTeam,
 } from "@/services/qualityApi";
-import { AlertCircle, AlertTriangle, CheckCircle, Trophy } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 type KpiRow = { id: string; title: string; v: number | null; target: number; dir: "max" | "min"; raw?: { num: number | null; den: number | null }; blocker?: string | null };
 type TrendRow = { id: string; title: string; v: number | null; target: number; color: string; domain: [number, number]; data: number[] };

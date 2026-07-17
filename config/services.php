@@ -35,4 +35,6 @@ return [
         ],
     ],
 
+    'sql_dump_url' => env('SQL_DUMP_URL'),
+
 ];
