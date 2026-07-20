@@ -51,6 +51,8 @@ return [
                 'formula_readable' => 'Nombre de modèles validés de premier coup / Total des modèles envoyés',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 95.00,
@@ -107,6 +109,8 @@ return [
                 'formula_readable' => 'Nombre de modèles envoyés à date / Total des modèles envoyés',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 95.00,
@@ -163,6 +167,8 @@ return [
                 'formula_readable' => 'Nombre de nomenclatures validées et fiables / Total des nomenclatures',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart mensuel'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 98.00,
@@ -219,6 +225,8 @@ return [
                 'formula_readable' => 'Nombre de modèles réclamés / Total des modèles',
                 'highlight_color' => null,
                 'graph_types' => ['Scatter Plot (Nuage)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<',
                     'value' => 2.00,
@@ -287,6 +295,8 @@ return [
                 'formula_readable' => 'Nombre des OF soldés archivés / Nombre total des OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 85.00,
@@ -351,6 +361,8 @@ return [
                 'formula_readable' => 'Quantité physique / Quantité système * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 99.50,
@@ -415,6 +427,8 @@ return [
                 'formula_readable' => 'Quantité physique / Quantité système * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 99.50,
@@ -479,6 +493,8 @@ return [
                 'formula_readable' => 'Quantité physique / Quantité système * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 99.50,
@@ -535,6 +551,8 @@ return [
                 'formula_readable' => 'Coût des marchandises / Stock moyen',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -591,6 +609,8 @@ return [
                 'formula_readable' => 'Coût des marchandises / Stock moyen',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -647,6 +667,8 @@ return [
                 'formula_readable' => 'Coût des marchandises / Stock moyen',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -711,6 +733,8 @@ return [
                 'formula_readable' => 'Valeur des articles sans mouvement durant 365 jours / Valeur totale du stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -775,6 +799,8 @@ return [
                 'formula_readable' => 'Valeur des articles sans mouvement durant 365 jours / Valeur totale du stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -839,6 +865,8 @@ return [
                 'formula_readable' => 'Valeur des articles sans mouvement durant 365 jours / Valeur totale du stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -903,6 +931,8 @@ return [
                 'formula_readable' => 'Nombre de rouleaux / Capacité de stockage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 85.00,
@@ -967,6 +997,8 @@ return [
                 'formula_readable' => 'Nombre de rouleaux / Capacité de stockage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 85.00,
@@ -1031,6 +1063,8 @@ return [
                 'formula_readable' => 'Nombre de rouleaux / Capacité de stockage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 85.00,
@@ -1092,6 +1126,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 80.00,
@@ -1153,6 +1189,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 80.00,
@@ -1214,6 +1252,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 80.00,
@@ -1253,6 +1293,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 1.00,
@@ -1292,6 +1334,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 1.00,
@@ -1331,6 +1375,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 1.00,
@@ -1395,6 +1441,8 @@ return [
                 'formula_readable' => 'Typologie fournitures / Valeur stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Pie Chart (Secteurs)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -1459,6 +1507,8 @@ return [
                 'formula_readable' => 'Provenance / Valeur stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Pie Chart (Secteurs)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -1523,6 +1573,8 @@ return [
                 'formula_readable' => 'Famille FG / Valeur stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Pie Chart (Secteurs)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -1587,6 +1639,8 @@ return [
                 'formula_readable' => 'Quantité livrée / Quantité commandée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 95.00,
@@ -1651,6 +1705,8 @@ return [
                 'formula_readable' => 'Quantité livrée / Quantité commandée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 95.00,
@@ -1718,6 +1774,8 @@ return [
                 'formula_readable' => 'Quantité réalisée / Objectif journalier',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 95.00,
@@ -1774,6 +1832,8 @@ return [
                 'formula_readable' => 'STRH + Lead Time Transport',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 32.00,
@@ -1842,6 +1902,8 @@ return [
                 'formula_readable' => 'Nombre des OF soldés archivés / Nombre total des OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 85.00,
@@ -1881,6 +1943,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 95.00,
@@ -1920,6 +1984,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => 90.00,
@@ -1984,6 +2050,8 @@ return [
                 'formula_readable' => 'Demandes de négociation / Gammes déchiffrage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 80.00,
@@ -2052,6 +2120,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection commande / Nombre d\'inspection commande * 100',
                 'highlight_color' => '#f7c53b',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -2116,6 +2186,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -2180,6 +2252,8 @@ return [
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 98.00,
@@ -2244,6 +2318,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -2308,6 +2384,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison sérigraphie / Nombre d\'inspection livraison sérigraphie * 100',
                 'highlight_color' => '#3b73f7',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -2372,6 +2450,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection colis / Nombre d\'inspection colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -2390,7 +2470,7 @@ return [
                         'variable_type' => 'Complex',
                         'variable_key' => 'MinuteProduite',
                         'is_filtered' => true,
-                        'filter_key' => 'ProdGroup',
+                        'filter_key' => 'EmployeeNo',
                         'filter_value' => null,
                         'has_function' => false,
                         'fn' => 'Latest',
@@ -2401,7 +2481,7 @@ return [
                         'variable_type' => 'Complex',
                         'variable_key' => 'TempsPresence_Min',
                         'is_filtered' => true,
-                        'filter_key' => 'ProdGroup',
+                        'filter_key' => 'EmployeeNo',
                         'filter_value' => null,
                         'has_function' => false,
                         'fn' => 'Latest',
@@ -2436,6 +2516,13 @@ return [
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
+                'chart_config' => null,
+                'extra_filters' => [
+                    [
+                        'filter_key' => 'ProdGroup',
+                        'label' => 'ProdGroup',
+                    ],
+                ],
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -2540,6 +2627,8 @@ return [
                 'formula_readable' => 'Quantité déclarée par chaîne * SOT / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -2615,6 +2704,8 @@ return [
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -2719,6 +2810,8 @@ return [
                 'formula_readable' => 'Quantité déclarée par chaîne * SAM / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 70.00,
@@ -2766,6 +2859,8 @@ return [
                 'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 0.50,
@@ -2805,6 +2900,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Area Chart (Graph. aires)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 1.50,
@@ -2855,6 +2952,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Chronologie (Timeline)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<',
                     'value' => 10.00,
@@ -2919,6 +3018,8 @@ return [
                 'formula_readable' => 'Minutes produites poste 221 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -2983,6 +3084,8 @@ return [
                 'formula_readable' => 'Minutes produites poste 213 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -3067,6 +3170,8 @@ return [
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Horizontal Bar Chart'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -3103,6 +3208,8 @@ return [
                 'formula_readable' => 'Temps standard alloué',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => null,
@@ -3139,6 +3246,8 @@ return [
                 'formula_readable' => 'Temps article fournisseur',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3167,6 +3276,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3195,6 +3306,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3223,6 +3336,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3262,6 +3377,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3312,6 +3429,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3340,6 +3459,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3379,6 +3500,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3443,6 +3566,8 @@ return [
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3471,6 +3596,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3521,6 +3648,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3560,6 +3689,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3599,6 +3730,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => null,
@@ -3649,6 +3782,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 10.00,
@@ -3699,6 +3834,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => null,
@@ -3727,6 +3864,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -3795,6 +3934,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -3859,6 +4000,8 @@ return [
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 98.00,
@@ -3923,6 +4066,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection colis / Nombre d\'inspection colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -3941,7 +4086,7 @@ return [
                         'variable_type' => 'Complex',
                         'variable_key' => 'MinuteProduite',
                         'is_filtered' => true,
-                        'filter_key' => 'ProdGroup',
+                        'filter_key' => 'EmployeeNo',
                         'filter_value' => null,
                         'has_function' => false,
                         'fn' => 'Latest',
@@ -3952,7 +4097,7 @@ return [
                         'variable_type' => 'Complex',
                         'variable_key' => 'TempsPresence_Min',
                         'is_filtered' => true,
-                        'filter_key' => 'ProdGroup',
+                        'filter_key' => 'EmployeeNo',
                         'filter_value' => null,
                         'has_function' => false,
                         'fn' => 'Latest',
@@ -3987,6 +4132,13 @@ return [
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
+                'chart_config' => null,
+                'extra_filters' => [
+                    [
+                        'filter_key' => 'ProdGroup',
+                        'label' => 'ProdGroup',
+                    ],
+                ],
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -4091,6 +4243,8 @@ return [
                 'formula_readable' => 'Quantité déclarée par chaîne * SOT / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -4166,6 +4320,8 @@ return [
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -4270,6 +4426,8 @@ return [
                 'formula_readable' => 'Quantité déclarée par chaîne * SAM / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 70.00,
@@ -4317,6 +4475,8 @@ return [
                 'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 0.50,
@@ -4356,6 +4516,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Area Chart (Graph. aires)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 1.50,
@@ -4406,6 +4568,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Chronologie (Timeline)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<',
                     'value' => 10.00,
@@ -4490,6 +4654,8 @@ return [
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Horizontal Bar Chart'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -4526,6 +4692,8 @@ return [
                 'formula_readable' => 'Temps standard alloué',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '=',
                     'value' => null,
@@ -4562,6 +4730,8 @@ return [
                 'formula_readable' => 'Temps article fournisseur',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4590,6 +4760,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4618,6 +4790,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4646,6 +4820,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4685,6 +4861,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4713,6 +4891,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4752,6 +4932,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4816,6 +4998,8 @@ return [
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4844,6 +5028,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4894,6 +5080,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4933,6 +5121,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -4983,6 +5173,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 10.00,
@@ -5011,6 +5203,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5079,6 +5273,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -5143,6 +5339,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison sérigraphie / Nombre d\'inspection livraison sérigraphie * 100',
                 'highlight_color' => '#3b73f7',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -5193,6 +5391,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Chronologie (Timeline)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<',
                     'value' => 10.00,
@@ -5257,6 +5457,8 @@ return [
                 'formula_readable' => 'Minutes produites poste 221 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -5321,6 +5523,8 @@ return [
                 'formula_readable' => 'Minutes produites poste 213 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => 85.00,
@@ -5405,6 +5609,8 @@ return [
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Horizontal Bar Chart'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -5433,6 +5639,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5472,6 +5680,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5522,6 +5732,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5550,6 +5762,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5589,6 +5803,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5653,6 +5869,8 @@ return [
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5681,6 +5899,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5731,6 +5951,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5770,6 +5992,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5820,6 +6044,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => null,
@@ -5848,6 +6074,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -5916,6 +6144,8 @@ return [
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 98.00,
@@ -5980,6 +6210,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison sérigraphie / Nombre d\'inspection livraison sérigraphie * 100',
                 'highlight_color' => '#3b73f7',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -6027,6 +6259,8 @@ return [
                 'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 0.50,
@@ -6066,6 +6300,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Area Chart (Graph. aires)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 1.50,
@@ -6116,6 +6352,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Chronologie (Timeline)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<',
                     'value' => 10.00,
@@ -6200,6 +6438,8 @@ return [
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Horizontal Bar Chart'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -6228,6 +6468,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6267,6 +6509,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6295,6 +6539,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur', 'Liste de OF en cours non soldés'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6334,6 +6580,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6398,6 +6646,8 @@ return [
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6426,6 +6676,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6476,6 +6728,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6515,6 +6769,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6554,6 +6810,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>',
                     'value' => null,
@@ -6582,6 +6840,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -6650,6 +6910,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection commande / Nombre d\'inspection commande * 100',
                 'highlight_color' => '#f7c53b',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -6714,6 +6976,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -6778,6 +7042,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite contrôle RFID colis / Nombre de contrôle RFID colis * 100',
                 'highlight_color' => '#f7b23b',
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -6842,6 +7108,8 @@ return [
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 98.00,
@@ -6906,6 +7174,8 @@ return [
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 98.00,
@@ -6970,6 +7240,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7034,6 +7306,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7098,6 +7372,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison sérigraphie / Nombre d\'inspection livraison sérigraphie * 100',
                 'highlight_color' => '#3b73f7',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7162,6 +7438,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison sérigraphie / Nombre d\'inspection livraison sérigraphie * 100',
                 'highlight_color' => '#3b82f6',
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7226,6 +7504,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison vignettes / Nombre d\'inspection livraison vignettes * 100',
                 'highlight_color' => '#3780f6',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7290,6 +7570,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison vignettes / Nombre d\'inspection livraison vignettes * 100',
                 'highlight_color' => '#1164e8',
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7354,6 +7636,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison accessoires / Nombre d\'inspection livraison accessoires * 100',
                 'highlight_color' => '#0650c6',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7418,6 +7702,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison accessoires / Nombre d\'inspection livraison accessoires * 100',
                 'highlight_color' => '#2763c4',
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7482,6 +7768,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison Compo / Nombre d\'inspection livraison Compo * 100',
                 'highlight_color' => '#0e4caf',
                 'graph_types' => ['Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7546,6 +7834,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection livraison Compo / Nombre d\'inspection livraison Compo * 100',
                 'highlight_color' => '#0d69fd',
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7574,6 +7864,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Pareto Chart (Interactif)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -7613,6 +7905,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Pareto Chart (Interactif)'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -7641,6 +7935,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Podium ou Top 3 List'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -7669,6 +7965,8 @@ return [
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Podium ou Top 3 List'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '',
                     'value' => null,
@@ -7733,6 +8031,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection colis / Nombre d\'inspection colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,
@@ -7797,6 +8097,8 @@ return [
                 'formula_readable' => 'Nombre de rejet suite inspection AQL colis / Nombre d\'inspection AQL colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
+                'chart_config' => null,
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '<=',
                     'value' => 5.00,

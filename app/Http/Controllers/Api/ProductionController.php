@@ -1584,7 +1584,7 @@ class ProductionController extends Controller
                     $fk = $varDef['filter_key'];
                     $sampleKeys = array_keys($rawData[0] ?? []);
                     if (in_array($fk, $sampleKeys)) {
-                        $opts = array_values(array_unique(array_filter(array_column($rawData, $fk))));
+                        $opts = array_values(array_unique(array_filter(array_map(fn($v) => trim((string)$v), array_column($rawData, $fk)))));
                         if (!empty($opts)) {
                             // Merge options if filter_key already exists
                             $found = false;
@@ -1631,6 +1631,8 @@ class ProductionController extends Controller
                 'target_readable' => $kpiDef['target_readable'] ?? null,
                 'graph_types' => $kpiDef['graph_types'] ?? null,
                 'highlight_color' => $kpiDef['highlight_color'] ?? null,
+                'chart_config' => $kpiDef['chart_config'] ?? null,
+                'extra_filters' => $this->buildExtraFilters($kpiDef, $variableOutputs),
                 'filter_configs' => $allFilterConfigs,
                 'raw_data' => !empty($mergedRaw) ? $mergedRaw : null,
                 'last_valid_synced_at' => $latestValidSyncedAt?->toISOString(),
@@ -1666,6 +1668,41 @@ class ProductionController extends Controller
             'Latest' => end($values),
             default => end($values),
         };
+    }
+
+    /**
+     * Build extra filter configs from the KPI definition.
+     * Extracts unique values from the specified variable's raw_data.
+     */
+    private function buildExtraFilters(array $kpiDef, array $variableOutputs): array
+    {
+        $extraFilters = $kpiDef['extra_filters'] ?? [];
+        if (empty($extraFilters)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($extraFilters as $extra) {
+            $filterKey = $extra['filter_key'] ?? null;
+            if (!$filterKey) continue;
+
+            $sourceIndex = $extra['source_variable_index'] ?? 0;
+            $rawData = $variableOutputs[$sourceIndex]['raw_data'] ?? null;
+
+            if (!is_array($rawData) || empty($rawData)) continue;
+
+            $opts = array_values(array_unique(array_filter(array_column($rawData, $filterKey))));
+            if (empty($opts)) continue;
+
+            sort($opts);
+            $result[] = [
+                'key' => $filterKey,
+                'options' => $opts,
+                'label' => $extra['label'] ?? $filterKey,
+            ];
+        }
+
+        return $result;
     }
 
     /**

@@ -8,20 +8,68 @@ import type { V2KpiItem } from "@/services/v2ProductionApi";
 
 const COLORS = ["#1e6cb8", "#2a9d8f", "#e63946", "#f4a261", "#264653", "#e9c46a", "#606c38", "#283618"];
 
+// ─── Resolve chart_config overrides from kpi ──────────────────────────────
+function resolveChartConfig(kpi: V2KpiItem) {
+  const cc = kpi.chart_config;
+  // Y-axis label: first word of KPI name (e.g., "Efficience" from "Efficience par OPERATEUR par chaine")
+  const firstWord = kpi.name?.split(/\s+/)[0] ?? null;
+  return {
+    xAxisKey: cc?.x_axis_key ?? null,
+    yAxisKey: cc?.y_axis_key ?? 'value',
+    legendX: cc?.legend_x ?? null,
+    legendY: cc?.legend_y ?? firstWord,
+    valueKey: cc?.value_key ?? 'value',
+    barColor: cc?.bar_color ?? '#1e6cb8',
+    lineColor: cc?.line_color ?? '#e63946',
+    gradient: cc?.gradient ?? false,
+    tooltipFormat: cc?.tooltip_format ?? null,
+    tooltipKeys: cc?.tooltip_keys ?? null,
+    sortBy: cc?.sort_by ?? null,
+    maxItems: cc?.max_items ?? null,
+    showRefLine: cc?.show_reference_line ?? true,
+    refLineLabel: cc?.reference_line_label ?? 'Cible',
+  };
+}
+
+function sortData(data: Record<string, unknown>[], sortBy: string | null): Record<string, unknown>[] {
+  if (!sortBy) return data;
+  const sorted = [...data];
+  switch (sortBy) {
+    case 'value_desc': return sorted.sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0));
+    case 'value_asc': return sorted.sort((a, b) => Number(a.value ?? 0) - Number(b.value ?? 0));
+    case 'name_asc': return sorted.sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')));
+    case 'name_desc': return sorted.sort((a, b) => String(b.name ?? '').localeCompare(String(a.name ?? '')));
+    default: return sorted;
+  }
+}
+
+// Extract _xKey metadata attached by row-by-row formula (join key name like "EmployeeNo")
+function getXKey(data: Record<string, unknown>[]): string | null {
+  return (data as any)._xKey ?? null;
+}
+
 // ─── Helper: extract chart-ready data from kpi ──────────────────────────────
 // If kpi.value is an array (row-by-row formula result), use it directly.
 // If kpi.raw_data exists, use it. Otherwise fallback to single value.
 function useChartData(kpi: V2KpiItem, filterVal: string) {
   return useMemo(() => {
-    // 1. If value is an array (computed row-by-row), use it directly
+    const filterKey = kpi.filter_key;
+
+    // 1. If value is an array (computed row-by-row), filter it
     if (Array.isArray(kpi.value)) {
+      if (filterKey && filterVal !== "Tous") {
+        return kpi.value.filter((r) => {
+          const rowVal = (r as Record<string, unknown>)[filterKey];
+          return rowVal != null && String(rowVal).trim() === filterVal;
+        });
+      }
       return kpi.value;
     }
 
     // 2. If raw_data exists, use it
     if (kpi.raw_data && kpi.raw_data.length > 0) {
-      if (kpi.filter_key && filterVal !== "Tous") {
-        return kpi.raw_data.filter((r) => String(r[kpi.filter_key!] ?? "") === filterVal);
+      if (filterKey && filterVal !== "Tous") {
+        return kpi.raw_data.filter((r) => String(r[filterKey] ?? "").trim() === filterVal);
       }
       return kpi.raw_data;
     }
@@ -36,6 +84,21 @@ function detectLabelKey(row: Record<string, unknown>): string {
   if (!row) return "name";
   const keys = Object.keys(row).filter((k) => k !== "value");
   return keys[0] ?? "name";
+}
+
+// Pick the best X-axis label key from data: prefer join key (_xKey), then EmployeeNo/EmployeeName, then first non-value key
+function pickXKey(data: Record<string, unknown>[], kpi: V2KpiItem): string {
+  // 1. If _xKey metadata exists (from row-by-row join), use it
+  const xKey = getXKey(data);
+  if (xKey) return xKey;
+  // 2. If data has EmployeeNo or EmployeeName, prefer those
+  if (data.length > 0) {
+    const row = data[0] as Record<string, unknown>;
+    if ("EmployeeNo" in row) return "EmployeeNo";
+    if ("EmployeeName" in row) return "EmployeeName";
+  }
+  // 3. Fallback to detectLabelKey
+  return data.length > 0 ? detectLabelKey(data[0]) : "name";
 }
 
 // ─── Filter Dropdown ────────────────────────────────────────────────────────
@@ -64,17 +127,53 @@ function FilterDropdown({ filterKey, raw, selected, onSelect }: {
   );
 }
 
+// ─── Generic Chart Tooltip ──────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border rounded px-2 py-1 text-[10px] shadow-md">
+      <div className="font-bold mb-0.5">{label}</div>
+      {payload.map((p: any, i: number) => (
+        <div key={i} style={{ color: p.color }}>
+          {p.name}: {typeof p.value === "number" ? p.value.toFixed(1) : p.value}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Line Chart ─────────────────────────────────────────────────────────────
+function LineTooltip({ active, payload, label, yLabel }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border rounded px-2 py-1 text-[10px] shadow-md">
+      <div className="font-bold mb-0.5">{label}</div>
+      {payload.map((p: any, i: number) => (
+        <div key={i} style={{ color: p.color }}>
+          {yLabel}: {typeof p.value === "number" ? p.value.toFixed(1) : p.value}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function V2LineChart({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
+
+  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const valueKey = cc.yAxisKey;
+  const maxItems = cc.maxItems ?? 10;
+  const xLabel = cc.legendX ?? getXKey(data);
+  const yLabel = cc.legendY ?? kpi.name?.split(/\s+/)[0] ?? "value";
 
   const chartData = data.length > 0
-    ? data.map((r: Record<string, unknown>, i: number) => ({
-        name: String(r[detectLabelKey(r)] ?? `#${i + 1}`),
-        value: Number(r.value ?? 0),
+    ? sortData(data, cc.sortBy).slice(0, maxItems).map((r: Record<string, unknown>, i: number) => ({
+        name: String(r[labelKey] ?? `#${i + 1}`),
+        [yLabel]: Number(r[valueKey] ?? r.value ?? 0),
       }))
-    : [{ name: "—", value: kpi.value != null && !Array.isArray(kpi.value) ? Number(kpi.value) : 0 }];
+    : [{ name: "—", [yLabel]: kpi.value != null && !Array.isArray(kpi.value) ? Number(kpi.value) : 0 }];
 
   return (
     <div className="h-48">
@@ -82,11 +181,11 @@ export function V2LineChart({ kpi }: { kpi: V2KpiItem }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis dataKey="name" fontSize={10} tickLine={false} />
-          <YAxis fontSize={10} tickLine={false} />
-          <Tooltip />
-          <Line type="monotone" dataKey="value" stroke="#1e6cb8" strokeWidth={2} dot={{ r: 3 }} />
-          {kpi.target_value != null && <ReferenceLine y={kpi.target_value} stroke="#e63946" strokeDasharray="5 5" label={{ value: "Cible", fontSize: 9 }} />}
+          <XAxis dataKey="name" fontSize={10} tickLine={false} label={xLabel ? { value: xLabel, position: 'insideBottom', offset: -5, fontSize: 9 } : undefined} />
+          <YAxis fontSize={10} tickLine={false} label={cc.legendY ? { value: cc.legendY, angle: -90, position: 'insideLeft', fontSize: 9 } : undefined} />
+          <Tooltip content={<LineTooltip yLabel={yLabel} />} />
+          <Line type="monotone" dataKey={yLabel} stroke={cc.lineColor} strokeWidth={2} dot={{ r: 3 }} />
+          {kpi.target_value != null && cc.showRefLine && <ReferenceLine y={kpi.target_value} stroke="#e63946" strokeDasharray="5 5" label={{ value: cc.refLineLabel, fontSize: 9 }} />}
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -116,18 +215,37 @@ export function V2GaugeChart({ kpi }: { kpi: V2KpiItem }) {
 }
 
 // ─── Combo Bar/Line ─────────────────────────────────────────────────────────
+function ComboTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border rounded px-2 py-1 text-[10px] shadow-md">
+      <div className="font-bold mb-0.5">{label}</div>
+      {payload.map((p: any, i: number) => (
+        <div key={i} style={{ color: p.color }}>
+          {p.name}: {typeof p.value === "number" ? p.value.toFixed(1) : p.value}%
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function V2ComboChart({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
 
-  const labelKey = data.length > 0 ? detectLabelKey(data[0] as Record<string, unknown>) : "name";
+  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const valueKey = cc.yAxisKey;
+  const maxItems = cc.maxItems ?? 10;
+  const xLabel = cc.legendX ?? getXKey(data);
+  const yLabel = cc.legendY ?? kpi.name?.split(/\s+/)[0] ?? "";
+
   const chartData = data.length > 0
-    ? data.slice(0, 10).map((r: Record<string, unknown>, i: number) => ({
+    ? sortData(data, cc.sortBy).slice(0, maxItems).map((r: Record<string, unknown>, i: number) => ({
         name: String(r[labelKey] ?? `#${i + 1}`),
-        bar: Number(r.value ?? 0),
-        line: Number(r.value ?? 0) * 0.95,
+        [yLabel || "value"]: Number(r[valueKey] ?? r.value ?? 0),
       }))
-    : [{ name: "—", bar: kpi.value != null && !Array.isArray(kpi.value) ? Number(kpi.value) : 0, line: kpi.value != null && !Array.isArray(kpi.value) ? Number(kpi.value) * 0.95 : 0 }];
+    : [{ name: "—", [yLabel || "value"]: kpi.value != null && !Array.isArray(kpi.value) ? Number(kpi.value) : 0 }];
 
   return (
     <div className="h-48">
@@ -135,11 +253,11 @@ export function V2ComboChart({ kpi }: { kpi: V2KpiItem }) {
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis dataKey="name" fontSize={10} tickLine={false} />
-          <YAxis fontSize={10} tickLine={false} />
-          <Tooltip />
-          <Bar dataKey="bar" fill="#1e6cb8" radius={[2, 2, 0, 0]} barSize={16} />
-          <Line type="monotone" dataKey="line" stroke="#e63946" strokeWidth={2} dot={{ r: 3 }} />
+          <XAxis dataKey="name" fontSize={10} tickLine={false} label={xLabel ? { value: xLabel, position: 'insideBottom', offset: -5, fontSize: 9 } : undefined} />
+          <YAxis fontSize={10} tickLine={false} label={cc.legendY ? { value: cc.legendY, angle: -90, position: 'insideLeft', fontSize: 9 } : undefined} />
+          <Tooltip content={<ComboTooltip />} />
+          <Bar dataKey={yLabel || "value"} fill={cc.barColor} radius={[2, 2, 0, 0]} barSize={16} />
+          <Line type="monotone" dataKey={yLabel || "value"} stroke={cc.lineColor} strokeWidth={2} dot={{ r: 3 }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -150,9 +268,10 @@ export function V2ComboChart({ kpi }: { kpi: V2KpiItem }) {
 export function V2ParetoChart({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
 
-  // Group by a categorical key (like LostTypeDesc) and count
-  const groupKey = kpi.filter_key ?? Object.keys(data[0] ?? {})[0] ?? "name";
+  const groupKey = cc.xAxisKey ?? kpi.filter_key ?? Object.keys(data[0] ?? {})[0] ?? "name";
+  const maxItems = cc.maxItems ?? 8;
   const grouped = useMemo(() => {
     const map: Record<string, number> = {};
     data.forEach((r) => {
@@ -161,13 +280,13 @@ export function V2ParetoChart({ kpi }: { kpi: V2KpiItem }) {
     });
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
+      .slice(0, maxItems)
       .map(([name, count], i, arr) => {
         const total = arr.reduce((s, x) => s + x[1], 0);
         const cumPct = arr.slice(0, i + 1).reduce((s, x) => s + x[1], 0) / total * 100;
         return { name, count, cumPct };
       });
-  }, [data, groupKey]);
+  }, [data, groupKey, maxItems]);
 
   const chartData = grouped.length > 0 ? grouped : [{ name: "—", count: 1, cumPct: 100 }];
 
@@ -180,9 +299,9 @@ export function V2ParetoChart({ kpi }: { kpi: V2KpiItem }) {
           <XAxis dataKey="name" fontSize={9} tickLine={false} />
           <YAxis yAxisId="left" fontSize={10} tickLine={false} />
           <YAxis yAxisId="right" orientation="right" fontSize={10} tickLine={false} domain={[0, 100]} />
-          <Tooltip />
-          <Bar yAxisId="left" dataKey="count" fill="#1e6cb8" radius={[2, 2, 0, 0]} barSize={20} />
-          <Line yAxisId="right" type="monotone" dataKey="cumPct" stroke="#e63946" strokeWidth={2} dot={{ r: 3 }} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar yAxisId="left" dataKey="count" fill={cc.barColor} radius={[2, 2, 0, 0]} barSize={20} />
+          <Line yAxisId="right" type="monotone" dataKey="cumPct" stroke={cc.lineColor} strokeWidth={2} dot={{ r: 3 }} />
           <ReferenceLine yAxisId="right" y={80} stroke="#f4a261" strokeDasharray="5 5" />
         </ComposedChart>
       </ResponsiveContainer>
@@ -194,10 +313,14 @@ export function V2ParetoChart({ kpi }: { kpi: V2KpiItem }) {
 export function V2HorizontalBarChart({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
 
-  const labelKey = data.length > 0 ? detectLabelKey(data[0] as Record<string, unknown>) : "name";
+  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const valueKey = cc.yAxisKey;
+  const maxItems = cc.maxItems ?? 8;
+
   const chartData = data.length > 0
-    ? data.slice(0, 8).map((r: Record<string, unknown>) => ({ name: String(r[labelKey] ?? "—"), value: Number(r.value ?? 0) }))
+    ? sortData(data, cc.sortBy).slice(0, maxItems).map((r: Record<string, unknown>) => ({ name: String(r[labelKey] ?? "—"), value: Number(r[valueKey] ?? r.value ?? 0) }))
     : [{ name: "—", value: kpi.value != null ? Number(kpi.value) : 0 }];
 
   return (
@@ -208,8 +331,8 @@ export function V2HorizontalBarChart({ kpi }: { kpi: V2KpiItem }) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis type="number" fontSize={10} tickLine={false} />
           <YAxis dataKey="name" type="category" fontSize={10} tickLine={false} width={60} />
-          <Tooltip />
-          <Bar dataKey="value" fill="#1e6cb8" radius={[0, 2, 2, 0]} barSize={14} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar dataKey="value" fill={cc.barColor} radius={[0, 2, 2, 0]} barSize={14} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -220,11 +343,17 @@ export function V2HorizontalBarChart({ kpi }: { kpi: V2KpiItem }) {
 export function V2AreaChart({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
+
+  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const valueKey = cc.yAxisKey;
+  const maxItems = cc.maxItems ?? 10;
+  const xLabel = cc.legendX ?? getXKey(data);
 
   const chartData = data.length > 0
-    ? data.slice(0, 10).map((r, i) => ({
-        name: String(r[kpi.filter_key ?? "name"] ?? `#${i + 1}`),
-        value: Number(r.value ?? 0),
+    ? sortData(data, cc.sortBy).slice(0, maxItems).map((r: Record<string, unknown>, i: number) => ({
+        name: String(r[labelKey] ?? `#${i + 1}`),
+        value: Number(r[valueKey] ?? r.value ?? 0),
       }))
     : [{ name: "—", value: kpi.value != null ? Number(kpi.value) : 0 }];
 
@@ -234,10 +363,10 @@ export function V2AreaChart({ kpi }: { kpi: V2KpiItem }) {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis dataKey="name" fontSize={10} tickLine={false} />
-          <YAxis fontSize={10} tickLine={false} />
-          <Tooltip />
-          <Area type="monotone" dataKey="value" stroke="#1e6cb8" fill="#1e6cb8" fillOpacity={0.3} />
+          <XAxis dataKey="name" fontSize={10} tickLine={false} label={xLabel ? { value: xLabel, position: 'insideBottom', offset: -5, fontSize: 9 } : undefined} />
+          <YAxis fontSize={10} tickLine={false} label={cc.legendY ? { value: cc.legendY, angle: -90, position: 'insideLeft', fontSize: 9 } : undefined} />
+          <Tooltip content={<ChartTooltip />} />
+          <Area type="monotone" dataKey="value" stroke={cc.barColor} fill={cc.barColor} fillOpacity={0.3} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -248,12 +377,16 @@ export function V2AreaChart({ kpi }: { kpi: V2KpiItem }) {
 export function V2Timeline({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
 
-  const labelKey = data.length > 0 ? detectLabelKey(data[0] as Record<string, unknown>) : "name";
+  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const valueKey = cc.yAxisKey;
+  const maxItems = cc.maxItems ?? 10;
+
   const chartData = data.length > 0
-    ? data.slice(0, 10).map((r: Record<string, unknown>) => ({
+    ? sortData(data, cc.sortBy).slice(0, maxItems).map((r: Record<string, unknown>) => ({
         name: String(r[labelKey] ?? r.LostTypeDesc ?? "—"),
-        minutes: Number(r.TotalLostTime ?? r.minutes ?? r.value ?? 0),
+        minutes: Number(r[valueKey] ?? r.TotalLostTime ?? r.minutes ?? r.value ?? 0),
       }))
     : [{ name: "—", minutes: kpi.value != null ? Number(kpi.value) : 0 }];
 
@@ -265,8 +398,8 @@ export function V2Timeline({ kpi }: { kpi: V2KpiItem }) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis dataKey="name" fontSize={9} tickLine={false} angle={-30} textAnchor="end" height={40} />
           <YAxis fontSize={10} tickLine={false} />
-          <Tooltip />
-          <Bar dataKey="minutes" fill="#e63946" radius={[2, 2, 0, 0]} barSize={18} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar dataKey="minutes" fill={cc.lineColor} radius={[2, 2, 0, 0]} barSize={18} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -277,10 +410,15 @@ export function V2Timeline({ kpi }: { kpi: V2KpiItem }) {
 export function V2BarChart({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
 
-  const labelKey = data.length > 0 ? detectLabelKey(data[0] as Record<string, unknown>) : "name";
+  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const valueKey = cc.yAxisKey;
+  const maxItems = cc.maxItems ?? 10;
+  const xLabel = cc.legendX ?? getXKey(data);
+
   const chartData = data.length > 0
-    ? data.slice(0, 10).map((r: Record<string, unknown>) => ({ name: String(r[labelKey] ?? "—"), value: Number(r.value ?? 0) }))
+    ? sortData(data, cc.sortBy).slice(0, maxItems).map((r: Record<string, unknown>) => ({ name: String(r[labelKey] ?? "—"), value: Number(r[valueKey] ?? r.value ?? 0) }))
     : [{ name: "—", value: kpi.value != null ? Number(kpi.value) : 0 }];
 
   return (
@@ -289,11 +427,11 @@ export function V2BarChart({ kpi }: { kpi: V2KpiItem }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis dataKey="name" fontSize={10} tickLine={false} />
-          <YAxis fontSize={10} tickLine={false} />
-          <Tooltip />
-          <Bar dataKey="value" fill="#1e6cb8" radius={[2, 2, 0, 0]} barSize={18} />
-          {kpi.target_value != null && <ReferenceLine y={kpi.target_value} stroke="#e63946" strokeDasharray="5 5" />}
+          <XAxis dataKey="name" fontSize={10} tickLine={false} label={xLabel ? { value: xLabel, position: 'insideBottom', offset: -5, fontSize: 9 } : undefined} />
+          <YAxis fontSize={10} tickLine={false} label={cc.legendY ? { value: cc.legendY, angle: -90, position: 'insideLeft', fontSize: 9 } : undefined} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar dataKey="value" fill={cc.barColor} radius={[2, 2, 0, 0]} barSize={18} />
+          {kpi.target_value != null && cc.showRefLine && <ReferenceLine y={kpi.target_value} stroke="#e63946" strokeDasharray="5 5" label={{ value: cc.refLineLabel, fontSize: 9 }} />}
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -302,6 +440,7 @@ export function V2BarChart({ kpi }: { kpi: V2KpiItem }) {
 
 // ─── Donut Chart ────────────────────────────────────────────────────────────
 export function V2DonutChart({ kpi }: { kpi: V2KpiItem }) {
+  const cc = resolveChartConfig(kpi);
   const val = kpi.value != null ? Number(kpi.value) : 0;
   const data = [
     { name: "Complété", value: val },
@@ -312,7 +451,7 @@ export function V2DonutChart({ kpi }: { kpi: V2KpiItem }) {
       <ResponsiveContainer width={160} height={160}>
         <PieChart>
           <Pie data={data} cx="50%" cy="50%" innerRadius={40} outerRadius={65} dataKey="value" startAngle={90} endAngle={-270}>
-            <Cell fill="#1e6cb8" />
+            <Cell fill={cc.barColor} />
             <Cell fill="var(--muted)" />
           </Pie>
           <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="font-mono font-bold" fontSize="20" fill="currentColor">{val.toFixed(1)}%</text>
@@ -348,13 +487,15 @@ export function V2RadialGauge({ kpi }: { kpi: V2KpiItem }) {
 export function V2PieChart({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
 
-  const groupKey = kpi.filter_key ?? Object.keys(data[0] ?? {})[0] ?? "name";
+  const groupKey = cc.xAxisKey ?? kpi.filter_key ?? Object.keys(data[0] ?? {})[0] ?? "name";
+  const maxItems = cc.maxItems ?? 6;
   const grouped = useMemo(() => {
     const map: Record<string, number> = {};
     data.forEach((r) => { const k = String(r[groupKey] ?? "—"); map[k] = (map[k] ?? 0) + 1; });
-    return Object.entries(map).slice(0, 6).map(([name, value]) => ({ name, value }));
-  }, [data, groupKey]);
+    return Object.entries(map).slice(0, maxItems).map(([name, value]) => ({ name, value }));
+  }, [data, groupKey, maxItems]);
 
   const chartData = grouped.length > 0 ? grouped : [{ name: "—", value: 1 }];
 
@@ -366,7 +507,7 @@ export function V2PieChart({ kpi }: { kpi: V2KpiItem }) {
           <Pie data={chartData} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} fontSize={9}>
             {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Pie>
-          <Tooltip />
+          <Tooltip content={<ChartTooltip />} />
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -398,9 +539,13 @@ export function V2Podium({ kpi }: { kpi: V2KpiItem }) {
 export function V2ScatterPlot({ kpi }: { kpi: V2KpiItem }) {
   const [filterVal, setFilterVal] = useState("Tous");
   const data = useChartData(kpi, filterVal);
+  const cc = resolveChartConfig(kpi);
+
+  const valueKey = cc.yAxisKey;
+  const maxItems = cc.maxItems ?? 20;
 
   const chartData = data.length > 0
-    ? data.slice(0, 20).map((r, i) => ({ x: i + 1, y: Number(r.value ?? 0) }))
+    ? sortData(data, cc.sortBy).slice(0, maxItems).map((r, i) => ({ x: i + 1, y: Number(r[valueKey] ?? r.value ?? 0) }))
     : [{ x: 1, y: kpi.value != null ? Number(kpi.value) : 0 }];
 
   return (
@@ -411,8 +556,8 @@ export function V2ScatterPlot({ kpi }: { kpi: V2KpiItem }) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis dataKey="x" fontSize={10} tickLine={false} />
           <YAxis dataKey="y" fontSize={10} tickLine={false} />
-          <Tooltip />
-          <Bar dataKey="y" fill="#1e6cb8" radius={[2, 2, 0, 0]} barSize={12} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar dataKey="y" fill={cc.barColor} radius={[2, 2, 0, 0]} barSize={12} />
         </BarChart>
       </ResponsiveContainer>
     </div>

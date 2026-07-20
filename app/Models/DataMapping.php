@@ -26,6 +26,8 @@ class DataMapping extends Model
         'cible_is_percentage',
         'refresh_frequency',
         'graph_types',
+        'chart_config',
+        'extra_filters',
         'user_id',
     ];
 
@@ -40,6 +42,8 @@ class DataMapping extends Model
         'modules' => 'array',
         'formula' => 'array',
         'graph_types' => 'array',
+        'chart_config' => 'array',
+        'extra_filters' => 'array',
     ];
 
     public function user()

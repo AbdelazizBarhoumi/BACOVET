@@ -123,9 +123,9 @@ export default function Production() {
             {/* Global filter dropdowns — instant, no API call */}
             {!loading && allFilterConfigs.length > 0 && (
               <div className="mb-4 flex flex-wrap gap-3">
-                {allFilterConfigs.map(({ key, options }) => (
+                {allFilterConfigs.map(({ key, options, label }) => (
                   <div key={key} className="flex items-center gap-1.5">
-                    <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">{key}:</label>
+                    <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">{label ?? key}:</label>
                     <LightDropdown
                       value={activeFilters[key] ?? ""}
                       onValueChange={(v) => handleFilterChange(key, v)}

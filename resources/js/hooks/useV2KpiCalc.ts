@@ -35,6 +35,8 @@ export function toKpiConfigs(apiData: Record<string, unknown>[]): KpiConfig[] {
       highlight_color: (item.highlight_color as string) ?? null,
       filter_configs: [],
       raw_data: (item.raw_data as Record<string, unknown>[] | null) ?? null,
+      chart_config: (item.chart_config as Record<string, unknown>) ?? null,
+      extra_filters: (item.extra_filters as { key: string; options: string[]; label?: string }[]) ?? null,
     } as KpiConfig;
   });
 }
@@ -49,7 +51,7 @@ export function useV2KpiCalc(
   computedKpis: ComputedKpi[];
   bigNumbers: ComputedKpi[];
   chartKpis: ComputedKpi[];
-  allFilterConfigs: { key: string; options: string[] }[];
+  allFilterConfigs: { key: string; options: string[]; label?: string }[];
 } {
   const kpiConfigs = useMemo(
     () => (apiData ? toKpiConfigs(apiData) : []),
@@ -82,16 +84,20 @@ export function useV2KpiCalc(
   }, [computedKpis]);
 
   const allFilterConfigs = useMemo(() => {
-    const map = new Map<string, string[]>();
+    const map = new Map<string, { options: string[]; label?: string }>();
     for (const item of computedKpis) {
       for (const fc of item.filter_configs) {
         if (fc.options.length) {
-          const existing = map.get(fc.key) ?? [];
-          map.set(fc.key, [...new Set([...existing, ...fc.options])].sort());
+          const existing = map.get(fc.key);
+          if (existing) {
+            existing.options = [...new Set([...existing.options, ...fc.options])].sort();
+          } else {
+            map.set(fc.key, { options: [...fc.options].sort(), label: fc.label });
+          }
         }
       }
     }
-    return Array.from(map.entries()).map(([key, options]) => ({ key, options }));
+    return Array.from(map.entries()).map(([key, { options, label }]) => ({ key, options, label }));
   }, [computedKpis]);
 
   return { computedKpis, bigNumbers, chartKpis, allFilterConfigs };

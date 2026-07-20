@@ -21,6 +21,7 @@ class DataMappingController extends Controller
         'has_function', 'fn', 'modules', 'formula',
         'highlight_color', 'cible_operator', 'cible_value',
         'cible_is_percentage', 'refresh_frequency', 'graph_types',
+        'chart_config', 'extra_filters',
     ];
 
     public function index(): JsonResponse
@@ -50,6 +51,11 @@ class DataMappingController extends Controller
             'cible_value' => 'nullable|numeric',
             'cible_is_percentage' => 'nullable|boolean',
             'refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
+            'chart_config' => 'nullable|array',
+            'extra_filters' => 'nullable|array',
+            'extra_filters.*.filter_key' => 'nullable|string|max:255',
+            'extra_filters.*.label' => 'nullable|string|max:255',
+            'extra_filters.*.source_variable_index' => 'nullable|integer',
         ]);
 
         // Coerce null to '' for columns with NOT NULL default
@@ -94,6 +100,11 @@ class DataMappingController extends Controller
             'cible_value' => 'nullable|numeric',
             'cible_is_percentage' => 'nullable|boolean',
             'refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
+            'chart_config' => 'nullable|array',
+            'extra_filters' => 'nullable|array',
+            'extra_filters.*.filter_key' => 'nullable|string|max:255',
+            'extra_filters.*.label' => 'nullable|string|max:255',
+            'extra_filters.*.source_variable_index' => 'nullable|integer',
         ]);
 
         $old = $mapping->only(DataMappingAuditor::AUDITABLE_FIELDS);
@@ -149,6 +160,11 @@ class DataMappingController extends Controller
             'mappings.*.cible_value' => 'nullable|numeric',
             'mappings.*.cible_is_percentage' => 'nullable|boolean',
             'mappings.*.refresh_frequency' => 'nullable|string|in:instant,daily,weekly,monthly,yearly',
+            'mappings.*.chart_config' => 'nullable|array',
+            'mappings.*.extra_filters' => 'nullable|array',
+            'mappings.*.extra_filters.*.filter_key' => 'nullable|string|max:255',
+            'mappings.*.extra_filters.*.label' => 'nullable|string|max:255',
+            'mappings.*.extra_filters.*.source_variable_index' => 'nullable|integer',
         ]);
 
         $auditor = new DataMappingAuditor($request->user()?->id);
@@ -371,7 +387,7 @@ class DataMappingController extends Controller
             return 'NULL';
         }
 
-        if (in_array($column, ['modules', 'formula', 'graph_types'])) {
+        if (in_array($column, ['modules', 'formula', 'graph_types', 'chart_config', 'extra_filters'])) {
             $json = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE);
             return "'" . $this->escapeSqlString($json) . "'";
         }

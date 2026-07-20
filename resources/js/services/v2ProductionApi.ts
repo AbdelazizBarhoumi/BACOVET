@@ -12,6 +12,24 @@ function getXsrfToken(): string {
     );
 }
 
+export type V2ChartConfig = {
+    x_axis_key?: string;
+    y_axis_key?: string;
+    legend_x?: string;
+    legend_y?: string;
+    value_key?: string;
+    bar_color?: string;
+    line_color?: string;
+    gradient?: boolean;
+    tooltip_format?: string;
+    tooltip_keys?: string[];
+    aggregation?: string;
+    sort_by?: string;
+    max_items?: number;
+    show_reference_line?: boolean;
+    reference_line_label?: string;
+};
+
 export type V2KpiItem = {
     kpi_code: string;
     name: string;
@@ -34,6 +52,8 @@ export type V2KpiItem = {
     filter_key: string | null;
     filter_options: string[] | null;
     filters: { key: string; options: string[] }[] | null;
+    chart_config?: V2ChartConfig | null;
+    extra_filters?: { key: string; options: string[]; label?: string }[] | null;
 };
 
 export type V2KpisResponse = {

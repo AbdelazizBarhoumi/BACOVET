@@ -63,6 +63,8 @@ export interface DataMappingRow {
     cible_is_percentage: boolean;
     refresh_frequency: string;
     graph_types: string[] | null;
+    chart_config: Record<string, unknown> | null;
+    extra_filters: { filter_key: string; label?: string; source_variable_index?: number }[] | null;
     user_id: number | null;
     created_at: string;
     updated_at: string;

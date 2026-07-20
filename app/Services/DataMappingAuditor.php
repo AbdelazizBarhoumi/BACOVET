@@ -11,7 +11,8 @@ class DataMappingAuditor
         'kpi', 'name', 'variable', 'endpoint', 'variable_type', 'variable_key',
         'is_filtered', 'filter_key', 'filter_value', 'has_function', 'fn',
         'modules', 'formula', 'highlight_color', 'cible_operator', 'cible_value',
-        'cible_is_percentage', 'refresh_frequency', 'user_id',
+        'cible_is_percentage', 'refresh_frequency', 'chart_config', 'extra_filters',
+        'user_id',
     ];
 
     private ?int $userId;

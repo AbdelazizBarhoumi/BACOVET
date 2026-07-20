@@ -52,6 +52,8 @@ class ExportDataMappings extends Command
                     'formula' => $first->formula,
                     'highlight_color' => $first->highlight_color,
                     'graph_types' => $first->graph_types,
+                    'chart_config' => $first->chart_config,
+                    'extra_filters' => $first->extra_filters,
                     'target' => [
                         'operator' => $first->cible_operator,
                         'value' => $first->cible_value,
@@ -130,6 +132,22 @@ class ExportDataMappings extends Command
                     $lines[] = "                'graph_types' => [" . implode(', ', $quoted) . "],";
                 } else {
                     $lines[] = "                'graph_types' => null,";
+                }
+
+                // Chart config overrides
+                $chartConfig = $kpi['chart_config'] ?? null;
+                if ($chartConfig && is_array($chartConfig)) {
+                    $lines[] = "                'chart_config' => " . $this->exportNestedArray($chartConfig) . ",";
+                } else {
+                    $lines[] = "                'chart_config' => null,";
+                }
+
+                // Extra filters
+                $extraFilters = $kpi['extra_filters'] ?? null;
+                if ($extraFilters && is_array($extraFilters)) {
+                    $lines[] = "                'extra_filters' => " . $this->exportNestedArray($extraFilters) . ",";
+                } else {
+                    $lines[] = "                'extra_filters' => null,";
                 }
 
                 // Target
@@ -258,5 +276,68 @@ class ExportDataMappings extends Command
         $escaped = addslashes($readable);
 
         return "'{$escaped}'";
+    }
+
+    private function exportNestedArray($data, int $depth = 4): string
+    {
+        if (!is_array($data)) {
+            return 'null';
+        }
+
+        $indent = str_repeat(' ', $depth * 4);
+        $innerIndent = str_repeat(' ', ($depth + 1) * 4);
+
+        // Check if it's an associative array or a sequential array of associative arrays
+        $isSequential = array_is_list($data);
+
+        if ($isSequential && !empty($data) && is_array($data[0])) {
+            // Array of associative arrays (like extra_filters)
+            $lines = ['['];
+            foreach ($data as $item) {
+                $lines[] = $innerIndent . '[';
+                foreach ($item as $key => $value) {
+                    $lines[] = $innerIndent . "    '" . addslashes((string) $key) . "' => " . $this->exportScalarOrArray($value) . ",";
+                }
+                $lines[] = $innerIndent . '],';
+            }
+            $lines[] = $indent . ']';
+            return implode("\n", $lines);
+        }
+
+        if (!$isSequential && !empty($data)) {
+            // Associative array (like chart_config)
+            $lines = ['['];
+            foreach ($data as $key => $value) {
+                $lines[] = $innerIndent . "'" . addslashes((string) $key) . "' => " . $this->exportScalarOrArray($value) . ",";
+            }
+            $lines[] = $indent . ']';
+            return implode("\n", $lines);
+        }
+
+        // Empty or simple list
+        if ($isSequential) {
+            $escaped = array_map(fn($v) => addslashes((string) $v), $data);
+            $quoted = array_map(fn($v) => "'{$v}'", $escaped);
+            return '[' . implode(', ', $quoted) . ']';
+        }
+
+        return '[]';
+    }
+
+    private function exportScalarOrArray($value): string
+    {
+        if (is_array($value)) {
+            return $this->exportNestedArray($value, 6);
+        }
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        if (is_numeric($value)) {
+            return (string) $value;
+        }
+        if ($value === null) {
+            return 'null';
+        }
+        return $this->exportStr($value);
     }
 }

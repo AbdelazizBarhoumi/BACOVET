@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::index
- * @see app/Http/Controllers/Api/DataMappingController.php:26
+ * @see app/Http/Controllers/Api/DataMappingController.php:27
  * @route '/data-mappings'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::index
- * @see app/Http/Controllers/Api/DataMappingController.php:26
+ * @see app/Http/Controllers/Api/DataMappingController.php:27
  * @route '/data-mappings'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::index
- * @see app/Http/Controllers/Api/DataMappingController.php:26
+ * @see app/Http/Controllers/Api/DataMappingController.php:27
  * @route '/data-mappings'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::index
- * @see app/Http/Controllers/Api/DataMappingController.php:26
+ * @see app/Http/Controllers/Api/DataMappingController.php:27
  * @route '/data-mappings'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::index
- * @see app/Http/Controllers/Api/DataMappingController.php:26
+ * @see app/Http/Controllers/Api/DataMappingController.php:27
  * @route '/data-mappings'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::index
- * @see app/Http/Controllers/Api/DataMappingController.php:26
+ * @see app/Http/Controllers/Api/DataMappingController.php:27
  * @route '/data-mappings'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::index
- * @see app/Http/Controllers/Api/DataMappingController.php:26
+ * @see app/Http/Controllers/Api/DataMappingController.php:27
  * @route '/data-mappings'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::store
- * @see app/Http/Controllers/Api/DataMappingController.php:31
+ * @see app/Http/Controllers/Api/DataMappingController.php:32
  * @route '/data-mappings'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -94,7 +94,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::store
- * @see app/Http/Controllers/Api/DataMappingController.php:31
+ * @see app/Http/Controllers/Api/DataMappingController.php:32
  * @route '/data-mappings'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::store
- * @see app/Http/Controllers/Api/DataMappingController.php:31
+ * @see app/Http/Controllers/Api/DataMappingController.php:32
  * @route '/data-mappings'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -113,7 +113,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::store
- * @see app/Http/Controllers/Api/DataMappingController.php:31
+ * @see app/Http/Controllers/Api/DataMappingController.php:32
  * @route '/data-mappings'
  */
     const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -123,7 +123,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::store
- * @see app/Http/Controllers/Api/DataMappingController.php:31
+ * @see app/Http/Controllers/Api/DataMappingController.php:32
  * @route '/data-mappings'
  */
         storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -134,7 +134,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     store.form = storeForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::update
- * @see app/Http/Controllers/Api/DataMappingController.php:73
+ * @see app/Http/Controllers/Api/DataMappingController.php:79
  * @route '/data-mappings/{id}'
  */
 export const update = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -149,7 +149,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::update
- * @see app/Http/Controllers/Api/DataMappingController.php:73
+ * @see app/Http/Controllers/Api/DataMappingController.php:79
  * @route '/data-mappings/{id}'
  */
 update.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -177,7 +177,7 @@ update.url = (args: { id: string | number } | [id: string | number ] | string | 
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::update
- * @see app/Http/Controllers/Api/DataMappingController.php:73
+ * @see app/Http/Controllers/Api/DataMappingController.php:79
  * @route '/data-mappings/{id}'
  */
 update.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -187,7 +187,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::update
- * @see app/Http/Controllers/Api/DataMappingController.php:73
+ * @see app/Http/Controllers/Api/DataMappingController.php:79
  * @route '/data-mappings/{id}'
  */
     const updateForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -202,7 +202,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::update
- * @see app/Http/Controllers/Api/DataMappingController.php:73
+ * @see app/Http/Controllers/Api/DataMappingController.php:79
  * @route '/data-mappings/{id}'
  */
         updateForm.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -218,7 +218,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::destroy
- * @see app/Http/Controllers/Api/DataMappingController.php:116
+ * @see app/Http/Controllers/Api/DataMappingController.php:127
  * @route '/data-mappings/{id}'
  */
 export const destroy = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -233,7 +233,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::destroy
- * @see app/Http/Controllers/Api/DataMappingController.php:116
+ * @see app/Http/Controllers/Api/DataMappingController.php:127
  * @route '/data-mappings/{id}'
  */
 destroy.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -261,7 +261,7 @@ destroy.url = (args: { id: string | number } | [id: string | number ] | string |
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::destroy
- * @see app/Http/Controllers/Api/DataMappingController.php:116
+ * @see app/Http/Controllers/Api/DataMappingController.php:127
  * @route '/data-mappings/{id}'
  */
 destroy.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -271,7 +271,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::destroy
- * @see app/Http/Controllers/Api/DataMappingController.php:116
+ * @see app/Http/Controllers/Api/DataMappingController.php:127
  * @route '/data-mappings/{id}'
  */
     const destroyForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -286,7 +286,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::destroy
- * @see app/Http/Controllers/Api/DataMappingController.php:116
+ * @see app/Http/Controllers/Api/DataMappingController.php:127
  * @route '/data-mappings/{id}'
  */
         destroyForm.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -302,7 +302,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
     destroy.form = destroyForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::batchUpdate
- * @see app/Http/Controllers/Api/DataMappingController.php:128
+ * @see app/Http/Controllers/Api/DataMappingController.php:139
  * @route '/data-mappings/batch'
  */
 export const batchUpdate = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -317,7 +317,7 @@ batchUpdate.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::batchUpdate
- * @see app/Http/Controllers/Api/DataMappingController.php:128
+ * @see app/Http/Controllers/Api/DataMappingController.php:139
  * @route '/data-mappings/batch'
  */
 batchUpdate.url = (options?: RouteQueryOptions) => {
@@ -326,7 +326,7 @@ batchUpdate.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::batchUpdate
- * @see app/Http/Controllers/Api/DataMappingController.php:128
+ * @see app/Http/Controllers/Api/DataMappingController.php:139
  * @route '/data-mappings/batch'
  */
 batchUpdate.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -336,7 +336,7 @@ batchUpdate.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::batchUpdate
- * @see app/Http/Controllers/Api/DataMappingController.php:128
+ * @see app/Http/Controllers/Api/DataMappingController.php:139
  * @route '/data-mappings/batch'
  */
     const batchUpdateForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -346,7 +346,7 @@ batchUpdate.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::batchUpdate
- * @see app/Http/Controllers/Api/DataMappingController.php:128
+ * @see app/Http/Controllers/Api/DataMappingController.php:139
  * @route '/data-mappings/batch'
  */
         batchUpdateForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -357,7 +357,7 @@ batchUpdate.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     batchUpdate.form = batchUpdateForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::seedFromKpiSeed
- * @see app/Http/Controllers/Api/DataMappingController.php:192
+ * @see app/Http/Controllers/Api/DataMappingController.php:208
  * @route '/data-mappings/seed'
  */
 export const seedFromKpiSeed = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -372,7 +372,7 @@ seedFromKpiSeed.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::seedFromKpiSeed
- * @see app/Http/Controllers/Api/DataMappingController.php:192
+ * @see app/Http/Controllers/Api/DataMappingController.php:208
  * @route '/data-mappings/seed'
  */
 seedFromKpiSeed.url = (options?: RouteQueryOptions) => {
@@ -381,7 +381,7 @@ seedFromKpiSeed.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::seedFromKpiSeed
- * @see app/Http/Controllers/Api/DataMappingController.php:192
+ * @see app/Http/Controllers/Api/DataMappingController.php:208
  * @route '/data-mappings/seed'
  */
 seedFromKpiSeed.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -391,7 +391,7 @@ seedFromKpiSeed.post = (options?: RouteQueryOptions): RouteDefinition<'post'> =>
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::seedFromKpiSeed
- * @see app/Http/Controllers/Api/DataMappingController.php:192
+ * @see app/Http/Controllers/Api/DataMappingController.php:208
  * @route '/data-mappings/seed'
  */
     const seedFromKpiSeedForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -401,7 +401,7 @@ seedFromKpiSeed.post = (options?: RouteQueryOptions): RouteDefinition<'post'> =>
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::seedFromKpiSeed
- * @see app/Http/Controllers/Api/DataMappingController.php:192
+ * @see app/Http/Controllers/Api/DataMappingController.php:208
  * @route '/data-mappings/seed'
  */
         seedFromKpiSeedForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -412,7 +412,7 @@ seedFromKpiSeed.post = (options?: RouteQueryOptions): RouteDefinition<'post'> =>
     seedFromKpiSeed.form = seedFromKpiSeedForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::auditLogs
- * @see app/Http/Controllers/Api/DataMappingController.php:230
+ * @see app/Http/Controllers/Api/DataMappingController.php:246
  * @route '/data-mappings/audit-logs'
  */
 export const auditLogs = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -427,7 +427,7 @@ auditLogs.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::auditLogs
- * @see app/Http/Controllers/Api/DataMappingController.php:230
+ * @see app/Http/Controllers/Api/DataMappingController.php:246
  * @route '/data-mappings/audit-logs'
  */
 auditLogs.url = (options?: RouteQueryOptions) => {
@@ -436,7 +436,7 @@ auditLogs.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::auditLogs
- * @see app/Http/Controllers/Api/DataMappingController.php:230
+ * @see app/Http/Controllers/Api/DataMappingController.php:246
  * @route '/data-mappings/audit-logs'
  */
 auditLogs.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -445,7 +445,7 @@ auditLogs.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::auditLogs
- * @see app/Http/Controllers/Api/DataMappingController.php:230
+ * @see app/Http/Controllers/Api/DataMappingController.php:246
  * @route '/data-mappings/audit-logs'
  */
 auditLogs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -455,7 +455,7 @@ auditLogs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::auditLogs
- * @see app/Http/Controllers/Api/DataMappingController.php:230
+ * @see app/Http/Controllers/Api/DataMappingController.php:246
  * @route '/data-mappings/audit-logs'
  */
     const auditLogsForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -465,7 +465,7 @@ auditLogs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::auditLogs
- * @see app/Http/Controllers/Api/DataMappingController.php:230
+ * @see app/Http/Controllers/Api/DataMappingController.php:246
  * @route '/data-mappings/audit-logs'
  */
         auditLogsForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -474,7 +474,7 @@ auditLogs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::auditLogs
- * @see app/Http/Controllers/Api/DataMappingController.php:230
+ * @see app/Http/Controllers/Api/DataMappingController.php:246
  * @route '/data-mappings/audit-logs'
  */
         auditLogsForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -490,7 +490,7 @@ auditLogs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     auditLogs.form = auditLogsForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:275
+ * @see app/Http/Controllers/Api/DataMappingController.php:291
  * @route '/data-mappings/sync-sql'
  */
 export const syncFromSql = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -505,7 +505,7 @@ syncFromSql.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:275
+ * @see app/Http/Controllers/Api/DataMappingController.php:291
  * @route '/data-mappings/sync-sql'
  */
 syncFromSql.url = (options?: RouteQueryOptions) => {
@@ -514,7 +514,7 @@ syncFromSql.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:275
+ * @see app/Http/Controllers/Api/DataMappingController.php:291
  * @route '/data-mappings/sync-sql'
  */
 syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -524,7 +524,7 @@ syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:275
+ * @see app/Http/Controllers/Api/DataMappingController.php:291
  * @route '/data-mappings/sync-sql'
  */
     const syncFromSqlForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -534,7 +534,7 @@ syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:275
+ * @see app/Http/Controllers/Api/DataMappingController.php:291
  * @route '/data-mappings/sync-sql'
  */
         syncFromSqlForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -545,7 +545,7 @@ syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     syncFromSql.form = syncFromSqlForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:264
+ * @see app/Http/Controllers/Api/DataMappingController.php:280
  * @route '/data-mappings/export-sql'
  */
 export const exportSql = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -560,7 +560,7 @@ exportSql.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:264
+ * @see app/Http/Controllers/Api/DataMappingController.php:280
  * @route '/data-mappings/export-sql'
  */
 exportSql.url = (options?: RouteQueryOptions) => {
@@ -569,7 +569,7 @@ exportSql.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:264
+ * @see app/Http/Controllers/Api/DataMappingController.php:280
  * @route '/data-mappings/export-sql'
  */
 exportSql.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -578,7 +578,7 @@ exportSql.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:264
+ * @see app/Http/Controllers/Api/DataMappingController.php:280
  * @route '/data-mappings/export-sql'
  */
 exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -588,7 +588,7 @@ exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:264
+ * @see app/Http/Controllers/Api/DataMappingController.php:280
  * @route '/data-mappings/export-sql'
  */
     const exportSqlForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -598,7 +598,7 @@ exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:264
+ * @see app/Http/Controllers/Api/DataMappingController.php:280
  * @route '/data-mappings/export-sql'
  */
         exportSqlForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -607,7 +607,7 @@ exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:264
+ * @see app/Http/Controllers/Api/DataMappingController.php:280
  * @route '/data-mappings/export-sql'
  */
         exportSqlForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
