@@ -2112,8 +2112,8 @@ function DataMappingPage() {
                           className={`w-12`}>
                           <DataSelectItem value="<">&lt;</DataSelectItem>
                           <DataSelectItem value=">">&gt;</DataSelectItem>
-                          <DataSelectItem value=">=">&gt;=</DataSelectItem>
-                          <DataSelectItem value="<=">&lt;=</DataSelectItem>
+                          <DataSelectItem value=">=">{">="}</DataSelectItem>
+                          <DataSelectItem value="<=">{"<="}</DataSelectItem>
                           <DataSelectItem value="=">=</DataSelectItem>
                         </DataSelect>
                         <input type="number" value={r.cible_value ?? ""}

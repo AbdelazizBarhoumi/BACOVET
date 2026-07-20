@@ -6,7 +6,7 @@ return [
         'all_frequencies' => ['daily'],
         'keys' => [
             [
-                'variable_key' => 'IDMagasin',
+                'variable_key' => 'Qtte',
                 'variable_type' => 'Complex',
                 'is_filtered' => false,
                 'filter_key' => null,
@@ -90,6 +90,23 @@ return [
             ],
         ],
     ],
+    'api/data/losttimetrx' => [
+        'refresh_frequency' => 'instant',
+        'all_frequencies' => ['instant'],
+        'keys' => [
+            [
+                'variable_key' => 'LostTime',
+                'variable_type' => 'Complex',
+                'is_filtered' => true,
+                'filter_key' => 'LostTime',
+                'filter_value' => null,
+                'has_function' => true,
+                'fn' => 'Sum',
+                'refresh_frequency' => 'instant',
+                'kpis' => ['F-REQ-207'],
+            ],
+        ],
+    ],
     'api/data/losttype' => [
         'refresh_frequency' => 'instant',
         'all_frequencies' => ['instant'],
@@ -97,8 +114,8 @@ return [
             [
                 'variable_key' => 'LostTypeDesc',
                 'variable_type' => 'Complex',
-                'is_filtered' => false,
-                'filter_key' => null,
+                'is_filtered' => true,
+                'filter_key' => 'LostTypeDesc',
                 'filter_value' => null,
                 'has_function' => false,
                 'fn' => 'Latest',
@@ -461,23 +478,6 @@ return [
                 'fn' => 'Latest',
                 'refresh_frequency' => 'instant',
                 'kpis' => ['F-REQ-106'],
-            ],
-        ],
-    ],
-    'api/data/q/lost_time' => [
-        'refresh_frequency' => 'instant',
-        'all_frequencies' => ['instant'],
-        'keys' => [
-            [
-                'variable_key' => 'TotalLostTime',
-                'variable_type' => 'Complex',
-                'is_filtered' => false,
-                'filter_key' => null,
-                'filter_value' => null,
-                'has_function' => false,
-                'fn' => 'Latest',
-                'refresh_frequency' => 'instant',
-                'kpis' => ['F-REQ-207'],
             ],
         ],
     ],

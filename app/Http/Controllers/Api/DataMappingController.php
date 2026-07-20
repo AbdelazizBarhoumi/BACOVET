@@ -300,6 +300,14 @@ class DataMappingController extends Controller
                 return response()->json(['message' => 'Received empty SQL content'], 422);
             }
 
+            DB::table('data_mappings')->truncate();
+
+            // Drop unique constraint if it exists so bulk INSERT won't fail on duplicates
+            $indexes = DB::select("SHOW INDEX FROM `data_mappings` WHERE Key_name = 'data_mappings_kpi_variable_unique'");
+            if (!empty($indexes)) {
+                DB::statement("ALTER TABLE `data_mappings` DROP INDEX `data_mappings_kpi_variable_unique`");
+            }
+
             DB::unprepared($sql);
 
             $exportMappings = Artisan::call('export:mappings');
@@ -338,18 +346,19 @@ class DataMappingController extends Controller
         $lines[] = 'SET NAMES utf8mb4;';
         $lines[] = '';
 
+        $allColumns = array_merge(['kpi', 'variable'], self::EXPORT_COLUMNS);
+        $colList = implode(', ', array_map(fn ($c) => "`{$c}`", $allColumns));
+
         foreach ($mappings as $row) {
-            $sets = [];
+            $values = [];
+            $values[] = "'" . $this->escapeSqlString($row->kpi) . "'";
+            $values[] = "'" . $this->escapeSqlString($row->variable) . "'";
             foreach (self::EXPORT_COLUMNS as $col) {
                 $value = $row->getAttributes()[$col] ?? null;
-                $sets[] = "`{$col}` = " . $this->sqlValue($col, $value);
+                $values[] = $this->sqlValue($col, $value);
             }
 
-            $kpi = $this->escapeSqlString($row->kpi);
-            $variable = $this->escapeSqlString($row->variable);
-
-            $lines[] = "UPDATE `data_mappings` SET " . implode(', ', $sets)
-                . " WHERE `kpi` = '{$kpi}' AND `variable` = '{$variable}';";
+            $lines[] = "INSERT INTO `data_mappings` ({$colList}) VALUES (" . implode(', ', $values) . ');';
         }
 
         $lines[] = '';

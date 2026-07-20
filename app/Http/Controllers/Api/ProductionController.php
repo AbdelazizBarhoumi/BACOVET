@@ -1620,6 +1620,21 @@ class ProductionController extends Controller
             $targetIsPct = $target['is_percentage'] ?? false;
             $targetReadable = $kpiDef['target_readable'] ?? null;
 
+            // Compute KPI status based on value vs target
+            $kpiStatus = $latestStatus;
+            if ($computedValue !== null && $targetVal !== null && $targetOp !== null && is_numeric($computedValue)) {
+                $val = (float) $computedValue;
+                $tgt = (float) $targetVal;
+                $kpiStatus = match ($targetOp) {
+                    '<=' => $val <= $tgt ? 'green' : ($val <= $tgt * 1.1 ? 'orange' : 'red'),
+                    '>=' => $val >= $tgt ? 'green' : ($val >= $tgt * 0.9 ? 'orange' : 'red'),
+                    '<'  => $val < $tgt ? 'green' : 'red',
+                    '>'  => $val > $tgt ? 'green' : 'red',
+                    '='  => $val == $tgt ? 'green' : 'red',
+                    default => $latestStatus,
+                };
+            }
+
             // Collect endpoint URLs, check for missing data
             $endpoints = array_unique(array_filter(array_column($variables, 'endpoint')));
             $hasMissingData = false;
@@ -1635,7 +1650,7 @@ class ProductionController extends Controller
                 'name' => $kpiDef['name'] ?? '',
                 'variable' => $variables[0]['variable'] ?? '',
                 'value' => $computedValue,
-                'status' => $latestStatus,
+                'status' => $kpiStatus,
                 'synced_at' => $latestSyncedAt?->toISOString(),
                 'last_valid_synced_at' => $latestValidSyncedAt?->toISOString(),
                 'formula_readable' => $kpiDef['formula_readable'] ?? null,
