@@ -1530,141 +1530,112 @@ class ProductionController extends Controller
             $kpiDataIndex[$row->kpi_code][$row->variable_key] = $row;
         }
 
+        // 3. Deduplicate raw data by endpoint (shared across variables)
+        $endpointRawCache = []; // endpoint => raw array
+
         $result = [];
         foreach ($kpis as $kpiDef) {
             $kpiCode = $kpiDef['kpi'];
             $variables = $kpiDef['variables'] ?? [];
 
-            // Process each variable
-            $variableValues = [];
-            $variableRawArrays = []; // full raw_data per variable
-            $rawData = [];
+            // Build per-variable config + raw_data
+            $variableOutputs = [];
+            $mergedRaw = [];
             $latestStatus = 'pending';
             $latestSyncedAt = null;
             $latestValidSyncedAt = null;
-            $filterKey = null;
-            $filterOptions = null;
+            $allFilterConfigs = [];
 
             foreach ($variables as $varDef) {
                 $varKey = $varDef['variable_key'] ?? null;
-                if (empty($varKey)) continue;
+                $endpoint = $varDef['endpoint'] ?? null;
 
-                $dataRow = $kpiDataIndex[$kpiCode][$varKey] ?? null;
-                if (!$dataRow) continue;
-
-                // Track status and sync times
-                if ($latestSyncedAt === null || $dataRow->last_synced_at?->greaterThan($latestSyncedAt)) {
-                    $latestStatus = $dataRow->last_status ?? 'pending';
-                    $latestSyncedAt = $dataRow->last_synced_at;
-                }
-                if ($dataRow->last_valid_synced_at && ($latestValidSyncedAt === null || $dataRow->last_valid_synced_at?->greaterThan($latestValidSyncedAt))) {
-                    $latestValidSyncedAt = $dataRow->last_valid_synced_at;
-                }
-
-                $raw = $dataRow->response_data['raw'] ?? null;
-                $isComplex = ($varDef['variable_type'] ?? 'Direct') === 'Complex';
-
-                if ($isComplex && is_array($raw) && !empty($raw)) {
-                    $hasFn = !empty($varDef['has_function']);
-                    if ($hasFn) {
-                        // has_function=true: apply fn to get scalar
-                        $fn = $varDef['fn'] ?? 'Latest';
-                        $variableValues[$varKey] = $this->applyFunction($raw, $varKey, $fn);
-                    } else {
-                        // has_function=false/null: store full raw array for row-by-row computation
-                        $variableValues[$varKey] = array_column($raw, $varKey);
-                    }
-                    $variableRawArrays[$varKey] = $raw;
-                    $rawData = array_merge($rawData, $raw);
-
-                    // Collect filter options if is_filtered
-                    if (!empty($varDef['is_filtered']) && !empty($varDef['filter_key'])) {
-                        $filterKey = $varDef['filter_key'];
-                        $filterOptions = array_unique(array_column($raw, $filterKey));
-                        $filterOptions = array_values(array_filter($filterOptions));
-                    }
-                } else {
-                    // Direct: use computed_data value as-is
-                    $val = $dataRow->computed_data['value'] ?? $dataRow->response_data['extracted'] ?? null;
-                    $variableValues[$varKey] = $val;
-                    if (is_array($raw)) {
-                        $rawData = array_merge($rawData, $raw);
+                // Track sync times
+                if (!empty($varKey)) {
+                    $dataRow = $kpiDataIndex[$kpiCode][$varKey] ?? null;
+                    if ($dataRow) {
+                        if ($latestSyncedAt === null || $dataRow->last_synced_at?->greaterThan($latestSyncedAt)) {
+                            $latestStatus = $dataRow->last_status ?? 'pending';
+                            $latestSyncedAt = $dataRow->last_synced_at;
+                        }
+                        if ($dataRow->last_valid_synced_at && ($latestValidSyncedAt === null || $dataRow->last_valid_synced_at?->greaterThan($latestValidSyncedAt))) {
+                            $latestValidSyncedAt = $dataRow->last_valid_synced_at;
+                        }
                     }
                 }
-            }
 
-            // Compute value: apply formula if available
-            $computedValue = null;
-            $formula = $kpiDef['formula'] ?? null;
-            if ($formula && isset($formula['items']) && !empty($variableValues)) {
-                // Check if any variable is an array (needs row-by-row computation)
-                $hasArrayVar = false;
-                foreach ($variableValues as $vv) {
-                    if (is_array($vv)) { $hasArrayVar = true; break; }
+                // Get raw_data: deduplicate by endpoint
+                $rawData = null;
+                if ($endpoint && isset($endpointRawCache[$endpoint])) {
+                    $rawData = $endpointRawCache[$endpoint];
+                } elseif (!empty($varKey)) {
+                    $dataRow = $kpiDataIndex[$kpiCode][$varKey] ?? null;
+                    if ($dataRow) {
+                        $raw = $dataRow->response_data['raw'] ?? null;
+                        if (is_array($raw)) {
+                            $rawData = $raw;
+                            $endpointRawCache[$endpoint] = $raw;
+                        }
+                    }
                 }
 
-                if ($hasArrayVar && count($variableRawArrays) >= 2) {
-                    // Row-by-row: join raw arrays by common key and compute per row
-                    $computedValue = $this->computeFormulaRowByRow($formula['items'], $variableRawArrays);
-                } else {
-                    $computedValue = $this->computeFormula($formula['items'], $variableValues);
+                // Collect filter options from ORIGINAL raw data
+                if (!empty($varDef['is_filtered']) && !empty($varDef['filter_key']) && empty($varDef['filter_value']) && !empty($rawData)) {
+                    $fk = $varDef['filter_key'];
+                    $sampleKeys = array_keys($rawData[0] ?? []);
+                    if (in_array($fk, $sampleKeys)) {
+                        $opts = array_values(array_unique(array_filter(array_column($rawData, $fk))));
+                        if (!empty($opts)) {
+                            // Merge options if filter_key already exists
+                            $found = false;
+                            foreach ($allFilterConfigs as &$fc) {
+                                if ($fc['key'] === $fk) {
+                                    $fc['options'] = array_values(array_unique(array_merge($fc['options'], $opts)));
+                                    $found = true;
+                                    break;
+                                }
+                            }
+                            unset($fc);
+                            if (!$found) {
+                                $allFilterConfigs[] = ['key' => $fk, 'options' => $opts];
+                            }
+                        }
+                    }
                 }
-            } elseif (!empty($variableValues)) {
-                $computedValue = reset($variableValues);
-            }
 
-            // Target from config
-            $target = $kpiDef['target'] ?? [];
-            $targetOp = $target['operator'] ?? null;
-            $targetVal = $target['value'] ?? null;
-            $targetIsPct = $target['is_percentage'] ?? false;
-            $targetReadable = $kpiDef['target_readable'] ?? null;
+                $variableOutputs[] = [
+                    'variable_key' => $varKey,
+                    'variable_type' => $varDef['variable_type'] ?? 'Direct',
+                    'has_function' => !empty($varDef['has_function']),
+                    'fn' => $varDef['fn'] ?? 'Latest',
+                    'endpoint' => $endpoint,
+                    'is_filtered' => !empty($varDef['is_filtered']),
+                    'filter_key' => $varDef['filter_key'] ?? null,
+                    'raw_data' => $rawData,
+                ];
 
-            // Compute KPI status based on value vs target
-            $kpiStatus = $latestStatus;
-            if ($computedValue !== null && $targetVal !== null && $targetOp !== null && is_numeric($computedValue)) {
-                $val = (float) $computedValue;
-                $tgt = (float) $targetVal;
-                $kpiStatus = match ($targetOp) {
-                    '<=' => $val <= $tgt ? 'green' : ($val <= $tgt * 1.1 ? 'orange' : 'red'),
-                    '>=' => $val >= $tgt ? 'green' : ($val >= $tgt * 0.9 ? 'orange' : 'red'),
-                    '<'  => $val < $tgt ? 'green' : 'red',
-                    '>'  => $val > $tgt ? 'green' : 'red',
-                    '='  => $val == $tgt ? 'green' : 'red',
-                    default => $latestStatus,
-                };
-            }
-
-            // Collect endpoint URLs, check for missing data
-            $endpoints = array_unique(array_filter(array_column($variables, 'endpoint')));
-            $hasMissingData = false;
-            foreach ($variables as $var) {
-                if (empty($var['endpoint']) || empty($var['variable_key'])) {
-                    $hasMissingData = true;
-                    break;
+                if (is_array($rawData)) {
+                    $mergedRaw = array_merge($mergedRaw, $rawData);
                 }
             }
 
             $result[] = [
                 'kpi_code' => $kpiCode,
                 'name' => $kpiDef['name'] ?? '',
-                'variable' => $variables[0]['variable'] ?? '',
-                'value' => $computedValue,
-                'status' => $kpiStatus,
-                'synced_at' => $latestSyncedAt?->toISOString(),
-                'last_valid_synced_at' => $latestValidSyncedAt?->toISOString(),
+                'variables' => $variableOutputs,
+                'formula' => $kpiDef['formula'] ?? null,
                 'formula_readable' => $kpiDef['formula_readable'] ?? null,
-                'target_operator' => $targetOp,
-                'target_value' => $targetVal,
-                'target_is_percentage' => $targetIsPct,
-                'target_readable' => $targetReadable,
-                'refresh_frequency' => $kpiDef['refresh_frequency'] ?? 'instant',
-                'highlight_color' => $kpiDef['highlight_color'] ?? null,
-                'endpoints' => array_values($endpoints),
-                'has_missing_data' => $hasMissingData,
+                'target_operator' => $kpiDef['target']['operator'] ?? null,
+                'target_value' => $kpiDef['target']['value'] ?? null,
+                'target_is_percentage' => $kpiDef['target']['is_percentage'] ?? false,
+                'target_readable' => $kpiDef['target_readable'] ?? null,
                 'graph_types' => $kpiDef['graph_types'] ?? null,
-                'raw_data' => !empty($rawData) ? $rawData : null,
-                'filter_key' => $filterKey,
+                'highlight_color' => $kpiDef['highlight_color'] ?? null,
+                'filter_configs' => $allFilterConfigs,
+                'raw_data' => !empty($mergedRaw) ? $mergedRaw : null,
+                'last_valid_synced_at' => $latestValidSyncedAt?->toISOString(),
+                'last_synced_at' => $latestSyncedAt?->toISOString(),
+                'last_status' => $latestStatus,
             ];
         }
 

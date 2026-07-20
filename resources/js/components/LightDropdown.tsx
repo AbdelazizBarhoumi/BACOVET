@@ -67,16 +67,22 @@ export const LightDropdown = React.memo(function LightDropdown({
     };
   }, [open]);
 
-  // Find label for current value by scanning children
+  // Find label for current value by scanning children.
+  // Prefer an explicit `label` prop on LightDropdownItem; fall back to children.
   const selectedLabel = useMemo(() => {
-    let label: string | undefined;
+    let found: string | undefined;
     React.Children.forEach(children, (child) => {
-      if (React.isValidElement(child) && (child.props as Record<string, unknown>).value === value) {
-        label = String((child.props as Record<string, unknown>).children ?? "");
-        if (Array.isArray(label)) label = String(label[0]);
+      if (!React.isValidElement(child)) return;
+      const cp = child.props as Record<string, unknown>;
+      if (cp.value === value) {
+        found = typeof cp.label === "string"
+          ? cp.label
+          : typeof cp.children === "string"
+            ? cp.children
+            : String(cp.children ?? "");
       }
     });
-    return label;
+    return found;
   }, [value, children]);
 
   const triggerClasses = cn(
@@ -142,10 +148,12 @@ export const LightDropdown = React.memo(function LightDropdown({
 // -------- Dropdown Item (plain div, no Radix) --------
 export const LightDropdownItem = React.memo(function LightDropdownItem({
   value,
+  label,
   className,
   children,
 }: {
   value: string;
+  label?: string;
   className?: string;
   children: React.ReactNode;
 }) {

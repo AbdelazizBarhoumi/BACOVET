@@ -32,6 +32,8 @@ export type V2KpiItem = {
     graph_types: string[] | null;
     raw_data: Record<string, unknown>[] | null;
     filter_key: string | null;
+    filter_options: string[] | null;
+    filters: { key: string; options: string[] }[] | null;
 };
 
 export type V2KpisResponse = {
@@ -41,7 +43,57 @@ export type V2KpisResponse = {
 export async function fetchV2ProductionKpis(
     module: string,
     filters?: Record<string, string>,
+    activeFilters?: Record<string, string>,
 ): Promise<V2KpisResponse> {
+    const url = new URL('/production/v2-kpis', window.location.origin);
+    url.searchParams.set('module', module);
+
+    if (filters) {
+        Object.entries(filters).forEach(([k, v]) => {
+            if (v != null && v !== '') {
+                url.searchParams.set(k, v);
+            }
+        });
+    }
+
+    if (activeFilters) {
+        Object.entries(activeFilters).forEach(([k, v]) => {
+            if (v != null && v !== '' && v !== 'Tous') {
+                url.searchParams.set(`filter_${k}`, v);
+            }
+        });
+    }
+
+    const res = await fetch(url.toString(), {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': getXsrfToken(),
+        },
+        signal: AbortSignal.timeout(15000),
+    });
+
+    if (res.status === 401) {
+        window.location.href = '/login';
+        throw new Error('Non authentifié');
+    }
+    if (!res.ok) {
+        throw new Error(`Erreur API ${res.status}: v2-kpis`);
+    }
+
+    return res.json();
+}
+
+/**
+ * Fetch raw KPI data from backend (no filtering — all computation is frontend-side).
+ * Only sends module + global filter params (date range, etc.), never activeFilters.
+ */
+export async function fetchV2ProductionKpisRaw(
+    module: string,
+    filters?: Record<string, string>,
+): Promise<{ data: Record<string, unknown>[] }> {
     const url = new URL('/production/v2-kpis', window.location.origin);
     url.searchParams.set('module', module);
 

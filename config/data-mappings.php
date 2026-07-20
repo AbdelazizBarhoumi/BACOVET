@@ -2735,12 +2735,12 @@ return [
                         'variable' => 'Quantité engagement par chaîne',
                         'endpoint' => 'api/data/q/wip_chaine',
                         'variable_type' => 'Complex',
-                        'variable_key' => null,
+                        'variable_key' => 'WIP_Chaine',
                         'is_filtered' => true,
                         'filter_key' => 'ProdGroup',
                         'filter_value' => null,
                         'has_function' => true,
-                        'fn' => 'First',
+                        'fn' => 'Sum',
                     ],
                     [
                         'variable' => 'Quantité sortie par chaîne',
@@ -2754,8 +2754,16 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 53,
+                    'label' => 'Quantité engagement par chaîne',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
                 'target' => [
@@ -3076,19 +3084,27 @@ return [
                         'endpoint' => 'api/data/q/efficience_chaine',
                         'variable_type' => 'Complex',
                         'variable_key' => 'TempsStandard',
-                        'is_filtered' => false,
-                        'filter_key' => null,
+                        'is_filtered' => true,
+                        'filter_key' => 'ProdGroup',
                         'filter_value' => null,
                         'has_function' => false,
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 67,
+                    'label' => 'Temps standard alloué',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Temps standard alloué',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'target' => [
-                    'operator' => '',
+                    'operator' => '=',
                     'value' => null,
                     'is_percentage' => false,
                 ],
@@ -3111,8 +3127,16 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 68,
+                    'label' => 'Temps article fournisseur',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Temps article fournisseur',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'target' => [
@@ -4262,12 +4286,12 @@ return [
                         'variable' => 'Quantité engagement par chaîne',
                         'endpoint' => 'api/data/q/wip_chaine',
                         'variable_type' => 'Complex',
-                        'variable_key' => null,
+                        'variable_key' => 'WIP_Chaine',
                         'is_filtered' => true,
                         'filter_key' => 'ProdGroup',
                         'filter_value' => null,
                         'has_function' => true,
-                        'fn' => 'First',
+                        'fn' => 'Sum',
                     ],
                     [
                         'variable' => 'Quantité sortie par chaîne',
@@ -4281,8 +4305,16 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 53,
+                    'label' => 'Quantité engagement par chaîne',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
                 'target' => [
@@ -4475,19 +4507,27 @@ return [
                         'endpoint' => 'api/data/q/efficience_chaine',
                         'variable_type' => 'Complex',
                         'variable_key' => 'TempsStandard',
-                        'is_filtered' => false,
-                        'filter_key' => null,
+                        'is_filtered' => true,
+                        'filter_key' => 'ProdGroup',
                         'filter_value' => null,
                         'has_function' => false,
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 67,
+                    'label' => 'Temps standard alloué',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Temps standard alloué',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'target' => [
-                    'operator' => '',
+                    'operator' => '=',
                     'value' => null,
                     'is_percentage' => false,
                 ],
@@ -4510,8 +4550,16 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 68,
+                    'label' => 'Temps article fournisseur',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Temps article fournisseur',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'target' => [
@@ -5948,12 +5996,12 @@ return [
                         'variable' => 'Quantité engagement par chaîne',
                         'endpoint' => 'api/data/q/wip_chaine',
                         'variable_type' => 'Complex',
-                        'variable_key' => null,
+                        'variable_key' => 'WIP_Chaine',
                         'is_filtered' => true,
                         'filter_key' => 'ProdGroup',
                         'filter_value' => null,
                         'has_function' => true,
-                        'fn' => 'First',
+                        'fn' => 'Sum',
                     ],
                     [
                         'variable' => 'Quantité sortie par chaîne',
@@ -5967,8 +6015,16 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 53,
+                    'label' => 'Quantité engagement par chaîne',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
                 'target' => [

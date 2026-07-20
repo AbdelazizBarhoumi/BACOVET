@@ -2107,14 +2107,16 @@ function DataMappingPage() {
                   {isFirstInKpi ? (
                     <td rowSpan={ks} className="px-2 py-1.5">
                       <div className="flex items-center gap-1">
-                        <DataSelect value={r.cible_operator ?? "="}
-                          onValueChange={(val) => updateImmediate(r.id, { cible_operator: val })}
-                          className={`w-12`}>
-                          <DataSelectItem value="<">&lt;</DataSelectItem>
-                          <DataSelectItem value=">">&gt;</DataSelectItem>
-                          <DataSelectItem value=">=">{">="}</DataSelectItem>
-                          <DataSelectItem value="<=">{"<="}</DataSelectItem>
-                          <DataSelectItem value="=">=</DataSelectItem>
+                        <DataSelect value={r.cible_operator ?? ""}
+                          onValueChange={(val) => updateImmediate(r.id, { cible_operator: val || null })}
+                          allowDeselect
+                          placeholder=""
+                          className={`w-14`}>
+                          <DataSelectItem value="<" label="<">{"<"}</DataSelectItem>
+                          <DataSelectItem value=">" label=">">{">"}</DataSelectItem>
+                          <DataSelectItem value=">=" label=">=">{">="}</DataSelectItem>
+                          <DataSelectItem value="<=" label="<=">{"<="}</DataSelectItem>
+                          <DataSelectItem value="=" label="=">{"="}</DataSelectItem>
                         </DataSelect>
                         <input type="number" value={r.cible_value ?? ""}
                           onChange={(e) => updateLocal(r.id, { cible_value: e.target.value ? Number(e.target.value) : null })}
