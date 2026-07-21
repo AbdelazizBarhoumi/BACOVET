@@ -61,10 +61,14 @@ class KpiResultComputer
         $mappedRows = null;
 
         if ($formula && isset($formula['items']) && count($variables) >= 2) {
-            // Check if variables return arrays (row-by-row path)
+            // Check if variables should be computed row-by-row (Complex type, no aggregation, multiple rows)
             $hasArrayVar = false;
-            foreach ($variableRaws as $raw) {
-                if (!empty($raw) && is_array($raw)) {
+            foreach ($variables as $i => $var) {
+                $raw = $variableRaws[$i] ?? [];
+                $isComplex = ($var['variable_type'] ?? 'Direct') === 'Complex';
+                $noAgg = empty($var['has_function']) && ($var['fn'] ?? 'Latest') === 'Latest';
+                $hasMultipleRows = count($raw) > 1;
+                if ($isComplex && $noAgg && $hasMultipleRows) {
                     $hasArrayVar = true;
                     break;
                 }
@@ -265,6 +269,10 @@ class KpiResultComputer
         foreach ($raw as $row) {
             if (is_array($row) && array_key_exists($variableKey, $row)) {
                 $v = $row[$variableKey];
+                // Handle array values (Direct type often returns array like [15100])
+                if (is_array($v)) {
+                    $v = reset($v);
+                }
                 if (is_numeric($v)) $values[] = (float) $v;
             }
         }
@@ -287,7 +295,8 @@ class KpiResultComputer
      */
     private function computeStatus(float|null $value, ?string $operator, float|null $target): string
     {
-        if ($value === null || $operator === null || $target === null) return 'grey';
+        if ($value === null) return 'grey';
+        if ($operator === null || $target === null) return 'green';
 
         return match ($operator) {
             '<=' => $value <= $target ? 'green' : ($value <= $target * 1.1 ? 'orange' : 'red'),

@@ -24,7 +24,14 @@ const TAB_MODULE: Record<Tab, string> = {
 function formatValue(item: ComputedKpi): number | string {
   const val = item.value;
   if (val == null) return "–";
-  if (Array.isArray(val)) return val.length;
+  if (Array.isArray(val)) {
+    // For single-item arrays with a value property, extract the scalar
+    if (val.length === 1 && typeof val[0] === "object" && val[0] !== null && "value" in val[0]) {
+      const v = (val[0] as Record<string, unknown>).value;
+      return typeof v === "number" ? v : String(v ?? "–");
+    }
+    return val.length;
+  }
   return val;
 }
 

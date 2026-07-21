@@ -121,7 +121,7 @@ return [
             ],
             [
                 'kpi' => 'F-REQ-352',
-                'name' => 'Taux de fiabilité de nomenclaturesd',
+                'name' => 'Taux de fiabilité de nomenclatures',
                 'variables' => [
                     [
                         'variable' => 'Nombre de nomenclatures validées et fiables',
@@ -137,7 +137,7 @@ return [
                     [
                         'variable' => 'Total des nomenclatures',
                         'endpoint' => null,
-                        'variable_type' => 'Direct',
+                        'variable_type' => 'Complex',
                         'variable_key' => null,
                         'is_filtered' => false,
                         'filter_key' => null,
@@ -1078,28 +1078,6 @@ return [
                 'name' => 'Taux de commandes livrées à temps Accessoires',
                 'variables' => [
                     [
-                        'variable' => 'Commandes livrées',
-                        'endpoint' => 'api/data/q/nombre_d_ofs_livres_avec_date_de_transfert_coupe_coupe_jemmel',
-                        'variable_type' => 'Direct',
-                        'variable_key' => 'NbOF_Livres_Total',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Date de transfert',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
                         'variable' => 'Transfert coupe',
                         'endpoint' => 'api/data/q/nombre_d_ofs_livres_avec_date_de_transfert_coupe_coupe_jemmel',
                         'variable_type' => 'Direct',
@@ -1122,8 +1100,20 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 131,
+                    'label' => 'Transfert coupe',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Transfert coupe +',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -1141,32 +1131,10 @@ return [
                 'name' => 'Taux de commandes livrées à temps tissu',
                 'variables' => [
                     [
-                        'variable' => 'Commandes livrées',
+                        'variable' => 'transfert coupe',
                         'endpoint' => 'api/data/q/nombre_d_ofs_livres_avec_date_de_transfert_coupe_coupe_jemmel',
                         'variable_type' => 'Direct',
                         'variable_key' => 'NbOF_Livres_Total',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Date de transfert',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Transfert coupe',
-                        'endpoint' => 'api/data/q/nombre_d_ofs_livres_avec_date_de_transfert_coupe_coupe_jemmel',
-                        'variable_type' => 'Direct',
-                        'variable_key' => 'OF_AvecTransfertCoupeJemmel',
                         'is_filtered' => false,
                         'filter_key' => null,
                         'filter_value' => null,
@@ -1185,8 +1153,20 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 131,
+                    'label' => 'Transfert coupe',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Transfert coupe +',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -1204,28 +1184,6 @@ return [
                 'name' => 'Taux de commandes livrées à temps stock FG',
                 'variables' => [
                     [
-                        'variable' => 'Commandes livrées',
-                        'endpoint' => 'api/data/q/nombre_d_ofs_livres_avec_date_de_transfert_coupe_coupe_jemmel',
-                        'variable_type' => 'Direct',
-                        'variable_key' => 'NbOF_Livres_Total',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Date de transfert',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
                         'variable' => 'Transfert coupe',
                         'endpoint' => 'api/data/q/nombre_d_ofs_livres_avec_date_de_transfert_coupe_coupe_jemmel',
                         'variable_type' => 'Direct',
@@ -1248,8 +1206,25 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 139,
+                    'label' => 'Transfert coupe',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 140,
+                    'label' => 'Transfert coupe Jemmel',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Transfert coupe + Transfert coupe Jemmel',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -1289,8 +1264,25 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 139,
+                    'label' => 'Transfert coupe',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 140,
+                    'label' => 'Transfert coupe Jemmel',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Transfert coupe + Transfert coupe Jemmel',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -1330,8 +1322,25 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 143,
+                    'label' => 'Date de transfert',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 144,
+                    'label' => 'Date de réservation',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Date de transfert - Date de réservation',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -1371,8 +1380,25 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 145,
+                    'label' => 'Date de transfert',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 146,
+                    'label' => 'Date de réservation',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Date de transfert - Date de réservation',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -2517,12 +2543,7 @@ return [
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
                 'chart_config' => null,
-                'extra_filters' => [
-                    [
-                        'filter_key' => 'ProdGroup',
-                        'label' => 'ProdGroup',
-                    ],
-                ],
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -3351,18 +3372,7 @@ return [
                 'name' => 'OF ou OFs confection par CHAINE',
                 'variables' => [
                     [
-                        'variable' => 'Numéro Ordre de Fabrication',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'IDOFabrication',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF en cours production',
+                        'variable' => 'Numéro Ordre de Fabrication encours production',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'OFAbrication',
@@ -3392,32 +3402,11 @@ return [
                 'name' => 'OF encours ou OFs coupe',
                 'variables' => [
                     [
-                        'variable' => 'Numéro Ordre de Fabrication',
+                        'variable' => 'Numéro Ordre de Fabrication 
+lancés crée sur G.PRO',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'IDOFabrication',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF lancés',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF créés sur G.PRO',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
                         'is_filtered' => false,
                         'filter_key' => null,
                         'filter_value' => null,
@@ -3444,7 +3433,7 @@ return [
                 'name' => 'Quantité OF ou OFs par ARTICLE',
                 'variables' => [
                     [
-                        'variable' => 'Quantité OF',
+                        'variable' => 'Quantité OF ou OFs',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'Quantite',
@@ -3474,19 +3463,8 @@ return [
                 'name' => 'SO Progress par OF',
                 'variables' => [
                     [
-                        'variable' => 'État d\'avancement des commandes',
+                        'variable' => 'L’état d’avancement des commandes par point de contrôle',
                         'endpoint' => 'api/data/q/etat_avancement',
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Point de contrôle',
-                        'endpoint' => null,
                         'variable_type' => 'Direct',
                         'variable_key' => null,
                         'is_filtered' => false,
@@ -3581,7 +3559,7 @@ return [
                 'name' => 'BPD (Beginning Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de début de commande',
+                        'variable' => 'Date de début de la commande encours',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtDebut',
@@ -3611,7 +3589,8 @@ return [
                 'name' => 'EPD (End Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de fin prévue de production',
+                        'variable' => 'Date de fin prévue de la commande encours en fonction de la quantité réalisée et la cadence 
+allouée',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtFin',
@@ -3619,28 +3598,6 @@ return [
                         'filter_key' => 'IDOFabrication',
                         'filter_value' => null,
                         'has_function' => true,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Quantité réalisée',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'Quantite',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Cadence allouée',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
                         'fn' => 'Latest',
                     ],
                 ],
@@ -3663,21 +3620,10 @@ return [
                 'name' => 'EHD par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date d\'export prévue',
+                        'variable' => 'La date d’export prévue de la commande encours',
                         'endpoint' => 'api/data/expeditions',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DatEExpedition',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Commande en cours',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
                         'is_filtered' => false,
                         'filter_key' => null,
                         'filter_value' => null,
@@ -3726,8 +3672,20 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 96,
+                    'label' => 'Quantité entrée sérigraphie 236',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité entrée sérigraphie 236 -',
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
                 'chart_config' => null,
@@ -3778,8 +3736,29 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 98,
+                    'label' => 'Quantité engagée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 99,
+                    'label' => 'Quantité planifiée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité engagée - Quantité planifiée /',
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
                 'chart_config' => null,
@@ -3830,8 +3809,34 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 101,
+                    'label' => 'Quantité lancée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 102,
+                    'label' => 'Quantité coupée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 103,
+                    'label' => 'Cadence hebdomadaire moyenne',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité lancée - Quantité coupée / Cadence hebdomadaire moyenne',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -4133,12 +4138,7 @@ return [
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
                 'chart_config' => null,
-                'extra_filters' => [
-                    [
-                        'filter_key' => 'ProdGroup',
-                        'label' => 'ProdGroup',
-                    ],
-                ],
+                'extra_filters' => null,
                 'target' => [
                     'operator' => '>=',
                     'value' => 90.00,
@@ -4835,18 +4835,7 @@ return [
                 'name' => 'OF ou OFs confection par CHAINE',
                 'variables' => [
                     [
-                        'variable' => 'Numéro Ordre de Fabrication',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'IDOFabrication',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF en cours production',
+                        'variable' => 'Numéro Ordre de Fabrication encours production',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'OFAbrication',
@@ -4876,7 +4865,7 @@ return [
                 'name' => 'Quantité OF ou OFs par ARTICLE',
                 'variables' => [
                     [
-                        'variable' => 'Quantité OF',
+                        'variable' => 'Quantité OF ou OFs',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'Quantite',
@@ -4906,19 +4895,8 @@ return [
                 'name' => 'SO Progress par OF',
                 'variables' => [
                     [
-                        'variable' => 'État d\'avancement des commandes',
+                        'variable' => 'L’état d’avancement des commandes par point de contrôle',
                         'endpoint' => 'api/data/q/etat_avancement',
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Point de contrôle',
-                        'endpoint' => null,
                         'variable_type' => 'Direct',
                         'variable_key' => null,
                         'is_filtered' => false,
@@ -5013,7 +4991,7 @@ return [
                 'name' => 'BPD (Beginning Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de début de commande',
+                        'variable' => 'Date de début de la commande encours',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtDebut',
@@ -5043,7 +5021,8 @@ return [
                 'name' => 'EPD (End Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de fin prévue de production',
+                        'variable' => 'Date de fin prévue de la commande encours en fonction de la quantité réalisée et la cadence 
+allouée',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtFin',
@@ -5051,28 +5030,6 @@ return [
                         'filter_key' => 'IDOFabrication',
                         'filter_value' => null,
                         'has_function' => true,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Quantité réalisée',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'Quantite',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Cadence allouée',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
                         'fn' => 'Latest',
                     ],
                 ],
@@ -5095,21 +5052,10 @@ return [
                 'name' => 'EHD par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date d\'export prévue',
+                        'variable' => 'La date d’export prévue de la commande encours',
                         'endpoint' => 'api/data/expeditions',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DatEExpedition',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Commande en cours',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
                         'is_filtered' => false,
                         'filter_key' => null,
                         'filter_value' => null,
@@ -5169,8 +5115,29 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 98,
+                    'label' => 'Quantité engagée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 99,
+                    'label' => 'Quantité planifiée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité engagée - Quantité planifiée /',
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
                 'chart_config' => null,
@@ -5654,18 +5621,7 @@ return [
                 'name' => 'OF ou OFs confection par CHAINE',
                 'variables' => [
                     [
-                        'variable' => 'Numéro Ordre de Fabrication',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'IDOFabrication',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF en cours production',
+                        'variable' => 'Numéro Ordre de Fabrication encours production',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'OFAbrication',
@@ -5695,32 +5651,11 @@ return [
                 'name' => 'OF encours ou OFs coupe',
                 'variables' => [
                     [
-                        'variable' => 'Numéro Ordre de Fabrication',
+                        'variable' => 'Numéro Ordre de Fabrication 
+lancés crée sur G.PRO',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'IDOFabrication',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF lancés',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF créés sur G.PRO',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
                         'is_filtered' => false,
                         'filter_key' => null,
                         'filter_value' => null,
@@ -5747,7 +5682,7 @@ return [
                 'name' => 'Quantité OF ou OFs par ARTICLE',
                 'variables' => [
                     [
-                        'variable' => 'Quantité OF',
+                        'variable' => 'Quantité OF ou OFs',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'Quantite',
@@ -5777,19 +5712,8 @@ return [
                 'name' => 'SO Progress par OF',
                 'variables' => [
                     [
-                        'variable' => 'État d\'avancement des commandes',
+                        'variable' => 'L’état d’avancement des commandes par point de contrôle',
                         'endpoint' => 'api/data/q/etat_avancement',
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Point de contrôle',
-                        'endpoint' => null,
                         'variable_type' => 'Direct',
                         'variable_key' => null,
                         'is_filtered' => false,
@@ -5884,7 +5808,7 @@ return [
                 'name' => 'BPD (Beginning Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de début de commande',
+                        'variable' => 'Date de début de la commande encours',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtDebut',
@@ -5914,7 +5838,8 @@ return [
                 'name' => 'EPD (End Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de fin prévue de production',
+                        'variable' => 'Date de fin prévue de la commande encours en fonction de la quantité réalisée et la cadence 
+allouée',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtFin',
@@ -5922,28 +5847,6 @@ return [
                         'filter_key' => 'IDOFabrication',
                         'filter_value' => null,
                         'has_function' => true,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Quantité réalisée',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'Quantite',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Cadence allouée',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
                         'fn' => 'Latest',
                     ],
                 ],
@@ -5966,21 +5869,10 @@ return [
                 'name' => 'EHD par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date d\'export prévue',
+                        'variable' => 'La date d’export prévue de la commande encours',
                         'endpoint' => 'api/data/expeditions',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DatEExpedition',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Commande en cours',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
                         'is_filtered' => false,
                         'filter_key' => null,
                         'filter_value' => null,
@@ -6040,8 +5932,34 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 101,
+                    'label' => 'Quantité lancée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 102,
+                    'label' => 'Quantité coupée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 103,
+                    'label' => 'Cadence hebdomadaire moyenne',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité lancée - Quantité coupée / Cadence hebdomadaire moyenne',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
                 'chart_config' => null,
@@ -6483,18 +6401,7 @@ return [
                 'name' => 'OF ou OFs confection par CHAINE',
                 'variables' => [
                     [
-                        'variable' => 'Numéro Ordre de Fabrication',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'IDOFabrication',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'OF en cours production',
+                        'variable' => 'Numéro Ordre de Fabrication encours production',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'OFAbrication',
@@ -6524,7 +6431,7 @@ return [
                 'name' => 'Quantité OF ou OFs par ARTICLE',
                 'variables' => [
                     [
-                        'variable' => 'Quantité OF',
+                        'variable' => 'Quantité OF ou OFs',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'Quantite',
@@ -6554,19 +6461,8 @@ return [
                 'name' => 'SO Progress par OF',
                 'variables' => [
                     [
-                        'variable' => 'État d\'avancement des commandes',
+                        'variable' => 'L’état d’avancement des commandes par point de contrôle',
                         'endpoint' => 'api/data/q/etat_avancement',
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Point de contrôle',
-                        'endpoint' => null,
                         'variable_type' => 'Direct',
                         'variable_key' => null,
                         'is_filtered' => false,
@@ -6661,7 +6557,7 @@ return [
                 'name' => 'BPD (Beginning Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de début de commande',
+                        'variable' => 'Date de début de la commande encours',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtDebut',
@@ -6691,7 +6587,8 @@ return [
                 'name' => 'EPD (End Production Date) par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date de fin prévue de production',
+                        'variable' => 'Date de fin prévue de la commande encours en fonction de la quantité réalisée et la cadence 
+allouée',
                         'endpoint' => 'api/data/ofabrication',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DtFin',
@@ -6699,28 +6596,6 @@ return [
                         'filter_key' => 'IDOFabrication',
                         'filter_value' => null,
                         'has_function' => true,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Quantité réalisée',
-                        'endpoint' => 'api/data/ofabrication',
-                        'variable_type' => 'Complex',
-                        'variable_key' => 'Quantite',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Cadence allouée',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
                         'fn' => 'Latest',
                     ],
                 ],
@@ -6743,21 +6618,10 @@ return [
                 'name' => 'EHD par OF par chaine',
                 'variables' => [
                     [
-                        'variable' => 'Date d\'export prévue',
+                        'variable' => 'La date d’export prévue de la commande encours',
                         'endpoint' => 'api/data/expeditions',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DatEExpedition',
-                        'is_filtered' => false,
-                        'filter_key' => null,
-                        'filter_value' => null,
-                        'has_function' => false,
-                        'fn' => 'Latest',
-                    ],
-                    [
-                        'variable' => 'Commande en cours',
-                        'endpoint' => null,
-                        'variable_type' => 'Direct',
-                        'variable_key' => null,
                         'is_filtered' => false,
                         'filter_key' => null,
                         'filter_value' => null,
@@ -6806,8 +6670,20 @@ return [
                         'fn' => 'Latest',
                     ],
                 ],
-                'formula' => null,
-                'formula_readable' => null,
+                'formula' => [
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 96,
+                    'label' => 'Quantité entrée sérigraphie 236',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+            ],
+        ],
+                'formula_readable' => 'Quantité entrée sérigraphie 236 -',
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
                 'chart_config' => null,

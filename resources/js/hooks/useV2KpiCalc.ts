@@ -34,6 +34,7 @@ export function toKpiConfigs(apiData: Record<string, unknown>[]): KpiConfig[] {
       graph_types: (item.graph_types as string[]) ?? null,
       highlight_color: (item.highlight_color as string) ?? null,
       filter_configs: [],
+      endpoints: [...new Set(variables.map((v) => (v.endpoint as string) || null).filter(Boolean))] as string[],
       raw_data: (item.raw_data as Record<string, unknown>[] | null) ?? null,
       chart_config: (item.chart_config as Record<string, unknown>) ?? null,
       extra_filters: (item.extra_filters as { key: string; options: string[]; label?: string }[]) ?? null,

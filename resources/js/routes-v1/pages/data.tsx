@@ -155,9 +155,10 @@ function GraphTypePicker({ value, onChange }: { value: string[]; onChange: (type
 }
 
 // -------- Extra Filters Editor (lightweight dropdown of column keys) --------
-function ExtraFiltersEditor({ value, onChange }: {
+function ExtraFiltersEditor({ value, onChange, sharedKeys = [] }: {
   value: { filter_key: string; label?: string; source_variable_index?: number }[] | null;
   onChange: (v: { filter_key: string; label?: string; source_variable_index?: number }[] | null) => void;
+  sharedKeys?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [customKey, setCustomKey] = useState("");
@@ -202,8 +203,10 @@ function ExtraFiltersEditor({ value, onChange }: {
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-56 bg-card border border-border rounded-md shadow-lg p-2">
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Colonnes partagées</div>
-          {COMMON_COLUMN_KEYS.map((key) => (
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">
+            {sharedKeys.length > 0 ? "Colonnes partagées" : "Aucune colonne partagée"}
+          </div>
+          {sharedKeys.map((key) => (
             <label key={key} className="flex items-center gap-2 py-0.5 px-1 text-[11px] hover:bg-muted/50 rounded cursor-pointer">
               <input
                 type="checkbox"
@@ -232,11 +235,6 @@ function ExtraFiltersEditor({ value, onChange }: {
     </div>
   );
 }
-
-const COMMON_COLUMN_KEYS = [
-  "ProdGroup", "EmployeeNo", "EmployeeName", "Chaine", "Article",
-  "IDOFabrication", "LostTypeDesc", "Date", "Shift",
-];
 
 // -------- JSON Cell Editor (for chart_config, etc.) --------
 function JsonCellEditor<T>({ value, placeholder, onChange }: {
@@ -2313,14 +2311,27 @@ function DataMappingPage() {
                     </td>
                   ) : null}
                   {/* Extra Filters column — shared keys dropdown per KPI group */}
-                  {isFirstInKpi ? (
-                    <td rowSpan={ks} className="px-2 py-1.5 min-w-[200px]">
-                      <ExtraFiltersEditor
-                        value={r.extra_filters}
-                        onChange={(v) => updateImmediate(r.id, { extra_filters: v })}
-                      />
-                    </td>
-                  ) : null}
+                  {isFirstInKpi ? (() => {
+                    const groupRows = filtered.slice(i, i + ks);
+                    const groupEndpoints = [...new Set(groupRows.map(gr => gr.endpoint).filter(Boolean) as string[])];
+                    const keySets = groupEndpoints.map(ep => {
+                      const rec = allEndpointData[ep];
+                      if (!rec || !rec.response || rec.response.length === 0) return [];
+                      return Object.keys(rec.response[0]);
+                    });
+                    const sharedKeys = keySets.length > 0
+                      ? keySets[0].filter(k => keySets.every(ks => ks.includes(k)))
+                      : [];
+                    return (
+                      <td rowSpan={ks} className="px-2 py-1.5 min-w-[200px]">
+                        <ExtraFiltersEditor
+                          value={r.extra_filters}
+                          onChange={(v) => updateImmediate(r.id, { extra_filters: v })}
+                          sharedKeys={sharedKeys}
+                        />
+                      </td>
+                    );
+                  })() : null}
                   {/* Test Live column — one button per KPI group, formula result */}
                   {isFirstInKpi ? (() => {
                     const groupRows = filtered.slice(i, i + ks);

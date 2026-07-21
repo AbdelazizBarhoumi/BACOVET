@@ -34,6 +34,7 @@ export interface KpiConfig {
   raw_data: Record<string, unknown>[] | null;
   chart_config?: ChartConfig | null;
   extra_filters?: FilterConfig[] | null;
+  endpoints?: string[];
   computed_result?: {
     scalar_value: number | null;
     status: string;
@@ -92,6 +93,7 @@ export interface ComputedKpi {
   filter_options: string[] | null;
   filters: FilterConfig[];
   chart_config?: ChartConfig | null;
+  endpoints?: string[];
 }
 
 // ── Aggregation ────────────────────────────────────────────────────────────
@@ -299,9 +301,10 @@ export function computeStatus(
   targetOperator: string | null,
   targetValue: number | null,
 ): string {
-  if (value == null || targetOperator == null || targetValue == null) return "grey";
+  if (value == null) return "grey";
   const val = typeof value === "number" ? value : Number(value);
   if (isNaN(val)) return "grey";
+  if (targetOperator == null || targetValue == null) return "green";
   const tgt = targetValue;
 
   switch (targetOperator) {
@@ -331,8 +334,10 @@ export function computeKpi(
     const cr = kpi.computed_result;
     let finalValue: number | string | Record<string, unknown>[] | null = cr.scalar_value;
 
-    // If mapped_rows exist and are arrays, use them (for charts)
-    if (cr.mapped_rows && cr.mapped_rows.length > 0) {
+    // Only use mapped_rows for chart KPIs, not Big Numbers
+    const isChart = kpi.graph_types?.some((t) => t !== "Big Number avec couleur") ?? false;
+
+    if (isChart && cr.mapped_rows && cr.mapped_rows.length > 0) {
       let rows = cr.mapped_rows;
 
       // Apply extra filter display filtering
@@ -402,6 +407,7 @@ export function computeKpi(
       filter_options: filterConfigs[0]?.options ?? null,
       filters: filterConfigs,
       chart_config: kpi.chart_config ?? null,
+      endpoints: kpi.endpoints ?? undefined,
     };
   }
 
@@ -615,6 +621,7 @@ export function computeKpi(
     filter_options: filterConfigs[0]?.options ?? null,
     filters: filterConfigs,
     chart_config: kpi.chart_config ?? null,
+    endpoints: kpi.endpoints ?? undefined,
   };
 }
 

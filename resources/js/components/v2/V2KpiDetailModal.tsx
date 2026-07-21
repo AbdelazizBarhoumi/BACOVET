@@ -43,7 +43,18 @@ function statusDot(status: string) {
 
 function formatValue(value: number | string | null | undefined | unknown[], unit: string): string {
     if (value === null || value === undefined) return '-';
-    if (Array.isArray(value)) return `Array (${value.length})`;
+    if (Array.isArray(value)) {
+        // If single-item array, extract the value; otherwise show count
+        if (value.length === 1) {
+            const single = value[0];
+            if (typeof single === 'object' && single !== null && 'value' in single) {
+                const v = (single as Record<string, unknown>).value;
+                return typeof v === 'number' ? `${v.toFixed(1)}${unit}` : `${v}${unit}`;
+            }
+            return typeof single === 'number' ? `${single.toFixed(1)}${unit}` : `${single}${unit}`;
+        }
+        return `${value.length} éléments`;
+    }
     if (typeof value === 'number') return `${value.toFixed(1)}${unit}`;
     return `${value}${unit}`;
 }
