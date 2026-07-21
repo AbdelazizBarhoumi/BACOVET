@@ -42,6 +42,10 @@ Route::get('/v1/{any?}', fn () => view('v1'))->where('any', '.*')->name('v1');
 
 Route::get('/v2/{any?}', fn () => view('v2'))->where('any', '.*')->name('v2');
 
+// ── V3 PAGE BUILDER ──────────────────────────────────────────────────
+Route::get('/v3', fn () => Inertia::render('v3/page-builder'))->name('v3');
+Route::get('/p/{slug}', fn ($slug) => Inertia::render('v3/p/[slug]', ['slug' => $slug]))->name('v3.page');
+
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 
 // Settings routes — public (used by standalone data page auth)

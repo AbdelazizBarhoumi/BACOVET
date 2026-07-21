@@ -1108,3 +1108,74 @@ v2.head = (args?: { any?: string | number } | [any: string | number ] | string |
         })
     
     v2.form = v2Form
+/**
+ * @see routes/web.php:46
+ * @route '/v3'
+ */
+export const v3 = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: v3.url(options),
+    method: 'get',
+})
+
+v3.definition = {
+    methods: ["get","head"],
+    url: '/v3',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+ * @see routes/web.php:46
+ * @route '/v3'
+ */
+v3.url = (options?: RouteQueryOptions) => {
+    return v3.definition.url + queryParams(options)
+}
+
+/**
+ * @see routes/web.php:46
+ * @route '/v3'
+ */
+v3.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: v3.url(options),
+    method: 'get',
+})
+/**
+ * @see routes/web.php:46
+ * @route '/v3'
+ */
+v3.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: v3.url(options),
+    method: 'head',
+})
+
+    /**
+ * @see routes/web.php:46
+ * @route '/v3'
+ */
+    const v3Form = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: v3.url(options),
+        method: 'get',
+    })
+
+            /**
+ * @see routes/web.php:46
+ * @route '/v3'
+ */
+        v3Form.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: v3.url(options),
+            method: 'get',
+        })
+            /**
+ * @see routes/web.php:46
+ * @route '/v3'
+ */
+        v3Form.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: v3.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    v3.form = v3Form

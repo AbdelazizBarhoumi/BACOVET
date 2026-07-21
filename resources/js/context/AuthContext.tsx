@@ -27,7 +27,8 @@ export type RolePage =
     | '/methods'
     | '/kpi-endpoints'
     | '/unauthorized'
-    | '/dashboard';
+    | '/dashboard'
+    | '/v3';
 
 export const ROLE_LABEL: Record<Role, string> = {
     admin: 'IT / Administrateur',
@@ -50,6 +51,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/methods',
         '/kpi-endpoints',
         '/unauthorized',
+        '/v3',
     ],
     direction: [
         '/quality',
@@ -58,8 +60,9 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/developpement',
         '/methods',
         '/unauthorized',
+        '/v3',
     ],
-    resp_production: ['/quality', '/production', '/unauthorized'],
+    resp_production: ['/quality', '/production', '/unauthorized', '/v3'],
     chef_atelier: ['/production', '/unauthorized'],
     resp_qualite: ['/quality', '/unauthorized'],
     methodes: [
@@ -69,6 +72,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/methods',
         '/developpement',
         '/unauthorized',
+        '/v3',
     ],
     planning_coupe: ['/production', '/logistics', '/unauthorized'],
 };

@@ -5,6 +5,9 @@ import laravel from 'laravel-vite-plugin';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+    define: {
+        'process.env': JSON.stringify({}),
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx', 'resources/js/v1-main.tsx', 'resources/js/v2-main.tsx'],

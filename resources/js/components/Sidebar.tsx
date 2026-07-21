@@ -47,6 +47,7 @@ const NAV_ITEMS: {
     },
     { href: '/methods', label: 'MÉTHODES', code: '', icon: LayoutDashboard },
     { href: '/kpi-endpoints', label: 'KPI ENDPOINTS', code: '', icon: Database },
+    { href: '/v3', label: 'PAGE BUILDER', code: 'V3', icon: LayoutDashboard },
 ];
 
 const Sidebar = () => {

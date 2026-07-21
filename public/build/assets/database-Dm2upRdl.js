@@ -1,1 +1,0 @@
-import{c as e}from"./createLucideIcon-CWcyVgU3.js";const o=[["path",{d:"m6 9 6 6 6-6",key:"qrunsl"}]],c=e("ChevronDown",o);const a=[["ellipse",{cx:"12",cy:"5",rx:"9",ry:"3",key:"msslwz"}],["path",{d:"M3 5V19A9 3 0 0 0 21 19V5",key:"1wlel7"}],["path",{d:"M3 12A9 3 0 0 0 21 12",key:"mv7ke4"}]],n=e("Database",a);export{c as C,n as D};
