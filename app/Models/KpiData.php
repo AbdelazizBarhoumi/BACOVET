@@ -14,6 +14,7 @@ class KpiData extends Model
         'refresh_frequency',
         'response_data',
         'computed_data',
+        'computed_result',
         'last_status',
         'last_error',
         'last_synced_at',
@@ -23,6 +24,7 @@ class KpiData extends Model
     protected $casts = [
         'response_data' => 'array',
         'computed_data' => 'array',
+        'computed_result' => 'array',
         'last_synced_at' => 'datetime',
         'last_valid_synced_at' => 'datetime',
     ];

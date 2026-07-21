@@ -159,6 +159,14 @@ class SyncInstantEndpoints extends Command
         $elapsed = round(microtime(true) - $start, 2);
         $this->info("Done: {$ok} ok, {$errors} errors | {$elapsed}s ({$uniqueEndpoints} HTTP calls instead of {$totalTasks})");
 
+        // Pre-compute KPI results (formula, row-by-row, status) for all production modules
+        $this->info("Computing KPI results...");
+        $computer = new \App\Services\KpiResultComputer();
+        foreach (['production:confection', 'production:coupe', 'production:flux', 'production'] as $module) {
+            $computer->computeModule($module);
+        }
+        $this->info("KPI results computed.");
+
         return self::SUCCESS;
     }
 

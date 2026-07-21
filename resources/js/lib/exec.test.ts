@@ -34,6 +34,8 @@ function makeRow(overrides: Partial<DataMappingRow> = {}): DataMappingRow {
     cible_value: 95,
     cible_is_percentage: false,
     graph_types: null,
+    chart_config: null,
+    extra_filters: null,
     refresh_frequency: '',
     user_id: null,
     created_at: '',

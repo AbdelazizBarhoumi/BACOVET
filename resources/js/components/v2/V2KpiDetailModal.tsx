@@ -13,10 +13,8 @@ interface V2KpiDetailModalProps {
 
 function statusColor(status: string) {
     switch (status) {
-        case 'green':
-        case 'ok': return 'text-green-600';
-        case 'orange':
-        case 'warning': return 'text-orange-500';
+        case 'green': return 'text-green-600';
+        case 'orange': return 'text-orange-500';
         case 'red':
         case 'error': return 'text-red-600';
         default: return 'text-gray-400';
@@ -25,10 +23,8 @@ function statusColor(status: string) {
 
 function statusBorder(status: string) {
     switch (status) {
-        case 'green':
-        case 'ok': return 'border-l-green-500';
-        case 'orange':
-        case 'warning': return 'border-l-orange-400';
+        case 'green': return 'border-l-green-500';
+        case 'orange': return 'border-l-orange-400';
         case 'red':
         case 'error': return 'border-l-red-500';
         default: return 'border-l-gray-400';
@@ -37,10 +33,8 @@ function statusBorder(status: string) {
 
 function statusDot(status: string) {
     switch (status) {
-        case 'green':
-        case 'ok': return 'bg-green-500';
-        case 'orange':
-        case 'warning': return 'bg-orange-400';
+        case 'green': return 'bg-green-500';
+        case 'orange': return 'bg-orange-400';
         case 'red':
         case 'error': return 'bg-red-500';
         default: return 'bg-gray-400';
@@ -195,7 +189,7 @@ export default function V2KpiDetailModal({ kpi, breakdownData, onClose }: V2KpiD
                         <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
                             <div className="mb-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Statut</div>
                             <div className={`text-xs font-bold uppercase ${statusColor(cardStatus)} mt-2`}>
-                                {cardStatus === 'green' ? '🟢 Conforme' : cardStatus === 'orange' ? '🟠 Vigilance' : cardStatus === 'red' ? '🔴 Critique' : '⚪ ' + cardStatus.toUpperCase()}
+                                {cardStatus === 'green' ? '🟢 Conforme' : cardStatus === 'orange' ? '🟠 Vigilance' : cardStatus === 'red' ? '🔴 Critique' : cardStatus === 'error' ? '🔴 Erreur' : '⚪ ' + cardStatus.toUpperCase()}
                             </div>
                         </div>
                     </div>

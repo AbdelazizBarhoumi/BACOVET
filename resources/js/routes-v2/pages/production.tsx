@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LightDropdown, LightDropdownItem } from "@/components/LightDropdown";
 import { ProductionKpiCard } from "@/components/production/ProductionKpiCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { V2ChartType } from "@/components/v2/V2ChartTypes";
 import V2KpiDetailModal from "@/components/v2/V2KpiDetailModal";
-import { LightDropdown, LightDropdownItem } from "@/components/LightDropdown";
 import { useFilters } from "@/context/FilterContext";
-import type { Status } from "@/lib/mock";
 import { useV2KpiCalc } from "@/hooks/useV2KpiCalc";
+import type { ComputedKpi } from "@/lib/kpiFilterEngine";
+import type { Status } from "@/lib/mock";
 import { fetchProductionBreakdown } from "@/services/productionApi";
 import { fetchV2ProductionKpisRaw } from "@/services/v2ProductionApi";
+import type { V2KpiItem } from "@/services/v2ProductionApi";
 import type { BreakdownData } from "@/types/production";
-import type { ComputedKpi } from "@/lib/kpiFilterEngine";
 
 type Tab = "confection" | "coupe" | "flux";
 
@@ -33,11 +34,6 @@ function statusFromKpi(item: ComputedKpi): Status {
   if (s === "orange") return "orange";
   if (s === "red") return "red";
   return "grey";
-}
-
-function syncLabel(item: ComputedKpi): string {
-  // sync info comes from raw API data, not computed
-  return "";
 }
 
 export default function Production() {
@@ -184,7 +180,7 @@ export default function Production() {
                       <span className="font-mono text-[10px] text-muted-foreground uppercase">{item.kpi_code}</span>
                     </div>
                     <div className="text-xs font-bold mb-2 truncate">{item.name}</div>
-                    <V2ChartType kpi={item as any} />
+                    <V2ChartType kpi={item as unknown as V2KpiItem} />
                   </div>
                 ))}
               </div>
@@ -194,7 +190,7 @@ export default function Production() {
       </Tabs>
 
       <V2KpiDetailModal
-        kpi={selectedKpi as any}
+        kpi={selectedKpi as unknown as V2KpiItem | null}
         breakdownData={breakdownData}
         onClose={() => setSelectedKpi(null)}
       />

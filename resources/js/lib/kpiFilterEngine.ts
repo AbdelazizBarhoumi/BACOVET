@@ -34,6 +34,13 @@ export interface KpiConfig {
   raw_data: Record<string, unknown>[] | null;
   chart_config?: ChartConfig | null;
   extra_filters?: FilterConfig[] | null;
+  computed_result?: {
+    scalar_value: number | null;
+    status: string;
+    mapped_rows: Record<string, unknown>[] | null;
+    filter_options: Record<string, string[]>;
+    computed_at: string;
+  } | null;
 }
 
 export interface FormulaItem {
@@ -76,6 +83,7 @@ export interface ComputedKpi {
   target_value: number | null;
   target_is_percentage: boolean;
   target_readable: string | null;
+  formula_readable: string | null;
   graph_types: string[] | null;
   highlight_color: string | null;
   filter_configs: FilterConfig[];
@@ -185,7 +193,7 @@ function computeFormula(
 
   for (const item of items) {
     if (item.type === "variable") {
-      let rawVal = varIndex < variableValues.length ? variableValues[varIndex] : null;
+      const rawVal = varIndex < variableValues.length ? variableValues[varIndex] : null;
       varIndex++;
 
       if (rawVal === null) return null;
@@ -318,6 +326,87 @@ export function computeKpi(
 ): ComputedKpi {
   const { variables, formula, target_operator, target_value } = kpi;
 
+  // ── Fast path: use pre-computed result from backend if available ──
+  if (kpi.computed_result) {
+    const cr = kpi.computed_result;
+    let finalValue: number | string | Record<string, unknown>[] | null = cr.scalar_value;
+
+    // If mapped_rows exist and are arrays, use them (for charts)
+    if (cr.mapped_rows && cr.mapped_rows.length > 0) {
+      let rows = cr.mapped_rows;
+
+      // Apply extra filter display filtering
+      if (kpi.extra_filters?.length) {
+        for (const ef of kpi.extra_filters) {
+          const fv = activeFilters[ef.key];
+          if (fv) {
+            rows = rows.filter((row) => {
+              const rowVal = row[ef.key];
+              return rowVal != null && String(rowVal).trim() === fv;
+            });
+          }
+        }
+      }
+
+      // Apply auto-generated filter on mapped_rows
+      const extraFilterColumns = new Set((kpi.extra_filters ?? []).map((ef) => ef.key));
+      for (const variable of variables) {
+        const varFk = variable.filter_key;
+        if (varFk && !extraFilterColumns.has(varFk)) {
+          const fv = activeFilters[varFk];
+          if (fv) {
+            rows = rows.filter((row) => {
+              const rowVal = row[varFk];
+              return rowVal != null && String(rowVal).trim() === fv;
+            });
+          }
+        }
+      }
+
+      finalValue = rows;
+    }
+
+    // Build filter configs from pre-computed filter_options + config
+    const filterConfigs: FilterConfig[] = [];
+    const extraKeys = new Set((kpi.extra_filters ?? []).map((ef) => ef.key));
+    // Auto-generated from config (skip if extra covers same key)
+    for (const variable of variables) {
+      if (variable.is_filtered && variable.filter_key && !extraKeys.has(variable.filter_key)) {
+        const opts = cr.filter_options?.[variable.filter_key] ?? [];
+        if (opts.length && !filterConfigs.some((fc) => fc.key === variable.filter_key)) {
+          filterConfigs.push({ key: variable.filter_key, options: opts });
+        }
+      }
+    }
+    // Extra filters
+    for (const ef of kpi.extra_filters ?? []) {
+      const opts = cr.filter_options?.[ef.key] ?? ef.options ?? [];
+      filterConfigs.push({ key: ef.key, options: opts, label: ef.label });
+    }
+
+    return {
+      kpi_code: kpi.kpi_code,
+      name: kpi.name,
+      value: finalValue,
+      status: cr.status ?? 'grey',
+      target_operator,
+      target_value,
+      target_is_percentage: kpi.target_is_percentage,
+      target_readable: kpi.target_readable,
+      formula_readable: kpi.formula_readable,
+      graph_types: kpi.graph_types,
+      highlight_color: kpi.highlight_color,
+      filter_configs: filterConfigs,
+      raw_data: kpi.raw_data,
+      filter_key: filterConfigs[0]?.key ?? null,
+      filter_options: filterConfigs[0]?.options ?? null,
+      filters: filterConfigs,
+      chart_config: kpi.chart_config ?? null,
+    };
+  }
+
+  // ── Slow path: compute on frontend (fallback when no pre-computed result) ──
+
   // 1. For each variable: apply auto-generated filters → compute value
   // Extra filters are applied AFTER row-by-row computation (display-only).
   const computedValues: (number | string | Record<string, unknown>[] | null)[] = [];
@@ -412,7 +501,7 @@ export function computeKpi(
           rowResults.push(record);
         }
         // Attach join key metadata for chart X-axis label
-        (rowResults as any)._xKey = joinKey;
+        (rowResults as unknown as { _xKey?: string })._xKey = joinKey;
         finalValue = rowResults;
       } else {
         // No shared keys — fall back to index-based (same endpoint assumption)
@@ -489,7 +578,6 @@ export function computeKpi(
 
   // 6. When extra_filters exist, suppress auto-generated filters for same keys
   if (kpi.extra_filters?.length) {
-    const extraKeys = new Set(kpi.extra_filters.map((ef) => ef.key));
     // Remove auto-generated entries that extra filters already cover
     for (const ef of kpi.extra_filters) {
       const idx = filterConfigs.findIndex((fc) => fc.key === ef.key);
@@ -518,6 +606,7 @@ export function computeKpi(
     target_value,
     target_is_percentage: kpi.target_is_percentage,
     target_readable: kpi.target_readable,
+    formula_readable: kpi.formula_readable,
     graph_types: kpi.graph_types,
     highlight_color: kpi.highlight_color,
     filter_configs: filterConfigs,

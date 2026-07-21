@@ -37,6 +37,7 @@ export function toKpiConfigs(apiData: Record<string, unknown>[]): KpiConfig[] {
       raw_data: (item.raw_data as Record<string, unknown>[] | null) ?? null,
       chart_config: (item.chart_config as Record<string, unknown>) ?? null,
       extra_filters: (item.extra_filters as { key: string; options: string[]; label?: string }[]) ?? null,
+      computed_result: (item.computed_result as { scalar_value: number | null; status: string; mapped_rows: Record<string, unknown>[] | null; filter_options: Record<string, string[]>; computed_at: string }) ?? null,
     } as KpiConfig;
   });
 }

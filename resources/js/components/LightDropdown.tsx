@@ -148,12 +148,10 @@ export const LightDropdown = React.memo(function LightDropdown({
 // -------- Dropdown Item (plain div, no Radix) --------
 export const LightDropdownItem = React.memo(function LightDropdownItem({
   value,
-  label,
   className,
   children,
 }: {
   value: string;
-  label?: string;
   className?: string;
   children: React.ReactNode;
 }) {

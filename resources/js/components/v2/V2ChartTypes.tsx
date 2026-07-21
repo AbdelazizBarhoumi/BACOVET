@@ -45,7 +45,7 @@ function sortData(data: Record<string, unknown>[], sortBy: string | null): Recor
 
 // Extract _xKey metadata attached by row-by-row formula (join key name like "EmployeeNo")
 function getXKey(data: Record<string, unknown>[]): string | null {
-  return (data as any)._xKey ?? null;
+  return (data as unknown as { _xKey?: string })._xKey ?? null;
 }
 
 // ─── Helper: extract chart-ready data from kpi ──────────────────────────────
@@ -87,7 +87,7 @@ function detectLabelKey(row: Record<string, unknown>): string {
 }
 
 // Pick the best X-axis label key from data: prefer join key (_xKey), then EmployeeNo/EmployeeName, then first non-value key
-function pickXKey(data: Record<string, unknown>[], kpi: V2KpiItem): string {
+function pickXKey(data: Record<string, unknown>[]): string {
   // 1. If _xKey metadata exists (from row-by-row join), use it
   const xKey = getXKey(data);
   if (xKey) return xKey;
@@ -128,12 +128,24 @@ function FilterDropdown({ filterKey, raw, selected, onSelect }: {
 }
 
 // ─── Generic Chart Tooltip ──────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label }: any) {
+interface TooltipPayloadItem {
+  name: string;
+  value: number | string;
+  color: string;
+}
+
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string;
+}
+
+function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-card border border-border rounded px-2 py-1 text-[10px] shadow-md">
       <div className="font-bold mb-0.5">{label}</div>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p: TooltipPayloadItem, i: number) => (
         <div key={i} style={{ color: p.color }}>
           {p.name}: {typeof p.value === "number" ? p.value.toFixed(1) : p.value}
         </div>
@@ -143,12 +155,16 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 // ─── Line Chart ─────────────────────────────────────────────────────────────
-function LineTooltip({ active, payload, label, yLabel }: any) {
+interface LineTooltipProps extends ChartTooltipProps {
+  yLabel?: string;
+}
+
+function LineTooltip({ active, payload, label, yLabel }: LineTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-card border border-border rounded px-2 py-1 text-[10px] shadow-md">
       <div className="font-bold mb-0.5">{label}</div>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p: TooltipPayloadItem, i: number) => (
         <div key={i} style={{ color: p.color }}>
           {yLabel}: {typeof p.value === "number" ? p.value.toFixed(1) : p.value}
         </div>
@@ -162,7 +178,7 @@ export function V2LineChart({ kpi }: { kpi: V2KpiItem }) {
   const data = useChartData(kpi, filterVal);
   const cc = resolveChartConfig(kpi);
 
-  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const labelKey = cc.xAxisKey ?? pickXKey(data);
   const valueKey = cc.yAxisKey;
   const maxItems = cc.maxItems ?? 10;
   const xLabel = cc.legendX ?? getXKey(data);
@@ -215,12 +231,12 @@ export function V2GaugeChart({ kpi }: { kpi: V2KpiItem }) {
 }
 
 // ─── Combo Bar/Line ─────────────────────────────────────────────────────────
-function ComboTooltip({ active, payload, label }: any) {
+function ComboTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-card border border-border rounded px-2 py-1 text-[10px] shadow-md">
       <div className="font-bold mb-0.5">{label}</div>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p: TooltipPayloadItem, i: number) => (
         <div key={i} style={{ color: p.color }}>
           {p.name}: {typeof p.value === "number" ? p.value.toFixed(1) : p.value}%
         </div>
@@ -234,7 +250,7 @@ export function V2ComboChart({ kpi }: { kpi: V2KpiItem }) {
   const data = useChartData(kpi, filterVal);
   const cc = resolveChartConfig(kpi);
 
-  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const labelKey = cc.xAxisKey ?? pickXKey(data);
   const valueKey = cc.yAxisKey;
   const maxItems = cc.maxItems ?? 10;
   const xLabel = cc.legendX ?? getXKey(data);
@@ -315,7 +331,7 @@ export function V2HorizontalBarChart({ kpi }: { kpi: V2KpiItem }) {
   const data = useChartData(kpi, filterVal);
   const cc = resolveChartConfig(kpi);
 
-  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const labelKey = cc.xAxisKey ?? pickXKey(data);
   const valueKey = cc.yAxisKey;
   const maxItems = cc.maxItems ?? 8;
 
@@ -345,7 +361,7 @@ export function V2AreaChart({ kpi }: { kpi: V2KpiItem }) {
   const data = useChartData(kpi, filterVal);
   const cc = resolveChartConfig(kpi);
 
-  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const labelKey = cc.xAxisKey ?? pickXKey(data);
   const valueKey = cc.yAxisKey;
   const maxItems = cc.maxItems ?? 10;
   const xLabel = cc.legendX ?? getXKey(data);
@@ -379,7 +395,7 @@ export function V2Timeline({ kpi }: { kpi: V2KpiItem }) {
   const data = useChartData(kpi, filterVal);
   const cc = resolveChartConfig(kpi);
 
-  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const labelKey = cc.xAxisKey ?? pickXKey(data);
   const valueKey = cc.yAxisKey;
   const maxItems = cc.maxItems ?? 10;
 
@@ -412,7 +428,7 @@ export function V2BarChart({ kpi }: { kpi: V2KpiItem }) {
   const data = useChartData(kpi, filterVal);
   const cc = resolveChartConfig(kpi);
 
-  const labelKey = cc.xAxisKey ?? pickXKey(data, kpi);
+  const labelKey = cc.xAxisKey ?? pickXKey(data);
   const valueKey = cc.yAxisKey;
   const maxItems = cc.maxItems ?? 10;
   const xLabel = cc.legendX ?? getXKey(data);

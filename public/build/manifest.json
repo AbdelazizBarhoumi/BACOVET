@@ -1457,7 +1457,7 @@
     ]
   },
   "resources/js/routes-v1/pages/comparaison.tsx": {
-    "file": "assets/comparaison-D5ohVqlV.js",
+    "file": "assets/comparaison-CqHOH6P7.js",
     "name": "comparaison",
     "src": "resources/js/routes-v1/pages/comparaison.tsx",
     "isDynamicEntry": true,
@@ -1501,7 +1501,7 @@
     ]
   },
   "resources/js/routes-v1/pages/data.tsx": {
-    "file": "assets/data-B_d-m2Mn.js",
+    "file": "assets/data-otQ1Ybq6.js",
     "name": "data",
     "src": "resources/js/routes-v1/pages/data.tsx",
     "isDynamicEntry": true,
@@ -1562,7 +1562,7 @@
     ]
   },
   "resources/js/routes-v1/pages/production-confection.tsx": {
-    "file": "assets/production-confection-DKlEUt1F.js",
+    "file": "assets/production-confection-hBEC0SvY.js",
     "name": "production-confection",
     "src": "resources/js/routes-v1/pages/production-confection.tsx",
     "isDynamicEntry": true,
@@ -1605,7 +1605,7 @@
     ]
   },
   "resources/js/routes-v1/pages/production-flux.tsx": {
-    "file": "assets/production-flux-Diw4GYyv.js",
+    "file": "assets/production-flux-D8kmkyAP.js",
     "name": "production-flux",
     "src": "resources/js/routes-v1/pages/production-flux.tsx",
     "isDynamicEntry": true,
@@ -1650,7 +1650,7 @@
     ]
   },
   "resources/js/routes-v1/pages/qualite.tsx": {
-    "file": "assets/qualite-DoKK0SDX.js",
+    "file": "assets/qualite-BM6SwS9Y.js",
     "name": "qualite",
     "src": "resources/js/routes-v1/pages/qualite.tsx",
     "isDynamicEntry": true,
@@ -1695,12 +1695,13 @@
     ]
   },
   "resources/js/routes-v2/pages/production.tsx": {
-    "file": "assets/production-tjiHQn_E.js",
+    "file": "assets/production-B35w8_lZ.js",
     "name": "production",
     "src": "resources/js/routes-v2/pages/production.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_use-appearance-DrMBgYQ4.js",
+      "_LightDropdown-BMumRZvu.js",
       "_ProductionKpiCard-CamzH7wg.js",
       "_tabs-C260Vi_w.js",
       "_YAxis-DGeWzO7C.js",
@@ -1713,7 +1714,6 @@
       "_button-BVKE7hTu.js",
       "_x-DYitcDIS.js",
       "_download-M8WvGwJl.js",
-      "_LightDropdown-BMumRZvu.js",
       "_productionApi-DDLv--lT.js",
       "_widgets-Bsqv7Z16.js",
       "_createLucideIcon-CWcyVgU3.js",
@@ -1722,7 +1722,7 @@
     ]
   },
   "resources/js/v1-main.tsx": {
-    "file": "assets/v1-main-ByOrlpus.js",
+    "file": "assets/v1-main-N_Ow1H6P.js",
     "name": "v1-main",
     "src": "resources/js/v1-main.tsx",
     "isEntry": true,
@@ -1763,7 +1763,7 @@
     ]
   },
   "resources/js/v2-main.tsx": {
-    "file": "assets/v2-main-FUOw4jGz.js",
+    "file": "assets/v2-main-C_lwWbwo.js",
     "name": "v2-main",
     "src": "resources/js/v2-main.tsx",
     "isEntry": true,

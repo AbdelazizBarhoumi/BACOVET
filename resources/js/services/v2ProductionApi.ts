@@ -54,6 +54,13 @@ export type V2KpiItem = {
     filters: { key: string; options: string[] }[] | null;
     chart_config?: V2ChartConfig | null;
     extra_filters?: { key: string; options: string[]; label?: string }[] | null;
+    computed_result?: {
+        scalar_value: number | null;
+        status: string;
+        mapped_rows: Record<string, unknown>[] | null;
+        filter_options: Record<string, string[]>;
+        computed_at: string;
+    } | null;
 };
 
 export type V2KpisResponse = {

@@ -61,6 +61,13 @@ class KpiEndpointService
             }
         }
 
+        // Pre-compute KPI results after sync
+        $computer = new KpiResultComputer();
+        $modules = array_unique(array_map(fn($ep) => $ep['module'] ?? 'production', array_values(config('endpoints', []))));
+        foreach ($modules as $module) {
+            $computer->computeModule($module);
+        }
+
         return $results;
     }
 

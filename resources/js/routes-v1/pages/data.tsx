@@ -249,6 +249,8 @@ function JsonCellEditor<T>({ value, placeholder, onChange }: {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Sync draft when external value prop changes
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate prop-to-state sync
   useEffect(() => { setDraft(value != null ? JSON.stringify(value, null, 2) : ""); }, [value]);
 
   useEffect(() => {
@@ -2254,15 +2256,15 @@ function DataMappingPage() {
                     <td rowSpan={ks} className="px-2 py-1.5">
                       <div className="flex items-center gap-1">
                         <DataSelect value={r.cible_operator ?? ""}
-                          onValueChange={(val) => updateImmediate(r.id, { cible_operator: val || null })}
+                          onValueChange={(val) => updateImmediate(r.id, { cible_operator: val || undefined })}
                           allowDeselect
                           placeholder=""
                           className={`w-14`}>
-                          <DataSelectItem value="<" label="<">{"<"}</DataSelectItem>
-                          <DataSelectItem value=">" label=">">{">"}</DataSelectItem>
-                          <DataSelectItem value=">=" label=">=">{">="}</DataSelectItem>
-                          <DataSelectItem value="<=" label="<=">{"<="}</DataSelectItem>
-                          <DataSelectItem value="=" label="=">{"="}</DataSelectItem>
+                          <DataSelectItem value="<">{"<"}</DataSelectItem>
+                          <DataSelectItem value=">">{">"}</DataSelectItem>
+                          <DataSelectItem value=">=">{">="}</DataSelectItem>
+                          <DataSelectItem value="<=">{"<="}</DataSelectItem>
+                          <DataSelectItem value="=">{"="}</DataSelectItem>
                         </DataSelect>
                         <input type="number" value={r.cible_value ?? ""}
                           onChange={(e) => updateLocal(r.id, { cible_value: e.target.value ? Number(e.target.value) : null })}

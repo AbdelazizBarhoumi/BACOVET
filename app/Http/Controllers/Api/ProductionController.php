@@ -1619,6 +1619,14 @@ class ProductionController extends Controller
                 }
             }
 
+            // Read pre-computed result from leader variable
+            $computedResult = null;
+            $leaderVarKey = $variables[0]['variable_key'] ?? null;
+            $leaderRow = $kpiDataIndex[$kpiCode][$leaderVarKey] ?? null;
+            if ($leaderRow && !empty($leaderRow->computed_result)) {
+                $computedResult = $leaderRow->computed_result;
+            }
+
             $result[] = [
                 'kpi_code' => $kpiCode,
                 'name' => $kpiDef['name'] ?? '',
@@ -1635,6 +1643,7 @@ class ProductionController extends Controller
                 'extra_filters' => $this->buildExtraFilters($kpiDef, $variableOutputs),
                 'filter_configs' => $allFilterConfigs,
                 'raw_data' => !empty($mergedRaw) ? $mergedRaw : null,
+                'computed_result' => $computedResult,
                 'last_valid_synced_at' => $latestValidSyncedAt?->toISOString(),
                 'last_synced_at' => $latestSyncedAt?->toISOString(),
                 'last_status' => $latestStatus,
