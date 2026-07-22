@@ -1,20 +1,34 @@
 import { WidthProvider, ReactGridLayout, type Layout, type LayoutItem } from "react-grid-layout/legacy";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBuilder } from "./store";
 import { WidgetRenderer } from "./widget-renderer";
+import { useKpiData } from "./useKpiData";
+import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
+import KpiDetailModal from "./kpi-detail-modal";
 import { Copy, Lock, LockOpen, X } from "lucide-react";
 import type { WidgetType } from "./types";
 
 const ResponsiveGrid = WidthProvider(ReactGridLayout);
 const COLS = 24;
+const KPI_COMPATIBLE = new Set(["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"]);
 
 export function Canvas() {
   const { widgets, mode, setLayoutBulk, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, undo, redo } = useBuilder();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const kpiCodes = useMemo(() => widgets.filter((w) => w.config.kpiCode).map((w) => w.config.kpiCode!), [widgets]);
+  const kpiData = useKpiData(kpiCodes);
   const layout: Layout = widgets.map((w) => ({
     i: w.id, x: w.x, y: w.y, w: w.w, h: w.h,
     static: !!w.locked || mode !== "edit",
   }));
+
+  // KPI list for modal metadata
+  const [kpiList, setKpiList] = useState<KpiSeed[]>([]);
+  useEffect(() => { fetchKpiList().then(setKpiList); }, []);
+
+  // Detail modal state
+  const [detailModal, setDetailModal] = useState<{ kpiCode: string } | null>(null);
 
   // Arrow key navigation for selected widget
   useEffect(() => {
@@ -88,6 +102,16 @@ export function Canvas() {
     });
   };
 
+  const handleWidgetClick = (w: typeof widgets[number]) => {
+    if (mode === "view" && w.config.kpiCode && KPI_COMPATIBLE.has(w.type)) {
+      setDetailModal({ kpiCode: w.config.kpiCode });
+    }
+  };
+
+  const modalKpiCode = detailModal?.kpiCode;
+  const modalKpiData = modalKpiCode ? kpiData.get(modalKpiCode) : undefined;
+  const modalKpiSeed = modalKpiCode ? kpiList.find((k) => k.kpi === modalKpiCode) : undefined;
+
   return (
     <div
       ref={containerRef}
@@ -116,13 +140,15 @@ export function Canvas() {
             <div
               key={w.id}
               onMouseDownCapture={() => { if (mode === "edit") select(w.id); }}
-              className={`relative group ${mode === "edit" ? "cursor-move" : ""} ${isSelected ? "outline outline-2 outline-primary rounded-lg" : ""}`}
+              onClick={() => handleWidgetClick(w)}
+              className={`relative group ${mode === "edit" ? "cursor-move" : "cursor-pointer"} ${isSelected ? "outline outline-2 outline-primary rounded-lg" : ""}`}
             >
               <WidgetRenderer
                 w={w}
                 editing={mode === "edit"}
                 onCellSelect={(r, c, add) => handleCellSelect(w.id, r, c, add)}
                 selectedCells={tableSel[w.id]}
+                kpiData={kpiData}
               />
               {mode === "edit" && isSelected && (
                 <div className="no-drag absolute -top-3 -right-1 flex items-center gap-1 z-20">
@@ -158,6 +184,16 @@ export function Canvas() {
         <div className="p-8 pt-64 text-center text-sm text-muted-foreground pointer-events-none">
           Ajoutez ou glissez un widget depuis la palette à gauche.
         </div>
+      )}
+
+      {/* KPI Detail Modal */}
+      {detailModal && (
+        <KpiDetailModal
+          kpiCode={detailModal.kpiCode}
+          kpiData={modalKpiData}
+          kpiSeed={modalKpiSeed}
+          onClose={() => setDetailModal(null)}
+        />
       )}
     </div>
   );

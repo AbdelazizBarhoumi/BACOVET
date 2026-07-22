@@ -1,4 +1,5 @@
 import { useBuilder } from "./store";
+import { useEffect, useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -6,10 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Trash2, Copy, Rows, Columns, Merge, Split, Plus, Minus, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
-import { KPI_SEED } from "@/lib/kpi-rows";
+import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
+import { useKpiData } from "./useKpiData";
+import { resolveKpiSeries } from "./widgets/shared";
 import {
   addCol, addRow, cellAt, mergeRegion, removeCol, removeRow, unmergeAt, withCell,
-  type TableGrid,
+  type TableGrid, type WidgetType,
 } from "./types";
 
 const PALETTES = ["#22c55e","#3b82f6","#ec4899","#f59e0b","#ef4444","#a855f7","#06b6d4","#14b8a6","#f97316","#64748b","#0ea5e9","#84cc16"];
@@ -23,8 +26,43 @@ const GRADIENTS = [
 const FONTS = ["inherit", "system-ui", "'Inter'", "'JetBrains Mono'", "'Roboto Mono'", "'Georgia', serif", "'Arial', sans-serif"];
 const FONT_WEIGHTS = [300, 400, 500, 600, 700, 800, 900];
 
+const TYPE_OPTIONS: { value: WidgetType; label: string }[] = [
+  { value: "kpi", label: "KPI Card" },
+  { value: "gauge", label: "Half Gauge" },
+  { value: "sparkline", label: "Sparkline" },
+  { value: "line", label: "Line Chart" },
+  { value: "bar", label: "Bar Chart" },
+  { value: "pareto", label: "Pareto" },
+  { value: "donut", label: "Donut" },
+  { value: "pie", label: "Pie Chart" },
+  { value: "radar", label: "Radar" },
+  { value: "area", label: "Area Chart" },
+  { value: "combo", label: "Combo Chart" },
+  { value: "table", label: "Table simple" },
+  { value: "table-grid", label: "Tableau libre" },
+  { value: "text", label: "Texte / Titre" },
+  { value: "image", label: "Image" },
+  { value: "divider", label: "Séparateur" },
+];
+
+const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
+  kpi: { w: 3, h: 3 }, gauge: { w: 3, h: 4 }, sparkline: { w: 3, h: 2 },
+  line: { w: 6, h: 4 }, bar: { w: 6, h: 4 }, pareto: { w: 6, h: 5 },
+  donut: { w: 3, h: 4 }, pie: { w: 4, h: 4 }, radar: { w: 5, h: 5 }, area: { w: 6, h: 4 }, combo: { w: 8, h: 5 },
+  table: { w: 6, h: 5 }, "table-grid": { w: 12, h: 6 },
+  text: { w: 6, h: 1 }, image: { w: 3, h: 3 }, divider: { w: 12, h: 1 },
+};
+
+const KPI_COMPATIBLE = ["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"];
+
 export function Inspector() {
   const { selected, updateConfig, updateWidget, removeWidget, duplicateWidget } = useBuilder();
+  const [kpiList, setKpiList] = useState<KpiSeed[]>([]);
+
+  useEffect(() => {
+    fetchKpiList().then(setKpiList);
+  }, []);
+
   if (!selected) {
     return (
       <div className="w-72 shrink-0 border-l border-border bg-card/40 h-full p-4 text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
@@ -35,23 +73,18 @@ export function Inspector() {
   const c = selected.config;
   const set = (patch: Partial<typeof c>) => updateConfig(selected.id, patch);
 
-  const seriesText = c.mockSeries ? c.mockSeries.map((s) => `${s.x}:${s.v}`).join("\n") : "";
-  const parseSeries = (t: string) => {
-    const arr = t.split(/\n+/).map((l) => {
-      const [x, v] = l.split(":");
-      return x && v != null ? { x: x.trim(), v: Number(v) } : null;
-    }).filter(Boolean) as { x: string; v: number }[];
-    set({ mockSeries: arr });
-  };
-
   const t = selected.type;
   const isTableGrid = t === "table-grid";
   const hasValue = ["kpi", "gauge", "donut"].includes(t);
-  const hasSeries = ["sparkline", "line", "bar", "pareto", "table", "pie", "radar", "area", "combo"].includes(t);
   const hasSubtitle = t === "donut";
   const hasTarget = ["kpi", "gauge", "line", "bar", "area", "combo"].includes(t);
-  const hasSparkline = t === "kpi";
-  const hasAccent = ["gauge", "sparkline", "line", "bar", "donut", "pie", "radar", "area", "combo"].includes(t);
+
+  const kpiCodes = useMemo(() => (t === "kpi" && c.kpiCode ? [c.kpiCode] : []), [t, c.kpiCode]);
+  const kpiData = useKpiData(kpiCodes);
+  const { series: kpiSeries } = useMemo(() => resolveKpiSeries(c, kpiData), [c, kpiData]);
+  const hasSparkline = t === "kpi" && kpiSeries.length > 0;
+
+  const hasAccent = ["gauge", "sparkline", "line", "bar", "donut", "pie", "radar", "area", "combo"].includes(t) && t !== "kpi";
   const hasFontFamily = t !== "divider" && t !== "image";
   const hasTypography = ["text", "table-grid"].includes(t);
   const hasBg = t !== "divider";
@@ -67,11 +100,22 @@ export function Inspector() {
   return (
     <div className="w-72 shrink-0 border-l border-border bg-card/40 h-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
       <div className="p-3 border-b border-border flex items-center justify-between">
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Widget</div>
-          <div className="text-sm font-bold">{selected.type}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Type</div>
+          <Select value={selected.type} onValueChange={(v) => {
+            const newType = v as WidgetType;
+            const size = DEFAULT_SIZE[newType];
+            updateWidget(selected.id, { type: newType, w: size.w, h: size.h });
+          }}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TYPE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 ml-2 mt-4">
           <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => duplicateWidget(selected.id)} title="Dupliquer">
             <Copy className="h-3.5 w-3.5" />
           </Button>
@@ -91,6 +135,27 @@ export function Inspector() {
 
         {/* ─── TAB 1: CONTENT ─── */}
         <TabsContent value="content" className="space-y-2 pt-3">
+          {KPI_COMPATIBLE.includes(t) && (
+            <Field label="KPI">
+              <Select value={c.kpiCode ?? "__none"} onValueChange={(v) => {
+                if (v === "__none") return set({ kpiCode: undefined, target: undefined });
+                const k = kpiList.find((x) => x.kpi === v);
+                set({
+                  kpiCode: v,
+                  label: k?.name ?? c.label,
+                  target: k?.cible_value ?? c.target,
+                });
+              }}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Sélectionner un KPI…" /></SelectTrigger>
+                <SelectContent className="max-h-64">
+                  <SelectItem value="__none" className="text-xs">— aucun —</SelectItem>
+                  {kpiList.map((k) => (
+                    <SelectItem key={k.kpi} value={k.kpi} className="text-xs">{k.kpi} · {k.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           <Field label="Label">
             <Input value={c.label ?? ""} onChange={(e) => set({ label: e.target.value })} className="h-7 text-xs" />
           </Field>
@@ -102,10 +167,6 @@ export function Inspector() {
 
           {hasValue && (
             <>
-              <Field label="Valeur (mock)">
-                <Input type="number" step="any" value={c.mockValue ?? 0}
-                  onChange={(e) => set({ mockValue: Number(e.target.value) })} className="h-7 text-xs" />
-              </Field>
               <Field label="Unité">
                 <Input value={c.unit ?? ""} onChange={(e) => set({ unit: e.target.value })} className="h-7 text-xs" />
               </Field>
@@ -116,26 +177,30 @@ export function Inspector() {
             </>
           )}
           {hasTarget && (
-            <>
-              <Field label="Cible">
-                <Input type="number" step="any" value={c.target ?? 0}
-                  onChange={(e) => set({ target: Number(e.target.value) })} className="h-7 text-xs" />
-              </Field>
-              <FieldSwitch label="Afficher la cible" checked={!!c.showTarget} onChange={(v) => set({ showTarget: v })} />
-            </>
+            <FieldSwitch label="Afficher la cible" checked={!!c.showTarget} onChange={(v) => set({ showTarget: v })} />
           )}
           {hasSparkline && (
             <FieldSwitch label="Afficher sparkline" checked={!!c.showSparkline} onChange={(v) => set({ showSparkline: v })} />
           )}
 
-          {hasSeries && (
-            <Field label="Série (x:v par ligne)">
-              <textarea
-                value={seriesText}
-                onChange={(e) => parseSeries(e.target.value)}
-                className="w-full text-xs font-mono border border-border rounded p-1.5 h-32 bg-background"
-              />
-            </Field>
+          {t === "gauge" && (
+            <>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold pt-1 border-t border-border mt-2">Gauge</div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Min">
+                  <Input type="number" value={c.gaugeMin ?? 0} onChange={(e) => set({ gaugeMin: Number(e.target.value) })} className="h-7 text-xs" />
+                </Field>
+                <Field label="Max">
+                  <Input type="number" value={c.gaugeMax ?? 100} onChange={(e) => set({ gaugeMax: Number(e.target.value) })} className="h-7 text-xs" />
+                </Field>
+                <Field label="Start °">
+                  <Input type="number" min={-360} max={360} value={c.gaugeStartAngle ?? 210} onChange={(e) => set({ gaugeStartAngle: Number(e.target.value) })} className="h-7 text-xs" />
+                </Field>
+                <Field label="End °">
+                  <Input type="number" min={-360} max={360} value={c.gaugeEndAngle ?? -30} onChange={(e) => set({ gaugeEndAngle: Number(e.target.value) })} className="h-7 text-xs" />
+                </Field>
+              </div>
+            </>
           )}
 
           {selected.type === "text" && (
@@ -149,27 +214,6 @@ export function Inspector() {
             <Field label="URL de l'image">
               <Input value={c.imageUrl ?? ""} onChange={(e) => set({ imageUrl: e.target.value })} className="h-7 text-xs" />
             </Field>
-          )}
-
-          {!isTableGrid && (
-            <div className="pt-2 border-t border-border mt-2">
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Source de données</div>
-              <Field label="Code KPI">
-                <Input value={c.kpiCode ?? ""} onChange={(e) => set({ kpiCode: e.target.value })} className="h-7 text-xs" />
-              </Field>
-              <Field label="Variable JSON">
-                <Input value={c.variable ?? ""} onChange={(e) => set({ variable: e.target.value })} className="h-7 text-xs" />
-              </Field>
-              <Field label="Agrégation">
-                <Select value={c.aggregation ?? "last"} onValueChange={(v) => set({ aggregation: v as any })}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {["sum","avg","min","max","count","first","last"].map((a) =>
-                      <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
           )}
         </TabsContent>
 
@@ -366,6 +410,7 @@ export function Inspector() {
               widgetId={selected.id}
               t={c.tableGrid!}
               onChange={(next) => set({ tableGrid: next })}
+              kpiList={kpiList}
             />
           </TabsContent>
         )}
@@ -398,10 +443,11 @@ function AlignButtons({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
-function TableGridInspector({ widgetId, t, onChange }: {
+function TableGridInspector({ widgetId, t, onChange, kpiList }: {
   widgetId: string;
   t: TableGrid;
   onChange: (t: TableGrid) => void;
+  kpiList: KpiSeed[];
 }) {
   const { tableSel, setTableSel } = useBuilder();
   const sel = tableSel[widgetId] ?? [];
@@ -477,20 +523,17 @@ function TableGridInspector({ widgetId, t, onChange }: {
             <Field label="KPI (code)">
               <Select value={activeCell?.kpiCode ?? "__none"} onValueChange={(v) => {
                 if (v === "__none") return patchActive({ kpiCode: undefined });
-                const k = KPI_SEED.find((x) => x.kpi === v);
+                const k = kpiList.find((x) => x.kpi === v);
                 patchActive({ kpiCode: v, content: k?.name ?? activeCell?.content });
               }}>
                 <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
                 <SelectContent className="max-h-64">
                   <SelectItem value="__none" className="text-xs">— aucun —</SelectItem>
-                  {KPI_SEED.map((k) => <SelectItem key={k.kpi} value={k.kpi} className="text-xs">{k.kpi} · {k.name}</SelectItem>)}
+                  {kpiList.map((k) => <SelectItem key={k.kpi} value={k.kpi} className="text-xs">{k.kpi} · {k.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Valeur (mock)">
-                <Input type="number" step="any" value={activeCell?.mockValue ?? ""} onChange={(e) => patchActive({ mockValue: e.target.value === "" ? undefined : Number(e.target.value) })} className="h-7 text-xs" />
-              </Field>
               <Field label="Unité">
                 <Input value={activeCell?.unit ?? ""} onChange={(e) => patchActive({ unit: e.target.value })} className="h-7 text-xs" />
               </Field>

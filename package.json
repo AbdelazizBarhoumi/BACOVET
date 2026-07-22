@@ -78,6 +78,8 @@
         "cmdk": "^1.1.1",
         "concurrently": "^9.0.1",
         "date-fns": "^4.4.0",
+        "echarts": "^6.1.0",
+        "echarts-for-react": "^3.0.6",
         "embla-carousel-react": "^8.6.0",
         "globals": "^15.14.0",
         "input-otp": "^1.4.2",

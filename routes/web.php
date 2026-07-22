@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DataMappingController;
 use App\Http\Controllers\Api\DataSnapshotController;
+use App\Http\Controllers\Api\BuilderKpiController;
 use App\Http\Controllers\Api\BuilderPageController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\DevelopmentController;
@@ -67,6 +68,10 @@ Route::prefix('api/builder-pages')->group(function () {
     Route::delete('/{id}', [BuilderPageController::class, 'destroy']);
     Route::post('/{id}/duplicate', [BuilderPageController::class, 'duplicate']);
 });
+
+// ── V3 BUILDER KPI API ────────────────────────────────────────────
+Route::get('/api/builder-kpis', [BuilderKpiController::class, 'index']);
+Route::get('/api/builder-kpis/data', [BuilderKpiController::class, 'data']);
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 

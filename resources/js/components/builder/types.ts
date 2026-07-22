@@ -24,7 +24,6 @@ export type TableCell = {
   hidden?: boolean; // covered by a merge
   content?: string;
   kpiCode?: string;
-  mockValue?: number;
   unit?: string;
   decimals?: number;
   bg?: string;
@@ -50,11 +49,6 @@ export type TableGrid = {
 export type WidgetConfig = {
   // data
   kpiCode?: string;
-  variable?: string;
-  dataEndpoint?: string;
-  aggregation?: "sum" | "avg" | "min" | "max" | "count" | "first" | "last";
-  mockValue?: number;
-  mockSeries?: { x: string; v: number }[];
   tableGrid?: TableGrid;
   // display
   label?: string;
@@ -91,6 +85,11 @@ export type WidgetConfig = {
   // transform
   rotate?: number;
   scale?: number;
+  // gauge-specific
+  gaugeStartAngle?: number;
+  gaugeEndAngle?: number;
+  gaugeMin?: number;
+  gaugeMax?: number;
   // toggles
   showTarget?: boolean;
   showLabel?: boolean;

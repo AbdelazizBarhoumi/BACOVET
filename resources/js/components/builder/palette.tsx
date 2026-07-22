@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useBuilder } from "./store";
 import type { WidgetType } from "./types";
-import { KPI_SEED } from "@/lib/kpi-rows";
+import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
 import { Input } from "@/components/ui/input";
 import {
   BarChart3, Gauge as GaugeIcon, LineChart as LineIcon, PieChart,
   Sigma, Table as TableIcon, Type, Image as ImageIcon, Minus, Activity, TrendingUp, Grid3x3,
-  Radar, AreaChart as AreaIcon, BarChart,
+  Radar, AreaChart as AreaIcon, BarChart, Loader2,
 } from "lucide-react";
 
 const WIDGETS: { type: WidgetType; label: string; icon: any }[] = [
@@ -36,7 +36,16 @@ function onDragStart(e: React.DragEvent, type: WidgetType, payload?: Record<stri
 export function Palette() {
   const { addWidget } = useBuilder();
   const [q, setQ] = useState("");
-  const kpis = Array.from(new Map(KPI_SEED.map((k) => [k.kpi, k])).values());
+  const [kpis, setKpis] = useState<KpiSeed[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchKpiList().then((list) => {
+      setKpis(Array.from(new Map(list.map((k) => [k.kpi, k])).values()));
+      setLoading(false);
+    });
+  }, []);
+
   const filtered = kpis.filter(
     (k) => !q || k.kpi.toLowerCase().includes(q.toLowerCase()) || k.name.toLowerCase().includes(q.toLowerCase())
   );
@@ -67,7 +76,7 @@ export function Palette() {
       <div className="p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">KPIs disponibles</div>
-          <span className="text-[10px] text-muted-foreground">{filtered.length}</span>
+          <span className="text-[10px] text-muted-foreground">{loading ? "…" : filtered.length}</span>
         </div>
         <Input
           value={q}
@@ -75,47 +84,54 @@ export function Palette() {
           placeholder="Rechercher F-REQ-…"
           className="h-7 text-xs mb-2"
         />
-        <div className="space-y-1 max-h-[70vh] overflow-y-auto pr-1">
-          {filtered.map((k) => (
-            <button
-              key={k.kpi}
-              draggable
-              onDragStart={(e) => onDragStart(e, "kpi", {
-                config: {
-                  kpiCode: k.kpi,
-                  label: k.name,
-                  mockValue: Math.round(Math.random() * 100),
-                  unit: "%",
-                  decimals: 1,
-                  target: 90,
-                  accent: "#22c55e",
-                  showTarget: true,
-                  showLabel: true,
-                },
-              })}
-              onClick={(e) => {
-                e.stopPropagation();
-                addWidget("kpi", {
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-1 max-h-[70vh] overflow-y-auto pr-1">
+            {filtered.map((k) => (
+              <button
+                key={k.kpi}
+                draggable
+                onDragStart={(e) => onDragStart(e, "kpi", {
                   config: {
                     kpiCode: k.kpi,
                     label: k.name,
-                    mockValue: Math.round(Math.random() * 100),
-                    unit: "%",
+                    unit: k.cible_is_percentage ? "%" : "",
                     decimals: 1,
-                    target: 90,
+                    target: k.cible_value ?? 90,
                     accent: "#22c55e",
                     showTarget: true,
                     showLabel: true,
                   },
-                });
-              }}
-              className="w-full text-left rounded border border-border bg-background hover:bg-secondary px-2 py-1.5 transition-colors cursor-grab active:cursor-grabbing"
-            >
-              <div className="text-[10px] font-mono text-primary">{k.kpi}</div>
-              <div className="text-[11px] leading-tight line-clamp-2">{k.name}</div>
-            </button>
-          ))}
-        </div>
+                })}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addWidget("kpi", {
+                    config: {
+                      kpiCode: k.kpi,
+                      label: k.name,
+                      unit: k.cible_is_percentage ? "%" : "",
+                      decimals: 1,
+                      target: k.cible_value ?? 90,
+                      accent: "#22c55e",
+                      showTarget: true,
+                      showLabel: true,
+                    },
+                  });
+                }}
+                className="w-full text-left rounded border border-border bg-background hover:bg-secondary px-2 py-1.5 transition-colors cursor-grab active:cursor-grabbing"
+              >
+                <div className="text-[10px] font-mono text-primary">{k.kpi}</div>
+                <div className="text-[11px] leading-tight line-clamp-2">{k.name}</div>
+                {k.module && (
+                  <div className="text-[9px] text-muted-foreground mt-0.5">{k.module}</div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
