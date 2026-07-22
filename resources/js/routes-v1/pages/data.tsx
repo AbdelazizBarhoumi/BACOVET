@@ -715,6 +715,12 @@ const FormulaBuilder = React.memo(function FormulaBuilder({ groupRows, previewVa
                   className="border border-border rounded px-1.5 py-0.5 text-[10px] bg-card w-16 font-mono cursor-text focus:outline-none focus:border-primary"
                 />
               )}
+              {item.type === "lparen" && (
+                <span className="font-mono font-bold text-sm text-primary cursor-default px-0.5">(</span>
+              )}
+              {item.type === "rparen" && (
+                <span className="font-mono font-bold text-sm text-primary cursor-default px-0.5">)</span>
+              )}
               <button onClick={() => removeItem(i)} className="text-muted-foreground/40 hover:text-destructive text-[10px] leading-none cursor-pointer opacity-0 group-hover/item:opacity-100 transition-opacity" title="Supprimer">×</button>
             </span>
           ))}
@@ -748,6 +754,18 @@ const FormulaBuilder = React.memo(function FormulaBuilder({ groupRows, previewVa
             className="border border-dashed border-primary/30 rounded-full px-2 py-0.5 text-[10px] bg-primary/5 text-primary hover:bg-primary/15 hover:border-primary/50 transition-colors font-medium cursor-pointer"
           >
             + Nombre
+          </button>
+          <button
+            onClick={() => addItem({ type: "lparen" })}
+            className="border border-dashed border-primary/30 rounded-full px-2 py-0.5 text-[10px] bg-primary/5 text-primary hover:bg-primary/15 hover:border-primary/50 transition-colors font-medium cursor-pointer font-mono"
+          >
+            (
+          </button>
+          <button
+            onClick={() => addItem({ type: "rparen" })}
+            className="border border-dashed border-primary/30 rounded-full px-2 py-0.5 text-[10px] bg-primary/5 text-primary hover:bg-primary/15 hover:border-primary/50 transition-colors font-medium cursor-pointer font-mono"
+          >
+            )
           </button>
         </div>
         {/* Result */}
@@ -1753,7 +1771,7 @@ function DataMappingPage() {
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              {["", "KPI", "Modules", "Name", "Variable", "Aperçu JSON", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Type de graphique", "Chart Config", "Extra Filters", "Test Live", ""].map((h, i) => (
+              {["", "KPI", "Modules", "Name", "Variable", "Aperçu JSON", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Type de graphique", "Test Live", ""].map((h, i) => (
                 <th key={`th-${i}`} className="text-left font-semibold px-2 py-2 border-b border-border whitespace-nowrap">
                   {h === "Aperçu JSON" ? (
                     <span className="inline-flex items-center gap-1">
@@ -2300,8 +2318,8 @@ function DataMappingPage() {
                       />
                     </td>
                   ) : null}
-                  {/* Chart Config column — JSON editor per KPI group */}
-                  {isFirstInKpi ? (
+                  {/* Chart Config column — hidden */}
+                  {false ? (
                     <td rowSpan={ks} className="px-2 py-1.5 min-w-[200px]">
                       <JsonCellEditor
                         value={r.chart_config}
@@ -2310,8 +2328,8 @@ function DataMappingPage() {
                       />
                     </td>
                   ) : null}
-                  {/* Extra Filters column — shared keys dropdown per KPI group */}
-                  {isFirstInKpi ? (() => {
+                  {/* Extra Filters column — hidden */}
+                  {false ? (() => {
                     const groupRows = filtered.slice(i, i + ks);
                     const groupEndpoints = [...new Set(groupRows.map(gr => gr.endpoint).filter(Boolean) as string[])];
                     const keySets = groupEndpoints.map(ep => {

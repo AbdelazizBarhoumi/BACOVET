@@ -209,52 +209,104 @@ class KpiResultComputer
 
     /**
      * Compute formula from items and variable values (scalar path).
+     * Uses recursive descent parser with proper operator precedence and bracket support.
      */
     private function computeFormulaScalar(array $items, array $variableValues): ?float
     {
-        $result = null;
-        $operator = null;
+        $expr = $this->buildExpression($items, $variableValues);
+        if ($expr === null) return null;
+        try {
+            return $this->evalExpression($expr);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function buildExpression(array $items, array $variableValues): ?string
+    {
+        $parts = [];
         $varIndex = 0;
-
         foreach ($items as $item) {
-            if ($item['type'] === 'variable') {
-                $rawVal = $varIndex < count($variableValues) ? $variableValues[$varIndex] : null;
-                $varIndex++;
-                if ($rawVal === null) return null;
-                $numVal = (float) $rawVal;
+            $type = $item['type'] ?? '';
+            if ($type === 'variable') {
+                if ($varIndex >= count($variableValues)) return null;
+                $val = $variableValues[$varIndex++];
+                if ($val === null) return null;
+                $numVal = (float) $val;
                 if (is_nan($numVal)) return null;
-
-                if ($result === null) {
-                    $result = $numVal;
-                } elseif ($operator !== null) {
-                    $result = match ($operator) {
-                        '+' => $result + $numVal,
-                        '-' => $result - $numVal,
-                        '*' => $result * $numVal,
-                        '/' => $numVal != 0 ? $result / $numVal : null,
-                        default => $result,
-                    };
-                    $operator = null;
-                }
-            } elseif ($item['type'] === 'operator') {
-                $operator = $item['op'] ?? null;
-            } elseif ($item['type'] === 'number') {
-                $numVal = (float) ($item['value'] ?? 0);
-                if ($operator !== null && $result !== null) {
-                    $result = match ($operator) {
-                        '+' => $result + $numVal,
-                        '-' => $result - $numVal,
-                        '*' => $result * $numVal,
-                        '/' => $numVal != 0 ? $result / $numVal : null,
-                        default => $result,
-                    };
-                    $operator = null;
-                } elseif ($result === null) {
-                    $result = $numVal;
-                }
+                $parts[] = (string) $numVal;
+            } elseif ($type === 'operator') {
+                $parts[] = " {$item['op']} ";
+            } elseif ($type === 'number') {
+                $parts[] = (string) ($item['value'] ?? 0);
+            } elseif ($type === 'lparen') {
+                $parts[] = '(';
+            } elseif ($type === 'rparen') {
+                $parts[] = ')';
             }
         }
+        return implode('', $parts);
+    }
 
+    private function evalExpression(string $expr): ?float
+    {
+        $s = preg_replace('/\s+/', '', $expr);
+        $pos = 0;
+        $len = strlen($s);
+
+        $parseExpr = null;
+        $parseTerm = null;
+        $parseFactor = null;
+
+        $parseFactor = function () use (&$parseFactor, &$parseExpr, &$s, &$pos, $len): ?float {
+            if ($pos >= $len) return null;
+            if ($s[$pos] === '(') {
+                $pos++;
+                $val = $parseExpr();
+                if ($pos < $len && $s[$pos] === ')') $pos++;
+                return $val;
+            }
+            if ($s[$pos] === '-') {
+                $pos++;
+                $val = $parseFactor();
+                return $val !== null ? -$val : null;
+            }
+            if ($s[$pos] === '+') {
+                $pos++;
+                return $parseFactor();
+            }
+            $start = $pos;
+            while ($pos < $len && (($s[$pos] >= '0' && $s[$pos] <= '9') || $s[$pos] === '.')) {
+                $pos++;
+            }
+            if ($start === $pos) return null;
+            return (float) substr($s, $start, $pos - $start);
+        };
+
+        $parseTerm = function () use (&$parseFactor, &$s, &$pos, $len): ?float {
+            $left = $parseFactor();
+            while ($pos < $len && ($s[$pos] === '*' || $s[$pos] === '/')) {
+                $op = $s[$pos++];
+                $right = $parseFactor();
+                if ($left === null || $right === null) return null;
+                $left = $op === '*' ? $left * $right : ($right != 0 ? $left / $right : null);
+                if ($left === null) return null;
+            }
+            return $left;
+        };
+
+        $parseExpr = function () use (&$parseTerm, &$s, &$pos, $len): ?float {
+            $left = $parseTerm();
+            while ($pos < $len && ($s[$pos] === '+' || $s[$pos] === '-')) {
+                $op = $s[$pos++];
+                $right = $parseTerm();
+                if ($left === null || $right === null) return null;
+                $left = $op === '+' ? $left + $right : $left - $right;
+            }
+            return $left;
+        };
+
+        $result = $parseExpr();
         return $result;
     }
 

@@ -251,6 +251,8 @@ class ExportDataMappings extends Command
                 'variable' => $item['label'] ?? "Var[{$item['ref']}]",
                 'operator' => " {$item['op']} ",
                 'number' => (string) $item['value'],
+                'lparen' => '(',
+                'rparen' => ')',
                 default => '',
             };
         }

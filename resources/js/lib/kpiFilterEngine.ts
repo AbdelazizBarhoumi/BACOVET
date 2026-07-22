@@ -45,7 +45,7 @@ export interface KpiConfig {
 }
 
 export interface FormulaItem {
-  type: "variable" | "operator" | "number";
+  type: "variable" | "operator" | "number" | "lparen" | "rparen";
   ref?: number;
   op?: string;
   value?: number;

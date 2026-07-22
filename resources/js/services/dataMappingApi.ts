@@ -73,7 +73,7 @@ export interface DataMappingRow {
 export type DataMappingPayload = Partial<Omit<DataMappingRow, 'id' | 'created_at' | 'updated_at'>>;
 
 export interface FormulaItem {
-    type: 'variable' | 'operator' | 'number';
+    type: 'variable' | 'operator' | 'number' | 'lparen' | 'rparen';
     ref?: number;   // row id for variable
     label?: string; // display label for variable
     op?: string;    // +, -, *, /
