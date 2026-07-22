@@ -8,6 +8,7 @@ type Ctx = {
   mode: Mode;
   setMode: (m: Mode) => void;
   pageId: string;
+  pageDbId: number;
   widgets: Widget[];
   selectedId: string | null;
   select: (id: string | null) => void;
@@ -20,8 +21,8 @@ type Ctx = {
   toggleLock: (id: string) => void;
   moveZ: (id: string, dir: "front" | "back") => void;
   setLayoutBulk: (items: { i: string; x: number; y: number; w: number; h: number }[]) => void;
-  save: () => void;
-  reset: () => void;
+  save: () => Promise<boolean>;
+  reset: () => Promise<boolean>;
   exportJson: () => string;
   importJson: (raw: string) => void;
   isDirty: boolean;
@@ -40,7 +41,10 @@ export const useBuilder = () => {
   return v;
 };
 
-const storageKey = (pageId: string) => `bacovet.builder.${pageId}`;
+function getCsrfToken(): string {
+  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
 
 const STYLE_DEFAULTS: Partial<WidgetConfig> = {
   radius: 8, padding: 8, opacity: 1,
@@ -76,12 +80,12 @@ const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
 };
 
 export function BuilderProvider({
-  pageId, defaultLayout, children,
-}: { pageId: string; defaultLayout: Widget[]; children: ReactNode }) {
+  pageId, pageDbId, defaultLayout, children,
+}: { pageId: string; pageDbId: number; defaultLayout: Widget[]; children: ReactNode }) {
   const [mode, setMode] = useState<Mode>("view");
   const [widgets, setWidgets] = useState<Widget[]>(defaultLayout);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [savedHash, setSavedHash] = useState<string>("");
+  const [savedHash, setSavedHash] = useState<string>(JSON.stringify(defaultLayout));
   const [tableSel, setTableSel] = useState<Record<string, string[]>>({});
   const pastRef = useRef<Widget[][]>([]);
   const futureRef = useRef<Widget[][]>([]);
@@ -94,24 +98,6 @@ export function BuilderProvider({
       return updater(prev);
     });
   }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey(pageId));
-      if (raw) {
-        const parsed = JSON.parse(raw) as PageLayout;
-        if (parsed?.widgets) {
-          setWidgets(parsed.widgets);
-          setSavedHash(JSON.stringify(parsed.widgets));
-          return;
-        }
-      }
-      setSavedHash(JSON.stringify(defaultLayout));
-    } catch {
-      setSavedHash(JSON.stringify(defaultLayout));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageId]);
 
   const addWidget = useCallback<Ctx["addWidget"]>((type, partial) => {
     const size = DEFAULT_SIZE[type];
@@ -174,20 +160,61 @@ export function BuilderProvider({
     }));
   }, [trackWidgets]);
 
-  const save = useCallback(() => {
-    const payload: PageLayout = { pageId, version: 1, widgets };
-    localStorage.setItem(storageKey(pageId), JSON.stringify(payload));
-    setSavedHash(JSON.stringify(widgets));
-  }, [pageId, widgets]);
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!pageDbId) return false;
+    const payload = { layout: { version: 1, widgets } };
+    try {
+      const res = await fetch(`/api/builder-pages/${pageDbId}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-XSRF-TOKEN": getCsrfToken(),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return false;
+      setSavedHash(JSON.stringify(widgets));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [pageDbId, widgets]);
 
-  const reset = useCallback(() => {
-    localStorage.removeItem(storageKey(pageId));
+  const reset = useCallback(async (): Promise<boolean> => {
+    if (!pageDbId) {
+      setWidgets(defaultLayout);
+      setSavedHash(JSON.stringify(defaultLayout));
+      setSelectedId(null);
+      pastRef.current = [];
+      futureRef.current = [];
+      return true;
+    }
+    try {
+      const res = await fetch(`/api/builder-pages/${pageDbId}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-XSRF-TOKEN": getCsrfToken(),
+        },
+        body: JSON.stringify({ layout: null }),
+      });
+      if (!res.ok) return false;
+    } catch {
+      return false;
+    }
     setWidgets(defaultLayout);
     setSavedHash(JSON.stringify(defaultLayout));
     setSelectedId(null);
     pastRef.current = [];
     futureRef.current = [];
-  }, [pageId, defaultLayout]);
+    return true;
+  }, [pageDbId, defaultLayout]);
 
   const undo = useCallback(() => {
     if (pastRef.current.length === 0) return;
@@ -221,7 +248,7 @@ export function BuilderProvider({
   const isDirty = useMemo(() => JSON.stringify(widgets) !== savedHash, [widgets, savedHash]);
 
   const value: Ctx = {
-    mode, setMode, pageId, widgets, selectedId,
+    mode, setMode, pageId, pageDbId, widgets, selectedId,
     select: setSelectedId, selected,
     addWidget, updateWidget, updateConfig, removeWidget, duplicateWidget,
     toggleLock, moveZ,

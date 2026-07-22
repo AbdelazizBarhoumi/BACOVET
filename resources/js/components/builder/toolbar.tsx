@@ -46,10 +46,10 @@ export function BuilderToolbar({ title }: { title: string }) {
           <Button size="sm" variant="outline" onClick={redo} disabled={!canRedo} className="h-8 w-8 p-0" title="Rétablir (Ctrl+Shift+Z)">
             <Redo2 className="h-3.5 w-3.5" />
           </Button>
-          <Button size="sm" variant="outline" onClick={() => { save(); toast.success("Layout sauvegardé"); }} className="h-8 text-xs">
+          <Button size="sm" variant="outline" onClick={async () => { const ok = await save(); ok ? toast.success("Layout sauvegardé") : toast.error("Échec de la sauvegarde"); }} className="h-8 text-xs">
             <Save className="h-3 w-3 mr-1" /> Sauvegarder
           </Button>
-          <Button size="sm" variant="outline" onClick={() => { if (confirm("Réinitialiser le layout ?")) reset(); }} className="h-8 text-xs">
+          <Button size="sm" variant="outline" onClick={async () => { if (confirm("Réinitialiser le layout ?")) await reset(); }} className="h-8 text-xs">
             <RotateCcw className="h-3 w-3 mr-1" /> Reset
           </Button>
           <Button size="sm" variant="outline" onClick={onExport} className="h-8 text-xs">

@@ -6,21 +6,28 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Copy, Trash2, Pencil, ExternalLink, Link as LinkIcon, FileText } from "lucide-react";
+import { Plus, Copy, Trash2, Pencil, ExternalLink, Link as LinkIcon, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function V3PageBuilder() {
-  const { pages, createPage, renamePage, changeSlug, duplicatePage, deletePage } = usePagesRegistry();
+  const { pages, loading, createPage, renamePage, changeSlug, duplicatePage, deletePage } = usePagesRegistry();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [editing, setEditing] = useState<{ id: string; name: string; slug: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; name: string; slug: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const doCreate = () => {
-    const p = createPage(newName || "Nouvelle page");
+  const doCreate = async () => {
+    setBusy(true);
+    const p = await createPage(newName || "Nouvelle page");
+    setBusy(false);
     setNewName("");
     setCreating(false);
-    toast.success(`Page « ${p.name} » créée`);
-    router.visit(`/p/${p.slug}`);
+    if (p) {
+      toast.success(`Page « ${p.name} » créée`);
+      router.visit(`/p/${p.slug}`);
+    } else {
+      toast.error("Erreur lors de la création");
+    }
   };
 
   const copyUrl = (slug: string) => {
@@ -28,6 +35,14 @@ export default function V3PageBuilder() {
     navigator.clipboard.writeText(url);
     toast.success("URL copiée");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -40,7 +55,7 @@ export default function V3PageBuilder() {
               Constructeur unifié — créez autant de tableaux de bord que nécessaire, chacun avec sa propre URL.
             </p>
           </div>
-          <Button onClick={() => setCreating(true)} className="uppercase tracking-wider text-xs">
+          <Button onClick={() => setCreating(true)} className="uppercase tracking-wider text-xs" disabled={busy}>
             <Plus className="h-4 w-4 mr-1.5" /> Nouvelle page
           </Button>
         </div>
@@ -65,7 +80,7 @@ export default function V3PageBuilder() {
                   </div>
                 </div>
                 <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Créée le {new Date(p.createdAt).toLocaleDateString("fr-FR")}
+                  Créée le {new Date(p.created_at).toLocaleDateString("fr-FR")}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Link href={`/p/${p.slug}`}>
@@ -81,14 +96,22 @@ export default function V3PageBuilder() {
                     <LinkIcon className="h-3 w-3 mr-1" /> URL
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 text-[11px]"
-                    onClick={() => { const c = duplicatePage(p.id); if (c) toast.success(`Dupliqué : ${c.name}`); }}>
+                    onClick={async () => {
+                      setBusy(true);
+                      const c = await duplicatePage(p.id);
+                      setBusy(false);
+                      if (c) toast.success(`Dupliqué : ${c.name}`);
+                    }}>
                     <Copy className="h-3 w-3 mr-1" /> Dupliquer
                   </Button>
                   <Button size="sm" variant="destructive" className="h-7 text-[11px] ml-auto"
-                    onClick={() => {
+                    disabled={busy}
+                    onClick={async () => {
                       if (confirm(`Supprimer « ${p.name} » ? Cette action est irréversible.`)) {
-                        deletePage(p.id);
-                        toast.success("Page supprimée");
+                        setBusy(true);
+                        const ok = await deletePage(p.id);
+                        setBusy(false);
+                        if (ok) toast.success("Page supprimée");
                       }
                     }}>
                     <Trash2 className="h-3 w-3" />
@@ -113,8 +136,11 @@ export default function V3PageBuilder() {
             onKeyDown={(e) => e.key === "Enter" && doCreate()}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreating(false)}>Annuler</Button>
-            <Button onClick={doCreate}>Créer</Button>
+            <Button variant="outline" onClick={() => setCreating(false)} disabled={busy}>Annuler</Button>
+            <Button onClick={doCreate} disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+              Créer
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -138,16 +164,22 @@ export default function V3PageBuilder() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setEditing(null)} disabled={busy}>Annuler</Button>
             <Button
-              onClick={() => {
+              disabled={busy}
+              onClick={async () => {
                 if (!editing) return;
-                renamePage(editing.id, editing.name);
-                changeSlug(editing.id, editing.slug);
+                setBusy(true);
+                await renamePage(editing.id, editing.name);
+                if (editing.slug) await changeSlug(editing.id, editing.slug);
+                setBusy(false);
                 toast.success("Page mise à jour");
                 setEditing(null);
               }}
-            >Enregistrer</Button>
+            >
+              {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+              Enregistrer
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

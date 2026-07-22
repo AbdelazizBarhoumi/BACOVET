@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DataMappingController;
 use App\Http\Controllers\Api\DataSnapshotController;
+use App\Http\Controllers\Api\BuilderPageController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
@@ -44,7 +45,28 @@ Route::get('/v2/{any?}', fn () => view('v2'))->where('any', '.*')->name('v2');
 
 // ── V3 PAGE BUILDER ──────────────────────────────────────────────────
 Route::get('/v3', fn () => Inertia::render('v3/page-builder'))->name('v3');
-Route::get('/p/{slug}', fn ($slug) => Inertia::render('v3/p/[slug]', ['slug' => $slug]))->name('v3.page');
+Route::get('/p/{slug}', function ($slug) {
+    $page = \App\Models\BuilderPage::where('slug', $slug)->first();
+    if (!$page) {
+        abort(404);
+    }
+    return Inertia::render('v3/p/[slug]', [
+        'pageId' => $page->id,
+        'slug' => $page->slug,
+        'pageName' => $page->name,
+        'layout' => $page->layout['widgets'] ?? [],
+    ]);
+})->name('v3.page');
+
+// ── V3 BUILDER API ─────────────────────────────────────────────────
+Route::prefix('api/builder-pages')->group(function () {
+    Route::get('/', [BuilderPageController::class, 'index']);
+    Route::get('/{slug}', [BuilderPageController::class, 'show']);
+    Route::post('/', [BuilderPageController::class, 'store']);
+    Route::put('/{id}', [BuilderPageController::class, 'update']);
+    Route::delete('/{id}', [BuilderPageController::class, 'destroy']);
+    Route::post('/{id}/duplicate', [BuilderPageController::class, 'duplicate']);
+});
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 

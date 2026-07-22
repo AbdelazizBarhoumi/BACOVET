@@ -1,4 +1,4 @@
-import { KpiCard, HalfGauge, Sparkline, LineKpi, BarKpi, ParetoChart, DonutKpi } from "@/components/v1/primitives";
+import { HalfGauge, Sparkline, LineKpi, BarKpi, ParetoChart, DonutKpi } from "@/components/v1/primitives";
 import { ResponsiveContainer, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar as RechartsRadar, AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import type { TableCell, TableGrid, Widget, WidgetConfig } from "./types";
 

@@ -1,28 +1,21 @@
 import { Head, Link, usePage } from "@inertiajs/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DashboardBuilder } from "@/components/builder/dashboard-builder";
-import { getPageBySlug, type BuilderPage } from "@/lib/pages-registry";
 import { Button } from "@/components/ui/button";
+import type { Widget } from "@/components/builder/types";
 
 export default function V3PageView() {
   const { props } = usePage();
-  const slug = (props as unknown as { slug: string }).slug;
-  const [page, setPage] = useState<BuilderPage | undefined>(() => getPageBySlug(slug));
+  const { pageId, slug, pageName, layout } = props as unknown as {
+    pageId: number;
+    slug: string;
+    pageName: string;
+    layout: Widget[];
+  };
 
-  useEffect(() => {
-    const refresh = () => setPage(getPageBySlug(slug));
-    refresh();
-    window.addEventListener("bacovet.pages.updated", refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener("bacovet.pages.updated", refresh);
-      window.removeEventListener("storage", refresh);
-    };
-  }, [slug]);
+  const defaultLayout = useMemo(() => layout ?? [], [layout]);
 
-  const defaultLayout = useMemo(() => [], []);
-
-  if (!page) {
+  if (!slug || !pageName) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Head title="Page introuvable" />
@@ -41,8 +34,8 @@ export default function V3PageView() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Head title={`${page.name} — BACOVET`} />
-      <DashboardBuilder pageId={page.slug} title={page.name} defaultLayout={defaultLayout} />
+      <Head title={`${pageName} — BACOVET`} />
+      <DashboardBuilder pageId={slug} pageDbId={pageId} title={pageName} defaultLayout={defaultLayout} />
     </div>
   );
 }

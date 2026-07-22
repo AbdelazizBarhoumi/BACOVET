@@ -27,6 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'browser-log',
             'auth/login',
             'api/data-auth/*',
+            'api/builder-pages/*',
+            'api/builder-pages',
         ]);
 
         $middleware->web(append: [

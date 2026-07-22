@@ -1,3 +1,4 @@
+import BuilderPageController from './BuilderPageController'
 import SettingController from './SettingController'
 import NovacityProxyController from './NovacityProxyController'
 import AuthController from './AuthController'
@@ -15,7 +16,8 @@ import HealthController from './HealthController'
 import DataMappingController from './DataMappingController'
 import NovacityEndpointsController from './NovacityEndpointsController'
 const Api = {
-    SettingController: Object.assign(SettingController, SettingController),
+    BuilderPageController: Object.assign(BuilderPageController, BuilderPageController),
+SettingController: Object.assign(SettingController, SettingController),
 NovacityProxyController: Object.assign(NovacityProxyController, NovacityProxyController),
 AuthController: Object.assign(AuthController, AuthController),
 DataAuthController: Object.assign(DataAuthController, DataAuthController),

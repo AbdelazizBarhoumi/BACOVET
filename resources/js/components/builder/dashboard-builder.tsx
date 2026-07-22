@@ -9,10 +9,10 @@ import type { Widget } from "./types";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 export function DashboardBuilder({
-  pageId, title, defaultLayout,
-}: { pageId: string; title: string; defaultLayout: Widget[] }) {
+  pageId, pageDbId, title, defaultLayout,
+}: { pageId: string; pageDbId: number; title: string; defaultLayout: Widget[] }) {
   return (
-    <BuilderProvider pageId={pageId} defaultLayout={defaultLayout}>
+    <BuilderProvider pageId={pageId} pageDbId={pageDbId} defaultLayout={defaultLayout}>
       <BuilderShell title={title} />
     </BuilderProvider>
   );
