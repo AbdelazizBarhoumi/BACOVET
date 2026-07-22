@@ -28,6 +28,7 @@ class DataMapping extends Model
         'graph_types',
         'chart_config',
         'extra_filters',
+        'notes',
         'user_id',
     ];
 

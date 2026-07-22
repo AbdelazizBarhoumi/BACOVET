@@ -1,20 +1,22 @@
 import type { TableCell, TableGrid, WidgetConfig } from "../types";
-import { boxStyle, wrap } from "./shared";
+import { boxStyle, wrap, type KpiDataMap } from "./shared";
 
-export function TableGridWidget({ c, editing, onCellSelect, selectedCells }: {
+export function TableGridWidget({ c, editing, onCellSelect, selectedCells, kpiData }: {
   c: WidgetConfig;
   editing: boolean;
   onCellSelect?: (r: number, c: number, add: boolean) => void;
   selectedCells?: string[];
+  kpiData?: KpiDataMap;
 }) {
-  return wrap(c, boxStyle(c), <TableGridRenderer t={c.tableGrid!} editing={editing} onCellSelect={onCellSelect} selectedCells={selectedCells} />);
+  return wrap(c, boxStyle(c), <TableGridRenderer t={c.tableGrid!} editing={editing} onCellSelect={onCellSelect} selectedCells={selectedCells} kpiData={kpiData} />);
 }
 
-function TableGridRenderer({ t, editing, onCellSelect, selectedCells }: {
+function TableGridRenderer({ t, editing, onCellSelect, selectedCells, kpiData }: {
   t: TableGrid;
   editing: boolean;
   onCellSelect?: (r: number, c: number, add: boolean) => void;
   selectedCells?: string[];
+  kpiData?: KpiDataMap;
 }) {
   if (!t) return null;
   const isSel = (r: number, c: number) => selectedCells?.includes(`${r},${c}`);
@@ -31,10 +33,21 @@ function TableGridRenderer({ t, editing, onCellSelect, selectedCells }: {
       const cell: TableCell = t.cells.find((x) => x.r === r && x.c === c) ?? { r, c };
       if (cell.hidden) continue;
       const value = cell.kpiCode
-        ? formatValue(cell)
+        ? formatValue(cell, kpiData)
         : cell.content ?? "";
       const isHead = cell.isHeader || (t.headerRow && r === 0) || (t.headerCol && c === 0);
       const zebra = t.zebra && !isHead && r % 2 === 1;
+
+      // Status color for KPI values
+      let statusColor: string | undefined;
+      if (cell.kpiCode && cell.displayMode === "value") {
+        const kpiResult = kpiData?.get(cell.kpiCode);
+        const st = kpiResult?.status;
+        if (st === "green") statusColor = "#22c55e";
+        else if (st === "orange") statusColor = "#f59e0b";
+        else if (st === "red") statusColor = "#ef4444";
+      }
+
       cells.push(
         <div
           key={`${r},${c}`}
@@ -44,7 +57,7 @@ function TableGridRenderer({ t, editing, onCellSelect, selectedCells }: {
             gridRow: `${r + 1} / span ${cell.rowSpan ?? 1}`,
             borderColor: t.borderColor,
             background: cell.bg ?? (isHead ? "var(--secondary)" : zebra ? "rgba(127,127,127,0.06)" : undefined),
-            color: cell.fg,
+            color: statusColor ?? cell.fg,
             fontWeight: cell.fontWeight ?? (isHead ? 700 : undefined),
             fontSize: cell.fontSize,
             justifyContent: cell.align === "center" ? "center" : cell.align === "right" ? "flex-end" : "flex-start",
@@ -70,7 +83,20 @@ function TableGridRenderer({ t, editing, onCellSelect, selectedCells }: {
   );
 }
 
-function formatValue(cell: TableCell): string {
+function formatValue(cell: TableCell, kpiData?: KpiDataMap): string {
   if (!cell.kpiCode) return cell.content ?? "";
-  return cell.kpiCode;
+
+  // Show actual value if displayMode is "value"
+  if (cell.displayMode === "value") {
+    const kpiResult = kpiData?.get(cell.kpiCode);
+    if (kpiResult && kpiResult.scalar_value !== null) {
+      const decimals = cell.decimals ?? 1;
+      const unit = cell.unit ?? "";
+      return `${kpiResult.scalar_value.toFixed(decimals).replace(".", ",")}${unit}`;
+    }
+    return "—";
+  }
+
+  // Default: show KPI name (stored in content) or fallback to code
+  return cell.content || cell.kpiCode;
 }

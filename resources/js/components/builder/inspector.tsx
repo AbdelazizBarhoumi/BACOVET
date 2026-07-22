@@ -522,9 +522,9 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
             </Field>
             <Field label="KPI (code)">
               <Select value={activeCell?.kpiCode ?? "__none"} onValueChange={(v) => {
-                if (v === "__none") return patchActive({ kpiCode: undefined });
+                if (v === "__none") return patchActive({ kpiCode: undefined, displayMode: undefined });
                 const k = kpiList.find((x) => x.kpi === v);
-                patchActive({ kpiCode: v, content: k?.name ?? activeCell?.content });
+                patchActive({ kpiCode: v, content: k?.name ?? activeCell?.content, displayMode: "value" });
               }}>
                 <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
                 <SelectContent className="max-h-64">
@@ -533,6 +533,17 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
                 </SelectContent>
               </Select>
             </Field>
+            {activeCell?.kpiCode && (
+              <Field label="Afficher">
+                <Select value={activeCell?.displayMode ?? "name"} onValueChange={(v) => patchActive({ displayMode: v as "name" | "value" })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name" className="text-xs">Nom</SelectItem>
+                    <SelectItem value="value" className="text-xs">Valeur</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Field label="Unité">
                 <Input value={activeCell?.unit ?? ""} onChange={(e) => patchActive({ unit: e.target.value })} className="h-7 text-xs" />

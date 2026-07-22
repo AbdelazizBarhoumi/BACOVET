@@ -24,6 +24,7 @@ export type TableCell = {
   hidden?: boolean; // covered by a merge
   content?: string;
   kpiCode?: string;
+  displayMode?: "name" | "value";
   unit?: string;
   decimals?: number;
   bg?: string;

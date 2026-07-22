@@ -1278,6 +1278,7 @@ function DataMappingPage() {
         cible_value: row.cible_value ?? null,
         cible_is_percentage: row.cible_is_percentage ?? false,
         refresh_frequency: row.refresh_frequency ?? 'instant',
+        notes: row.notes ?? null,
         graph_types: row.graph_types ?? null,
         chart_config: row.chart_config ?? null,
         extra_filters: row.extra_filters ?? null,
@@ -1472,6 +1473,7 @@ function DataMappingPage() {
         cible_value: null,
         cible_is_percentage: false,
         refresh_frequency: "instant",
+        notes: null,
       });
       setRows((rs) => [...rs, mapping]);
       setScrollToId(mapping.id);
@@ -1543,6 +1545,7 @@ function DataMappingPage() {
           "Cible": r.cible_value ?? "",
           "Cible %": r.cible_is_percentage ? "Oui" : "Non",
           "Fréquence": r.refresh_frequency ?? "",
+          "Notes": r.notes ?? "",
         };
       });
       await exportToCsv("bacovet-mapping-kpis", exportData as Record<string, unknown>[]);
@@ -1771,7 +1774,7 @@ function DataMappingPage() {
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              {["", "KPI", "Modules", "Name", "Variable", "Aperçu JSON", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Type de graphique", "Test Live", ""].map((h, i) => (
+              {["", "KPI", "Modules", "Name", "Variable", "Aperçu JSON", "Endpoint", "Type", "Clé JSON", "Filtré ?", "Filtre Clé", "Filtre Valeur", "Fonction ?", "Agrégation", "Test", "Exec", "Résultat", "Formula", "Formula Result", "Cible", "Fréquence", "Type de graphique", "Test Live", "Notes", ""].map((h, i) => (
                 <th key={`th-${i}`} className="text-left font-semibold px-2 py-2 border-b border-border whitespace-nowrap">
                   {h === "Aperçu JSON" ? (
                     <span className="inline-flex items-center gap-1">
@@ -2375,6 +2378,22 @@ function DataMappingPage() {
                       </td>
                     );
                   })() : null}
+                  {/* Notes column */}
+                  <td className="px-2 py-1.5 min-w-[200px]">
+                    <textarea
+                      value={r.notes ?? ""}
+                      onChange={(e) => updateLocal(r.id, { notes: e.target.value })}
+                      placeholder="Notes..."
+                      rows={1}
+                      readOnly={isNormal}
+                      tabIndex={isNormal ? -1 : undefined}
+                      className={isNormal
+                        ? "bg-transparent border border-transparent rounded px-1.5 py-1 w-full text-muted-foreground cursor-default resize-none overflow-hidden min-h-[28px] leading-snug"
+                        : `${fieldBase} resize-none overflow-hidden min-h-[28px] leading-snug`}
+                      ref={autoSize}
+                      onInput={(e) => autoSize(e.currentTarget)}
+                    />
+                  </td>
                   {!isNormal ? (
                     <td className="px-2 py-1.5">
                       <button
@@ -2392,7 +2411,7 @@ function DataMappingPage() {
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={isNormal ? 26 : 27} className="py-12">
+                <td colSpan={isNormal ? 27 : 28} className="py-12">
                   <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
                     <Search className="h-5 w-5 opacity-40" />
                     <span className="text-xs">Aucune ligne ne correspond à ces filtres.</span>

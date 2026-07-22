@@ -1,17 +1,31 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, resolveKpiValue, statusColor, type KpiDataMap } from "./shared";
+import { boxStyle, wrap, resolveKpiValue, type KpiDataMap } from "./shared";
+
+function resolveGaugeColor(value: number, hasData: boolean, kpiResult?: { status: string }, target?: number): string {
+  if (!hasData) return "#3b82f6";
+  const dbStatus = kpiResult?.status;
+  if (dbStatus === "green") return "#22c55e";
+  if (dbStatus === "orange") return "#f59e0b";
+  if (dbStatus === "red") return "#ef4444";
+  if (target) {
+    if (value >= target) return "#22c55e";
+    if (value >= target * 0.9) return "#f59e0b";
+    return "#ef4444";
+  }
+  return "#3b82f6";
+}
 
 export function GaugeWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
+  const kpiResult = c.kpiCode ? kpiData?.get(c.kpiCode) : undefined;
   const { value, hasData } = resolveKpiValue(c, kpiData);
   const min = c.gaugeMin ?? 0;
   const max = c.gaugeMax ?? (c.target ? c.target * 1.2 : 100);
   const startAngle = c.gaugeStartAngle ?? 210;
   const endAngle = c.gaugeEndAngle ?? -30;
-  const pct = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
 
-  const color = c.accent || statusColor(value, c.target) || "#3b82f6";
+  const color = resolveGaugeColor(value, hasData, kpiResult, c.target);
 
   const option = useMemo(() => ({
     series: [{
@@ -35,7 +49,7 @@ export function GaugeWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiData
         valueAnimation: true,
         fontSize: 28,
         fontWeight: "bold",
-        color: "#111827",
+        color,
         offsetCenter: [0, "60%"],
         formatter: () => !c.kpiCode
           ? "Sélectionnez un KPI"

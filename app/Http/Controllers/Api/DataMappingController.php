@@ -21,7 +21,7 @@ class DataMappingController extends Controller
         'has_function', 'fn', 'modules', 'formula',
         'highlight_color', 'cible_operator', 'cible_value',
         'cible_is_percentage', 'refresh_frequency', 'graph_types',
-        'chart_config', 'extra_filters',
+        'chart_config', 'extra_filters', 'notes',
     ];
 
     public function index(): JsonResponse
@@ -56,6 +56,7 @@ class DataMappingController extends Controller
             'extra_filters.*.filter_key' => 'nullable|string|max:255',
             'extra_filters.*.label' => 'nullable|string|max:255',
             'extra_filters.*.source_variable_index' => 'nullable|integer',
+            'notes' => 'nullable|string',
         ]);
 
         // Coerce null to '' for columns with NOT NULL default
@@ -105,6 +106,7 @@ class DataMappingController extends Controller
             'extra_filters.*.filter_key' => 'nullable|string|max:255',
             'extra_filters.*.label' => 'nullable|string|max:255',
             'extra_filters.*.source_variable_index' => 'nullable|integer',
+            'notes' => 'nullable|string',
         ]);
 
         $old = $mapping->only(DataMappingAuditor::AUDITABLE_FIELDS);
@@ -165,6 +167,7 @@ class DataMappingController extends Controller
             'mappings.*.extra_filters.*.filter_key' => 'nullable|string|max:255',
             'mappings.*.extra_filters.*.label' => 'nullable|string|max:255',
             'mappings.*.extra_filters.*.source_variable_index' => 'nullable|integer',
+            'mappings.*.notes' => 'nullable|string',
         ]);
 
         $auditor = new DataMappingAuditor($request->user()?->id);

@@ -52,7 +52,7 @@ export function WidgetRenderer({ w, editing, onCellSelect, selectedCells, kpiDat
     case "table":
       return <SimpleTableWidget c={c} kpiData={kpiData} />;
     case "table-grid":
-      return <TableGridWidget c={c} editing={!!editing} onCellSelect={onCellSelect} selectedCells={selectedCells} />;
+      return <TableGridWidget c={c} editing={!!editing} onCellSelect={onCellSelect} selectedCells={selectedCells} kpiData={kpiData} />;
     case "text":
       return <TextWidget c={c} />;
     case "image":
