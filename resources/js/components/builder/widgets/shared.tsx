@@ -18,8 +18,8 @@ export function resolveKpiValue(c: WidgetConfig, kpiData?: KpiDataMap): { value:
   return { value, hasData, status };
 }
 
-export function resolveKpiSeries(c: WidgetConfig, kpiData?: KpiDataMap): { series: { x: string; v: number }[]; hasData: boolean } {
-  const kpiResult = c.kpiCode ? kpiData?.get(c.kpiCode) : undefined;
+export function resolveKpiSeries(c: WidgetConfig | undefined, kpiData?: KpiDataMap): { series: { x: string; v: number }[]; hasData: boolean } {
+  const kpiResult = c?.kpiCode ? kpiData?.get(c.kpiCode) : undefined;
   if (!kpiResult?.mapped_rows?.length) return { series: [], hasData: false };
   const joinKey = Object.keys(kpiResult.mapped_rows[0]).find((k) => k !== "value") ?? "x";
   const series = kpiResult.mapped_rows.map((row) => ({

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PageLayout, Widget, WidgetConfig, WidgetType } from "./types";
 import { makeEmptyTable, uid } from "./types";
 
@@ -89,12 +89,16 @@ export function BuilderProvider({
   const [tableSel, setTableSel] = useState<Record<string, string[]>>({});
   const pastRef = useRef<Widget[][]>([]);
   const futureRef = useRef<Widget[][]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   // Wrapper that tracks history before every widget mutation
   const trackWidgets = useCallback((updater: (prev: Widget[]) => Widget[]) => {
     setWidgets((prev) => {
       pastRef.current = [...pastRef.current.slice(-99), prev]; // keep last 100
       futureRef.current = [];
+      setCanUndo(pastRef.current.length > 0);
+      setCanRedo(futureRef.current.length > 0);
       return updater(prev);
     });
   }, []);
@@ -190,6 +194,8 @@ export function BuilderProvider({
       setSelectedId(null);
       pastRef.current = [];
       futureRef.current = [];
+      setCanUndo(false);
+      setCanRedo(false);
       return true;
     }
     try {
@@ -213,6 +219,8 @@ export function BuilderProvider({
     setSelectedId(null);
     pastRef.current = [];
     futureRef.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
     return true;
   }, [pageDbId, defaultLayout]);
 
@@ -222,6 +230,8 @@ export function BuilderProvider({
     pastRef.current = pastRef.current.slice(0, -1);
     futureRef.current = [...futureRef.current, widgets];
     setWidgets(prev);
+    setCanUndo(pastRef.current.length > 0);
+    setCanRedo(futureRef.current.length > 0);
   }, [widgets]);
 
   const redo = useCallback(() => {
@@ -230,10 +240,11 @@ export function BuilderProvider({
     futureRef.current = futureRef.current.slice(0, -1);
     pastRef.current = [...pastRef.current, widgets];
     setWidgets(next);
+    setCanUndo(pastRef.current.length > 0);
+    setCanRedo(futureRef.current.length > 0);
   }, [widgets]);
 
-  const canUndo = pastRef.current.length > 0;
-  const canRedo = futureRef.current.length > 0;
+  // canUndo and canRedo are managed via useState above
 
   const exportJson = useCallback(() => JSON.stringify({ pageId, version: 1, widgets }, null, 2), [pageId, widgets]);
 
@@ -241,7 +252,7 @@ export function BuilderProvider({
     try {
       const parsed = JSON.parse(raw) as PageLayout;
       if (parsed?.widgets) setWidgets(parsed.widgets);
-    } catch {}
+    } catch { /* invalid JSON, ignore */ }
   }, []);
 
   const selected = useMemo(() => widgets.find((w) => w.id === selectedId) ?? null, [widgets, selectedId]);

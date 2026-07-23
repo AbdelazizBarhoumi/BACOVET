@@ -36,6 +36,7 @@ function makeRow(overrides: Partial<DataMappingRow> = {}): DataMappingRow {
     graph_types: null,
     chart_config: null,
     extra_filters: null,
+    notes: null,
     refresh_frequency: '',
     user_id: null,
     created_at: '',

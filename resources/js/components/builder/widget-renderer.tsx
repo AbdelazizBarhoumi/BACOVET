@@ -1,21 +1,21 @@
 import type { Widget } from "./types";
-import type { KpiDataMap } from "./widgets/shared";
-import { KpiWidget } from "./widgets/kpi";
-import { GaugeWidget } from "./widgets/gauge";
-import { SparklineWidget } from "./widgets/sparkline";
-import { LineChartWidget } from "./widgets/line-chart";
+import { AreaChartWidget } from "./widgets/area-chart";
 import { BarChartWidget } from "./widgets/bar-chart";
-import { ParetoWidget } from "./widgets/pareto";
+import { ComboChartWidget } from "./widgets/combo-chart";
+import { DividerWidget } from "./widgets/divider";
 import { DonutWidget } from "./widgets/donut";
+import { GaugeWidget } from "./widgets/gauge";
+import { ImageWidget } from "./widgets/image";
+import { KpiWidget } from "./widgets/kpi";
+import { LineChartWidget } from "./widgets/line-chart";
+import { ParetoWidget } from "./widgets/pareto";
 import { PieChartWidget } from "./widgets/pie-chart";
 import { RadarChartWidget } from "./widgets/radar-chart";
-import { AreaChartWidget } from "./widgets/area-chart";
-import { ComboChartWidget } from "./widgets/combo-chart";
+import type { KpiDataMap } from "./widgets/shared";
 import { SimpleTableWidget } from "./widgets/simple-table";
+import { SparklineWidget } from "./widgets/sparkline";
 import { TableGridWidget } from "./widgets/table-grid";
 import { TextWidget } from "./widgets/text";
-import { ImageWidget } from "./widgets/image";
-import { DividerWidget } from "./widgets/divider";
 
 export function WidgetRenderer({ w, editing, onCellSelect, selectedCells, kpiData }: {
   w: Widget;

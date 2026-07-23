@@ -1,8 +1,8 @@
 import { Head, Link, usePage } from "@inertiajs/react";
 import { useMemo } from "react";
 import { DashboardBuilder } from "@/components/builder/dashboard-builder";
-import { Button } from "@/components/ui/button";
 import type { Widget } from "@/components/builder/types";
+import { Button } from "@/components/ui/button";
 
 export default function V3PageView() {
   const { props } = usePage();

@@ -1,12 +1,12 @@
-import { WidthProvider, ReactGridLayout, type Layout, type LayoutItem } from "react-grid-layout/legacy";
+import { Copy, Lock, LockOpen, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useBuilder } from "./store";
-import { WidgetRenderer } from "./widget-renderer";
-import { useKpiData } from "./useKpiData";
+import { WidthProvider, ReactGridLayout, type Layout, type LayoutItem } from "react-grid-layout/legacy";
 import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
 import KpiDetailModal from "./kpi-detail-modal";
-import { Copy, Lock, LockOpen, X } from "lucide-react";
+import { useBuilder } from "./store";
 import type { WidgetType } from "./types";
+import { useKpiData } from "./useKpiData";
+import { WidgetRenderer } from "./widget-renderer";
 
 const ResponsiveGrid = WidthProvider(ReactGridLayout);
 const COLS = 24;

@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { BuilderProvider } from "./store";
-import { BuilderToolbar } from "./toolbar";
-import { Palette } from "./palette";
-import { Inspector } from "./inspector";
-import { Canvas } from "./canvas";
-import { useBuilder } from "./store";
-import type { Widget } from "./types";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useState } from "react";
+import { Canvas } from "./canvas";
+import { Inspector } from "./inspector";
+import { Palette } from "./palette";
+import { BuilderProvider } from "./store";
+import { useBuilder } from "./store";
+import { BuilderToolbar } from "./toolbar";
+import type { Widget } from "./types";
 
 export function DashboardBuilder({
   pageId, pageDbId, title, defaultLayout,

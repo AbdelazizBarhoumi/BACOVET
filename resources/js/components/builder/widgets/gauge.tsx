@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
+import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, resolveKpiValue, type KpiDataMap } from "./shared";
 

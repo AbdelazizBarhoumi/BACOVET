@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
-import { useBuilder } from "./store";
-import type { WidgetType } from "./types";
-import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
-import { Input } from "@/components/ui/input";
 import {
   BarChart3, Gauge as GaugeIcon, LineChart as LineIcon, PieChart,
   Sigma, Table as TableIcon, Type, Image as ImageIcon, Minus, Activity, TrendingUp, Grid3x3,
   Radar, AreaChart as AreaIcon, BarChart, Loader2,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
+import { useBuilder } from "./store";
+import type { WidgetType } from "./types";
 
-const WIDGETS: { type: WidgetType; label: string; icon: any }[] = [
+const WIDGETS: { type: WidgetType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { type: "kpi", label: "KPI Card", icon: Sigma },
   { type: "gauge", label: "Half Gauge", icon: GaugeIcon },
   { type: "sparkline", label: "Sparkline", icon: TrendingUp },

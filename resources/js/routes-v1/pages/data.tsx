@@ -154,148 +154,7 @@ function GraphTypePicker({ value, onChange }: { value: string[]; onChange: (type
   );
 }
 
-// -------- Extra Filters Editor (lightweight dropdown of column keys) --------
-function ExtraFiltersEditor({ value, onChange, sharedKeys = [] }: {
-  value: { filter_key: string; label?: string; source_variable_index?: number }[] | null;
-  onChange: (v: { filter_key: string; label?: string; source_variable_index?: number }[] | null) => void;
-  sharedKeys?: string[];
-}) {
-  const [open, setOpen] = useState(false);
-  const [customKey, setCustomKey] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  const selected = value ?? [];
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  const toggle = (key: string) => {
-    const exists = selected.some((s) => s.filter_key === key);
-    const next = exists
-      ? selected.filter((s) => s.filter_key !== key)
-      : [...selected, { filter_key: key, label: key }];
-    onChange(next.length ? next : null);
-  };
-
-  const addCustom = () => {
-    const k = customKey.trim();
-    if (!k || selected.some((s) => s.filter_key === k)) { setCustomKey(""); return; }
-    onChange([...selected, { filter_key: k, label: k }]);
-    setCustomKey("");
-  };
-
-  const preview = selected.length === 0
-    ? null
-    : selected.map((s) => s.filter_key).join(", ");
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full text-left bg-card border border-border rounded px-2 py-1 text-[10px] font-mono hover:border-primary/50 transition-colors cursor-pointer min-h-[28px] truncate"
-      >
-        {preview ?? <span className="text-muted-foreground italic">Aucun</span>}
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-56 bg-card border border-border rounded-md shadow-lg p-2">
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">
-            {sharedKeys.length > 0 ? "Colonnes partagées" : "Aucune colonne partagée"}
-          </div>
-          {sharedKeys.map((key) => (
-            <label key={key} className="flex items-center gap-2 py-0.5 px-1 text-[11px] hover:bg-muted/50 rounded cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selected.some((s) => s.filter_key === key)}
-                onChange={() => toggle(key)}
-                className="h-3 w-3 rounded border-border"
-              />
-              {key}
-            </label>
-          ))}
-          <div className="border-t border-border mt-1 pt-1">
-            <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Ajouter personnalisé</div>
-            <div className="flex gap-1">
-              <input
-                value={customKey}
-                onChange={(e) => setCustomKey(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") addCustom(); }}
-                placeholder="colonne..."
-                className="flex-1 text-[10px] font-mono bg-muted/30 border border-border rounded px-1.5 py-0.5 focus:outline-none focus:border-primary"
-              />
-              <button onClick={addCustom} className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded hover:bg-primary/20 cursor-pointer">+</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// -------- JSON Cell Editor (for chart_config, etc.) --------
-function JsonCellEditor<T>({ value, placeholder, onChange }: {
-  value: T;
-  placeholder?: string;
-  onChange: (v: T | null) => void;
-}) {
-  const [draft, setDraft] = useState(() => value != null ? JSON.stringify(value, null, 2) : "");
-  const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Sync draft when external value prop changes
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate prop-to-state sync
-  useEffect(() => { setDraft(value != null ? JSON.stringify(value, null, 2) : ""); }, [value]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  const apply = () => {
-    const trimmed = draft.trim();
-    if (!trimmed || trimmed === "null") { onChange(null); setError(null); setOpen(false); return; }
-    try { const parsed = JSON.parse(trimmed); onChange(parsed); setError(null); setOpen(false); }
-    catch (e) { setError((e as Error).message); }
-  };
-
-  const preview = value != null ? JSON.stringify(value) : "";
-  const truncated = preview.length > 40 ? preview.slice(0, 40) + "…" : preview;
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full text-left bg-card border border-border rounded px-2 py-1 text-[10px] font-mono hover:border-primary/50 transition-colors cursor-pointer min-h-[28px] truncate"
-      >
-        {truncated || <span className="text-muted-foreground italic">{placeholder ?? "null"}</span>}
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-80 bg-card border border-border rounded-md shadow-lg p-2">
-          <textarea
-            value={draft}
-            onChange={(e) => { setDraft(e.target.value); setError(null); }}
-            placeholder={placeholder}
-            rows={8}
-            className="w-full text-[10px] font-mono bg-muted/30 border border-border rounded p-1.5 resize-y focus:outline-none focus:border-primary"
-          />
-          {error && <div className="text-[9px] text-destructive mt-1">{error}</div>}
-          <div className="flex gap-1 mt-1.5">
-            <button onClick={apply} className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded hover:bg-primary/20 cursor-pointer">Appliquer</button>
-            <button onClick={() => setOpen(false)} className="text-[10px] px-2 py-0.5 text-muted-foreground rounded hover:bg-muted/50 cursor-pointer">Annuler</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// -------- Extra Filters Editor and JSON Cell Editor removed (hidden columns) --------
 
 // Dropdowns: consistent hover/focus affordance, clear disabled state.
 const selectBase =
@@ -2321,18 +2180,17 @@ function DataMappingPage() {
                       />
                     </td>
                   ) : null}
-                  {/* Chart Config column — hidden */}
-                  {false ? (
-                    <td rowSpan={ks} className="px-2 py-1.5 min-w-[200px]">
-                      <JsonCellEditor
-                        value={r.chart_config}
-                        placeholder='{ "x_axis_key": "...", "bar_color": "#1e6cb8" }'
-                        onChange={(v) => updateImmediate(r.id, { chart_config: v })}
-                      />
-                    </td>
-                  ) : null}
-                  {/* Extra Filters column — hidden */}
-                  {false ? (() => {
+                  {/* Chart Config column — hidden
+                  <td rowSpan={ks} className="px-2 py-1.5 min-w-[200px]">
+                    <JsonCellEditor
+                      value={r.chart_config}
+                      placeholder='{ "x_axis_key": "...", "bar_color": "#1e6cb8" }'
+                      onChange={(v) => updateImmediate(r.id, { chart_config: v })}
+                    />
+                  </td>
+                  */}
+                  {/* Extra Filters column — hidden
+                  (() => {
                     const groupRows = filtered.slice(i, i + ks);
                     const groupEndpoints = [...new Set(groupRows.map(gr => gr.endpoint).filter(Boolean) as string[])];
                     const keySets = groupEndpoints.map(ep => {
@@ -2352,7 +2210,8 @@ function DataMappingPage() {
                         />
                       </td>
                     );
-                  })() : null}
+                  })()
+                  */}
                   {/* Test Live column — one button per KPI group, formula result */}
                   {isFirstInKpi ? (() => {
                     const groupRows = filtered.slice(i, i + ks);

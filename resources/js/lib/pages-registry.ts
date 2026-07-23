@@ -134,8 +134,15 @@ export function usePagesRegistry() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let cancelled = false;
+    fetchPages().then((list) => {
+      if (!cancelled) {
+        setPages(list);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const createPage = useCallback(
     async (name: string): Promise<BuilderPage | null> => {

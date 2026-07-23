@@ -1,13 +1,10 @@
-import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
+import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, resolveKpiSeries, noSeriesData, noKpiSelected, type KpiDataMap } from "./shared";
 
 export function RadarChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
   const { series, hasData } = resolveKpiSeries(c, kpiData);
-
-  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
-  if (!hasData) return wrap(c, boxStyle(c), noSeriesData());
 
   const option = useMemo(() => {
     const maxVal = Math.max(...series.map((s) => s.v), 1) * 1.2;
@@ -40,6 +37,9 @@ export function RadarChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: Kp
       }],
     };
   }, [series, c.accent, c.label]);
+
+  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
+  if (!hasData) return wrap(c, boxStyle(c), noSeriesData());
 
   return wrap(c, boxStyle(c),
     <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} notMerge={true} />

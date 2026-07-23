@@ -1,19 +1,19 @@
-import { useBuilder } from "./store";
+import { Trash2, Copy, Rows, Columns, Merge, Split, Plus, Minus, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Trash2, Copy, Rows, Columns, Merge, Split, Plus, Minus, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
-import { useKpiData } from "./useKpiData";
-import { resolveKpiSeries } from "./widgets/shared";
+import { useBuilder } from "./store";
 import {
   addCol, addRow, cellAt, mergeRegion, removeCol, removeRow, unmergeAt, withCell,
   type TableGrid, type WidgetType,
 } from "./types";
+import { useKpiData } from "./useKpiData";
+import { resolveKpiSeries } from "./widgets/shared";
 
 const PALETTES = ["#22c55e","#3b82f6","#ec4899","#f59e0b","#ef4444","#a855f7","#06b6d4","#14b8a6","#f97316","#64748b","#0ea5e9","#84cc16"];
 const GRADIENTS = [
@@ -63,6 +63,10 @@ export function Inspector() {
     fetchKpiList().then(setKpiList);
   }, []);
 
+  const kpiCodes = useMemo(() => (selected?.type === "kpi" && selected?.config?.kpiCode ? [selected.config.kpiCode] : []), [selected]);
+  const kpiData = useKpiData(kpiCodes);
+  const { series: kpiSeries } = useMemo(() => resolveKpiSeries(selected?.config, kpiData), [selected?.config, kpiData]);
+
   if (!selected) {
     return (
       <div className="w-72 shrink-0 border-l border-border bg-card/40 h-full p-4 text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
@@ -71,17 +75,14 @@ export function Inspector() {
     );
   }
   const c = selected.config;
+  const t = selected.type;
   const set = (patch: Partial<typeof c>) => updateConfig(selected.id, patch);
 
-  const t = selected.type;
   const isTableGrid = t === "table-grid";
   const hasValue = ["kpi", "gauge", "donut"].includes(t);
   const hasSubtitle = t === "donut";
   const hasTarget = ["kpi", "gauge", "line", "bar", "area", "combo"].includes(t);
 
-  const kpiCodes = useMemo(() => (t === "kpi" && c.kpiCode ? [c.kpiCode] : []), [t, c.kpiCode]);
-  const kpiData = useKpiData(kpiCodes);
-  const { series: kpiSeries } = useMemo(() => resolveKpiSeries(c, kpiData), [c, kpiData]);
   const hasSparkline = t === "kpi" && kpiSeries.length > 0;
 
   const hasAccent = ["gauge", "sparkline", "line", "bar", "donut", "pie", "radar", "area", "combo"].includes(t) && t !== "kpi";
@@ -334,7 +335,7 @@ export function Inspector() {
                     onChange={(e) => set({ radius: Number(e.target.value) })} className="h-7 text-xs" />
                 </Field>
                 <Field label="Style">
-                  <Select value={c.borderStyle ?? "solid"} onValueChange={(v) => set({ borderStyle: v as any })}>
+                  <Select value={c.borderStyle ?? "solid"} onValueChange={(v) => set({ borderStyle: v as "solid" | "dashed" | "dotted" | "none" })}>
                     <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {["solid","dashed","dotted","none"].map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
@@ -352,7 +353,7 @@ export function Inspector() {
           <SectionTitle>Effets</SectionTitle>
           {hasShadow && (
             <Field label="Ombre">
-              <Select value={c.shadow ?? "none"} onValueChange={(v) => set({ shadow: v as any })}>
+              <Select value={c.shadow ?? "none"} onValueChange={(v) => set({ shadow: v as "none" | "sm" | "md" | "lg" | "xl" })}>
                 <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["none","sm","md","lg","xl"].map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
@@ -552,7 +553,7 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
                 <Input type="number" min={0} max={4} value={activeCell?.decimals ?? 1} onChange={(e) => patchActive({ decimals: Number(e.target.value) })} className="h-7 text-xs" />
               </Field>
               <Field label="Alignement">
-                <Select value={activeCell?.align ?? "left"} onValueChange={(v) => patchActive({ align: v as any })}>
+                <Select value={activeCell?.align ?? "left"} onValueChange={(v) => patchActive({ align: v as "left" | "center" | "right" })}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["left","center","right"].map((a) => <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>)}

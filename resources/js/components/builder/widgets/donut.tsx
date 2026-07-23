@@ -1,13 +1,11 @@
-import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
+import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, resolveKpiValue, statusColor, noKpiSelected, type KpiDataMap } from "./shared";
 
 export function DonutWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
   const { value, hasData } = resolveKpiValue(c, kpiData);
   const remainder = 100 - value;
-
-  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
 
   const mainColor = c.target ? statusColor(value, c.target) : c.accent ?? "#3b82f6";
 
@@ -47,6 +45,8 @@ export function DonutWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiData
       },
     }],
   }), [value, remainder, c.label, c.decimals, hasData, mainColor]);
+
+  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
 
   return wrap(c, boxStyle(c),
     <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} notMerge={true} />

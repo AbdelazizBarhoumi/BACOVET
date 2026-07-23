@@ -1,13 +1,10 @@
-import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
+import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, resolveKpiSeries, noSeriesData, noKpiSelected, type KpiDataMap } from "./shared";
 
 export function SparklineWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
   const { series, hasData } = resolveKpiSeries(c, kpiData);
-
-  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
-  if (!hasData) return wrap(c, boxStyle(c), noSeriesData());
 
   const option = useMemo(() => ({
     color: [c.accent ?? "#3b82f6"],
@@ -23,6 +20,9 @@ export function SparklineWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: Kpi
       data: series.map((s) => s.v),
     }],
   }), [series, c.accent]);
+
+  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
+  if (!hasData) return wrap(c, boxStyle(c), noSeriesData());
 
   return wrap(c, boxStyle(c),
     <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} notMerge={true} />

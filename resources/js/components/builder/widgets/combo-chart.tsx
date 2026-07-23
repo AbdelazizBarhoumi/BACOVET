@@ -1,13 +1,10 @@
-import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
+import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, resolveKpiSeries, statusColor, noSeriesData, noKpiSelected, type KpiDataMap } from "./shared";
 
 export function ComboChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
   const { series, hasData } = resolveKpiSeries(c, kpiData);
-
-  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
-  if (!hasData) return wrap(c, boxStyle(c), noSeriesData());
 
   const option = useMemo(() => {
     const xData = series.map((s) => s.x);
@@ -63,6 +60,9 @@ export function ComboChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: Kp
       ],
     };
   }, [series, c.accent, c.showTarget, c.target]);
+
+  if (!c.kpiCode) return wrap(c, boxStyle(c), noKpiSelected());
+  if (!hasData) return wrap(c, boxStyle(c), noSeriesData());
 
   return wrap(c, boxStyle(c),
     <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} notMerge={true} />

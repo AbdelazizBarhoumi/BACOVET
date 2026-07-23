@@ -1,8 +1,8 @@
-import { useBuilder } from "./store";
-import { Button } from "@/components/ui/button";
 import { Eye, Pencil, Save, RotateCcw, Download, Upload, Undo2, Redo2 } from "lucide-react";
 import { useRef } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useBuilder } from "./store";
 
 export function BuilderToolbar({ title }: { title: string }) {
   const { mode, setMode, save, reset, exportJson, importJson, widgets, isDirty, undo, redo, canUndo, canRedo } = useBuilder();
@@ -46,7 +46,7 @@ export function BuilderToolbar({ title }: { title: string }) {
           <Button size="sm" variant="outline" onClick={redo} disabled={!canRedo} className="h-8 w-8 p-0" title="Rétablir (Ctrl+Shift+Z)">
             <Redo2 className="h-3.5 w-3.5" />
           </Button>
-          <Button size="sm" variant="outline" onClick={async () => { const ok = await save(); ok ? toast.success("Layout sauvegardé") : toast.error("Échec de la sauvegarde"); }} className="h-8 text-xs">
+          <Button size="sm" variant="outline" onClick={async () => { const ok = await save(); if (ok) { toast.success("Layout sauvegardé"); } else { toast.error("Échec de la sauvegarde"); } }} className="h-8 text-xs">
             <Save className="h-3 w-3 mr-1" /> Sauvegarder
           </Button>
           <Button size="sm" variant="outline" onClick={async () => { if (confirm("Réinitialiser le layout ?")) await reset(); }} className="h-8 text-xs">

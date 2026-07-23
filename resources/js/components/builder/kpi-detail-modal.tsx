@@ -130,7 +130,7 @@ export default function KpiDetailModal({ kpiCode, kpiData, kpiSeed, onClose }: K
                 Valeur actuelle
               </div>
               <div className={`font-mono text-2xl font-bold tabular-nums ${statusColorClass(status)}`}>
-                {formatValue(value, decimals, unit)}
+                {formatValue(value ?? null, decimals, unit)}
               </div>
             </div>
             <div className="rounded-md border border-border bg-secondary/30 p-3 text-center">
@@ -193,7 +193,7 @@ export default function KpiDetailModal({ kpiCode, kpiData, kpiSeed, onClose }: K
             </h4>
             <div className="space-y-1 font-mono text-[10px]">
               <div>
-                <span className="text-muted-foreground">Dernière MàJ:</span> {formatTimestamp(computedAt)}
+                <span className="text-muted-foreground">Dernière MàJ:</span> {formatTimestamp(computedAt ?? null)}
               </div>
               {kpiSeed?.refresh_frequency && (
                 <div>

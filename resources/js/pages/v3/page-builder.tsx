@@ -1,13 +1,13 @@
 import { Head, Link, router } from "@inertiajs/react";
+import { Plus, Copy, Trash2, Pencil, ExternalLink, Link as LinkIcon, FileText, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { usePagesRegistry } from "@/lib/pages-registry";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Copy, Trash2, Pencil, ExternalLink, Link as LinkIcon, FileText, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { usePagesRegistry } from "@/lib/pages-registry";
 
 export default function V3PageBuilder() {
   const { pages, loading, createPage, renamePage, changeSlug, duplicatePage, deletePage } = usePagesRegistry();
