@@ -17,12 +17,22 @@ import { SparklineWidget } from "./widgets/sparkline";
 import { TableGridWidget } from "./widgets/table-grid";
 import { TextWidget } from "./widgets/text";
 
-export function WidgetRenderer({ w, editing, onCellSelect, selectedCells, kpiData }: {
+export function WidgetRenderer({ w, editing, onCellSelect, onCellKpiClick, selectedCells, cursor, kpiData,
+  onCopy, onPaste, onInsertRow, onInsertCol, onDeleteRow, onDeleteCol, onResize }: {
   w: Widget;
   editing?: boolean;
   onCellSelect?: (r: number, c: number, add: boolean) => void;
+  onCellKpiClick?: (kpiCode: string) => void;
   selectedCells?: string[];
+  cursor?: [number, number] | null;
   kpiData?: KpiDataMap;
+  onCopy?: (r: number, c: number) => void;
+  onPaste?: (r: number, c: number) => void;
+  onInsertRow?: (r: number, position: "before" | "after") => void;
+  onInsertCol?: (c: number, position: "before" | "after") => void;
+  onDeleteRow?: (r: number) => void;
+  onDeleteCol?: (c: number) => void;
+  onResize?: (colWidths: number[], rowHeights: number[]) => void;
 }) {
   const c = w.config;
 
@@ -52,7 +62,10 @@ export function WidgetRenderer({ w, editing, onCellSelect, selectedCells, kpiDat
     case "table":
       return <SimpleTableWidget c={c} kpiData={kpiData} />;
     case "table-grid":
-      return <TableGridWidget c={c} editing={!!editing} onCellSelect={onCellSelect} selectedCells={selectedCells} kpiData={kpiData} />;
+      return <TableGridWidget c={c} editing={!!editing} onCellSelect={onCellSelect} onCellKpiClick={onCellKpiClick}
+        selectedCells={selectedCells} cursor={cursor} kpiData={kpiData}
+        onCopy={onCopy} onPaste={onPaste} onInsertRow={onInsertRow} onInsertCol={onInsertCol}
+        onDeleteRow={onDeleteRow} onDeleteCol={onDeleteCol} onResize={onResize} />;
     case "text":
       return <TextWidget c={c} />;
     case "image":

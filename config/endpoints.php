@@ -413,6 +413,17 @@ return [
         'all_frequencies' => ['instant'],
         'keys' => [
             [
+                'variable_key' => 'sortie_montage',
+                'variable_type' => 'Direct',
+                'is_filtered' => false,
+                'filter_key' => null,
+                'filter_value' => null,
+                'has_function' => false,
+                'fn' => 'Latest',
+                'refresh_frequency' => 'instant',
+                'kpis' => ['F-REQ-304'],
+            ],
+            [
                 'variable_key' => 'engagement',
                 'variable_type' => 'Direct',
                 'is_filtered' => false,

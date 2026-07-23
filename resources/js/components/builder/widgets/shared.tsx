@@ -70,12 +70,49 @@ export function boxStyle(c: WidgetConfig): React.CSSProperties {
 }
 
 export function wrap(c: WidgetConfig, style: React.CSSProperties, child: React.ReactNode) {
+  const hasLabel = c.showLabel !== false && !!c.label;
+  const labelPos = c.labelPosition ?? "top";
+  const labelStyle: React.CSSProperties = {
+    fontSize: c.labelFontSize ?? 10,
+    textTransform: c.labelTransform ?? "uppercase",
+    letterSpacing: "0.1em",
+    color: c.labelColor,
+    textAlign: c.labelAlign,
+  };
+  const labelEl = hasLabel ? (
+    <div className="shrink-0" style={labelStyle}>{c.label}</div>
+  ) : null;
+
+  if (labelPos === "overlay") {
+    return (
+      <div className="h-full w-full relative" style={style}>
+        <div className="flex-1 min-h-0">{child}</div>
+        {labelEl && (
+          <div className="absolute bottom-2 left-2 right-2 z-10" style={{ ...labelStyle, textAlign: labelStyle.textAlign ?? "left" }}>{c.label}</div>
+        )}
+      </div>
+    );
+  }
+
+  if (labelPos === "bottom") {
+    return (
+      <div className="h-full w-full flex flex-col" style={style}>
+        <div className="flex-1 min-h-0">{child}</div>
+        {labelEl}
+      </div>
+    );
+  }
+
+  // "top" (default) or "inside"
   return (
     <div className="h-full w-full flex flex-col" style={style}>
-      {c.showLabel !== false && c.label && (
-        <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1 shrink-0">{c.label}</div>
-      )}
-      <div className="flex-1 min-h-0">{child}</div>
+      {labelPos === "top" && labelEl}
+      <div className="flex-1 min-h-0 relative">
+        {child}
+        {labelPos === "inside" && hasLabel && (
+          <div className="absolute bottom-2 left-2 right-2 z-10" style={{ ...labelStyle, textAlign: labelStyle.textAlign ?? "left" }}>{c.label}</div>
+        )}
+      </div>
     </div>
   );
 }

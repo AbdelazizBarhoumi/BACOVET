@@ -5,6 +5,7 @@ import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
 import KpiDetailModal from "./kpi-detail-modal";
 import { useBuilder } from "./store";
 import type { WidgetType } from "./types";
+import { addRow, addCol, removeRow, removeCol, copyCells, pasteCells, withCell } from "./types";
 import { useKpiData } from "./useKpiData";
 import { WidgetRenderer } from "./widget-renderer";
 
@@ -13,11 +14,22 @@ const COLS = 24;
 const KPI_COMPATIBLE = new Set(["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"]);
 
 export function Canvas() {
-  const { widgets, mode, setLayoutBulk, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, undo, redo } = useBuilder();
+  const { widgets, mode, setLayoutBulk, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard, undo, redo, kpiRefreshTick, updateConfig, widgetGap } = useBuilder();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const kpiCodes = useMemo(() => widgets.filter((w) => w.config.kpiCode).map((w) => w.config.kpiCode!), [widgets]);
-  const kpiData = useKpiData(kpiCodes);
+  const kpiCodes = useMemo(() => {
+    const codes: string[] = [];
+    for (const w of widgets) {
+      if (w.config.kpiCode) codes.push(w.config.kpiCode);
+      if (w.config.tableGrid?.cells) {
+        for (const cell of w.config.tableGrid.cells) {
+          if (cell.kpiCode) codes.push(cell.kpiCode);
+        }
+      }
+    }
+    return [...new Set(codes)];
+  }, [widgets]);
+  const { data: kpiData, loading: kpiLoading } = useKpiData(kpiCodes, kpiRefreshTick);
   const layout: Layout = widgets.map((w) => ({
     i: w.id, x: w.x, y: w.y, w: w.w, h: w.h,
     static: !!w.locked || mode !== "edit",
@@ -30,6 +42,143 @@ export function Canvas() {
   // Detail modal state
   const [detailModal, setDetailModal] = useState<{ kpiCode: string } | null>(null);
 
+  // Table-grid cell navigation & clipboard (capture phase, runs before widget movement)
+  useEffect(() => {
+    if (mode !== "edit" || !selectedId) return;
+    const widget = widgets.find((w) => w.id === selectedId);
+    if (!widget || widget.type !== "table-grid" || !widget.config.tableGrid) return;
+
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
+
+      // Read fresh state on each keystroke
+      const w = widgets.find((x) => x.id === selectedId);
+      if (!w || !w.config.tableGrid) return;
+      const tg = w.config.tableGrid;
+
+      const cur = tableCursor[selectedId];
+      const sel = tableSel[selectedId] ?? [];
+
+      // Ctrl+C: copy
+      if ((e.ctrlKey || e.metaKey) && e.key === "c" && sel.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const parsed = sel.map((k) => k.split(",").map(Number));
+        const r1 = Math.min(...parsed.map((p) => p[0]));
+        const r2 = Math.max(...parsed.map((p) => p[0]));
+        const c1 = Math.min(...parsed.map((p) => p[1]));
+        const c2 = Math.max(...parsed.map((p) => p[1]));
+        setTableClipboard((p) => ({ ...p, [selectedId]: copyCells(tg, r1, c1, r2, c2) }));
+        return;
+      }
+
+      // Ctrl+V: paste
+      if ((e.ctrlKey || e.metaKey) && e.key === "v" && cur && tableClipboard[selectedId]) {
+        e.preventDefault();
+        e.stopPropagation();
+        const next = pasteCells(tg, cur[0], cur[1], tableClipboard[selectedId]!);
+        updateConfig(selectedId, { tableGrid: next });
+        return;
+      }
+
+      // Ctrl+X: cut (copy then clear)
+      if ((e.ctrlKey || e.metaKey) && e.key === "x" && sel.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const parsed = sel.map((k) => k.split(",").map(Number));
+        const r1 = Math.min(...parsed.map((p) => p[0]));
+        const r2 = Math.max(...parsed.map((p) => p[0]));
+        const c1 = Math.min(...parsed.map((p) => p[1]));
+        const c2 = Math.max(...parsed.map((p) => p[1]));
+        setTableClipboard((p) => ({ ...p, [selectedId]: copyCells(tg, r1, c1, r2, c2) }));
+        // Clear copied cells
+        let next = tg;
+        for (const [r, c] of parsed) next = withCell(next, r, c, { content: "", kpiCode: undefined, displayMode: undefined });
+        updateConfig(selectedId, { tableGrid: next });
+        return;
+      }
+
+      // Arrow keys: cell navigation
+      if (cur && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        let [nr, nc] = cur;
+        if (e.shiftKey) {
+          // Range select: extend selection by toggling the next cell
+          if (e.key === "ArrowLeft") nc = Math.max(0, nc - 1);
+          if (e.key === "ArrowRight") nc = Math.min(tg.cols - 1, nc + 1);
+          if (e.key === "ArrowUp") nr = Math.max(0, nr - 1);
+          if (e.key === "ArrowDown") nr = Math.min(tg.rows - 1, nr + 1);
+          const key = `${nr},${nc}`;
+          setTableSel((p) => {
+            const cur2 = p[selectedId] ?? [];
+            return { ...p, [selectedId]: cur2.includes(key) ? cur2.filter((k) => k !== key) : [...cur2, key] };
+          });
+          setTableCursor((p) => ({ ...p, [selectedId]: [nr, nc] }));
+        } else {
+          if (e.key === "ArrowLeft") nc = Math.max(0, nc - 1);
+          if (e.key === "ArrowRight") nc = Math.min(tg.cols - 1, nc + 1);
+          if (e.key === "ArrowUp") nr = Math.max(0, nr - 1);
+          if (e.key === "ArrowDown") nr = Math.min(tg.rows - 1, nr + 1);
+          setTableCursor((p) => ({ ...p, [selectedId]: [nr, nc] }));
+          setTableSel((p) => ({ ...p, [selectedId]: [`${nr},${nc}`] }));
+        }
+        return;
+      }
+
+      // Tab: move to next/prev cell
+      if (e.key === "Tab" && cur) {
+        e.preventDefault();
+        e.stopPropagation();
+        let [nr, nc] = cur;
+        if (e.shiftKey) {
+          nc--;
+          if (nc < 0) { nc = tg.cols - 1; nr = Math.max(0, nr - 1); }
+        } else {
+          nc++;
+          if (nc >= tg.cols) { nc = 0; nr = Math.min(tg.rows - 1, nr + 1); }
+        }
+        setTableCursor((p) => ({ ...p, [selectedId]: [nr, nc] }));
+        setTableSel((p) => ({ ...p, [selectedId]: [`${nr},${nc}`] }));
+        return;
+      }
+
+      // Enter: move cursor down
+      if (e.key === "Enter" && cur) {
+        e.preventDefault();
+        e.stopPropagation();
+        const nr = Math.min(tg.rows - 1, cur[0] + 1);
+        setTableCursor((p) => ({ ...p, [selectedId]: [nr, cur[1]] }));
+        setTableSel((p) => ({ ...p, [selectedId]: [`${nr},${cur[1]}`] }));
+        return;
+      }
+
+      // Escape: clear selection and cursor
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setTableSel((p) => ({ ...p, [selectedId]: [] }));
+        setTableCursor((p) => ({ ...p, [selectedId]: null }));
+        return;
+      }
+
+      // Delete/Backspace: clear selected cells content
+      if ((e.key === "Delete" || e.key === "Backspace") && sel.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const parsed = sel.map((k) => k.split(",").map(Number));
+        let next = tg;
+        for (const [r, c] of parsed) next = withCell(next, r, c, { content: "", kpiCode: undefined, displayMode: undefined });
+        updateConfig(selectedId, { tableGrid: next });
+        return;
+      }
+    };
+
+    document.addEventListener("keydown", handler, true);
+    return () => document.removeEventListener("keydown", handler, true);
+  }, [mode, selectedId, widgets, tableCursor, tableClipboard, tableSel, setTableCursor, setTableSel, setTableClipboard, updateConfig]);
+
   // Arrow key navigation for selected widget
   useEffect(() => {
     if (mode !== "edit" || !selectedId) return;
@@ -38,6 +187,8 @@ export function Canvas() {
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
       const widget = widgets.find((w) => w.id === selectedId);
       if (!widget || widget.locked) return;
+      // Table-grid cells handle their own keyboard navigation
+      if (widget.type === "table-grid") return;
       const shift = e.shiftKey ? 3 : 1;
       let dx = 0, dy = 0;
       switch (e.key) {
@@ -92,6 +243,7 @@ export function Canvas() {
   }, [widgets, addWidget]);
 
   const handleCellSelect = (widgetId: string, r: number, c: number, add: boolean) => {
+    setTableCursor((prev) => ({ ...prev, [widgetId]: [r, c] }));
     setTableSel((prev) => {
       const key = `${r},${c}`;
       const cur = prev[widgetId] ?? [];
@@ -116,15 +268,20 @@ export function Canvas() {
     <div
       ref={containerRef}
       tabIndex={0}
-      className="flex-1 min-w-0 overflow-auto bg-background outline-none focus:ring-1 focus:ring-primary/30"
+      className="flex-1 min-w-0 overflow-auto bg-background outline-none focus:ring-1 focus:ring-primary/30 relative"
       onClick={(e) => { if (e.target === e.currentTarget) select(null); }}
     >
+      {kpiLoading && (
+        <div className="absolute top-0 left-0 right-0 z-30 h-0.5 bg-primary/20">
+          <div className="h-full bg-primary animate-pulse w-full" />
+        </div>
+      )}
       <ResponsiveGrid
         className="layout"
         layout={layout}
         cols={24}
         rowHeight={30}
-        margin={[8, 8]}
+        margin={[widgetGap, widgetGap]}
         isDraggable={mode === "edit"}
         isResizable={mode === "edit"}
         isDroppable={mode === "edit"}
@@ -147,8 +304,50 @@ export function Canvas() {
                 w={w}
                 editing={mode === "edit"}
                 onCellSelect={(r, c, add) => handleCellSelect(w.id, r, c, add)}
+                onCellKpiClick={(kpiCode) => setDetailModal({ kpiCode })}
                 selectedCells={tableSel[w.id]}
+                cursor={tableCursor[w.id]}
                 kpiData={kpiData}
+                onCopy={(r, c) => {
+                  const tg = w.config.tableGrid;
+                  if (!tg) return;
+                  const sel = tableSel[w.id] ?? [];
+                  if (sel.length > 0) {
+                    const parsed = sel.map((k) => k.split(",").map(Number));
+                    const r1 = Math.min(...parsed.map((p) => p[0]));
+                    const r2 = Math.max(...parsed.map((p) => p[0]));
+                    const c1 = Math.min(...parsed.map((p) => p[1]));
+                    const c2 = Math.max(...parsed.map((p) => p[1]));
+                    setTableClipboard((p) => ({ ...p, [w.id]: copyCells(tg, r1, c1, r2, c2) }));
+                  } else {
+                    setTableClipboard((p) => ({ ...p, [w.id]: copyCells(tg, r, c, r, c) }));
+                  }
+                }}
+                onPaste={(r, c) => {
+                  const tg = w.config.tableGrid;
+                  const clip = tableClipboard[w.id];
+                  if (tg && clip) updateConfig(w.id, { tableGrid: pasteCells(tg, r, c, clip) });
+                }}
+                onInsertRow={(r, pos) => {
+                  const tg = w.config.tableGrid;
+                  if (tg) updateConfig(w.id, { tableGrid: addRow(tg, pos === "after" ? r : r - 1) });
+                }}
+                onInsertCol={(c, pos) => {
+                  const tg = w.config.tableGrid;
+                  if (tg) updateConfig(w.id, { tableGrid: addCol(tg, pos === "after" ? c : c - 1) });
+                }}
+                onDeleteRow={(r) => {
+                  const tg = w.config.tableGrid;
+                  if (tg) updateConfig(w.id, { tableGrid: removeRow(tg, r) });
+                }}
+                onDeleteCol={(c) => {
+                  const tg = w.config.tableGrid;
+                  if (tg) updateConfig(w.id, { tableGrid: removeCol(tg, c) });
+                }}
+                onResize={(colWidths, rowHeights) => {
+                  const tg = w.config.tableGrid;
+                  if (tg) updateConfig(w.id, { tableGrid: { ...tg, colWidths, rowHeights } });
+                }}
               />
               {mode === "edit" && isSelected && (
                 <div className="no-drag absolute -top-3 -right-1 flex items-center gap-1 z-20">

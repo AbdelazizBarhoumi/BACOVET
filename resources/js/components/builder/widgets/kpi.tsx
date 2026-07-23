@@ -14,12 +14,23 @@ export function KpiWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMa
   const statusColor = status === "ok" ? "#22c55e" : status === "warn" ? "#f59e0b" : "#ef4444";
   const { series } = resolveKpiSeries(c, kpiData);
 
+  const labelStyle: React.CSSProperties = {
+    fontSize: c.labelFontSize ?? 10,
+    textTransform: c.labelTransform ?? "uppercase",
+    letterSpacing: "0.1em",
+    color: c.labelColor,
+    textAlign: c.labelAlign,
+  };
+  const hasLabel = c.showLabel !== false && !!c.label;
+
   return (
-    <div className="h-full w-full flex flex-col p-3" style={style}>
-      {c.showLabel !== false && c.label && (
-        <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">{c.label}</div>
+    <div className="h-full w-full flex flex-col p-3 relative" style={style}>
+      {hasLabel && (c.labelPosition ?? "top") === "top" && (
+        <div className="mb-1 shrink-0" style={labelStyle}>{c.label}</div>
       )}
-      <div className="text-[10px] font-mono text-muted-foreground">{c.kpiCode ?? ""}</div>
+      {c.showKpiCode !== false && c.kpiCode && (
+        <div className="text-[10px] font-mono text-muted-foreground">{c.kpiCode}</div>
+      )}
       <div className="flex items-end justify-between mt-1">
         {!c.kpiCode ? (
           <div className="text-sm text-muted-foreground">Sélectionnez un KPI</div>
@@ -48,6 +59,12 @@ export function KpiWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMa
             </AreaChart>
           </ResponsiveContainer>
         </div>
+      )}
+      {hasLabel && (c.labelPosition ?? "top") === "bottom" && (
+        <div className="mt-auto pt-1 shrink-0" style={labelStyle}>{c.label}</div>
+      )}
+      {hasLabel && ((c.labelPosition ?? "top") === "inside" || (c.labelPosition ?? "top") === "overlay") && (
+        <div className="absolute bottom-2 left-2 right-2 z-10" style={{ ...labelStyle, textAlign: labelStyle.textAlign ?? "left" }}>{c.label}</div>
       )}
     </div>
   );

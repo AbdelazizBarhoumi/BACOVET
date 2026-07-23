@@ -1,4 +1,4 @@
-import { Trash2, Copy, Rows, Columns, Merge, Split, Plus, Minus, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Trash2, Copy, Rows, Columns, Merge, Split, Plus, Minus, AlignLeft, AlignCenter, AlignRight, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
 import { useBuilder } from "./store";
 import {
-  addCol, addRow, cellAt, mergeRegion, removeCol, removeRow, unmergeAt, withCell,
+  addCol, addRow, cellAt, mergeRegion, moveCol, moveRow, removeCol, removeRow, unmergeAt, withCell,
   type TableGrid, type WidgetType,
 } from "./types";
 import { useKpiData } from "./useKpiData";
@@ -56,7 +56,7 @@ const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
 const KPI_COMPATIBLE = ["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"];
 
 export function Inspector() {
-  const { selected, updateConfig, updateWidget, removeWidget, duplicateWidget } = useBuilder();
+  const { selected, updateConfig, updateWidget, removeWidget, duplicateWidget, kpiRefreshTick, widgetGap, setWidgetGap } = useBuilder();
   const [kpiList, setKpiList] = useState<KpiSeed[]>([]);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function Inspector() {
   }, []);
 
   const kpiCodes = useMemo(() => (selected?.type === "kpi" && selected?.config?.kpiCode ? [selected.config.kpiCode] : []), [selected]);
-  const kpiData = useKpiData(kpiCodes);
+  const { data: kpiData } = useKpiData(kpiCodes, kpiRefreshTick);
   const { series: kpiSeries } = useMemo(() => resolveKpiSeries(selected?.config, kpiData), [selected?.config, kpiData]);
 
   if (!selected) {
@@ -93,6 +93,7 @@ export function Inspector() {
   const hasFg = t !== "divider";
   const hasBorder = true; // all widgets get border + radius controls
   const hasShowLabel = !["text", "image", "divider"].includes(t);
+  const hasShowKpiCode = KPI_COMPATIBLE.includes(t);
   const hasShowBorder = true;
   const hasShadow = t !== "divider";
   const hasTransform = t !== "divider";
@@ -157,9 +158,50 @@ export function Inspector() {
               </Select>
             </Field>
           )}
+          {hasShowKpiCode && (
+            <FieldSwitch label="Afficher le code KPI" checked={c.showKpiCode !== false} onChange={(v) => set({ showKpiCode: v })} />
+          )}
           <Field label="Label">
             <Input value={c.label ?? ""} onChange={(e) => set({ label: e.target.value })} className="h-7 text-xs" />
           </Field>
+          {hasShowLabel && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Taille label (px)">
+                  <Input type="number" min={6} max={24} value={c.labelFontSize ?? 10}
+                    onChange={(e) => set({ labelFontSize: Number(e.target.value) })} className="h-7 text-xs" />
+                </Field>
+                <Field label="Transform">
+                  <Select value={c.labelTransform ?? "uppercase"} onValueChange={(v) => set({ labelTransform: v as "none" | "uppercase" | "lowercase" | "capitalize" })}>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["none", "uppercase", "lowercase", "capitalize"].map((t) => (
+                        <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Couleur label">
+                  <ColorRow value={c.labelColor} onChange={(v) => set({ labelColor: v })} withNone />
+                </Field>
+                <Field label="Align label">
+                  <AlignButtons value={c.labelAlign ?? "left"} onChange={(v) => set({ labelAlign: v as "left" | "center" | "right" })} />
+                </Field>
+              </div>
+              <Field label="Position label">
+                <Select value={c.labelPosition ?? "top"} onValueChange={(v) => set({ labelPosition: v as "top" | "bottom" | "inside" | "overlay" })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(["top", "bottom", "inside", "overlay"] as const).map((p) => (
+                      <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </>
+          )}
           {hasSubtitle && (
             <Field label="Sous-titre">
               <Input value={c.subtitle ?? ""} onChange={(e) => set({ subtitle: e.target.value })} className="h-7 text-xs" />
@@ -402,6 +444,11 @@ export function Inspector() {
           </div>
           <FieldSwitch label="Verrouillé (ignoré au drag)" checked={!!selected.locked}
             onChange={(v) => updateWidget(selected.id, { locked: v })} />
+          <SectionTitle>Grille</SectionTitle>
+          <Field label="Espace entre widgets (px)">
+            <Input type="number" min={0} max={40} value={widgetGap}
+              onChange={(e) => setWidgetGap(Number(e.target.value))} className="h-7 text-xs" />
+          </Field>
         </TabsContent>
 
         {/* ─── TAB 4: TABLE (table-grid only) ─── */}
@@ -472,24 +519,66 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
     onChange(next);
   };
 
+  const { tableCursor } = useBuilder();
+  const cur = tableCursor[widgetId];
+
   return (
     <div className="space-y-2">
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Structure</div>
 
+      {/* Insert at position */}
       <div className="grid grid-cols-2 gap-1">
-        <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onChange(addRow(t))}>
-          <Plus className="h-3 w-3 mr-1" /><Rows className="h-3 w-3" /> Ligne
-        </Button>
-        <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onChange(addCol(t))}>
-          <Plus className="h-3 w-3 mr-1" /><Columns className="h-3 w-3" /> Colonne
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region} onClick={() => region && onChange(addRow(t, region.r1 - 1))}>
+          <Plus className="h-3 w-3 mr-1" /> Ligne ↑
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region} onClick={() => region && onChange(addRow(t, region.r1))}>
+          <Plus className="h-3 w-3 mr-1" /> Ligne ↓
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region} onClick={() => region && onChange(addCol(t, region.c1 - 1))}>
+          <Plus className="h-3 w-3 mr-1" /> Col. ←
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region} onClick={() => region && onChange(addCol(t, region.c1))}>
+          <Plus className="h-3 w-3 mr-1" /> Col. →
+        </Button>
+      </div>
+
+      {/* Delete row/col */}
+      <div className="grid grid-cols-2 gap-1">
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!region} onClick={() => region && onChange(removeRow(t, region.r1))}>
-          <Minus className="h-3 w-3 mr-1" /><Rows className="h-3 w-3" /> Ligne
+          <Minus className="h-3 w-3 mr-1" /> Suppr. ligne
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!region} onClick={() => region && onChange(removeCol(t, region.c1))}>
-          <Minus className="h-3 w-3 mr-1" /><Columns className="h-3 w-3" /> Col.
+          <Minus className="h-3 w-3 mr-1" /> Suppr. col.
+        </Button>
+      </div>
+
+      {/* Move row/col */}
+      <div className="grid grid-cols-2 gap-1">
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region || region.r1 === 0}
+          onClick={() => region && onChange(moveRow(t, region.r1, region.r1 - 1))}>
+          <ArrowUp className="h-3 w-3 mr-1" /> Monter ligne
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region || region.r1 >= t.rows - 1}
+          onClick={() => region && onChange(moveRow(t, region.r1, region.r1 + 1))}>
+          <ArrowDown className="h-3 w-3 mr-1" /> Descendre ligne
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region || region.c1 === 0}
+          onClick={() => region && onChange(moveCol(t, region.c1, region.c1 - 1))}>
+          <ArrowLeft className="h-3 w-3 mr-1" /> Reculer col.
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-[10px]"
+          disabled={!region || region.c1 >= t.cols - 1}
+          onClick={() => region && onChange(moveCol(t, region.c1, region.c1 + 1))}>
+          <ArrowRight className="h-3 w-3 mr-1" /> Avancer col.
         </Button>
       </div>
 
@@ -512,9 +601,10 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
 
       <div className="pt-2 border-t border-border mt-2">
         <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
-          {parsed.length === 0 ? "Aucune cellule sélectionnée" :
-           parsed.length === 1 ? `Cellule ${parsed[0][0]+1},${parsed[0][1]+1}` :
-           `${parsed.length} cellules (shift+clic pour étendre)`}
+          {cur ? `Position: R${cur[0]+1} C${cur[1]+1}` : ""}
+          {parsed.length === 0 ? (cur ? "" : "Aucune cellule sélectionnée") :
+           parsed.length === 1 ? ` · Cellule ${parsed[0][0]+1},${parsed[0][1]+1}` :
+           ` · ${parsed.length} cellules (shift+clic pour étendre)`}
         </div>
         {parsed.length > 0 && (
           <>

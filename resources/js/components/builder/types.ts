@@ -96,6 +96,14 @@ export type WidgetConfig = {
   showLabel?: boolean;
   showSparkline?: boolean;
   showBorder?: boolean;
+  showKpiCode?: boolean;
+  // label styling
+  labelFontSize?: number;
+  labelColor?: string;
+  labelAlign?: "left" | "center" | "right";
+  labelTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  // label position
+  labelPosition?: "top" | "bottom" | "inside" | "overlay";
 };
 
 export type Widget = {
@@ -199,6 +207,64 @@ export function unmergeAt(t: TableGrid, r: number, c: number): TableGrid {
     for (let cc = c; cc < c + cs; cc++) {
       if (rr === r && cc === c) continue;
       next = withCell(next, rr, cc, { hidden: false });
+    }
+  }
+  return next;
+}
+
+/** Move row from index `from` to index `to` (0-based). */
+export function moveRow(t: TableGrid, from: number, to: number): TableGrid {
+  if (from === to || from < 0 || from >= t.rows || to < 0 || to >= t.rows) return t;
+  const cells = t.cells.map((cell) => {
+    if (cell.r === from) return { ...cell, r: to };
+    if (from < to && cell.r > from && cell.r <= to) return { ...cell, r: cell.r - 1 };
+    if (from > to && cell.r >= to && cell.r < from) return { ...cell, r: cell.r + 1 };
+    return cell;
+  });
+  return { ...t, cells };
+}
+
+/** Move column from index `from` to index `to` (0-based). */
+export function moveCol(t: TableGrid, from: number, to: number): TableGrid {
+  if (from === to || from < 0 || from >= t.cols || to < 0 || to >= t.cols) return t;
+  const cells = t.cells.map((cell) => {
+    if (cell.c === from) return { ...cell, c: to };
+    if (from < to && cell.c > from && cell.c <= to) return { ...cell, c: cell.c - 1 };
+    if (from > to && cell.c >= to && cell.c < from) return { ...cell, c: cell.c + 1 };
+    return cell;
+  });
+  return { ...t, cells };
+}
+
+/** Copy cells in a rectangular region; returns 2D array of cell data (without r/c coords). */
+export function copyCells(t: TableGrid, r1: number, c1: number, r2: number, c2: number): Partial<TableCell>[][] {
+  const result: Partial<TableCell>[][] = [];
+  for (let r = r1; r <= r2; r++) {
+    const row: Partial<TableCell>[] = [];
+    for (let c = c1; c <= c2; c++) {
+      const cell = cellAt(t, r, c);
+      if (cell) {
+        const { r: _r, c: _c, ...rest } = cell;
+        row.push(rest);
+      } else {
+        row.push({});
+      }
+    }
+    result.push(row);
+  }
+  return result;
+}
+
+/** Paste copied cells starting at (startR, startC). */
+export function pasteCells(t: TableGrid, startR: number, startC: number, data: Partial<TableCell>[][]): TableGrid {
+  let next = t;
+  for (let dr = 0; dr < data.length; dr++) {
+    for (let dc = 0; dc < data[dr].length; dc++) {
+      const r = startR + dr;
+      const c = startC + dc;
+      if (r < t.rows && c < t.cols) {
+        next = withCell(next, r, c, { ...data[dr][dc], r, c });
+      }
     }
   }
   return next;

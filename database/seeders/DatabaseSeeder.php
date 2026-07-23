@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             UserSeeder::class,
             ScreenSeeder::class,
+            BuilderPageSeeder::class,
             NovacityJobSeeder::class,
             ManualKpiSeeder::class,
             SyncSettingSeeder::class,

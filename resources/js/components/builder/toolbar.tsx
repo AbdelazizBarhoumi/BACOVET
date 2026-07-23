@@ -1,11 +1,11 @@
-import { Eye, Pencil, Save, RotateCcw, Download, Upload, Undo2, Redo2 } from "lucide-react";
+import { Eye, Pencil, Save, RotateCcw, Download, Upload, Undo2, Redo2, RefreshCw } from "lucide-react";
 import { useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useBuilder } from "./store";
 
 export function BuilderToolbar({ title }: { title: string }) {
-  const { mode, setMode, save, reset, exportJson, importJson, widgets, isDirty, undo, redo, canUndo, canRedo } = useBuilder();
+  const { mode, setMode, save, reset, exportJson, importJson, widgets, isDirty, undo, redo, canUndo, canRedo, refreshKpi } = useBuilder();
   const fileRef = useRef<HTMLInputElement>(null);
 
 
@@ -37,6 +37,9 @@ export function BuilderToolbar({ title }: { title: string }) {
         className="h-8 text-xs uppercase tracking-wider"
       >
         {mode === "edit" ? <><Eye className="h-3 w-3 mr-1" /> Vue</> : <><Pencil className="h-3 w-3 mr-1" /> Éditer</>}
+      </Button>
+      <Button size="sm" variant="outline" onClick={refreshKpi} className="h-8 text-xs" title="Rafraîchir les données KPI">
+        <RefreshCw className="h-3 w-3 mr-1" /> Actualiser
       </Button>
       {mode === "edit" && (
         <>

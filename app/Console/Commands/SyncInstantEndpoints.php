@@ -162,7 +162,8 @@ class SyncInstantEndpoints extends Command
         // Pre-compute KPI results (formula, row-by-row, status) for all production modules
         $this->info("Computing KPI results...");
         $computer = new \App\Services\KpiResultComputer();
-        foreach (['production:confection', 'production:coupe', 'production:flux', 'production'] as $module) {
+        $allModules = array_keys(config('data-mappings', []));
+        foreach ($allModules as $module) {
             $computer->computeModule($module);
         }
         $this->info("KPI results computed.");

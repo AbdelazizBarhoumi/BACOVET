@@ -65,9 +65,14 @@ export type KpiDataResponse = {
 export async function fetchKpiData(codes: string[]): Promise<Record<string, KpiDataResponse>> {
   if (codes.length === 0) return {};
   try {
-    const res = await fetch(`/api/builder-kpis/data?codes=${encodeURIComponent(codes.join(","))}`, {
+    const t = Date.now();
+    const res = await fetch(`/api/builder-kpis/data?codes=${encodeURIComponent(codes.join(","))}&t=${t}`, {
       credentials: "include",
-      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+      headers: {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Cache-Control": "no-cache",
+      },
     });
     if (!res.ok) return {};
     return await res.json();

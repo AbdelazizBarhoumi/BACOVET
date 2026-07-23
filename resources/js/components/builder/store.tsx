@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
-import type { PageLayout, Widget, WidgetConfig, WidgetType } from "./types";
+import type { PageLayout, TableCell, Widget, WidgetConfig, WidgetType } from "./types";
 import { makeEmptyTable, uid } from "./types";
 
 type Mode = "view" | "edit";
@@ -28,10 +28,18 @@ type Ctx = {
   isDirty: boolean;
   tableSel: Record<string, string[]>;
   setTableSel: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  tableCursor: Record<string, [number, number] | null>;
+  setTableCursor: React.Dispatch<React.SetStateAction<Record<string, [number, number] | null>>>;
+  tableClipboard: Record<string, Partial<TableCell>[][] | null>;
+  setTableClipboard: React.Dispatch<React.SetStateAction<Record<string, Partial<TableCell>[][] | null>>>;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  kpiRefreshTick: number;
+  refreshKpi: () => void;
+  widgetGap: number;
+  setWidgetGap: (g: number) => void;
 };
 
 const BuilderCtx = createContext<Ctx | null>(null);
@@ -50,10 +58,11 @@ const STYLE_DEFAULTS: Partial<WidgetConfig> = {
   radius: 8, padding: 8, opacity: 1,
   marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0,
   borderStyle: "solid", rotate: 0, scale: 1, lineHeight: 1.5, letterSpacing: 0,
+  labelFontSize: 10, labelTransform: "uppercase", labelPosition: "top",
 };
 
 const DEFAULT_CONFIG_FOR: Record<WidgetType, WidgetConfig> = {
-  kpi: { ...STYLE_DEFAULTS, label: "KPI", unit: "%", decimals: 1, target: 90, accent: "#22c55e", showTarget: true, showLabel: true, shadow: "sm" },
+  kpi: { ...STYLE_DEFAULTS, label: "KPI", unit: "%", decimals: 1, target: 90, accent: "#22c55e", showTarget: true, showLabel: true, showKpiCode: true, shadow: "sm" },
   gauge: { ...STYLE_DEFAULTS, label: "Gauge", target: 85, accent: "#3b82f6", shadow: "sm" },
   sparkline: { ...STYLE_DEFAULTS, label: "Trend", accent: "#3b82f6" },
   line: { ...STYLE_DEFAULTS, label: "Line chart", accent: "#3b82f6", target: 30, showTarget: true },
@@ -87,10 +96,15 @@ export function BuilderProvider({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savedHash, setSavedHash] = useState<string>(JSON.stringify(defaultLayout));
   const [tableSel, setTableSel] = useState<Record<string, string[]>>({});
+  const [tableCursor, setTableCursor] = useState<Record<string, [number, number] | null>>({});
+  const [tableClipboard, setTableClipboard] = useState<Record<string, Partial<TableCell>[][] | null>>({});
   const pastRef = useRef<Widget[][]>([]);
   const futureRef = useRef<Widget[][]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [kpiRefreshTick, setKpiRefreshTick] = useState(0);
+  const refreshKpi = useCallback(() => setKpiRefreshTick((t) => t + 1), []);
+  const [widgetGap, setWidgetGap] = useState(8);
 
   // Wrapper that tracks history before every widget mutation
   const trackWidgets = useCallback((updater: (prev: Widget[]) => Widget[]) => {
@@ -264,8 +278,10 @@ export function BuilderProvider({
     addWidget, updateWidget, updateConfig, removeWidget, duplicateWidget,
     toggleLock, moveZ,
     setLayoutBulk, save, reset, exportJson, importJson,
-    isDirty, tableSel, setTableSel,
+    isDirty, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard,
     undo, redo, canUndo, canRedo,
+    kpiRefreshTick, refreshKpi,
+    widgetGap, setWidgetGap,
   };
   return <BuilderCtx.Provider value={value}>{children}</BuilderCtx.Provider>;
 }
