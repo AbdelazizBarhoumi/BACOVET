@@ -149,6 +149,44 @@ export const fetchAllSamples = async (): Promise<Record<string, AllEndpointRecor
     return json.endpoints ?? {};
 };
 
+// ── Test & Save Endpoint ───────────────────────────────────────────────────
+
+export interface TestAndSaveResult {
+    success: boolean;
+    entry?: {
+        name: string;
+        method: string;
+        endpoint: string;
+        status: number;
+        response: unknown;
+    };
+    status?: number;
+    error?: string;
+}
+
+export const testAndSaveEndpoint = async (
+    name: string,
+    method: string,
+    path: string,
+    baseUrl: string,
+): Promise<TestAndSaveResult> => {
+    const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    const token = xsrf ? decodeURIComponent(xsrf[1]) : '';
+
+    const res = await fetch('/novacity-endpoints/test-and-save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': token,
+        },
+        body: JSON.stringify({ name, method, path, baseUrl }),
+    });
+
+    return res.json();
+};
+
 // ── Audit Log ──────────────────────────────────────────────────────────────
 
 export interface AuditLogEntry {

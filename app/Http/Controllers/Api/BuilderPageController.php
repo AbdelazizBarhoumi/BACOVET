@@ -12,7 +12,7 @@ class BuilderPageController extends Controller
 {
     public function index(): JsonResponse
     {
-        $pages = BuilderPage::select('id', 'slug', 'name', 'created_at', 'updated_at')
+        $pages = BuilderPage::select('id', 'slug', 'name', 'group_id', 'created_at', 'updated_at')
             ->orderBy('created_at')
             ->get();
 
@@ -35,6 +35,7 @@ class BuilderPageController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'nullable|string|max:255',
+            'group_id' => 'nullable|integer|exists:builder_page_groups,id',
         ]);
 
         $name = trim($validated['name']) ?: 'Nouvelle page';
@@ -44,6 +45,7 @@ class BuilderPageController extends Controller
             'slug' => $slug,
             'name' => $name,
             'layout' => null,
+            'group_id' => $validated['group_id'] ?? null,
         ]);
 
         return response()->json([
@@ -64,6 +66,7 @@ class BuilderPageController extends Controller
             'name' => 'nullable|string|max:255',
             'slug' => 'nullable|string|max:255',
             'layout' => 'nullable|array',
+            'group_id' => 'nullable|integer|exists:builder_page_groups,id',
         ]);
 
         if (isset($validated['name'])) {
@@ -76,6 +79,10 @@ class BuilderPageController extends Controller
 
         if (array_key_exists('layout', $validated)) {
             $page->layout = $validated['layout'];
+        }
+
+        if (array_key_exists('group_id', $validated)) {
+            $page->group_id = $validated['group_id'];
         }
 
         $page->save();
@@ -111,6 +118,7 @@ class BuilderPageController extends Controller
             'slug' => $this->uniqueSlug($src->slug . '-copy'),
             'name' => $src->name . ' (copie)',
             'layout' => $src->layout,
+            'group_id' => $src->group_id,
         ]);
 
         return response()->json([

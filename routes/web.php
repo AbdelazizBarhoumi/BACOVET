@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\DataMappingController;
 use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\BuilderKpiController;
 use App\Http\Controllers\Api\BuilderPageController;
+use App\Http\Controllers\Api\BuilderPageGroupController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
@@ -67,6 +68,16 @@ Route::prefix('api/builder-pages')->group(function () {
     Route::put('/{id}', [BuilderPageController::class, 'update']);
     Route::delete('/{id}', [BuilderPageController::class, 'destroy']);
     Route::post('/{id}/duplicate', [BuilderPageController::class, 'duplicate']);
+});
+
+Route::prefix('api/builder-page-groups')->group(function () {
+    Route::get('/', [BuilderPageGroupController::class, 'index']);
+    Route::post('/', [BuilderPageGroupController::class, 'store']);
+    Route::put('/assign-page', [BuilderPageGroupController::class, 'assignPage']);
+    Route::put('/reorder-pages', [BuilderPageGroupController::class, 'reorderPages']);
+    Route::put('/reorder-groups', [BuilderPageGroupController::class, 'reorderGroups']);
+    Route::put('/{id}', [BuilderPageGroupController::class, 'update']);
+    Route::delete('/{id}', [BuilderPageGroupController::class, 'destroy']);
 });
 
 // ── V3 BUILDER KPI API ────────────────────────────────────────────
@@ -251,4 +262,5 @@ Route::get('/data-mappings/export-sql', [DataMappingController::class, 'exportSq
 Route::get('/novacity-endpoints', NovacityEndpointsController::class);
 Route::get('/novacity-endpoints/all', [NovacityEndpointsController::class, 'allSamples']);
 Route::get('/novacity-endpoints/sample/{slug}', [NovacityEndpointsController::class, 'sample'])->where('slug', '.*');
+Route::post('/novacity-endpoints/test-and-save', [NovacityEndpointsController::class, 'testAndSave']);
 Route::get('/novacity-config', [NovacityEndpointsController::class, 'config']);

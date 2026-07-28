@@ -56,7 +56,7 @@ const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
 const KPI_COMPATIBLE = ["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"];
 
 export function Inspector() {
-  const { selected, updateConfig, updateWidget, removeWidget, duplicateWidget, kpiRefreshTick, widgetGap, setWidgetGap } = useBuilder();
+  const { selected, updateConfig, updateWidget, removeWidget, duplicateWidget, kpiRefreshTick, pushMargin } = useBuilder();
   const [kpiList, setKpiList] = useState<KpiSeed[]>([]);
 
   useEffect(() => {
@@ -345,16 +345,12 @@ export function Inspector() {
                 <Input type="number" min={0} max={100} value={c.padding ?? 8}
                   onChange={(e) => set({ padding: Number(e.target.value) })} className="h-7 text-xs" />
               </Field>
-              <Field label="Marges (T / D / B / G)">
+              <Field label="Marges (T / D / B / G, px)">
                 <div className="grid grid-cols-4 gap-1">
-                  <Input type="number" min={0} placeholder="T" value={c.marginTop ?? 0}
-                    onChange={(e) => set({ marginTop: Number(e.target.value) })} className="h-7 text-[10px] text-center" />
-                  <Input type="number" min={0} placeholder="D" value={c.marginRight ?? 0}
-                    onChange={(e) => set({ marginRight: Number(e.target.value) })} className="h-7 text-[10px] text-center" />
-                  <Input type="number" min={0} placeholder="B" value={c.marginBottom ?? 0}
-                    onChange={(e) => set({ marginBottom: Number(e.target.value) })} className="h-7 text-[10px] text-center" />
-                  <Input type="number" min={0} placeholder="G" value={c.marginLeft ?? 0}
-                    onChange={(e) => set({ marginLeft: Number(e.target.value) })} className="h-7 text-[10px] text-center" />
+                  <MarginInput value={c.marginTop ?? 0} placeholder="T" onCommit={(v) => pushMargin(selected.id, "top", v)} />
+                  <MarginInput value={c.marginRight ?? 0} placeholder="D" onCommit={(v) => pushMargin(selected.id, "right", v)} />
+                  <MarginInput value={c.marginBottom ?? 0} placeholder="B" onCommit={(v) => pushMargin(selected.id, "bottom", v)} />
+                  <MarginInput value={c.marginLeft ?? 0} placeholder="G" onCommit={(v) => pushMargin(selected.id, "left", v)} />
                 </div>
               </Field>
             </>
@@ -444,11 +440,6 @@ export function Inspector() {
           </div>
           <FieldSwitch label="Verrouillé (ignoré au drag)" checked={!!selected.locked}
             onChange={(v) => updateWidget(selected.id, { locked: v })} />
-          <SectionTitle>Grille</SectionTitle>
-          <Field label="Espace entre widgets (px)">
-            <Input type="number" min={0} max={40} value={widgetGap}
-              onChange={(e) => setWidgetGap(Number(e.target.value))} className="h-7 text-xs" />
-          </Field>
         </TabsContent>
 
         {/* ─── TAB 4: TABLE (table-grid only) ─── */}
@@ -468,6 +459,18 @@ export function Inspector() {
 }
 
 /* ─── Sub-components ─── */
+
+function MarginInput({ value, placeholder, onCommit }: {
+  value: number; placeholder: string; onCommit: (v: number) => void;
+}) {
+  return (
+    <Input
+      type="number" min={0} placeholder={placeholder} value={value}
+      onChange={(e) => onCommit(Math.max(0, Number(e.target.value) || 0))}
+      className="h-7 text-[10px] text-center"
+    />
+  );
+}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold pt-1 border-t border-border first:border-0 first:pt-0">{children}</div>;

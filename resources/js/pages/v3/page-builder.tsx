@@ -7,20 +7,31 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useSidebarStructure } from "@/lib/groups-registry";
 import { usePagesRegistry } from "@/lib/pages-registry";
 
 export default function V3PageBuilder() {
-  const { pages, loading, createPage, renamePage, changeSlug, duplicatePage, deletePage } = usePagesRegistry();
+  const { pages, loading, createPage, renamePage, changeSlug, duplicatePage, deletePage, updatePage } = usePagesRegistry();
+  const { groups } = useSidebarStructure();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [editing, setEditing] = useState<{ id: number; name: string; slug: string } | null>(null);
+  const [newGroupId, setNewGroupId] = useState<string>("");
+  const [editing, setEditing] = useState<{ id: number; name: string; slug: string; group_id: number | null } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const doCreate = async () => {
     setBusy(true);
-    const p = await createPage(newName || "Nouvelle page");
+    const p = await createPage(newName || "Nouvelle page", newGroupId ? parseInt(newGroupId) : null);
     setBusy(false);
     setNewName("");
+    setNewGroupId("");
     setCreating(false);
     if (p) {
       toast.success(`Page « ${p.name} » créée`);
@@ -82,6 +93,11 @@ export default function V3PageBuilder() {
                 <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                   Créée le {new Date(p.created_at).toLocaleDateString("fr-FR")}
                 </div>
+                {p.group_id && (
+                  <div className="text-[10px] font-mono text-muted-foreground">
+                    Groupe: {groups.find((g) => g.id === p.group_id)?.name ?? p.group_id}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1.5">
                   <Link href={`/p/${p.slug}`}>
                     <Button size="sm" className="h-7 text-[11px] uppercase tracking-wider">
@@ -89,7 +105,7 @@ export default function V3PageBuilder() {
                     </Button>
                   </Link>
                   <Button size="sm" variant="outline" className="h-7 text-[11px]"
-                    onClick={() => setEditing({ id: p.id, name: p.name, slug: p.slug })}>
+                    onClick={() => setEditing({ id: p.id, name: p.name, slug: p.slug, group_id: p.group_id })}>
                     <Pencil className="h-3 w-3 mr-1" /> Éditer
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => copyUrl(p.slug)}>
@@ -128,13 +144,29 @@ export default function V3PageBuilder() {
             <DialogTitle>Nouvelle page</DialogTitle>
             <DialogDescription>Nommez votre tableau de bord. Une URL directe sera générée.</DialogDescription>
           </DialogHeader>
-          <Input
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="ex. Production Chaîne 12"
-            onKeyDown={(e) => e.key === "Enter" && doCreate()}
-          />
+          <div className="space-y-3">
+            <Input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="ex. Production Chaîne 12"
+              onKeyDown={(e) => e.key === "Enter" && doCreate()}
+            />
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Groupe</div>
+              <Select value={newGroupId} onValueChange={setNewGroupId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Aucun groupe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Aucun groupe</SelectItem>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)} disabled={busy}>Annuler</Button>
             <Button onClick={doCreate} disabled={busy}>
@@ -148,7 +180,7 @@ export default function V3PageBuilder() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Éditer la page</DialogTitle>
-            <DialogDescription>Modifier le nom ou l'URL (slug). Les widgets sont conservés.</DialogDescription>
+            <DialogDescription>Modifier le nom, l'URL (slug) ou le groupe. Les widgets sont conservés.</DialogDescription>
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
@@ -161,6 +193,23 @@ export default function V3PageBuilder() {
                 <Input value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} />
                 <div className="text-[10px] text-muted-foreground mt-1 font-mono">/p/{editing.slug}</div>
               </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Groupe</div>
+                <Select
+                  value={String(editing.group_id ?? "")}
+                  onValueChange={(v) => setEditing({ ...editing, group_id: v ? parseInt(v) : null })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Aucun groupe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucun groupe</SelectItem>
+                    {groups.map((g) => (
+                      <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
           <DialogFooter>
@@ -170,8 +219,11 @@ export default function V3PageBuilder() {
               onClick={async () => {
                 if (!editing) return;
                 setBusy(true);
-                await renamePage(editing.id, editing.name);
-                if (editing.slug) await changeSlug(editing.id, editing.slug);
+                await updatePage(editing.id, {
+                  name: editing.name,
+                  slug: editing.slug,
+                  group_id: editing.group_id,
+                });
                 setBusy(false);
                 toast.success("Page mise à jour");
                 setEditing(null);

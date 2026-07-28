@@ -125,6 +125,74 @@ export type PageLayout = {
 
 export const uid = () => Math.random().toString(36).slice(2, 9);
 
+// ---- push margin helpers ----
+
+export const ROW_HEIGHT = 30;
+export const GRID_COLS = 24;
+
+function rangesOverlap(a1: number, a2: number, b1: number, b2: number): boolean {
+  return a1 < b2 && b1 < a2;
+}
+
+function widgetsOverlap(a: Widget, b: Widget): boolean {
+  return rangesOverlap(a.x, a.x + a.w, b.x, b.x + b.w) && rangesOverlap(a.y, a.y + a.h, b.y, b.y + b.h);
+}
+
+/**
+ * Shift `originId` (only if `moveOrigin`) and every widget sitting at/beyond
+ * its trailing edge along `axis` by `delta` grid units. When pushing forward
+ * (delta > 0), anything that ends up overlapping a moved widget gets pulled
+ * into the push too, so the whole chain moves together.
+ */
+export function pushWidgets(
+  widgets: Widget[],
+  originId: string,
+  axis: "x" | "y",
+  delta: number,
+  moveOrigin: boolean,
+): Widget[] {
+  if (delta === 0) return widgets;
+  const origin = widgets.find((w) => w.id === originId);
+  if (!origin) return widgets;
+
+  const moving = new Set<string>();
+  if (moveOrigin) moving.add(origin.id);
+
+  const edge = axis === "x" ? origin.x + origin.w : origin.y + origin.h;
+  for (const w of widgets) {
+    if (w.id === origin.id) continue;
+    const start = axis === "x" ? w.x : w.y;
+    if (start >= edge) moving.add(w.id);
+  }
+
+  const next = widgets.map((w) => {
+    if (!moving.has(w.id)) return w;
+    return axis === "x" ? { ...w, x: Math.max(0, w.x + delta) } : { ...w, y: Math.max(0, w.y + delta) };
+  });
+
+  if (delta > 0) {
+    let changed = true, guard = 0;
+    while (changed && guard < 50) {
+      changed = false; guard++;
+      for (let i = 0; i < next.length; i++) {
+        const w = next[i];
+        if (moving.has(w.id)) continue;
+        for (const id of moving) {
+          const m = next.find((x) => x.id === id)!;
+          if (widgetsOverlap(m, w)) {
+            moving.add(w.id);
+            next[i] = axis === "x" ? { ...w, x: w.x + delta } : { ...w, y: w.y + delta };
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return next;
+}
+
 // ---- table-grid helpers ----
 
 export function makeEmptyTable(rows = 3, cols = 4): TableGrid {

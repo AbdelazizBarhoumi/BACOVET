@@ -1,4 +1,5 @@
 import BuilderPageController from './BuilderPageController'
+import BuilderPageGroupController from './BuilderPageGroupController'
 import BuilderKpiController from './BuilderKpiController'
 import SettingController from './SettingController'
 import NovacityProxyController from './NovacityProxyController'
@@ -18,6 +19,7 @@ import DataMappingController from './DataMappingController'
 import NovacityEndpointsController from './NovacityEndpointsController'
 const Api = {
     BuilderPageController: Object.assign(BuilderPageController, BuilderPageController),
+BuilderPageGroupController: Object.assign(BuilderPageGroupController, BuilderPageGroupController),
 BuilderKpiController: Object.assign(BuilderKpiController, BuilderKpiController),
 SettingController: Object.assign(SettingController, SettingController),
 NovacityProxyController: Object.assign(NovacityProxyController, NovacityProxyController),

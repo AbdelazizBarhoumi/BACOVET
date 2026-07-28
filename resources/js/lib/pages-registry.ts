@@ -4,6 +4,8 @@ export type BuilderPage = {
   id: number;
   slug: string;
   name: string;
+  group_id: number | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 };
@@ -45,13 +47,13 @@ async function fetchPages(): Promise<BuilderPage[]> {
   }
 }
 
-async function apiCreatePage(name: string): Promise<BuilderPage | null> {
+async function apiCreatePage(name: string, groupId?: number | null): Promise<BuilderPage | null> {
   try {
     const res = await fetch("/api/builder-pages", {
       method: "POST",
       credentials: "include",
       headers: apiHeaders(),
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, group_id: groupId ?? null }),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -63,7 +65,7 @@ async function apiCreatePage(name: string): Promise<BuilderPage | null> {
 
 async function apiUpdatePage(
   id: number,
-  data: { name?: string; slug?: string }
+  data: { name?: string; slug?: string; group_id?: number | null }
 ): Promise<BuilderPage | null> {
   try {
     const res = await fetch(`/api/builder-pages/${id}`, {
@@ -145,8 +147,8 @@ export function usePagesRegistry() {
   }, []);
 
   const createPage = useCallback(
-    async (name: string): Promise<BuilderPage | null> => {
-      const p = await apiCreatePage(name || "Nouvelle page");
+    async (name: string, groupId?: number | null): Promise<BuilderPage | null> => {
+      const p = await apiCreatePage(name, groupId);
       if (p) await refresh();
       return p;
     },
@@ -189,6 +191,15 @@ export function usePagesRegistry() {
     [refresh]
   );
 
+  const updatePage = useCallback(
+    async (id: number, data: { name?: string; slug?: string; group_id?: number | null }): Promise<BuilderPage | null> => {
+      const p = await apiUpdatePage(id, data);
+      if (p) await refresh();
+      return p;
+    },
+    [refresh]
+  );
+
   return {
     pages,
     loading,
@@ -197,5 +208,6 @@ export function usePagesRegistry() {
     changeSlug,
     duplicatePage,
     deletePage,
+    updatePage,
   };
 }

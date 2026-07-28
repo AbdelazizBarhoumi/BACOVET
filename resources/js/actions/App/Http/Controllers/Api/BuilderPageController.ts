@@ -231,7 +231,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     store.form = storeForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::update
- * @see app/Http/Controllers/Api/BuilderPageController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageController.php:57
  * @route '/api/builder-pages/{id}'
  */
 export const update = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -246,7 +246,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::update
- * @see app/Http/Controllers/Api/BuilderPageController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageController.php:57
  * @route '/api/builder-pages/{id}'
  */
 update.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -274,7 +274,7 @@ update.url = (args: { id: string | number } | [id: string | number ] | string | 
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::update
- * @see app/Http/Controllers/Api/BuilderPageController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageController.php:57
  * @route '/api/builder-pages/{id}'
  */
 update.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -284,7 +284,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageController::update
- * @see app/Http/Controllers/Api/BuilderPageController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageController.php:57
  * @route '/api/builder-pages/{id}'
  */
     const updateForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -299,7 +299,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageController::update
- * @see app/Http/Controllers/Api/BuilderPageController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageController.php:57
  * @route '/api/builder-pages/{id}'
  */
         updateForm.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -315,7 +315,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::destroy
- * @see app/Http/Controllers/Api/BuilderPageController.php:89
+ * @see app/Http/Controllers/Api/BuilderPageController.php:96
  * @route '/api/builder-pages/{id}'
  */
 export const destroy = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -330,7 +330,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::destroy
- * @see app/Http/Controllers/Api/BuilderPageController.php:89
+ * @see app/Http/Controllers/Api/BuilderPageController.php:96
  * @route '/api/builder-pages/{id}'
  */
 destroy.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -358,7 +358,7 @@ destroy.url = (args: { id: string | number } | [id: string | number ] | string |
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::destroy
- * @see app/Http/Controllers/Api/BuilderPageController.php:89
+ * @see app/Http/Controllers/Api/BuilderPageController.php:96
  * @route '/api/builder-pages/{id}'
  */
 destroy.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -368,7 +368,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageController::destroy
- * @see app/Http/Controllers/Api/BuilderPageController.php:89
+ * @see app/Http/Controllers/Api/BuilderPageController.php:96
  * @route '/api/builder-pages/{id}'
  */
     const destroyForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -383,7 +383,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageController::destroy
- * @see app/Http/Controllers/Api/BuilderPageController.php:89
+ * @see app/Http/Controllers/Api/BuilderPageController.php:96
  * @route '/api/builder-pages/{id}'
  */
         destroyForm.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -399,7 +399,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
     destroy.form = destroyForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::duplicate
- * @see app/Http/Controllers/Api/BuilderPageController.php:102
+ * @see app/Http/Controllers/Api/BuilderPageController.php:109
  * @route '/api/builder-pages/{id}/duplicate'
  */
 export const duplicate = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -414,7 +414,7 @@ duplicate.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::duplicate
- * @see app/Http/Controllers/Api/BuilderPageController.php:102
+ * @see app/Http/Controllers/Api/BuilderPageController.php:109
  * @route '/api/builder-pages/{id}/duplicate'
  */
 duplicate.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -442,7 +442,7 @@ duplicate.url = (args: { id: string | number } | [id: string | number ] | string
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageController::duplicate
- * @see app/Http/Controllers/Api/BuilderPageController.php:102
+ * @see app/Http/Controllers/Api/BuilderPageController.php:109
  * @route '/api/builder-pages/{id}/duplicate'
  */
 duplicate.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -452,7 +452,7 @@ duplicate.post = (args: { id: string | number } | [id: string | number ] | strin
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageController::duplicate
- * @see app/Http/Controllers/Api/BuilderPageController.php:102
+ * @see app/Http/Controllers/Api/BuilderPageController.php:109
  * @route '/api/builder-pages/{id}/duplicate'
  */
     const duplicateForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -462,7 +462,7 @@ duplicate.post = (args: { id: string | number } | [id: string | number ] | strin
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageController::duplicate
- * @see app/Http/Controllers/Api/BuilderPageController.php:102
+ * @see app/Http/Controllers/Api/BuilderPageController.php:109
  * @route '/api/builder-pages/{id}/duplicate'
  */
         duplicateForm.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

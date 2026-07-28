@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PageLayout, TableCell, Widget, WidgetConfig, WidgetType } from "./types";
-import { makeEmptyTable, uid } from "./types";
+import { makeEmptyTable, pushWidgets, ROW_HEIGHT, uid } from "./types";
 
 type Mode = "view" | "edit";
 
@@ -30,16 +30,17 @@ type Ctx = {
   setTableSel: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   tableCursor: Record<string, [number, number] | null>;
   setTableCursor: React.Dispatch<React.SetStateAction<Record<string, [number, number] | null>>>;
-  tableClipboard: Record<string, Partial<TableCell>[][] | null>;
-  setTableClipboard: React.Dispatch<React.SetStateAction<Record<string, Partial<TableCell>[][] | null>>>;
+  tableClipboard: Partial<TableCell>[][] | null;
+  setTableClipboard: React.Dispatch<React.SetStateAction<Partial<TableCell>[][] | null>>;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
   kpiRefreshTick: number;
   refreshKpi: () => void;
-  widgetGap: number;
-  setWidgetGap: (g: number) => void;
+  colWidthPx: number;
+  setColWidthPx: (n: number) => void;
+  pushMargin: (id: string, side: "top" | "bottom" | "left" | "right", newValuePx: number) => void;
 };
 
 const BuilderCtx = createContext<Ctx | null>(null);
@@ -97,14 +98,14 @@ export function BuilderProvider({
   const [savedHash, setSavedHash] = useState<string>(JSON.stringify(defaultLayout));
   const [tableSel, setTableSel] = useState<Record<string, string[]>>({});
   const [tableCursor, setTableCursor] = useState<Record<string, [number, number] | null>>({});
-  const [tableClipboard, setTableClipboard] = useState<Record<string, Partial<TableCell>[][] | null>>({});
+  const [tableClipboard, setTableClipboard] = useState<Partial<TableCell>[][] | null>(null);
   const pastRef = useRef<Widget[][]>([]);
   const futureRef = useRef<Widget[][]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [kpiRefreshTick, setKpiRefreshTick] = useState(0);
   const refreshKpi = useCallback(() => setKpiRefreshTick((t) => t + 1), []);
-  const [widgetGap, setWidgetGap] = useState(8);
+  const [colWidthPx, setColWidthPx] = useState(40);
 
   // Wrapper that tracks history before every widget mutation
   const trackWidgets = useCallback((updater: (prev: Widget[]) => Widget[]) => {
@@ -116,6 +117,27 @@ export function BuilderProvider({
       return updater(prev);
     });
   }, []);
+
+  const MARGIN_KEY = {
+    top: "marginTop", bottom: "marginBottom", left: "marginLeft", right: "marginRight",
+  } as const;
+
+  const pushMargin = useCallback<Ctx["pushMargin"]>((id, side, newValuePx) => {
+    trackWidgets((prev) => {
+      const w = prev.find((x) => x.id === id);
+      if (!w) return prev;
+      const key = MARGIN_KEY[side];
+      const oldValuePx = (w.config[key] as number | undefined) ?? 0;
+      const deltaPx = newValuePx - oldValuePx;
+      if (deltaPx === 0) return prev;
+      const axis: "x" | "y" = side === "left" || side === "right" ? "x" : "y";
+      const unitPx = axis === "x" ? Math.max(1, colWidthPx) : ROW_HEIGHT;
+      const deltaUnits = deltaPx / unitPx;
+      const moveOrigin = side === "top" || side === "left";
+      const shifted = pushWidgets(prev, id, axis, deltaUnits, moveOrigin);
+      return shifted.map((x) => (x.id === id ? { ...x, config: { ...x.config, [key]: newValuePx } } : x));
+    });
+  }, [trackWidgets, colWidthPx]);
 
   const addWidget = useCallback<Ctx["addWidget"]>((type, partial) => {
     const size = DEFAULT_SIZE[type];
@@ -174,7 +196,11 @@ export function BuilderProvider({
   const setLayoutBulk = useCallback<Ctx["setLayoutBulk"]>((items) => {
     trackWidgets((prev) => prev.map((w) => {
       const it = items.find((i) => i.i === w.id);
-      return it ? { ...w, x: it.x, y: it.y, w: it.w, h: it.h } : w;
+      if (!it) return w;
+      const moved = it.x !== w.x || it.y !== w.y || it.w !== w.w || it.h !== w.h;
+      return moved
+        ? { ...w, x: it.x, y: it.y, w: it.w, h: it.h, config: { ...w.config, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 } }
+        : w;
     }));
   }, [trackWidgets]);
 
@@ -281,7 +307,8 @@ export function BuilderProvider({
     isDirty, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard,
     undo, redo, canUndo, canRedo,
     kpiRefreshTick, refreshKpi,
-    widgetGap, setWidgetGap,
+    colWidthPx, setColWidthPx,
+    pushMargin,
   };
   return <BuilderCtx.Provider value={value}>{children}</BuilderCtx.Provider>;
 }

@@ -31,6 +31,7 @@ import {
   type FormulaItem,
   fetchAllSamples,
   type AllEndpointRecord,
+  testAndSaveEndpoint,
 } from "@/services/dataMappingApi";
 
 
@@ -805,6 +806,100 @@ const EndpointSelector = React.memo(function EndpointSelector({
   );
 });
 
+// -------- Add Endpoint Modal --------
+function AddEndpointModal({ open, onClose, onSuccess, effectiveBaseUrl }: {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  effectiveBaseUrl: string;
+}) {
+  const [name, setName] = useState("");
+  const [method, setMethod] = useState("GET");
+  const [path, setPath] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; status?: number; error?: string; entry?: unknown } | null>(null);
+
+  const handleExec = async () => {
+    if (!name.trim() || !path.trim()) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await testAndSaveEndpoint(name.trim(), method, path.trim(), effectiveBaseUrl);
+      setResult(res);
+      if (res.success) {
+        toast.success("Endpoint ajouté avec succès");
+        setTimeout(() => { onSuccess(); onClose(); }, 1200);
+      }
+    } catch (e) {
+      setResult({ success: false, error: (e as Error).message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reset = () => { setName(""); setMethod("GET"); setPath(""); setResult(null); };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { reset(); onClose(); }}>
+      <div className="bg-card border border-border rounded-lg shadow-xl max-w-lg w-full p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold">Ajouter un endpoint</h3>
+          <button onClick={() => { reset(); onClose(); }} className="text-muted-foreground hover:text-foreground text-lg cursor-pointer">×</button>
+        </div>
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-muted-foreground block mb-1">Nom</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="ex: 99 — Mon Nouvel Endpoint"
+              className="w-full bg-card border border-border rounded px-2 py-1.5 text-xs cursor-text focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <div className="flex gap-2">
+            <div className="w-24">
+              <label className="text-[10px] uppercase tracking-widest text-muted-foreground block mb-1">Méthode</label>
+              <DataSelect value={method} onValueChange={(val) => setMethod(val)} className="w-full">
+                <DataSelectItem value="GET">GET</DataSelectItem>
+                <DataSelectItem value="POST">POST</DataSelectItem>
+              </DataSelect>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] uppercase tracking-widest text-muted-foreground block mb-1">Path</label>
+              <input
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                placeholder="api/data/mon-endpoint"
+                className="w-full bg-card border border-border rounded px-2 py-1.5 text-xs cursor-text font-mono focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+          {!result?.success && (
+            <button
+              onClick={handleExec}
+              disabled={loading || !name.trim() || !path.trim()}
+              className="inline-flex items-center justify-center gap-1 text-xs px-3 py-1.5 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer mt-1"
+            >
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+              {loading ? "Test en cours…" : "Exec"}
+            </button>
+          )}
+          {result && (
+            <div className={`rounded border px-3 py-2 text-xs ${result.success ? 'bg-green-500/10 border-green-500/20 text-green-600' : 'bg-destructive/10 border-destructive/20 text-destructive'}`}>
+              <div className="flex items-center gap-1.5">
+                {result.success ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                <span>{result.success ? 'HTTP 200 — Endpoint enregistré' : (result.error || `HTTP ${result.status}`)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DataMappingPage() {
   const { dataEndpoints, endpointMeta, endpointList, loading: endpointsLoading } = useNovacityEndpoints();
   const [rows, setRows] = useState<DataMappingRow[]>([]);
@@ -933,6 +1028,10 @@ function DataMappingPage() {
   const allEndpointDataRef = useRef(allEndpointData);
   allEndpointDataRef.current = allEndpointData;
   const [allEndpointsModalOpen, setAllEndpointsModalOpen] = useState(false);
+  const [showAddEndpointModal, setShowAddEndpointModal] = useState(false);
+  const refreshEndpoints = useCallback(() => {
+    fetchAllSamples().then((data) => setAllEndpointData(data));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1315,31 +1414,70 @@ function DataMappingPage() {
   }, []);
 
   const addRow = useCallback(async () => {
+    const tempId = -Date.now();
+    const tempRow = {
+      id: tempId, kpi: "F-REQ-XXX", name: "", variable: "",
+      endpoint: null, variable_type: "Direct" as const, variable_key: "",
+      is_filtered: false, filter_key: "", filter_value: "",
+      has_function: false, fn: "Latest" as const,
+      modules: [] as string[], formula: null, highlight_color: null,
+      cible_operator: "=" as const, cible_value: null, cible_is_percentage: false,
+      refresh_frequency: "instant" as const,
+      graph_types: null, chart_config: null, extra_filters: null,
+      notes: null, user_id: null, created_at: "", updated_at: "",
+    } as DataMappingRow;
+    setRows((rs) => [...rs, tempRow]);
+    setScrollToId(tempId);
     try {
       const mapping = await createMapping({
-        kpi: "F-REQ-XXX",
-        name: "",
-        variable: "",
-        endpoint: null,
-        variable_type: "Direct",
-        variable_key: "",
-        is_filtered: false,
-        filter_key: "",
-        filter_value: "",
-        has_function: false,
-        fn: "Latest",
-        cible_operator: "=",
-        cible_value: null,
-        cible_is_percentage: false,
-        refresh_frequency: "instant",
-        notes: null,
+        kpi: "F-REQ-XXX", name: "", variable: "",
+        endpoint: null, variable_type: "Direct", variable_key: "",
+        is_filtered: false, filter_key: "", filter_value: "",
+        has_function: false, fn: "Latest",
+        cible_operator: "=", cible_value: null, cible_is_percentage: false,
+        refresh_frequency: "instant", notes: null,
       });
-      setRows((rs) => [...rs, mapping]);
+      setRows((rs) => rs.map((r) => (r.id === tempId ? mapping : r)));
       setScrollToId(mapping.id);
       toast.success("Ligne ajoutée");
       setAuditRefreshKey((k) => k + 1);
     } catch {
+      setRows((rs) => rs.filter((r) => r.id !== tempId));
       toast.error("Erreur lors de l'ajout de la ligne");
+    }
+  }, []);
+
+  const addVariableToGroup = useCallback(async (kpi: string, name: string) => {
+    const tempId = -Date.now();
+    const tempRow = {
+      id: tempId, kpi, name, variable: "",
+      endpoint: null, variable_type: "Direct" as const, variable_key: "",
+      is_filtered: false, filter_key: "", filter_value: "",
+      has_function: false, fn: "Latest" as const,
+      modules: [] as string[], formula: null, highlight_color: null,
+      cible_operator: "=" as const, cible_value: null, cible_is_percentage: false,
+      refresh_frequency: "instant" as const,
+      graph_types: null, chart_config: null, extra_filters: null,
+      notes: null, user_id: null, created_at: "", updated_at: "",
+    } as DataMappingRow;
+    setRows((rs) => [...rs, tempRow]);
+    setScrollToId(tempId);
+    try {
+      const mapping = await createMapping({
+        kpi, name, variable: "",
+        endpoint: null, variable_type: "Direct", variable_key: "",
+        is_filtered: false, filter_key: "", filter_value: "",
+        has_function: false, fn: "Latest",
+        cible_operator: "=", cible_value: null, cible_is_percentage: false,
+        refresh_frequency: "instant", notes: null,
+      });
+      setRows((rs) => rs.map((r) => (r.id === tempId ? mapping : r)));
+      setScrollToId(mapping.id);
+      toast.success("Variable ajoutée");
+      setAuditRefreshKey((k) => k + 1);
+    } catch {
+      setRows((rs) => rs.filter((r) => r.id !== tempId));
+      toast.error("Erreur lors de l'ajout de la variable");
     }
   }, []);
 
@@ -1553,7 +1691,10 @@ function DataMappingPage() {
           </div>
         )}
         <button onClick={addRow} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border bg-card hover:bg-secondary cursor-pointer shrink-0">
-          <Plus className="h-3 w-3" /> Ajouter
+          <Plus className="h-3 w-3" /> Ligne
+        </button>
+        <button onClick={() => setShowAddEndpointModal(true)} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border bg-card hover:bg-secondary cursor-pointer shrink-0">
+          <FileJson className="h-3 w-3" /> Endpoint
         </button>
         <button
           onClick={flushDirty}
@@ -1766,19 +1907,30 @@ function DataMappingPage() {
 ) : null}
                   {isFirstInName ? (
                     <td rowSpan={ns} className="px-2 py-1.5 border-r border-border/30 align-top min-w-[160px]">
-                      <textarea value={r.name}
-                        onChange={isNormal ? undefined : (e) => updateLocal(r.id, { name: e.target.value })}
-                        placeholder="Nom du KPI"
-                        title={r.name}
-                        rows={1}
-                        readOnly={isNormal}
-                        tabIndex={isNormal ? -1 : undefined}
-                        className={isNormal
-                          ? "bg-transparent border border-transparent rounded px-1.5 py-1 w-full text-muted-foreground cursor-default resize-none overflow-hidden min-h-[28px] leading-snug"
-                          : `${fieldBase} resize-none overflow-hidden min-h-[28px] leading-snug`}
-                        ref={autoSize}
-                        onInput={isNormal ? undefined : (e) => autoSize(e.currentTarget)}
-                      />
+                      <div className="flex items-start gap-1">
+                        <textarea value={r.name}
+                          onChange={isNormal ? undefined : (e) => updateLocal(r.id, { name: e.target.value })}
+                          placeholder="Nom du KPI"
+                          title={r.name}
+                          rows={1}
+                          readOnly={isNormal}
+                          tabIndex={isNormal ? -1 : undefined}
+                          className={isNormal
+                            ? "bg-transparent border border-transparent rounded px-1.5 py-1 w-full text-muted-foreground cursor-default resize-none overflow-hidden min-h-[28px] leading-snug"
+                            : `${fieldBase} resize-none overflow-hidden min-h-[28px] leading-snug`}
+                          ref={autoSize}
+                          onInput={isNormal ? undefined : (e) => autoSize(e.currentTarget)}
+                        />
+                        {!isNormal && (
+                          <button
+                            onClick={() => addVariableToGroup(r.kpi, r.name)}
+                            className="shrink-0 mt-1 inline-flex items-center justify-center h-5 w-5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                            title="Ajouter une variable"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   ) : null}
                   <td className="px-2 py-1.5 text-muted-foreground italic min-w-[160px]">
@@ -2292,6 +2444,12 @@ function DataMappingPage() {
       <TraceModal open={traceModal.open} title={traceModal.title} content={traceModal.content} onClose={() => setTraceModal({ open: false, title: "", content: null })} />
       <TraceModal open={jsonPreview.open} title={jsonPreview.title} content={jsonPreview.content} highlight={jsonPreview.highlight} onClose={() => setJsonPreview({ open: false, title: "", content: null })} />
       <JsonPreviewModal open={allEndpointsModalOpen} onClose={() => setAllEndpointsModalOpen(false)} allData={allEndpointData} />
+      <AddEndpointModal
+        open={showAddEndpointModal}
+        onClose={() => setShowAddEndpointModal(false)}
+        onSuccess={refreshEndpoints}
+        effectiveBaseUrl={effectiveBaseUrl}
+      />
       {/* Confirm Reset Dialog */}
       {confirmReset && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmReset(false)}>

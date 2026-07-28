@@ -14,8 +14,21 @@ const COLS = 24;
 const KPI_COMPATIBLE = new Set(["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"]);
 
 export function Canvas() {
-  const { widgets, mode, setLayoutBulk, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard, undo, redo, kpiRefreshTick, updateConfig, widgetGap } = useBuilder();
+  const { widgets, mode, setLayoutBulk, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard, undo, redo, kpiRefreshTick, updateConfig, setColWidthPx } = useBuilder();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const cw = el.clientWidth / COLS;
+      setColWidthPx(Math.max(1, cw));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [setColWidthPx]);
 
   const kpiCodes = useMemo(() => {
     const codes: string[] = [];
@@ -69,15 +82,15 @@ export function Canvas() {
         const r2 = Math.max(...parsed.map((p) => p[0]));
         const c1 = Math.min(...parsed.map((p) => p[1]));
         const c2 = Math.max(...parsed.map((p) => p[1]));
-        setTableClipboard((p) => ({ ...p, [selectedId]: copyCells(tg, r1, c1, r2, c2) }));
+        setTableClipboard(copyCells(tg, r1, c1, r2, c2));
         return;
       }
 
       // Ctrl+V: paste
-      if ((e.ctrlKey || e.metaKey) && e.key === "v" && cur && tableClipboard[selectedId]) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "v" && cur && tableClipboard) {
         e.preventDefault();
         e.stopPropagation();
-        const next = pasteCells(tg, cur[0], cur[1], tableClipboard[selectedId]!);
+        const next = pasteCells(tg, cur[0], cur[1], tableClipboard);
         updateConfig(selectedId, { tableGrid: next });
         return;
       }
@@ -91,7 +104,7 @@ export function Canvas() {
         const r2 = Math.max(...parsed.map((p) => p[0]));
         const c1 = Math.min(...parsed.map((p) => p[1]));
         const c2 = Math.max(...parsed.map((p) => p[1]));
-        setTableClipboard((p) => ({ ...p, [selectedId]: copyCells(tg, r1, c1, r2, c2) }));
+        setTableClipboard(copyCells(tg, r1, c1, r2, c2));
         // Clear copied cells
         let next = tg;
         for (const [r, c] of parsed) next = withCell(next, r, c, { content: "", kpiCode: undefined, displayMode: undefined });
@@ -281,7 +294,9 @@ export function Canvas() {
         layout={layout}
         cols={24}
         rowHeight={30}
-        margin={[widgetGap, widgetGap]}
+        margin={[0, 0]}
+        compactType={null}
+        preventCollision={false}
         isDraggable={mode === "edit"}
         isResizable={mode === "edit"}
         isDroppable={mode === "edit"}
@@ -318,14 +333,14 @@ export function Canvas() {
                     const r2 = Math.max(...parsed.map((p) => p[0]));
                     const c1 = Math.min(...parsed.map((p) => p[1]));
                     const c2 = Math.max(...parsed.map((p) => p[1]));
-                    setTableClipboard((p) => ({ ...p, [w.id]: copyCells(tg, r1, c1, r2, c2) }));
+                    setTableClipboard(copyCells(tg, r1, c1, r2, c2));
                   } else {
-                    setTableClipboard((p) => ({ ...p, [w.id]: copyCells(tg, r, c, r, c) }));
+                    setTableClipboard(copyCells(tg, r, c, r, c));
                   }
                 }}
                 onPaste={(r, c) => {
                   const tg = w.config.tableGrid;
-                  const clip = tableClipboard[w.id];
+                  const clip = tableClipboard;
                   if (tg && clip) updateConfig(w.id, { tableGrid: pasteCells(tg, r, c, clip) });
                 }}
                 onInsertRow={(r, pos) => {
