@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::index
- * @see app/Http/Controllers/Api/BuilderKpiController.php:12
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:13
  * @route '/api/builder-kpis'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::index
- * @see app/Http/Controllers/Api/BuilderKpiController.php:12
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:13
  * @route '/api/builder-kpis'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::index
- * @see app/Http/Controllers/Api/BuilderKpiController.php:12
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:13
  * @route '/api/builder-kpis'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::index
- * @see app/Http/Controllers/Api/BuilderKpiController.php:12
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:13
  * @route '/api/builder-kpis'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::index
- * @see app/Http/Controllers/Api/BuilderKpiController.php:12
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:13
  * @route '/api/builder-kpis'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::index
- * @see app/Http/Controllers/Api/BuilderKpiController.php:12
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:13
  * @route '/api/builder-kpis'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::index
- * @see app/Http/Controllers/Api/BuilderKpiController.php:12
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:13
  * @route '/api/builder-kpis'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::data
- * @see app/Http/Controllers/Api/BuilderKpiController.php:39
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:49
  * @route '/api/builder-kpis/data'
  */
 export const data = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ data.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::data
- * @see app/Http/Controllers/Api/BuilderKpiController.php:39
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:49
  * @route '/api/builder-kpis/data'
  */
 data.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ data.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::data
- * @see app/Http/Controllers/Api/BuilderKpiController.php:39
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:49
  * @route '/api/builder-kpis/data'
  */
 data.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -112,7 +112,7 @@ data.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::data
- * @see app/Http/Controllers/Api/BuilderKpiController.php:39
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:49
  * @route '/api/builder-kpis/data'
  */
 data.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -122,7 +122,7 @@ data.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::data
- * @see app/Http/Controllers/Api/BuilderKpiController.php:39
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:49
  * @route '/api/builder-kpis/data'
  */
     const dataForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -132,7 +132,7 @@ data.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::data
- * @see app/Http/Controllers/Api/BuilderKpiController.php:39
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:49
  * @route '/api/builder-kpis/data'
  */
         dataForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -141,7 +141,7 @@ data.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\BuilderKpiController::data
- * @see app/Http/Controllers/Api/BuilderKpiController.php:39
+ * @see app/Http/Controllers/Api/BuilderKpiController.php:49
  * @route '/api/builder-kpis/data'
  */
         dataForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

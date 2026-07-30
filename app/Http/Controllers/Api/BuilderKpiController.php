@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DataMapping;
 use App\Models\KpiData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,26 +12,35 @@ class BuilderKpiController extends Controller
 {
     public function index(): JsonResponse
     {
-        $config = config('data-mappings', []);
+        $rows = DataMapping::orderBy('kpi')->orderBy('id')->get();
         $kpis = [];
+        $grouped = $rows->groupBy('kpi');
 
-        foreach ($config as $module => $moduleData) {
-            $moduleKpis = $moduleData['kpis'] ?? [];
-            foreach ($moduleKpis as $kpiDef) {
-                $target = $kpiDef['target'] ?? [];
-                $kpis[] = [
-                    'kpi' => $kpiDef['kpi'],
-                    'name' => $kpiDef['name'],
-                    'variables' => $kpiDef['variables'] ?? [],
-                    'formula' => $kpiDef['formula'] ?? null,
-                    'formula_readable' => $kpiDef['formula_readable'] ?? null,
-                    'target_operator' => $target['operator'] ?? null,
-                    'target_value' => $target['value'] ?? null,
-                    'target_is_percentage' => $target['is_percentage'] ?? false,
-                    'refresh_frequency' => $kpiDef['refresh_frequency'] ?? 'instant',
-                    'module' => $module,
-                ];
-            }
+        foreach ($grouped as $kpiCode => $kpiRows) {
+            $first = $kpiRows->first();
+
+            $kpis[] = [
+                'kpi' => $kpiCode,
+                'name' => $first->name,
+                'variables' => $kpiRows->map(fn ($r) => array_filter([
+                    'variable' => $r->variable,
+                    'endpoint' => $r->endpoint,
+                    'variable_type' => $r->variable_type,
+                    'variable_key' => $r->variable_key,
+                    'is_filtered' => $r->is_filtered,
+                    'filter_key' => $r->filter_key,
+                    'filter_value' => $r->filter_value,
+                    'has_function' => $r->has_function,
+                    'fn' => $r->fn,
+                ], fn ($v) => $v !== null))->values(),
+                'formula' => $first->formula,
+                'formula_readable' => null,
+                'target_operator' => $first->cible_operator,
+                'target_value' => $first->cible_value,
+                'target_is_percentage' => $first->cible_is_percentage ?? false,
+                'refresh_frequency' => $first->refresh_frequency ?? 'instant',
+                'module' => (is_array($first->modules) && count($first->modules) > 0) ? $first->modules[0] : null,
+            ];
         }
 
         return response()->json($kpis);

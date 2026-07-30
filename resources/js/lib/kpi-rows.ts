@@ -43,12 +43,11 @@ export async function fetchKpiList(): Promise<KpiSeed[]> {
     }));
     // Deduplicate by kpi code
     const seen = new Set<string>();
-    cachedKpis = all.filter((k: KpiSeed) => {
+    return all.filter((k: KpiSeed) => {
       if (seen.has(k.kpi)) return false;
       seen.add(k.kpi);
       return true;
     });
-    return cachedKpis!;
   } catch {
     return [];
   }

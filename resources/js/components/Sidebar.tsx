@@ -50,7 +50,7 @@ const Sidebar = () => {
     const [showAddPage, setShowAddPage] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newPageName, setNewPageName] = useState('');
-    const [newPageGroupId, setNewPageGroupId] = useState<string>('');
+    const [newPageGroupId, setNewPageGroupId] = useState<string>('none');
     const [creating, setCreating] = useState(false);
     const [renaming, setRenaming] = useState<{ id: number; name: string; type: 'group' | 'page' } | null>(null);
     const [busy, setBusy] = useState(false);
@@ -93,10 +93,10 @@ const Sidebar = () => {
     const doCreatePage = async () => {
         if (!newPageName.trim()) return;
         setCreating(true);
-        const p = await createPage(newPageName.trim(), newPageGroupId ? parseInt(newPageGroupId) : null);
+        const p = await createPage(newPageName.trim(), newPageGroupId && newPageGroupId !== 'none' ? parseInt(newPageGroupId) : null);
         setCreating(false);
         setNewPageName('');
-        setNewPageGroupId('');
+        setNewPageGroupId('none');
         setShowAddPage(false);
         if (p) {
             toast.success(`Page « ${p.name} » créée`);
@@ -548,7 +548,7 @@ const Sidebar = () => {
                                     <SelectValue placeholder="Aucun groupe" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">Aucun groupe</SelectItem>
+                                    <SelectItem value="none">Aucun groupe</SelectItem>
                                     {groups.map((g) => (
                                         <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
                                     ))}

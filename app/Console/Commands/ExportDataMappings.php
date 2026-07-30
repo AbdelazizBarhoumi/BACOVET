@@ -22,10 +22,15 @@ class ExportDataMappings extends Command
 
         $allModules = $rows->pluck('modules')->flatten()->unique()->sort()->values();
 
+        // Ensure "production" is always a module (catch-all for KPIs without modules)
+        if ($rows->contains(fn ($row) => empty($row->modules))) {
+            $allModules = $allModules->merge(['production'])->unique()->sort()->values();
+        }
+
         $pages = [];
 
         foreach ($allModules as $module) {
-            $moduleRows = $rows->filter(fn ($row) => in_array($module, $row->modules ?? []));
+            $moduleRows = $rows->filter(fn ($row) => in_array($module, ($row->modules ?? []) ?: ['production']));
             $kpiGroups = $moduleRows->groupBy('kpi');
 
             $kpis = [];

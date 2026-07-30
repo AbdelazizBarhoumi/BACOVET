@@ -1199,10 +1199,10 @@ return [
             [
                 'variable_key' => 'WIP_Chaine',
                 'variable_type' => 'Complex',
-                'is_filtered' => true,
+                'is_filtered' => false,
                 'filter_key' => 'ProdGroup',
                 'filter_value' => null,
-                'has_function' => true,
+                'has_function' => false,
                 'fn' => 'Sum',
                 'refresh_frequency' => 'instant',
                 'kpis' => ['F-REQ-205'],

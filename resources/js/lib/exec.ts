@@ -57,7 +57,7 @@ export function stringifyResult(value: unknown): string {
 
 // -------- Compute Formula For Test --------
 export function computeFormulaForTest(row: DataMappingRow, testValues: Record<number, string>): string {
-  if (!row.formula || !row.formula.items || row.formula.items.length === 0) return "—";
+  if (!row.formula || !row.formula.items || row.formula.items.length === 0) return testValues[row.id] ?? "—";
 
   const items = row.formula.items;
   let expr = "";

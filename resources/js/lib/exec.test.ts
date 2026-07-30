@@ -329,9 +329,19 @@ describe('validateDirectKeyType', () => {
 // computeFormulaForTest
 // ═══════════════════════════════════════════════════════════════════════════
 describe('computeFormulaForTest', () => {
-  it('returns "—" for null formula', () => {
+  it('returns "—" for null formula with no matching test value', () => {
     const row = makeRow({ formula: null });
     expect(computeFormulaForTest(row, {})).toBe('—');
+  });
+
+  it('returns test value when formula is null but testValues has the row id', () => {
+    const row = makeRow({ id: 1, formula: null });
+    expect(computeFormulaForTest(row, { 1: '[5,4,4,0,3,4,12,4]' })).toBe('[5,4,4,0,3,4,12,4]');
+  });
+
+  it('returns test value for non-matching id falls back to "—"', () => {
+    const row = makeRow({ id: 99, formula: null });
+    expect(computeFormulaForTest(row, { 1: '[5,4,4,0]' })).toBe('—');
   });
 
   it('returns "—" for empty formula items', () => {

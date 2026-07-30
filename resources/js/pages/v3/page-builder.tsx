@@ -22,16 +22,16 @@ export default function V3PageBuilder() {
   const { groups } = useSidebarStructure();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newGroupId, setNewGroupId] = useState<string>("");
+  const [newGroupId, setNewGroupId] = useState<string>("none");
   const [editing, setEditing] = useState<{ id: number; name: string; slug: string; group_id: number | null } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const doCreate = async () => {
     setBusy(true);
-    const p = await createPage(newName || "Nouvelle page", newGroupId ? parseInt(newGroupId) : null);
+    const p = await createPage(newName || "Nouvelle page", newGroupId && newGroupId !== "none" ? parseInt(newGroupId) : null);
     setBusy(false);
     setNewName("");
-    setNewGroupId("");
+    setNewGroupId("none");
     setCreating(false);
     if (p) {
       toast.success(`Page « ${p.name} » créée`);
@@ -159,7 +159,7 @@ export default function V3PageBuilder() {
                   <SelectValue placeholder="Aucun groupe" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun groupe</SelectItem>
+                  <SelectItem value="none">Aucun groupe</SelectItem>
                   {groups.map((g) => (
                     <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
                   ))}
@@ -196,14 +196,14 @@ export default function V3PageBuilder() {
               <div>
                 <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Groupe</div>
                 <Select
-                  value={String(editing.group_id ?? "")}
-                  onValueChange={(v) => setEditing({ ...editing, group_id: v ? parseInt(v) : null })}
+                  value={String(editing.group_id ?? "none")}
+                  onValueChange={(v) => setEditing({ ...editing, group_id: v && v !== "none" ? parseInt(v) : null })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Aucun groupe" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucun groupe</SelectItem>
+                    <SelectItem value="none">Aucun groupe</SelectItem>
                     {groups.map((g) => (
                       <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
                     ))}
