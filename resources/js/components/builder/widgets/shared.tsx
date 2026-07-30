@@ -143,3 +143,67 @@ export function statusColor(value: number, target?: number): string {
   if (value >= target * 0.9) return "#f59e0b";
   return "#ef4444";
 }
+
+// ─── Scaler helpers ───
+
+export type ScalerAgg = "Latest" | "First" | "Sum" | "Average" | "Min" | "Max" | "Count";
+
+export function computeScalerValue(series: { v: number }[], agg: ScalerAgg): number {
+  const values = series.map((s) => s.v);
+  if (values.length === 0) return 0;
+  switch (agg) {
+    case "Latest": return values[values.length - 1];
+    case "First":  return values[0];
+    case "Sum":    return values.reduce((a, b) => a + b, 0);
+    case "Average": return values.reduce((a, b) => a + b, 0) / values.length;
+    case "Min":    return Math.min(...values);
+    case "Max":    return Math.max(...values);
+    case "Count":  return values.length;
+  }
+}
+
+export function computePercentageChange(series: { v: number }[]): number | null {
+  if (series.length < 2) return null;
+  const latest = series[series.length - 1].v;
+  const prev = series[series.length - 2].v;
+  if (prev === 0) return null;
+  return ((latest - prev) / Math.abs(prev)) * 100;
+}
+
+function formatPercentage(percentage: number | null): string {
+  if (percentage === null) return "--";
+  const sign = percentage > 0 ? "+" : "";
+  return `${sign}${percentage.toFixed(1)}%`;
+}
+
+export function ScalerHeader({ series, c }: { series: { x: string; v: number }[]; c: WidgetConfig }) {
+  if (c.showScaler === false) return null;
+  if (series.length === 0) return null;
+
+  const agg = c.scalerAggregation ?? "Latest";
+  const scalerValue = computeScalerValue(series, agg);
+  const pct = computePercentageChange(series);
+  const latestDate = series[series.length - 1].x;
+  const decimals = c.decimals ?? 1;
+
+  return (
+    <div className="shrink-0 px-1 pt-1">
+      <div className="flex items-center justify-between">
+        {c.label && (
+          <span className="text-[10px] text-muted-foreground truncate">{c.label}</span>
+        )}
+        <span className={`text-[10px] font-mono font-medium tabular-nums ${pct !== null && pct >= 0 ? "text-emerald-600" : pct !== null ? "text-red-500" : "text-muted-foreground"}`}>
+          {formatPercentage(pct)}
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between mt-0.5">
+        <span className="text-lg font-bold leading-none text-foreground tabular-nums">
+          {scalerValue.toFixed(decimals)}
+          {c.unit && <span className="text-xs ml-0.5 font-medium text-muted-foreground">{c.unit}</span>}
+          <span className="text-[9px] ml-1 font-medium uppercase text-muted-foreground">{agg}</span>
+        </span>
+        <span className="text-[10px] text-muted-foreground">{latestDate}</span>
+      </div>
+    </div>
+  );
+}

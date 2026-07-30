@@ -8413,7 +8413,7 @@ allouée',
                 'variables' => [
                     [
                         'variable' => 'Pareto defects au niveau opération',
-                        'endpoint' => 'api/data/vwdefect',
+                        'endpoint' => 'api/data/p',
                         'variable_type' => 'Complex',
                         'variable_key' => 'DefectQty',
                         'is_filtered' => false,
@@ -8427,7 +8427,13 @@ allouée',
                 'formula_readable' => null,
                 'highlight_color' => null,
                 'graph_types' => ['Pareto Chart (Interactif)'],
-                'chart_config' => null,
+                'chart_config' => [
+                    'pareto' => [
+                        'label_key' => 'OpNo',
+                        'value_key' => 'DefectQty',
+                        'aggregation' => 'Sum',
+                    ],
+                ],
                 'extra_filters' => null,
                 'target' => [
                     'operator' => '',

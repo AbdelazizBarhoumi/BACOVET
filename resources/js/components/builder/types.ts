@@ -86,6 +86,9 @@ export type WidgetConfig = {
   // transform
   rotate?: number;
   scale?: number;
+  // scaler
+  showScaler?: boolean;
+  scalerAggregation?: "Latest" | "First" | "Sum" | "Average" | "Min" | "Max" | "Count";
   // gauge-specific
   gaugeStartAngle?: number;
   gaugeEndAngle?: number;

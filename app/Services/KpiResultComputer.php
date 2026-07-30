@@ -99,6 +99,9 @@ class KpiResultComputer
             $vk = $variables[0]['variable_key'] ?? null;
             $fn = $variables[0]['fn'] ?? 'Latest';
             $scalarValue = $this->aggregateRaw($variableRaws[0], $vk, $fn);
+
+            // Compute Pareto chart mapped_rows from chart_config when applicable
+            $mappedRows = $this->computeChartRows($variableRaws[0], $kpiDef);
         }
 
         // Compute status
@@ -385,5 +388,58 @@ class KpiResultComputer
         }
 
         return $options;
+    }
+
+    /**
+     * Compute chart-specific mapped_rows from raw data using chart_config.
+     * Currently supports Pareto Charts: groups raw records by label_key,
+     * aggregates value_key using the specified aggregation (default Sum),
+     * and returns rows sorted by value descending.
+     */
+    private function computeChartRows(array $rawData, array $kpiDef): ?array
+    {
+        $chartConfig = $kpiDef['chart_config'] ?? null;
+        $graphTypes = $kpiDef['graph_types'] ?? [];
+
+        if (empty($chartConfig) || !in_array('Pareto Chart (Interactif)', $graphTypes, true)) {
+            return null;
+        }
+
+        $labelKey = $chartConfig['pareto']['label_key'] ?? null;
+        $valueKey = $chartConfig['pareto']['value_key'] ?? null;
+        $aggregation = $chartConfig['pareto']['aggregation'] ?? 'Sum';
+
+        if (!$labelKey || !$valueKey || empty($rawData)) {
+            return null;
+        }
+
+        // Group by label and aggregate value
+        $groups = [];
+        foreach ($rawData as $row) {
+            if (!is_array($row)) continue;
+            $label = trim((string)($row[$labelKey] ?? ''));
+            if ($label === '') continue;
+            $val = isset($row[$valueKey]) && is_numeric($row[$valueKey]) ? (float)$row[$valueKey] : 0;
+            if (!isset($groups[$label])) $groups[$label] = 0.0;
+            if ($aggregation === 'Sum') {
+                $groups[$label] += $val;
+            } elseif ($aggregation === 'Count') {
+                $groups[$label] += 1;
+            } elseif ($aggregation === 'Average') {
+                $groups[$label] = ($groups[$label] + $val) / ($groups[$label] > 0 ? 2 : 1); // rolling avg
+            } else {
+                $groups[$label] = max($groups[$label], $val);
+            }
+        }
+
+        // Sort descending by value (Pareto order)
+        arsort($groups);
+
+        $rows = [];
+        foreach ($groups as $label => $value) {
+            $rows[] = [$labelKey => (string)$label, 'value' => $value];
+        }
+
+        return $rows;
     }
 }

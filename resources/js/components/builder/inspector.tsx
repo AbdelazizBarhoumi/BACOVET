@@ -84,6 +84,7 @@ export function Inspector() {
   const hasTarget = ["kpi", "gauge", "line", "bar", "area", "combo"].includes(t);
 
   const hasSparkline = t === "kpi" && kpiSeries.length > 0;
+  const hasScaler = ["area", "line", "bar", "combo", "sparkline", "radar", "pie", "pareto"].includes(t);
 
   const hasAccent = ["gauge", "sparkline", "line", "bar", "donut", "pie", "radar", "area", "combo"].includes(t) && t !== "kpi";
   const hasFontFamily = t !== "divider" && t !== "image";
@@ -224,6 +225,24 @@ export function Inspector() {
           )}
           {hasSparkline && (
             <FieldSwitch label="Afficher sparkline" checked={!!c.showSparkline} onChange={(v) => set({ showSparkline: v })} />
+          )}
+
+          {hasScaler && (
+            <>
+              <FieldSwitch label="Afficher valeur calculée" checked={c.showScaler !== false} onChange={(v) => set({ showScaler: v })} />
+              {c.showScaler !== false && (
+                <Field label="Mode de calcul">
+                  <Select value={c.scalerAggregation ?? "Latest"} onValueChange={(v) => set({ scalerAggregation: v as any })}>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["Latest", "First", "Sum", "Average", "Min", "Max", "Count"].map((a) => (
+                        <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </>
           )}
 
           {t === "gauge" && (
