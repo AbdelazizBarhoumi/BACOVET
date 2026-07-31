@@ -168,7 +168,7 @@ Route::middleware('v5.auth')->group(function () {
             'pageId' => $page->id,
             'slug' => $page->slug,
             'pageName' => $page->name,
-            'layout' => $page->layout['widgets'] ?? [],
+            'layout' => $page->layout,
         ]);
     })->name('v5.page');
 
