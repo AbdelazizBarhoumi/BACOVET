@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active.user' => \App\Http\Middleware\EnsureActiveUser::class,
             'standalone.user' => \App\Http\Middleware\ResolveStandaloneUser::class,
             'v4.auth' => \App\Http\Middleware\EnsureV4Authenticated::class,
+            'v5.auth' => \App\Http\Middleware\EnsureV5Authenticated::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -36,6 +37,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/v4/builder-pages',
             'api/v4/builder-page-groups/*',
             'api/v4/builder-page-groups',
+            'api/v5-auth/*',
+            'api/v5/builder-pages/*',
+            'api/v5/builder-pages',
+            'api/v5/builder-page-groups/*',
+            'api/v5/builder-page-groups',
+            'api/v5-activity',
         ]);
 
         $middleware->web(append: [

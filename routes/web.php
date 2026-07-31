@@ -3,11 +3,14 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BuilderActivityController;
+use App\Http\Controllers\Api\BuilderActivityV5Controller;
 use App\Http\Controllers\Api\BuilderKpiController;
 use App\Http\Controllers\Api\BuilderPageController;
 use App\Http\Controllers\Api\BuilderPageGroupController;
 use App\Http\Controllers\Api\BuilderPageGroupV4Controller;
+use App\Http\Controllers\Api\BuilderPageGroupV5Controller;
 use App\Http\Controllers\Api\BuilderPageV4Controller;
+use App\Http\Controllers\Api\BuilderPageV5Controller;
 use App\Http\Controllers\Api\DataMappingController;
 use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\DevelopmentController;
@@ -20,6 +23,7 @@ use App\Http\Controllers\Api\NovacityEndpointsController;
 use App\Http\Controllers\Api\ProductionController;
 use App\Http\Controllers\Api\QualityController;
 use App\Http\Controllers\Api\V4AuthController;
+use App\Http\Controllers\Api\V5AuthController;
 use App\Http\Controllers\BrowserLogController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -140,6 +144,56 @@ Route::middleware('v4.auth')->group(function () {
         Route::put('/{id}', [BuilderPageGroupV4Controller::class, 'update']);
         Route::delete('/{id}', [BuilderPageGroupV4Controller::class, 'destroy']);
     });
+});
+
+// ── V5 PAGE BUILDER (standalone login) ─────────────────────────────
+Route::get('/v5/login', fn () => Inertia::render('v5/login'))->name('v5.login');
+
+Route::post('/api/v5-auth/check', [V5AuthController::class, 'check']);
+Route::post('/api/v5-auth/set-password', [V5AuthController::class, 'setPassword']);
+Route::post('/api/v5-auth/login', [V5AuthController::class, 'login']);
+Route::post('/api/v5-auth/logout', [V5AuthController::class, 'logout']);
+Route::get('/api/v5-auth/me', [V5AuthController::class, 'me']);
+
+Route::middleware('v5.auth')->group(function () {
+    Route::get('/v5', fn () => Inertia::render('v5/page-builder'))->name('v5');
+    Route::get('/v5/p/{slug}', function ($slug) {
+        $page = \App\Models\BuilderPageV5::where('slug', $slug)->first();
+        if (! $page) {
+            abort(404);
+        }
+
+        return Inertia::render('v5/p/[slug]', [
+            'pageId' => $page->id,
+            'slug' => $page->slug,
+            'pageName' => $page->name,
+            'layout' => $page->layout['widgets'] ?? [],
+        ]);
+    })->name('v5.page');
+
+    Route::prefix('api/v5/builder-pages')->group(function () {
+        Route::get('/', [BuilderPageV5Controller::class, 'index']);
+        Route::get('/{slug}', [BuilderPageV5Controller::class, 'show']);
+        Route::post('/', [BuilderPageV5Controller::class, 'store']);
+        Route::put('/{id}', [BuilderPageV5Controller::class, 'update']);
+        Route::delete('/{id}', [BuilderPageV5Controller::class, 'destroy']);
+        Route::post('/{id}/duplicate', [BuilderPageV5Controller::class, 'duplicate']);
+    });
+
+    Route::prefix('api/v5/builder-page-groups')->group(function () {
+        Route::get('/', [BuilderPageGroupV5Controller::class, 'index']);
+        Route::post('/', [BuilderPageGroupV5Controller::class, 'store']);
+        Route::put('/assign-page', [BuilderPageGroupV5Controller::class, 'assignPage']);
+        Route::put('/reorder-pages', [BuilderPageGroupV5Controller::class, 'reorderPages']);
+        Route::put('/reorder-groups', [BuilderPageGroupV5Controller::class, 'reorderGroups']);
+        Route::put('/{id}', [BuilderPageGroupV5Controller::class, 'update']);
+        Route::delete('/{id}', [BuilderPageGroupV5Controller::class, 'destroy']);
+    });
+
+    // ── V5 BUILDER ACTIVITY TRACE ───────────────────────────────────
+    // Capture + query both require a v5 session.
+    Route::post('/api/v5-activity', [BuilderActivityV5Controller::class, 'store']);
+    Route::get('/api/v5-activity', [BuilderActivityV5Controller::class, 'index']);
 });
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);

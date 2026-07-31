@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
- * @see routes/web.php:105
- * @route '/v4/login'
+ * @see routes/web.php:150
+ * @route '/v5/login'
  */
 export const login = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: login.url(options),
@@ -10,28 +10,28 @@ export const login = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 login.definition = {
     methods: ["get","head"],
-    url: '/v4/login',
+    url: '/v5/login',
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:105
- * @route '/v4/login'
+ * @see routes/web.php:150
+ * @route '/v5/login'
  */
 login.url = (options?: RouteQueryOptions) => {
     return login.definition.url + queryParams(options)
 }
 
 /**
- * @see routes/web.php:105
- * @route '/v4/login'
+ * @see routes/web.php:150
+ * @route '/v5/login'
  */
 login.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: login.url(options),
     method: 'get',
 })
 /**
- * @see routes/web.php:105
- * @route '/v4/login'
+ * @see routes/web.php:150
+ * @route '/v5/login'
  */
 login.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: login.url(options),
@@ -39,8 +39,8 @@ login.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
     /**
- * @see routes/web.php:105
- * @route '/v4/login'
+ * @see routes/web.php:150
+ * @route '/v5/login'
  */
     const loginForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
         action: login.url(options),
@@ -48,16 +48,16 @@ login.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     })
 
             /**
- * @see routes/web.php:105
- * @route '/v4/login'
+ * @see routes/web.php:150
+ * @route '/v5/login'
  */
         loginForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: login.url(options),
             method: 'get',
         })
             /**
- * @see routes/web.php:105
- * @route '/v4/login'
+ * @see routes/web.php:150
+ * @route '/v5/login'
  */
         loginForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: login.url({
@@ -71,8 +71,8 @@ login.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     login.form = loginForm
 /**
- * @see routes/web.php:115
- * @route '/v4/p/{slug}'
+ * @see routes/web.php:160
+ * @route '/v5/p/{slug}'
  */
 export const page = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: page.url(args, options),
@@ -81,12 +81,12 @@ export const page = (args: { slug: string | number } | [slug: string | number ] 
 
 page.definition = {
     methods: ["get","head"],
-    url: '/v4/p/{slug}',
+    url: '/v5/p/{slug}',
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:115
- * @route '/v4/p/{slug}'
+ * @see routes/web.php:160
+ * @route '/v5/p/{slug}'
  */
 page.url = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions) => {
     if (typeof args === 'string' || typeof args === 'number') {
@@ -112,16 +112,16 @@ page.url = (args: { slug: string | number } | [slug: string | number ] | string 
 }
 
 /**
- * @see routes/web.php:115
- * @route '/v4/p/{slug}'
+ * @see routes/web.php:160
+ * @route '/v5/p/{slug}'
  */
 page.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: page.url(args, options),
     method: 'get',
 })
 /**
- * @see routes/web.php:115
- * @route '/v4/p/{slug}'
+ * @see routes/web.php:160
+ * @route '/v5/p/{slug}'
  */
 page.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: page.url(args, options),
@@ -129,8 +129,8 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
 })
 
     /**
- * @see routes/web.php:115
- * @route '/v4/p/{slug}'
+ * @see routes/web.php:160
+ * @route '/v5/p/{slug}'
  */
     const pageForm = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
         action: page.url(args, options),
@@ -138,16 +138,16 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
     })
 
             /**
- * @see routes/web.php:115
- * @route '/v4/p/{slug}'
+ * @see routes/web.php:160
+ * @route '/v5/p/{slug}'
  */
         pageForm.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: page.url(args, options),
             method: 'get',
         })
             /**
- * @see routes/web.php:115
- * @route '/v4/p/{slug}'
+ * @see routes/web.php:160
+ * @route '/v5/p/{slug}'
  */
         pageForm.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: page.url(args, {
@@ -160,8 +160,8 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
         })
     
     page.form = pageForm
-const v4 = {
+const v5 = {
     page: Object.assign(page, page),
 }
 
-export default v4
+export default v5
