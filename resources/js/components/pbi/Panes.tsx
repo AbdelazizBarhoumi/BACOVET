@@ -27,6 +27,421 @@ import {
 import { usePbi, visualTypeLabel, type WellName } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
+/* ------------------------------ Icon set ------------------------------ */
+/* Small inline SVGs used in place of unicode glyphs / emoji, drawn to match
+ * the stroke weight and proportions of the lucide-react icons above. */
+
+type IconProps = { className?: string };
+type IconComponent = (props: IconProps) => JSX.Element;
+
+function svgIcon(paths: React.ReactNode, accent: string): IconComponent {
+    return function Icon({ className }: IconProps) {
+        return (
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={className}
+                style={{ color: accent }}
+            >
+                {paths}
+            </svg>
+        );
+    };
+}
+
+// A varied, friendly accent per icon so the visual-type picker reads as
+// colorful at a glance instead of a wall of monochrome outlines.
+const ICON_PALETTE = [
+    '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#22c55e',
+    '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#f43f5e', '#ec4899',
+    '#d946ef', '#a855f7', '#8b5cf6', '#6366f1',
+];
+let iconPaletteCursor = 0;
+function nextIconColor(): string {
+    const color = ICON_PALETTE[iconPaletteCursor % ICON_PALETTE.length];
+    iconPaletteCursor += 1;
+    return color;
+}
+
+// Comparison
+const IconColumn = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="7" y="13" width="3" height="5" fill="currentColor" stroke="none" />
+        <rect x="12" y="9" width="3" height="9" fill="currentColor" stroke="none" />
+        <rect x="17" y="5" width="3" height="13" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconStackedColumn = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="7" y="14" width="4" height="4" fill="currentColor" stroke="none" />
+        <rect x="7" y="8" width="4" height="6" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect x="14" y="11" width="4" height="7" fill="currentColor" stroke="none" />
+        <rect x="14" y="5" width="4" height="6" fill="currentColor" stroke="none" opacity={0.5} />
+    </>,
+    nextIconColor(),
+);
+const IconStacked100Column = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="7" y="10" width="4" height="8" fill="currentColor" stroke="none" />
+        <rect x="7" y="4" width="4" height="6" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect x="14" y="14" width="4" height="4" fill="currentColor" stroke="none" />
+        <rect x="14" y="4" width="4" height="10" fill="currentColor" stroke="none" opacity={0.5} />
+    </>,
+    nextIconColor(),
+);
+const IconBar = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="5" y="6" width="10" height="3" fill="currentColor" stroke="none" />
+        <rect x="5" y="11" width="14" height="3" fill="currentColor" stroke="none" />
+        <rect x="5" y="16" width="7" height="3" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconStackedBar = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="5" y="7" width="6" height="3" fill="currentColor" stroke="none" />
+        <rect x="11" y="7" width="8" height="3" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect x="5" y="14" width="10" height="3" fill="currentColor" stroke="none" />
+        <rect x="15" y="14" width="4" height="3" fill="currentColor" stroke="none" opacity={0.5} />
+    </>,
+    nextIconColor(),
+);
+const IconStacked100Bar = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="5" y="7" width="9" height="3" fill="currentColor" stroke="none" />
+        <rect x="14" y="7" width="5" height="3" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect x="5" y="14" width="5" height="3" fill="currentColor" stroke="none" />
+        <rect x="10" y="14" width="9" height="3" fill="currentColor" stroke="none" opacity={0.5} />
+    </>,
+    nextIconColor(),
+);
+const IconLine = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <polyline points="5,15 10,9 14,13 20,5" />
+    </>,
+    nextIconColor(),
+);
+const IconArea = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <path d="M5 15 10 9 14 13 20 5 20 18 5 18 Z" fill="currentColor" stroke="none" opacity={0.5} />
+        <polyline points="5,15 10,9 14,13 20,5" />
+    </>,
+    nextIconColor(),
+);
+const IconStackedArea = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <path d="M5 17 10 14 14 15 20 12 20 18 5 18 Z" fill="currentColor" stroke="none" opacity={0.35} />
+        <path d="M5 12 10 8 14 11 20 6 20 18 5 18 Z" fill="currentColor" stroke="none" opacity={0.6} />
+    </>,
+    nextIconColor(),
+);
+const IconCombo = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="6" y="12" width="3" height="6" fill="currentColor" stroke="none" opacity={0.6} />
+        <rect x="11" y="9" width="3" height="9" fill="currentColor" stroke="none" opacity={0.6} />
+        <rect x="16" y="14" width="3" height="4" fill="currentColor" stroke="none" opacity={0.6} />
+        <polyline points="6,10 11,6 16,11 20,4" />
+    </>,
+    nextIconColor(),
+);
+
+// Part to whole & distribution
+const IconPie = svgIcon(
+    <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3 A9 9 0 0 1 20 15 L12 12 Z" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconDonut = svgIcon(
+    <>
+        <circle cx="12" cy="12" r="8" strokeWidth={3} />
+        <path d="M12 4 A8 8 0 0 1 19 16" strokeWidth={3} strokeOpacity={0.4} />
+    </>,
+    nextIconColor(),
+);
+const IconTreemap = svgIcon(
+    <>
+        <rect x="3" y="3" width="18" height="18" />
+        <line x1="3" y1="11" x2="21" y2="11" />
+        <line x1="11" y1="3" x2="11" y2="11" />
+        <line x1="15" y1="11" x2="15" y2="21" />
+    </>,
+    nextIconColor(),
+);
+const IconFunnel = svgIcon(<path d="M3 4h18l-7 8v7l-4 2v-9Z" />, nextIconColor());
+const IconRibbon = svgIcon(
+    <>
+        <path d="M3 8c4-3 6 3 10 0s6-3 8 0" />
+        <path d="M3 14c4-3 6 3 10 0s6-3 8 0" strokeOpacity={0.5} />
+    </>,
+    nextIconColor(),
+);
+const IconWaterfall = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <rect x="5" y="12" width="3" height="6" fill="currentColor" stroke="none" />
+        <rect x="9" y="7" width="3" height="5" fill="currentColor" stroke="none" opacity={0.6} />
+        <rect x="13" y="10" width="3" height="2" fill="currentColor" stroke="none" opacity={0.6} />
+        <rect x="17" y="5" width="3" height="7" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconScatter = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <circle cx="8" cy="14" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="9" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="15" cy="15" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="18" cy="7" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="10" cy="17" r="1.4" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconBubble = svgIcon(
+    <>
+        <path d="M3 3v18h18" />
+        <circle cx="8" cy="14" r="2.5" fill="currentColor" stroke="none" opacity={0.6} />
+        <circle cx="14" cy="10" r="3.5" fill="currentColor" stroke="none" opacity={0.6} />
+        <circle cx="18" cy="15" r="1.8" fill="currentColor" stroke="none" opacity={0.6} />
+    </>,
+    nextIconColor(),
+);
+
+// Single value & tabular
+const IconCard = svgIcon(
+    <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <line x1="6" y1="9" x2="11" y2="9" strokeWidth={1.4} strokeOpacity={0.5} />
+        <line x1="6" y1="15" x2="16" y2="15" strokeWidth={3} />
+    </>,
+    nextIconColor(),
+);
+const IconKpi = svgIcon(
+    <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <polyline points="7,15 11,10 14,13 18,7" />
+        <polyline points="14,7 18,7 18,11" />
+    </>,
+    nextIconColor(),
+);
+const IconGauge = svgIcon(
+    <>
+        <path d="M4 16a8 8 0 0 1 16 0" />
+        <line x1="12" y1="16" x2="16" y2="10" />
+        <circle cx="12" cy="16" r="1.3" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconTable = svgIcon(
+    <>
+        <rect x="3" y="4" width="18" height="16" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="3" y1="14" x2="21" y2="14" />
+        <line x1="9" y1="4" x2="9" y2="20" />
+        <line x1="15" y1="4" x2="15" y2="20" />
+    </>,
+    nextIconColor(),
+);
+const IconMatrix = svgIcon(
+    <>
+        <rect x="3" y="4" width="18" height="16" />
+        <rect x="3" y="4" width="18" height="5" fill="currentColor" stroke="none" opacity={0.3} />
+        <rect x="3" y="4" width="6" height="16" fill="currentColor" stroke="none" opacity={0.3} />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="3" y1="14" x2="21" y2="14" />
+        <line x1="9" y1="4" x2="9" y2="20" />
+        <line x1="15" y1="4" x2="15" y2="20" />
+    </>,
+    nextIconColor(),
+);
+
+// Maps
+const IconMap = svgIcon(
+    <>
+        <path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2Z" />
+        <line x1="9" y1="3" x2="9" y2="19" />
+        <line x1="15" y1="5" x2="15" y2="21" />
+    </>,
+    nextIconColor(),
+);
+const IconFilledMap = svgIcon(
+    <>
+        <path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2Z" fill="currentColor" opacity={0.3} />
+        <line x1="9" y1="3" x2="9" y2="19" />
+        <line x1="15" y1="5" x2="15" y2="21" />
+    </>,
+    nextIconColor(),
+);
+const IconShapeMap = svgIcon(<path d="M12 2 20 7v10l-8 5-8-5V7Z" />, nextIconColor());
+
+// Slicers
+const IconCheckboxSlicer = svgIcon(
+    <>
+        <rect x="4" y="4" width="16" height="16" rx="3" />
+        <polyline points="8,12.5 11,15.5 16,9" />
+    </>,
+    nextIconColor(),
+);
+const IconButtonSlicer = svgIcon(
+    <>
+        <rect x="3" y="9" width="5" height="6" rx="1.5" />
+        <rect x="9.5" y="9" width="5" height="6" rx="1.5" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect x="16" y="9" width="5" height="6" rx="1.5" />
+    </>,
+    nextIconColor(),
+);
+const IconListSlicer = svgIcon(
+    <>
+        <circle cx="5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+        <line x1="9" y1="6" x2="20" y2="6" />
+        <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+        <line x1="9" y1="12" x2="20" y2="12" />
+        <circle cx="5" cy="18" r="1.2" fill="currentColor" stroke="none" />
+        <line x1="9" y1="18" x2="20" y2="18" />
+    </>,
+    nextIconColor(),
+);
+const IconInputSlicer = svgIcon(
+    <>
+        <rect x="3" y="8" width="18" height="8" rx="1.5" />
+        <line x1="6" y1="12" x2="11" y2="12" strokeWidth={1.4} />
+        <line x1="14" y1="10" x2="14" y2="14" strokeWidth={1.4} />
+    </>,
+    nextIconColor(),
+);
+const IconDateSlicer = svgIcon(
+    <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <line x1="8" y1="3" x2="8" y2="7" />
+        <line x1="16" y1="3" x2="16" y2="7" />
+        <circle cx="8" cy="14" r="1" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="14" r="1" fill="currentColor" stroke="none" />
+        <circle cx="16" cy="14" r="1" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+
+// AI, scripted & other
+const IconDecompositionTree = svgIcon(
+    <>
+        <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+        <line x1="6.5" y1="12" x2="11" y2="6" />
+        <line x1="6.5" y1="12" x2="11" y2="12" />
+        <line x1="6.5" y1="12" x2="11" y2="18" />
+        <circle cx="12.5" cy="6" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="12.5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="12.5" cy="18" r="1.4" fill="currentColor" stroke="none" />
+        <line x1="14" y1="6" x2="19" y2="4" />
+        <line x1="14" y1="6" x2="19" y2="8" />
+        <circle cx="20" cy="4" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="20" cy="8" r="1.2" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconKeyInfluencers = svgIcon(
+    <path
+        d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6Z"
+        fill="currentColor"
+        stroke="none"
+    />,
+    nextIconColor(),
+);
+const IconSmartNarrative = svgIcon(
+    <>
+        <line x1="4" y1="6" x2="20" y2="6" />
+        <line x1="4" y1="11" x2="20" y2="11" />
+        <line x1="4" y1="16" x2="14" y2="16" />
+    </>,
+    nextIconColor(),
+);
+const IconQna = svgIcon(
+    <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.5 9.5a2.5 2.5 0 1 1 3.7 2.2c-.9.5-1.2 1-1.2 1.8" />
+        <circle cx="12" cy="17" r="0.8" fill="currentColor" stroke="none" />
+    </>,
+    nextIconColor(),
+);
+const IconRVisual = svgIcon(
+    <>
+        <rect x="3" y="3" width="18" height="18" rx="3" />
+        <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight={600} fill="currentColor" stroke="none">
+            R
+        </text>
+    </>,
+    nextIconColor(),
+);
+const IconPythonVisual = svgIcon(
+    <>
+        <rect x="3" y="3" width="18" height="18" rx="3" />
+        <text x="12" y="15" textAnchor="middle" fontSize="7" fontWeight={600} fill="currentColor" stroke="none">
+            PY
+        </text>
+    </>,
+    nextIconColor(),
+);
+const IconTextBox = svgIcon(
+    <>
+        <rect x="3" y="4" width="18" height="16" rx="1.5" strokeDasharray="3 2" />
+        <line x1="7" y1="9" x2="17" y2="9" />
+        <line x1="7" y1="13" x2="14" y2="13" />
+    </>,
+    nextIconColor(),
+);
+const IconImage = svgIcon(
+    <>
+        <rect x="3" y="4" width="18" height="16" rx="1.5" />
+        <circle cx="8.5" cy="9" r="1.5" fill="currentColor" stroke="none" />
+        <path d="M4 17l5-5 4 4 3-3 5 5" />
+    </>,
+    nextIconColor(),
+);
+const IconButton = svgIcon(
+    <>
+        <rect x="3" y="8" width="18" height="8" rx="2" />
+        <line x1="8" y1="12" x2="16" y2="12" strokeWidth={1.4} />
+    </>,
+    nextIconColor(),
+);
+
+// Field type indicators (Data pane)
+const IconFieldNumber = svgIcon(
+    <>
+        <line x1="5" y1="9" x2="19" y2="9" />
+        <line x1="5" y1="15" x2="19" y2="15" />
+        <line x1="9" y1="4" x2="7" y2="20" />
+        <line x1="17" y1="4" x2="15" y2="20" />
+    </>,
+    '#16a34a',
+);
+const IconFieldDate = svgIcon(
+    <>
+        <rect x="4" y="5" width="16" height="15" rx="2" />
+        <line x1="4" y1="9" x2="20" y2="9" />
+        <line x1="8" y1="3" x2="8" y2="7" />
+        <line x1="16" y1="3" x2="16" y2="7" />
+    </>,
+    '#7c3aed',
+);
+const IconFieldText = svgIcon(<path d="M7 17 11 5 15 17 M8.5 12.5h5" />, '#f97316');
+
 function PaneHeader({
     title,
     right,
@@ -150,14 +565,12 @@ export function FieldsPane() {
                                         />
                                         {f.measure ? (
                                             <Sigma className="size-3 text-brand-foreground" />
+                                        ) : f.type === 'number' ? (
+                                            <IconFieldNumber className="size-3" />
+                                        ) : f.type === 'date' ? (
+                                            <IconFieldDate className="size-3" />
                                         ) : (
-                                            <span className="text-[9px] text-muted-foreground">
-                                                {f.type === 'number'
-                                                    ? '#'
-                                                    : f.type === 'date'
-                                                      ? '▦'
-                                                      : 'A'}
-                                            </span>
+                                            <IconFieldText className="size-3" />
                                         )}
                                         <span className="truncate">
                                             {f.name}
@@ -176,66 +589,94 @@ export function FieldsPane() {
 
 const VISUAL_GROUPS: {
     group: string;
-    items: { type: VisualType; label: string; glyph: string }[];
+    items: { type: VisualType; label: string; Icon: IconComponent }[];
 }[] = [
     {
         group: 'Comparison',
         items: [
-            { type: 'column', label: 'Clustered column', glyph: '▮▮' },
-            { type: 'stackedColumn', label: 'Stacked column', glyph: '▯▮' },
+            { type: 'column', label: 'Clustered column', Icon: IconColumn },
+            {
+                type: 'stackedColumn',
+                label: 'Stacked column',
+                Icon: IconStackedColumn,
+            },
             {
                 type: 'stacked100Column',
                 label: '100% stacked column',
-                glyph: '%▮',
+                Icon: IconStacked100Column,
             },
-            { type: 'bar', label: 'Clustered bar', glyph: '▬' },
-            { type: 'stackedBar', label: 'Stacked bar', glyph: '▭▬' },
-            { type: 'stacked100Bar', label: '100% stacked bar', glyph: '%▬' },
-            { type: 'line', label: 'Line', glyph: '∿' },
-            { type: 'area', label: 'Area', glyph: '◺' },
-            { type: 'stackedArea', label: 'Stacked area', glyph: '◿' },
-            { type: 'combo', label: 'Line and stacked column', glyph: '▮∿' },
+            { type: 'bar', label: 'Clustered bar', Icon: IconBar },
+            { type: 'stackedBar', label: 'Stacked bar', Icon: IconStackedBar },
+            {
+                type: 'stacked100Bar',
+                label: '100% stacked bar',
+                Icon: IconStacked100Bar,
+            },
+            { type: 'line', label: 'Line', Icon: IconLine },
+            { type: 'area', label: 'Area', Icon: IconArea },
+            { type: 'stackedArea', label: 'Stacked area', Icon: IconStackedArea },
+            {
+                type: 'combo',
+                label: 'Line and stacked column',
+                Icon: IconCombo,
+            },
         ],
     },
     {
         group: 'Part to whole & distribution',
         items: [
-            { type: 'pie', label: 'Pie', glyph: '◕' },
-            { type: 'donut', label: 'Donut', glyph: '◎' },
-            { type: 'treemap', label: 'Treemap', glyph: '▧' },
-            { type: 'funnel', label: 'Funnel', glyph: '▽' },
-            { type: 'ribbon', label: 'Ribbon', glyph: '≋' },
-            { type: 'waterfall', label: 'Waterfall', glyph: '⌷' },
-            { type: 'scatter', label: 'Scatter', glyph: '∴' },
-            { type: 'bubble', label: 'Bubble', glyph: '◌' },
+            { type: 'pie', label: 'Pie', Icon: IconPie },
+            { type: 'donut', label: 'Donut', Icon: IconDonut },
+            { type: 'treemap', label: 'Treemap', Icon: IconTreemap },
+            { type: 'funnel', label: 'Funnel', Icon: IconFunnel },
+            { type: 'ribbon', label: 'Ribbon', Icon: IconRibbon },
+            { type: 'waterfall', label: 'Waterfall', Icon: IconWaterfall },
+            { type: 'scatter', label: 'Scatter', Icon: IconScatter },
+            { type: 'bubble', label: 'Bubble', Icon: IconBubble },
         ],
     },
     {
         group: 'Single value & tabular',
         items: [
-            { type: 'card', label: 'Card (new) ⚡', glyph: '⚡' },
-            { type: 'kpi', label: 'KPI', glyph: '◭' },
-            { type: 'gauge', label: 'Gauge', glyph: '◠' },
-            { type: 'table', label: 'Table', glyph: '▦' },
-            { type: 'matrix', label: 'Matrix', glyph: '▤' },
+            { type: 'card', label: 'Card (new)', Icon: IconCard },
+            { type: 'kpi', label: 'KPI', Icon: IconKpi },
+            { type: 'gauge', label: 'Gauge', Icon: IconGauge },
+            { type: 'table', label: 'Table', Icon: IconTable },
+            { type: 'matrix', label: 'Matrix', Icon: IconMatrix },
         ],
     },
     {
         group: 'Maps',
         items: [
-            { type: 'map', label: 'Map', glyph: '◍' },
-            { type: 'filledMap', label: 'Filled map', glyph: '◉' },
-            { type: 'shapeMap', label: 'Shape map', glyph: '⬡' },
+            { type: 'map', label: 'Map', Icon: IconMap },
+            { type: 'filledMap', label: 'Filled map', Icon: IconFilledMap },
+            { type: 'shapeMap', label: 'Shape map', Icon: IconShapeMap },
         ],
     },
     {
         group: 'Slicers',
         items: [
-            { type: 'slicer', label: 'Slicer (checkbox)', glyph: '☑' },
-            { type: 'buttonSlicer', label: 'Button slicer', glyph: '▭▭' },
-            { type: 'listSlicer', label: 'List slicer', glyph: '◉' },
-            { type: 'inputSlicer', label: 'Input slicer', glyph: '⌨' },
-            { type: 'dateSlicer', label: 'Date picker slicer', glyph: '🗓' },
+            {
+                type: 'slicer',
+                label: 'Slicer (checkbox)',
+                Icon: IconCheckboxSlicer,
+            },
+            {
+                type: 'buttonSlicer',
+                label: 'Button slicer',
+                Icon: IconButtonSlicer,
+            },
+            { type: 'listSlicer', label: 'List slicer', Icon: IconListSlicer },
+            {
+                type: 'inputSlicer',
+                label: 'Input slicer',
+                Icon: IconInputSlicer,
+            },
+            {
+                type: 'dateSlicer',
+                label: 'Date picker slicer',
+                Icon: IconDateSlicer,
+            },
         ],
     },
     {
@@ -244,16 +685,28 @@ const VISUAL_GROUPS: {
             {
                 type: 'decompositionTree',
                 label: 'Decomposition tree',
-                glyph: '⑃',
+                Icon: IconDecompositionTree,
             },
-            { type: 'keyInfluencers', label: 'Key influencers', glyph: '★' },
-            { type: 'smartNarrative', label: 'Smart narrative', glyph: '¶' },
-            { type: 'qna', label: 'Q&A', glyph: '?' },
-            { type: 'rVisual', label: 'R visual', glyph: 'R' },
-            { type: 'pythonVisual', label: 'Python visual', glyph: 'Py' },
-            { type: 'text', label: 'Text box', glyph: 'T' },
-            { type: 'image', label: 'Image', glyph: '🖼' },
-            { type: 'button', label: 'Button', glyph: '⬒' },
+            {
+                type: 'keyInfluencers',
+                label: 'Key influencers',
+                Icon: IconKeyInfluencers,
+            },
+            {
+                type: 'smartNarrative',
+                label: 'Smart narrative',
+                Icon: IconSmartNarrative,
+            },
+            { type: 'qna', label: 'Q&A', Icon: IconQna },
+            { type: 'rVisual', label: 'R visual', Icon: IconRVisual },
+            {
+                type: 'pythonVisual',
+                label: 'Python visual',
+                Icon: IconPythonVisual,
+            },
+            { type: 'text', label: 'Text box', Icon: IconTextBox },
+            { type: 'image', label: 'Image', Icon: IconImage },
+            { type: 'button', label: 'Button', Icon: IconButton },
         ],
     },
 ];
@@ -371,7 +824,7 @@ export function VisualizationsPane() {
                                             'border-brand bg-brand/15',
                                     )}
                                 >
-                                    {v.glyph}
+                                    <v.Icon className="size-3.5" />
                                 </button>
                             ))}
                         </div>
