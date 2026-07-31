@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/methods', fn () => Inertia::render('methods'))->name('methods');
     Route::get('/admin', fn () => Inertia::render('admin'))->name('admin');
     Route::get('/kpi-endpoints', fn () => Inertia::render('kpi-endpoints'))->name('kpi-endpoints');
+    Route::get('/endpoints', fn () => Inertia::render('endpoints'))->middleware('role:it')->name('endpoints');
 
     // V3 activity trace — IT only
     Route::get('/v3/trace', fn () => Inertia::render('v3/trace'))->middleware('role:it')->name('v3.trace');
@@ -376,3 +377,15 @@ Route::get('/novacity-endpoints/all', [NovacityEndpointsController::class, 'allS
 Route::get('/novacity-endpoints/sample/{slug}', [NovacityEndpointsController::class, 'sample'])->where('slug', '.*');
 Route::post('/novacity-endpoints/test-and-save', [NovacityEndpointsController::class, 'testAndSave']);
 Route::get('/novacity-config', [NovacityEndpointsController::class, 'config']);
+
+// ── NOVACITY ENDPOINTS MANAGER (CRUD) — IT only ─────────────────────────
+Route::middleware(['auth', 'role:it'])->prefix('novacity-endpoints')->group(function () {
+    Route::get('/structure', [NovacityEndpointsController::class, 'structure']);
+    Route::get('/list', [NovacityEndpointsController::class, 'index']);
+    Route::post('/', [NovacityEndpointsController::class, 'store']);
+    Route::post('/reorder', [NovacityEndpointsController::class, 'reorder']);
+    Route::get('/{id}', [NovacityEndpointsController::class, 'show']);
+    Route::put('/{id}', [NovacityEndpointsController::class, 'update']);
+    Route::delete('/{id}', [NovacityEndpointsController::class, 'destroy']);
+    Route::post('/{id}/duplicate', [NovacityEndpointsController::class, 'duplicate']);
+});

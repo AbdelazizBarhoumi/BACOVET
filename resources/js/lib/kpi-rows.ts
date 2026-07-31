@@ -12,7 +12,7 @@ export type KpiSeed = {
   module?: string;
 };
 
-let cachedKpis: KpiSeed[] | null = null;
+const cachedKpis: KpiSeed[] | null = null;
 
 export async function fetchKpiList(): Promise<KpiSeed[]> {
   if (cachedKpis) return cachedKpis as KpiSeed[];

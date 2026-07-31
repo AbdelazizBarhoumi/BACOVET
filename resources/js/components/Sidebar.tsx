@@ -70,6 +70,7 @@ const Sidebar = () => {
     const canSeeAdmin = hasAccess('/admin');
     const canSeeV3 = hasAccess('/v3');
     const canSeeKpi = hasAccess('/kpi-endpoints');
+    const canSeeEndpoints = hasAccess('/endpoints');
 
     const toggleCollapse = (id: number) => {
         setCollapsed((prev) => {
@@ -482,6 +483,23 @@ const Sidebar = () => {
                         <div className="px-3 pt-6 pb-2 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
                             SYSTÈME
                         </div>
+                        {canSeeEndpoints && (
+                            <Link
+                                href="/endpoints"
+                                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                                    pathname === '/endpoints'
+                                        ? 'border-l-2 border-primary bg-primary/15 text-primary'
+                                        : 'hover:bg-sidebar-accent'
+                                }`}
+                            >
+                                <Database
+                                    className={`h-4 w-4 ${pathname === '/endpoints' ? 'text-white' : 'text-primary'}`}
+                                />
+                                <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
+                                    ENDPOINTS
+                                </span>
+                            </Link>
+                        )}
                         <Link
                             href="/admin"
                             className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${

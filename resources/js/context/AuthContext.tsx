@@ -26,6 +26,7 @@ export type RolePage =
     | '/admin'
     | '/methods'
     | '/kpi-endpoints'
+    | '/endpoints'
     | '/unauthorized'
     | '/dashboard'
     | '/v3';
@@ -50,6 +51,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/admin',
         '/methods',
         '/kpi-endpoints',
+        '/endpoints',
         '/unauthorized',
         '/v3',
     ],
