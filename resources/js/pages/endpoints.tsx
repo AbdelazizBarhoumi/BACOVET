@@ -1,5 +1,13 @@
 import { Head } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    lazy,
+    Suspense,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app-shell';
 import { EndpointDetailDialog } from '@/components/endpoints/EndpointDetailDialog';
@@ -10,7 +18,8 @@ import {
     EndpointsToolbar,
     type ToolbarValue,
 } from '@/components/endpoints/EndpointsToolbar';
-import { SchemaPanel } from '@/components/endpoints/SchemaPanel';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Panel } from '@/components/widgets';
 import { useEndpoints } from '@/hooks/use-endpoints';
@@ -22,6 +31,28 @@ import {
     type EndpointPayload,
     type EndpointSummary,
 } from '@/services/endpointManagerApi';
+
+const SchemaPanel = lazy(() =>
+    import('@/components/endpoints/SchemaPanel').then((m) => ({
+        default: m.SchemaPanel,
+    })),
+);
+
+const RefreshHealthPanel = lazy(() =>
+    import('@/components/endpoints/RefreshHealthPanel').then((m) => ({
+        default: m.RefreshHealthPanel,
+    })),
+);
+
+function PanelLoading() {
+    return (
+        <div className="space-y-3 py-2">
+            <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+        </div>
+    );
+}
 
 const INITIAL_TOOLBAR: ToolbarValue = {
     search: '',
@@ -38,7 +69,9 @@ function toFilters(toolbar: ToolbarValue): EndpointFilters {
         method: toolbar.method === 'all' ? undefined : toolbar.method,
         source: toolbar.source === 'all' ? undefined : toolbar.source,
         status_group:
-            toolbar.status === 'all' ? undefined : (toolbar.status as 'ok' | 'warn' | 'error'),
+            toolbar.status === 'all'
+                ? undefined
+                : (toolbar.status as 'ok' | 'warn' | 'error'),
     };
 }
 
@@ -63,9 +96,84 @@ export default function EndpointsPage() {
     const [detailEntry, setDetailEntry] = useState<EndpointEntry | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
-    const [editingEntry, setEditingEntry] = useState<EndpointEntry | null>(null);
+    const [editingEntry, setEditingEntry] = useState<EndpointEntry | null>(
+        null,
+    );
     const [saving, setSaving] = useState(false);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const rootTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const editAbortRef = useRef<AbortController | null>(null);
+    const detailAbortRef = useRef<AbortController | null>(null);
+
+    const [globalRoot, setGlobalRoot] = useState('');
+    const [rootSaved, setRootSaved] = useState(false);
+
+    // Load the global endpoint root: saved setting first, then .env config.
+    useEffect(() => {
+        let cancelled = false;
+        fetch('/api/settings/novacity_base_url', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+                if (cancelled) return;
+                if (data?.value) {
+                    setGlobalRoot(String(data.value));
+                    return;
+                }
+                fetch('/novacity-config', {
+                    headers: { Accept: 'application/json' },
+                })
+                    .then((r) => (r.ok ? r.json() : null))
+                    .then((config) => {
+                        if (cancelled || !config?.base_url) return;
+                        setGlobalRoot(String(config.base_url));
+                    })
+                    .catch(() => {});
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const handleRootChange = useCallback((value: string) => {
+        setGlobalRoot(value);
+        setRootSaved(false);
+        if (rootTimerRef.current) {
+            clearTimeout(rootTimerRef.current);
+        }
+        rootTimerRef.current = setTimeout(() => {
+            const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(xsrf
+                        ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrf[1]) }
+                        : {}),
+                },
+                body: JSON.stringify({
+                    key: 'novacity_base_url',
+                    value: value.trim(),
+                }),
+            })
+                .then((r) => r.ok)
+                .then((ok) => setRootSaved(ok))
+                .catch(() => setRootSaved(false));
+        }, 600);
+    }, []);
+
+    useEffect(
+        () => () => {
+            if (rootTimerRef.current) {
+                clearTimeout(rootTimerRef.current);
+            }
+        },
+        [],
+    );
 
     // Debounced search: typing applies filters after a short pause.
     useEffect(() => {
@@ -97,14 +205,24 @@ export default function EndpointsPage() {
     }, []);
 
     const openEntry = useCallback(async (entryId: string) => {
+        detailAbortRef.current?.abort();
+        const controller = new AbortController();
+        detailAbortRef.current = controller;
         setDetailLoading(true);
         try {
-            const full = await fetchEndpoint(entryId);
+            const full = await fetchEndpoint(entryId, controller.signal);
+            if (controller.signal.aborted) return;
             setDetailEntry(full);
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Failed to load entry');
+            if (controller.signal.aborted) return;
+            toast.error(
+                err instanceof Error ? err.message : 'Failed to load entry',
+            );
         } finally {
             setDetailLoading(false);
+            if (detailAbortRef.current === controller) {
+                detailAbortRef.current = null;
+            }
         }
     }, []);
 
@@ -116,43 +234,75 @@ export default function EndpointsPage() {
     );
 
     const handleEdit = useCallback(async (summary: EndpointSummary) => {
+        editAbortRef.current?.abort();
+        const controller = new AbortController();
+        editAbortRef.current = controller;
         try {
-            const full = await fetchEndpoint(summary.id);
+            const full = await fetchEndpoint(summary.id, controller.signal);
+            if (controller.signal.aborted) return;
             setEditingEntry(full);
             setFormOpen(true);
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Failed to load entry');
+            if (controller.signal.aborted) return;
+            toast.error(
+                err instanceof Error ? err.message : 'Failed to load entry',
+            );
         }
     }, []);
 
     const handleSubmit = useCallback(
         async (payload: EndpointPayload) => {
+            editAbortRef.current?.abort();
+            const controller = new AbortController();
+            editAbortRef.current = controller;
             setSaving(true);
-            if (editingEntry) {
-                const result = await update(editingEntry.id, payload);
+            try {
+                const result = editingEntry
+                    ? await update(editingEntry.id, payload, controller.signal)
+                    : await create(payload, controller.signal);
+                if (controller.signal.aborted) return;
                 if (result) {
-                    toast.success('Endpoint updated');
+                    toast.success(
+                        editingEntry ? 'Endpoint updated' : 'Endpoint created',
+                    );
                     setFormOpen(false);
                 } else {
-                    toast.error(error || 'Update failed');
+                    toast.error(
+                        error ||
+                            (editingEntry ? 'Update failed' : 'Create failed'),
+                    );
                 }
-            } else {
-                const result = await create(payload);
-                if (result) {
-                    toast.success('Endpoint created');
-                    setFormOpen(false);
-                } else {
-                    toast.error(error || 'Create failed');
+            } finally {
+                setSaving(false);
+                if (editAbortRef.current === controller) {
+                    editAbortRef.current = null;
                 }
             }
-            setSaving(false);
         },
         [editingEntry, create, update, error],
     );
 
+    const handleFormOpenChange = useCallback((open: boolean) => {
+        if (!open) {
+            editAbortRef.current?.abort();
+        }
+        setFormOpen(open);
+    }, []);
+
+    const handleDetailOpenChange = useCallback((open: boolean) => {
+        if (!open) {
+            detailAbortRef.current?.abort();
+            setDetailEntry(null);
+        }
+    }, []);
+
     const handleDelete = useCallback(
         async (summary: EndpointSummary) => {
-            if (!window.confirm(`Delete "${summary.name}"? This cannot be undone.`)) {
+            if (
+                !window.confirm(
+                    `Delete "${summary.name}"? This cannot be undone.`,
+                )
+            ) {
                 return;
             }
             const ok = await remove(summary.id);
@@ -187,11 +337,42 @@ export default function EndpointsPage() {
     return (
         <>
             <Head title="Endpoints — BACOVET" />
-            <AppShell page="/endpoints" title="Endpoints" subtitle="Registre data.json — CRUD, structure & joins">
+            <AppShell
+                page="/endpoints"
+                title="Endpoints"
+                subtitle="Registre data.json — CRUD, structure & joins"
+            >
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                            Endpoint root
+                        </Label>
+                        <Input
+                            value={globalRoot}
+                            onChange={(e) => handleRootChange(e.target.value)}
+                            placeholder="https://api.example.com"
+                            className="w-72 font-mono text-sm"
+                        />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                        {rootSaved
+                            ? 'Saved'
+                            : globalRoot
+                              ? 'Saving…'
+                              : 'Loading…'}
+                        {
+                            ' — default root for new endpoints; each endpoint can '
+                        }
+                        override it.
+                    </span>
+                </div>
                 <Tabs defaultValue="endpoints">
                     <TabsList>
                         <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
-                        <TabsTrigger value="schema">Schema &amp; joins</TabsTrigger>
+                        <TabsTrigger value="schema">
+                            Schema &amp; joins
+                        </TabsTrigger>
+                        <TabsTrigger value="health">Refresh health</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="endpoints" className="space-y-4">
@@ -227,26 +408,45 @@ export default function EndpointsPage() {
                                 perPage={perPage}
                                 total={total}
                                 onPageChange={goToPage}
+                                defaultRoot={globalRoot}
                             />
                         </Panel>
                     </TabsContent>
 
                     <TabsContent value="schema">
-                        <SchemaPanel onOpenEntry={(entryId) => void openEntry(entryId)} />
+                        <Suspense fallback={<PanelLoading />}>
+                            <SchemaPanel
+                                onOpenEntry={(entryId) =>
+                                    void openEntry(entryId)
+                                }
+                            />
+                        </Suspense>
+                    </TabsContent>
+
+                    <TabsContent value="health">
+                        <Suspense fallback={<PanelLoading />}>
+                            <RefreshHealthPanel
+                                onRefreshed={handleRefresh}
+                                onOpenEntry={(entryId) =>
+                                    void openEntry(entryId)
+                                }
+                            />
+                        </Suspense>
                     </TabsContent>
                 </Tabs>
 
                 <EndpointFormDialog
                     open={formOpen}
-                    onOpenChange={setFormOpen}
+                    onOpenChange={handleFormOpenChange}
                     entry={editingEntry}
+                    defaultRoot={globalRoot}
                     busy={saving}
                     onSubmit={handleSubmit}
                 />
 
                 <EndpointDetailDialog
                     open={!!detailEntry}
-                    onOpenChange={(open) => !open && setDetailEntry(null)}
+                    onOpenChange={handleDetailOpenChange}
                     entry={detailEntry}
                     loading={detailLoading}
                     keys={detailKeys ?? undefined}

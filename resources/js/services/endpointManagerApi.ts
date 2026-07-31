@@ -45,6 +45,9 @@ export type EndpointSummary = {
     row_count: number;
     has_data: boolean;
     columns: string[];
+    checked_at?: string | null;
+    last_ok_at?: string | null;
+    last_error?: string | null;
 };
 
 export type EndpointsStats = {
@@ -85,27 +88,51 @@ function getCsrfToken(): string {
     return match ? decodeURIComponent(match[1]) : '';
 }
 
-async function fetchWithToken<T>(url: string, options: RequestInit = {}): Promise<T> {
+async function fetchWithToken<T>(
+    url: string,
+    options: RequestInit = {},
+): Promise<T> {
     const method = (options.method || 'GET').toUpperCase();
     const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
-    const response = await fetch(url, {
-        ...options,
-        cache: 'no-store',
-        headers: {
-            ...options.headers,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            ...(isStateChanging ? { 'X-XSRF-TOKEN': getCsrfToken() } : {}),
-        },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            ...options,
+            signal: options.signal
+                ? AbortSignal.any([options.signal, controller.signal])
+                : controller.signal,
+            cache: 'no-store',
+            headers: {
+                ...options.headers,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                ...(isStateChanging ? { 'X-XSRF-TOKEN': getCsrfToken() } : {}),
+            },
+        });
+    } catch (err) {
+        if (controller.signal.aborted) {
+            throw new Error('Request timed out after 30 seconds');
+        }
+        throw err;
+    } finally {
+        clearTimeout(timeout);
+    }
 
     const json: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
+        const body = (json ?? {}) as {
+            error?: string;
+            message?: string;
+        };
         const message =
-            (json as { error?: string } | null)?.error ||
+            body.error ||
+            body.message ||
             `HTTP ${response.status} ${response.statusText}`;
         throw new Error(message);
     }
@@ -132,9 +159,13 @@ export const fetchEndpoints = (
     );
 };
 
-export const fetchEndpoint = async (id: string): Promise<EndpointEntry> => {
+export const fetchEndpoint = async (
+    id: string,
+    signal?: AbortSignal,
+): Promise<EndpointEntry> => {
     const result = await fetchWithToken<{ entry: EndpointEntry }>(
         `${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}`,
+        { signal },
     );
     return result.entry;
 };
@@ -150,7 +181,14 @@ export const fetchStructures = async (): Promise<EntryStructure[]> => {
 
 export type SchemaColumn = {
     name: string;
-    type: 'string' | 'integer' | 'number' | 'boolean' | 'date' | 'null' | 'mixed';
+    type:
+        | 'string'
+        | 'integer'
+        | 'number'
+        | 'boolean'
+        | 'date'
+        | 'null'
+        | 'mixed';
     nullable: boolean;
     distinct_count: number;
     unique: boolean;
@@ -211,35 +249,104 @@ export type SchemaAnalysis = {
     generated_at: string;
 };
 
-export const fetchSchema = async (column?: string): Promise<SchemaAnalysis> => {
+// ── In-memory caches for expensive tab data (schema + health) ───────────
+// These panels are lazy-loaded, and the results are reused across tab
+// switches to avoid re-running the heavy analysis on every visit.
+
+let schemaCache: SchemaAnalysis | null = null;
+let healthCache: EndpointHealth | null = null;
+
+export const clearEndpointCaches = (): void => {
+    schemaCache = null;
+    healthCache = null;
+};
+
+export const fetchSchema = async (
+    column?: string,
+    force = false,
+): Promise<SchemaAnalysis> => {
+    if (column) {
+        return fetchSchemaColumn(column);
+    }
+    if (schemaCache && !force) {
+        return schemaCache;
+    }
+    schemaCache = await fetchSchemaColumn('');
+    return schemaCache;
+};
+
+async function fetchSchemaColumn(column: string): Promise<SchemaAnalysis> {
     const params = new URLSearchParams();
     if (column) params.set('column', column);
     const query = params.toString();
     return fetchWithToken<SchemaAnalysis>(
         `${BASE_URL}/novacity-endpoints/schema${query ? `?${query}` : ''}`,
     );
+}
+
+// ── Refresh health (last-run metadata + manual trigger) ─────────────────
+
+export type RefreshMeta = {
+    last_run_at?: string | null;
+    last_run_duration_s?: number | null;
+    ok?: number;
+    failed?: number;
+    skipped?: number;
+    retry_pending?: boolean;
+};
+
+export type EndpointHealth = {
+    stats: EndpointsStats;
+    meta: RefreshMeta | null;
+    retry_pending: boolean;
+};
+
+export const fetchHealth = async (force = false): Promise<EndpointHealth> => {
+    if (healthCache && !force) {
+        return healthCache;
+    }
+    healthCache = await fetchWithToken<EndpointHealth>(
+        `${BASE_URL}/novacity-endpoints/health`,
+    );
+    return healthCache;
+};
+
+export const triggerRefresh = async (): Promise<{
+    success: boolean;
+    exit_code: number;
+    output: string;
+    meta: RefreshMeta | null;
+}> => {
+    clearEndpointCaches();
+    return fetchWithToken(`${BASE_URL}/novacity-endpoints/refresh`, {
+        method: 'POST',
+    });
 };
 
 // ── Mutations ────────────────────────────────────────────────────────────
 
 export const createEndpoint = async (
     payload: EndpointPayload,
+    signal?: AbortSignal,
 ): Promise<EndpointEntry> => {
     const result = await fetchWithToken<{ entry: EndpointEntry }>(
         `${BASE_URL}/novacity-endpoints`,
-        { method: 'POST', body: JSON.stringify(payload) },
+        { method: 'POST', body: JSON.stringify(payload), signal },
     );
+    clearEndpointCaches();
     return result.entry;
 };
 
 export const updateEndpoint = async (
     id: string,
     payload: Partial<EndpointPayload>,
+    signal?: AbortSignal,
 ): Promise<EndpointEntry> => {
     const result = await fetchWithToken<{ entry: EndpointEntry }>(
         `${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}`,
-        { method: 'PUT', body: JSON.stringify(payload) },
+        { method: 'PUT', body: JSON.stringify(payload), signal },
     );
+    clearEndpointCaches();
     return result.entry;
 };
 
@@ -248,6 +355,7 @@ export const deleteEndpoint = async (id: string): Promise<void> => {
         `${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}`,
         { method: 'DELETE' },
     );
+    clearEndpointCaches();
 };
 
 export const duplicateEndpoint = async (id: string): Promise<EndpointEntry> => {
@@ -255,6 +363,7 @@ export const duplicateEndpoint = async (id: string): Promise<EndpointEntry> => {
         `${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}/duplicate`,
         { method: 'POST' },
     );
+    clearEndpointCaches();
     return result.entry;
 };
 
@@ -265,7 +374,127 @@ export const reorderEndpoints = async (
         `${BASE_URL}/novacity-endpoints/reorder`,
         { method: 'POST', body: JSON.stringify({ ids }) },
     );
+    clearEndpointCaches();
     return result.items;
+};
+
+export type TestEndpointPayload = {
+    name: string;
+    method: 'GET' | 'POST';
+    path: string;
+    baseUrl?: string;
+};
+
+export type TestEndpointResult =
+    | { success: true; status: 200; url: string; response: EndpointResponse }
+    | { success: false; status: number | null; error: string };
+
+type NovacityConfig = { baseUrl: string; apiKey: string; token: string };
+
+let cachedNovacityConfig: NovacityConfig | null = null;
+let loadingNovacityConfig: Promise<NovacityConfig> | null = null;
+
+async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
+    try {
+        const res = await fetch(url, {
+            headers: { Accept: 'application/json' },
+        });
+        const json: unknown = res.ok ? await res.json() : null;
+        return json && typeof json === 'object'
+            ? (json as Record<string, unknown>)
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function getNovacityConfig(): Promise<NovacityConfig> {
+    if (cachedNovacityConfig) return Promise.resolve(cachedNovacityConfig);
+    if (loadingNovacityConfig) return loadingNovacityConfig;
+    loadingNovacityConfig = fetchJson('/api/settings/novacity_base_url')
+        .then((setting) => {
+            const saved =
+                typeof setting?.value === 'string' ? setting.value : '';
+            return fetchJson('/novacity-config').then((cfg) => ({
+                baseUrl:
+                    saved ||
+                    (typeof cfg?.base_url === 'string' ? cfg.base_url : ''),
+                apiKey: typeof cfg?.api_key === 'string' ? cfg.api_key : '',
+                token: typeof cfg?.token === 'string' ? cfg.token : '',
+            }));
+        })
+        .catch(() => ({ baseUrl: '', apiKey: '', token: '' }))
+        .then((config) => {
+            cachedNovacityConfig = config;
+            return config;
+        })
+        .finally(() => {
+            loadingNovacityConfig = null;
+        });
+    return loadingNovacityConfig;
+}
+
+export const testEndpoint = async (
+    payload: TestEndpointPayload,
+    signal?: AbortSignal,
+): Promise<TestEndpointResult> => {
+    const { baseUrl: configBaseUrl, apiKey, token } = await getNovacityConfig();
+    const baseUrl =
+        (payload.baseUrl ?? '').trim().replace(/\/+$/, '') ||
+        (configBaseUrl ?? '').replace(/\/+$/, '');
+    if (!baseUrl) {
+        return {
+            success: false,
+            status: null,
+            error: 'Novacity base URL not configured',
+        };
+    }
+
+    const url = `${baseUrl}/${payload.path.replace(/^\/+/, '')}`;
+
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (apiKey) headers['x-api-key'] = apiKey;
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            method: payload.method,
+            headers,
+            signal,
+            cache: 'no-store',
+        });
+    } catch (err) {
+        if (signal?.aborted) throw err;
+        return {
+            success: false,
+            status: null,
+            error:
+                err instanceof Error
+                    ? `Request failed: ${err.message}`
+                    : 'Request failed',
+        };
+    }
+
+    const status = response.status;
+    if (status !== 200) {
+        return {
+            success: false,
+            status,
+            error: `HTTP ${status}: ${response.statusText}`,
+        };
+    }
+
+    const body: unknown = await response.json().catch(() => null);
+    if (!Array.isArray(body) && (typeof body !== 'object' || body === null)) {
+        return {
+            success: false,
+            status,
+            error: 'Response is not a valid JSON object or array',
+        };
+    }
+
+    return { success: true, status, url, response: body as EndpointResponse };
 };
 
 export const testLiveEndpoint = async (payload: {

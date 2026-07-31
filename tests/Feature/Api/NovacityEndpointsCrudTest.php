@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Http\Controllers\Api\NovacityEndpointsController;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class NovacityEndpointsCrudTest extends TestCase
@@ -60,7 +61,7 @@ class NovacityEndpointsCrudTest extends TestCase
                 'id' => '00000000-0000-0000-0000-000000000001',
                 'name' => '🔑 Health (OTHER)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/',
+                'endpoint' => 'https://api.example.com/',
                 'status' => 200,
                 'response' => [
                     'name' => 'Novacity API',
@@ -73,7 +74,7 @@ class NovacityEndpointsCrudTest extends TestCase
                 'id' => '00000000-0000-0000-0000-000000000002',
                 'name' => '01 — ItemTrxEnq (SDT)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/itemtrxenq?limit=100&offset=0',
+                'endpoint' => 'https://api.example.com/api/data/itemtrxenq?limit=100&offset=0',
                 'status' => 200,
                 'response' => [
                     'success' => true,
@@ -95,7 +96,7 @@ class NovacityEndpointsCrudTest extends TestCase
                 'id' => '00000000-0000-0000-0000-000000000003',
                 'name' => 'Q-01 — colis (DIVATEX)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/q/colis_total_3var?limit=100&offset=0',
+                'endpoint' => 'https://api.example.com/api/data/q/colis_total_3var?limit=100&offset=0',
                 'status' => 200,
                 'response' => [
                     'success' => true,
@@ -110,7 +111,7 @@ class NovacityEndpointsCrudTest extends TestCase
                 'id' => '00000000-0000-0000-0000-000000000004',
                 'name' => 'Broken (QCM)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/rovereffectiveness',
+                'endpoint' => 'https://api.example.com/api/data/rovereffectiveness',
                 'status' => 500,
                 'response' => ['success' => false, 'message' => 'boom'],
             ],
@@ -181,7 +182,7 @@ class NovacityEndpointsCrudTest extends TestCase
         $payload = [
             'name' => 'My new endpoint (SDT)',
             'method' => 'POST',
-            'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/custom',
+            'endpoint' => 'https://api.example.com/api/data/custom',
             'status' => 200,
             'response' => ['success' => true, 'data' => [['a' => 1]]],
         ];
@@ -251,7 +252,7 @@ class NovacityEndpointsCrudTest extends TestCase
         $this->assertSame('Renamed', $entry['name']);
         $this->assertSame(201, $entry['status']);
         $this->assertSame(['message' => 'updated'], $entry['response']);
-        $this->assertSame('https://bacovet.eu1.netbird.services/', $entry['endpoint']);
+        $this->assertSame('https://api.example.com/', $entry['endpoint']);
     }
 
     /** @test */
@@ -369,6 +370,122 @@ class NovacityEndpointsCrudTest extends TestCase
         NovacityEndpointsController::flushCache();
 
         $this->getJson('/novacity-endpoints/list')->assertStatus(404);
+    }
+
+    /** @test */
+    public function test_fetches_live_endpoint_and_returns_json_without_saving()
+    {
+        Http::fake([
+            'https://live.test/api/data/itemtrxenq*' => Http::response([
+                'success' => true,
+                'data' => [['TransactionID' => 1]],
+            ], 200),
+        ]);
+
+        $before = count($this->readFile());
+
+        $response = $this->postJson('/novacity-endpoints/test', [
+            'name' => 'Live (SDT)',
+            'method' => 'GET',
+            'path' => 'api/data/itemtrxenq?limit=1',
+            'baseUrl' => 'https://live.test',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('status', 200)
+            ->assertJsonPath('url', 'https://live.test/api/data/itemtrxenq?limit=1')
+            ->assertJsonPath('response.data.0.TransactionID', 1);
+
+        $this->assertCount($before, $this->readFile(), 'test must not persist anything');
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://live.test/api/data/itemtrxenq?limit=1'
+                && $request->header('x-api-key')[0] === config('novacity.api_key');
+        });
+    }
+
+    /** @test */
+    public function test_falls_back_to_env_base_url_when_root_not_submitted()
+    {
+        config(['novacity.base_url' => 'https://env.test']);
+
+        Http::fake([
+            'https://env.test/api/data/itemtrxenq*' => Http::response([
+                'success' => true,
+                'data' => [],
+            ], 200),
+        ]);
+
+        $this->postJson('/novacity-endpoints/test', [
+            'name' => 'Env (SDT)',
+            'method' => 'GET',
+            'path' => 'api/data/itemtrxenq',
+        ])->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('url', 'https://env.test/api/data/itemtrxenq');
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://env.test/api/data/itemtrxenq';
+        });
+    }
+
+    /** @test */
+    public function test_rejects_non_200_status()
+    {
+        Http::fake([
+            'https://live.test/*' => Http::response(null, 500),
+        ]);
+
+        $this->postJson('/novacity-endpoints/test', [
+            'name' => 'Down (SDT)',
+            'method' => 'GET',
+            'path' => 'api/data/broken',
+            'baseUrl' => 'https://live.test',
+        ])->assertStatus(200)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 500)
+            ->assertJsonMissingPath('response');
+    }
+
+    /** @test */
+    public function test_rejects_non_json_200_response()
+    {
+        Http::fake([
+            'https://live.test/*' => Http::response('plain text body', 200),
+        ]);
+
+        $this->postJson('/novacity-endpoints/test', [
+            'name' => 'Html (SDT)',
+            'method' => 'GET',
+            'path' => 'api/data/html',
+            'baseUrl' => 'https://live.test',
+        ])->assertStatus(200)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error', 'Response is not a valid JSON object or array')
+            ->assertJsonMissingPath('response');
+    }
+
+    /** @test */
+    public function test_requires_valid_path_and_base_url()
+    {
+        Http::fake();
+
+        $this->postJson('/novacity-endpoints/test', [
+            'name' => '',
+            'method' => 'DELETE',
+            'path' => '',
+            'baseUrl' => 'not-a-url',
+        ])->assertStatus(422);
+
+        config(['novacity.base_url' => '']);
+        $this->postJson('/novacity-endpoints/test', [
+            'name' => 'No root',
+            'method' => 'GET',
+            'path' => 'api/data/x',
+        ])->assertStatus(400)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error', 'Novacity base URL not configured');
     }
 
     /** @test */

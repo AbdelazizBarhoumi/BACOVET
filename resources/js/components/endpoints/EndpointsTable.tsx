@@ -1,4 +1,11 @@
-import { ChevronLeft, ChevronRight, Copy, Eye, Pencil, Trash2 } from 'lucide-react';
+import {
+    ChevronLeft,
+    ChevronRight,
+    Copy,
+    Eye,
+    Pencil,
+    Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { EndpointSummary } from '@/services/endpointManagerApi';
@@ -11,6 +18,22 @@ const SOURCE_STYLES: Record<string, string> = {
     OTHER: 'bg-muted text-muted-foreground border-border',
 };
 
+function extractRoot(url: string): string {
+    try {
+        const parsed = new URL(url);
+        return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+        return '';
+    }
+}
+
+function isDefaultRoot(root: string, defaultRoot: string): boolean {
+    if (!root || !defaultRoot) return false;
+    const normalize = (value: string) =>
+        value.replace(/\/+$/, '').toLowerCase();
+    return normalize(root) === normalize(defaultRoot);
+}
+
 function MethodBadge({ method }: { method: string }) {
     const isGet = method.toUpperCase() === 'GET';
     return (
@@ -18,8 +41,8 @@ function MethodBadge({ method }: { method: string }) {
             className={cn(
                 'inline-flex items-center rounded border px-2 py-0.5 font-mono text-[10px] tracking-wider',
                 isGet
-                    ? 'bg-sky-500/15 text-sky-500 border-sky-500/40'
-                    : 'bg-amber-500/15 text-amber-500 border-amber-500/40',
+                    ? 'border-sky-500/40 bg-sky-500/15 text-sky-500'
+                    : 'border-amber-500/40 bg-amber-500/15 text-amber-500',
             )}
         >
             {method.toUpperCase()}
@@ -99,6 +122,7 @@ export function EndpointsTable({
     perPage,
     total,
     onPageChange,
+    defaultRoot,
 }: {
     items: EndpointSummary[];
     loading: boolean;
@@ -110,6 +134,7 @@ export function EndpointsTable({
     perPage: number;
     total: number;
     onPageChange: (page: number) => void;
+    defaultRoot: string;
 }) {
     return (
         <div>
@@ -120,6 +145,7 @@ export function EndpointsTable({
                             <div className="h-4 w-56 animate-pulse rounded bg-muted" />
                             <div className="h-4 w-14 animate-pulse rounded bg-muted" />
                             <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                            <div className="h-4 w-32 animate-pulse rounded bg-muted" />
                             <div className="h-4 w-16 animate-pulse rounded bg-muted" />
                             <div className="h-4 w-16 animate-pulse rounded bg-muted" />
                             <div className="h-4 w-10 animate-pulse rounded bg-muted" />
@@ -136,13 +162,18 @@ export function EndpointsTable({
                     <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-background">
                             <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                <th className="py-2 px-3 text-left">Name</th>
-                                <th className="py-2 px-3 text-left">Method</th>
-                                <th className="py-2 px-3 text-left">Endpoint</th>
-                                <th className="py-2 px-3 text-left">Source</th>
-                                <th className="py-2 px-3 text-left">Status</th>
-                                <th className="py-2 px-3 text-right">Rows</th>
-                                <th className="py-2 px-3 text-right">Actions</th>
+                                <th className="px-3 py-2 text-left">Name</th>
+                                <th className="px-3 py-2 text-left">Method</th>
+                                <th className="px-3 py-2 text-left">
+                                    Endpoint
+                                </th>
+                                <th className="px-3 py-2 text-left">Root</th>
+                                <th className="px-3 py-2 text-left">Source</th>
+                                <th className="px-3 py-2 text-left">Status</th>
+                                <th className="px-3 py-2 text-right">Rows</th>
+                                <th className="px-3 py-2 text-right">
+                                    Actions
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="font-mono">
@@ -151,8 +182,11 @@ export function EndpointsTable({
                                     key={item.id}
                                     className="border-b border-border/50 hover:bg-muted/30"
                                 >
-                                    <td className="max-w-[240px] py-2 px-3 text-xs font-semibold">
-                                        <span className="block truncate" title={item.name}>
+                                    <td className="max-w-[240px] px-3 py-2 text-xs font-semibold">
+                                        <span
+                                            className="block truncate"
+                                            title={item.name}
+                                        >
                                             {item.name}
                                         </span>
                                     </td>
@@ -166,6 +200,34 @@ export function EndpointsTable({
                                         >
                                             {item.slug || item.endpoint}
                                         </span>
+                                    </td>
+                                    <td className="max-w-[180px] px-3">
+                                        {(() => {
+                                            const root = extractRoot(
+                                                item.endpoint,
+                                            );
+                                            if (
+                                                isDefaultRoot(root, defaultRoot)
+                                            ) {
+                                                return (
+                                                    <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground">
+                                                        Default
+                                                    </span>
+                                                );
+                                            }
+                                            return root ? (
+                                                <span
+                                                    className="block truncate text-xs text-muted-foreground"
+                                                    title={root}
+                                                >
+                                                    {root}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground/50">
+                                                    —
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-3">
                                         <SourceBadge source={item.source} />
@@ -201,7 +263,9 @@ export function EndpointsTable({
                                                 variant="ghost"
                                                 className="h-7 w-7 p-0"
                                                 title="Duplicate"
-                                                onClick={() => onDuplicate(item)}
+                                                onClick={() =>
+                                                    onDuplicate(item)
+                                                }
                                             >
                                                 <Copy className="h-3 w-3" />
                                             </Button>

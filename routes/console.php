@@ -78,3 +78,16 @@ Schedule::command('sync:kpi-endpoints', ['--frequency=monthly', '--queue'])
     ->monthlyOn(1, '04:00')
     ->name('kpi-monthly')
     ->withoutOverlapping(10);
+
+// Endpoint registry refresh — daily at 08:30, plus hourly retries (08:30-21:59) while a run ended with 0 successes
+Schedule::command('endpoints:refresh')
+    ->dailyAt('8:30')
+    ->name('endpoints-refresh-daily')
+    ->withoutOverlapping();
+
+Schedule::command('endpoints:refresh')
+    ->hourly()
+    ->between('8:30', '21:59')
+    ->when(fn () => (bool) Cache::get('endpoints:refresh:retry_pending'))
+    ->name('endpoints-refresh-retry')
+    ->withoutOverlapping();

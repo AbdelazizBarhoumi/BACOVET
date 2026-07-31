@@ -57,7 +57,7 @@ class NovacityEndpointsSchemaTest extends TestCase
                 'id' => 'mp-famille',
                 'name' => '13 — MpFamille (DIVATEX)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/mpfamille',
+                'endpoint' => 'https://api.example.com/api/data/mpfamille',
                 'status' => 200,
                 'response' => [
                     'success' => true,
@@ -73,7 +73,7 @@ class NovacityEndpointsSchemaTest extends TestCase
                 'id' => 'mp',
                 'name' => '14 — Mp (DIVATEX)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/mp',
+                'endpoint' => 'https://api.example.com/api/data/mp',
                 'status' => 200,
                 'response' => [
                     'success' => true,
@@ -90,7 +90,7 @@ class NovacityEndpointsSchemaTest extends TestCase
                 'id' => 'articles-colis',
                 'name' => '18 —  ArticlesColis (DIVATEX)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/articlescolis',
+                'endpoint' => 'https://api.example.com/api/data/articlescolis',
                 'status' => 200,
                 'response' => [
                     'success' => true,
@@ -107,7 +107,7 @@ class NovacityEndpointsSchemaTest extends TestCase
                 'id' => 'item-trx',
                 'name' => '01 — ItemTrxEnq (SDT)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/itemtrxenq',
+                'endpoint' => 'https://api.example.com/api/data/itemtrxenq',
                 'status' => 200,
                 'response' => [
                     'success' => true,
@@ -123,7 +123,7 @@ class NovacityEndpointsSchemaTest extends TestCase
                 'id' => 'wip-chaine',
                 'name' => '🟢 Q-03 — wip_chaine (SDT)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/q/wip_chaine',
+                'endpoint' => 'https://api.example.com/api/data/q/wip_chaine',
                 'status' => 200,
                 'response' => [
                     'success' => true,
@@ -139,7 +139,7 @@ class NovacityEndpointsSchemaTest extends TestCase
                 'id' => 'broken',
                 'name' => 'Broken (QCM)',
                 'method' => 'GET',
-                'endpoint' => 'https://bacovet.eu1.netbird.services/api/data/rovereffectiveness',
+                'endpoint' => 'https://api.example.com/api/data/rovereffectiveness',
                 'status' => 500,
                 'response' => ['success' => false, 'message' => 'boom'],
             ],

@@ -73,7 +73,7 @@ describe('inferEntryKeys', () => {
             id: 'e1',
             name: 'Test (DIVATEX)',
             method: 'GET',
-            endpoint: 'https://bacovet.eu1.netbird.services/api/data/test',
+            endpoint: 'https://api.example.com/api/data/test',
             status: 200,
             response: { success: true, data },
         };

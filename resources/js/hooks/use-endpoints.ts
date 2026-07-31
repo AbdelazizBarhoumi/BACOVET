@@ -62,7 +62,9 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
             if (!mountedRef.current) {
                 return;
             }
-            setError(err instanceof Error ? err.message : 'Failed to load endpoints');
+            setError(
+                err instanceof Error ? err.message : 'Failed to load endpoints',
+            );
         } finally {
             if (mountedRef.current) {
                 setLoading(false);
@@ -99,12 +101,16 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
     );
 
     const create = useCallback(
-        async (payload: EndpointPayload): Promise<EndpointEntry | null> => {
+        async (
+            payload: EndpointPayload,
+            signal?: AbortSignal,
+        ): Promise<EndpointEntry | null> => {
             try {
-                const entry = await createEndpoint(payload);
+                const entry = await createEndpoint(payload, signal);
                 await refresh();
                 return entry;
             } catch (err) {
+                if (signal?.aborted) return null;
                 setError(err instanceof Error ? err.message : 'Create failed');
                 return null;
             }
@@ -116,12 +122,14 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         async (
             id: string,
             payload: Partial<EndpointPayload>,
+            signal?: AbortSignal,
         ): Promise<EndpointEntry | null> => {
             try {
-                const entry = await updateEndpoint(id, payload);
+                const entry = await updateEndpoint(id, payload, signal);
                 await refresh();
                 return entry;
             } catch (err) {
+                if (signal?.aborted) return null;
                 setError(err instanceof Error ? err.message : 'Update failed');
                 return null;
             }
@@ -150,26 +158,25 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
                 await refresh();
                 return entry;
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Duplicate failed');
+                setError(
+                    err instanceof Error ? err.message : 'Duplicate failed',
+                );
                 return null;
             }
         },
         [refresh],
     );
 
-    const reorder = useCallback(
-        async (ids: string[]): Promise<boolean> => {
-            try {
-                const items = await reorderEndpoints(ids);
-                setItems(items);
-                return true;
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Reorder failed');
-                return false;
-            }
-        },
-        [],
-    );
+    const reorder = useCallback(async (ids: string[]): Promise<boolean> => {
+        try {
+            const items = await reorderEndpoints(ids);
+            setItems(items);
+            return true;
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Reorder failed');
+            return false;
+        }
+    }, []);
 
     return {
         items,

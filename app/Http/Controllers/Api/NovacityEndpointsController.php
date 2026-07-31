@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Support\EndpointSchemaAnalyzer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -109,6 +111,64 @@ class NovacityEndpointsController extends Controller
         }
 
         return response()->json(['data' => null, 'error' => 'No sample data for this endpoint']);
+    }
+
+    /**
+     * Health snapshot for the endpoint registry: stats, last-run metadata, retry state.
+     */
+    public function health(): JsonResponse
+    {
+        $items = $this->loadItems();
+
+        if ($items === null) {
+            return response()->json(['success' => false, 'error' => 'data.json not found or invalid'], 404);
+        }
+
+        $meta = $this->loadRefreshMeta();
+
+        return response()->json([
+            'stats' => $this->summaries($items),
+            'meta' => $meta,
+            'retry_pending' => (bool) Cache::get('endpoints:refresh:retry_pending', false),
+        ]);
+    }
+
+    /**
+     * Run endpoints:refresh synchronously and return its summary.
+     */
+    public function refresh(): JsonResponse
+    {
+        $exitCode = Artisan::call('endpoints:refresh', ['--force' => true]);
+        $output = Artisan::output();
+
+        return response()->json([
+            'success' => $exitCode === 0,
+            'exit_code' => $exitCode,
+            'output' => $output,
+            'meta' => $this->loadRefreshMeta(),
+        ]);
+    }
+
+    /**
+     * Read the last-run metadata file (endpoints-refresh.json), or null when absent.
+     */
+    private function loadRefreshMeta(): ?array
+    {
+        $path = storage_path(config('novacity.refresh_meta', 'app/public/endpoints-refresh.json'));
+
+        if (! file_exists($path)) {
+            return null;
+        }
+
+        $raw = file_get_contents($path);
+
+        if ($raw === false) {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : null;
     }
 
     /**
@@ -450,6 +510,82 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
+     * Fetch a live endpoint and return its body without persisting anything.
+     * The base URL comes from the submitted root API, falling back to the
+     * .env configured NOVACITY_BASE_URL. Success requires HTTP 200 and a
+     * valid JSON body.
+     */
+    public function test(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'method' => 'required|string|in:GET,POST',
+            'path' => 'required|string|max:1000',
+            'baseUrl' => 'nullable|string|max:500',
+        ]);
+
+        $baseUrl = rtrim($validated['baseUrl'] ?? config('novacity.base_url', ''), '/');
+        if (empty($baseUrl)) {
+            return response()->json([
+                'success' => false,
+                'status' => null,
+                'error' => 'Novacity base URL not configured',
+            ], 400);
+        }
+
+        $url = $baseUrl.'/'.ltrim($validated['path'], '/');
+
+        $headers = [
+            'x-api-key' => (string) config('novacity.api_key'),
+            'Accept' => 'application/json',
+        ];
+
+        $token = config('novacity.admin_token');
+        if ($token) {
+            $headers['Authorization'] = 'Bearer '.$token;
+        }
+
+        try {
+            $method = strtolower($validated['method']);
+            $httpResponse = $method === 'post'
+                ? Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 30))->post($url)
+                : Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 30))->get($url);
+
+            $status = $httpResponse->status();
+            $body = $httpResponse->json();
+
+            if ($status !== 200) {
+                return response()->json([
+                    'success' => false,
+                    'status' => $status,
+                    'error' => "HTTP {$status}: ".($httpResponse->reason() ?? 'Unknown error'),
+                ]);
+            }
+
+            if (! is_array($body)) {
+                return response()->json([
+                    'success' => false,
+                    'status' => $status,
+                    'error' => 'Response is not a valid JSON object or array',
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'status' => $status,
+                'url' => $url,
+                'response' => $body,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'status' => null,
+                'error' => 'Request failed: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Test a live endpoint by path and save to data.json on 200.
      */
     public function testAndSave(Request $request): JsonResponse
@@ -725,6 +861,9 @@ class NovacityEndpointsController extends Controller
             'row_count' => is_array($data) ? count($data) : 0,
             'has_data' => is_array($data) && count($data) > 0,
             'columns' => $this->extractFields($item),
+            'checked_at' => $item['checked_at'] ?? null,
+            'last_ok_at' => $item['last_ok_at'] ?? null,
+            'last_error' => $item['last_error'] ?? null,
         ];
     }
 
@@ -875,7 +1014,7 @@ class NovacityEndpointsController extends Controller
 
     /**
      * Extract the endpoint slug from a full URL.
-     * e.g. "http://100.76.6.178:4100/api/data/itemtrxenq?limit=100" → "api/data/itemtrxenq"
+     * e.g. "https://api.example.com/api/data/itemtrxenq?limit=100" → "api/data/itemtrxenq"
      */
     private function extractSlug(string $url): string
     {

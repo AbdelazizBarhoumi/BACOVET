@@ -17,7 +17,7 @@ function makeEntry(overrides: Partial<EndpointEntry> = {}): EndpointEntry {
         name: '01 — ItemTrxEnq (SDT)',
         method: 'GET',
         endpoint:
-            'https://bacovet.eu1.netbird.services/api/data/itemtrxenq?limit=100&offset=0',
+            'https://api.example.com/api/data/itemtrxenq?limit=100&offset=0',
         status: 200,
         response: {
             success: true,
@@ -49,13 +49,13 @@ function makeEntry(overrides: Partial<EndpointEntry> = {}): EndpointEntry {
 
 describe('extractSlug', () => {
     it('extracts api path from full URL', () => {
-        expect(extractSlug('https://bacovet.eu1.netbird.services/api/data/itemtrxenq?limit=100')).toBe(
+        expect(extractSlug('https://api.example.com/api/data/itemtrxenq?limit=100')).toBe(
             'api/data/itemtrxenq',
         );
     });
 
     it('returns empty string for non-api path', () => {
-        expect(extractSlug('https://bacovet.eu1.netbird.services/')).toBe('');
+        expect(extractSlug('https://api.example.com/')).toBe('');
     });
 
     it('returns empty string for invalid URL', () => {
@@ -185,7 +185,7 @@ describe('inferStructure', () => {
     it('handles query-shaped responses without columns metadata', () => {
         const entry = makeEntry({
             name: 'Q-01 — colis (DIVATEX)',
-            endpoint: 'https://bacovet.eu1.netbird.services/api/data/q/colis_total_3var',
+            endpoint: 'https://api.example.com/api/data/q/colis_total_3var',
             response: { data: [{ Colis: 120, Label: 'abc' }] },
         });
 
