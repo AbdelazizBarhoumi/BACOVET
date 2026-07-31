@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { logActivity, logWidgetActivity } from "@/lib/activity";
 import type { PageLayout, TableCell, Widget, WidgetConfig, WidgetType } from "./types";
 import { makeEmptyTable, pushWidgets, ROW_HEIGHT, uid } from "./types";
 
@@ -134,9 +135,10 @@ export function BuilderProvider({
       const deltaUnits = deltaPx / unitPx;
       const moveOrigin = side === "top" || side === "left";
       const shifted = pushWidgets(prev, id, axis, deltaUnits, moveOrigin);
+      logWidgetActivity("widget.config", w, { detail: { keys: [key] } }, { key: `${pageDbId}:${id}:config` });
       return shifted.map((x) => (x.id === id ? { ...x, config: { ...x.config, [key]: newValuePx } } : x));
     });
-  }, [trackWidgets, colWidthPx]);
+  }, [trackWidgets, colWidthPx, pageDbId]);
 
   const addWidget = useCallback<Ctx["addWidget"]>((type, partial) => {
     const size = DEFAULT_SIZE[type];
@@ -153,32 +155,67 @@ export function BuilderProvider({
     };
     trackWidgets((prev) => [...prev, w]);
     setSelectedId(w.id);
+    logWidgetActivity("widget.add", w);
   }, [widgets, trackWidgets]);
 
   const updateWidget = useCallback<Ctx["updateWidget"]>((id, patch) => {
-    trackWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, ...patch } : w)));
+    trackWidgets((prev) => {
+      const cur = prev.find((w) => w.id === id);
+      const next = prev.map((w) => (w.id === id ? { ...w, ...patch } : w));
+      if (!cur) return next;
+      if (patch.type && patch.type !== cur.type) {
+        logWidgetActivity("widget.type_change", next.find((w) => w.id === id)!, { detail: { from: cur.type, to: patch.type } });
+      } else if (patch.locked !== undefined && patch.locked !== cur.locked) {
+        logWidgetActivity(patch.locked ? "widget.lock" : "widget.unlock", cur);
+      } else if (patch.x !== undefined && patch.x !== cur.x) {
+        logWidgetActivity("widget.move", cur, { detail: { x: patch.x, y: patch.y, fromX: cur.x, fromY: cur.y } });
+      } else if (patch.w !== undefined && patch.w !== cur.w) {
+        logWidgetActivity("widget.resize", cur, { detail: { w: patch.w, h: patch.h, fromW: cur.w, fromH: cur.h } });
+      }
+      return next;
+    });
   }, [trackWidgets]);
 
   const updateConfig = useCallback<Ctx["updateConfig"]>((id, patch) => {
-    trackWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, config: { ...w.config, ...patch } } : w)));
-  }, [trackWidgets]);
+    trackWidgets((prev) => {
+      const cur = prev.find((w) => w.id === id);
+      const next = prev.map((w) => (w.id === id ? { ...w, config: { ...w.config, ...patch } } : w));
+      if (!cur) return next;
+      const changedKeys = Object.keys(patch).filter((k) => (cur.config as Record<string, unknown>)[k] !== (patch as Record<string, unknown>)[k]);
+      if (changedKeys.length > 0) {
+        logWidgetActivity("widget.config", next.find((w) => w.id === id)!, {
+          detail: { keys: changedKeys },
+        }, { key: `${pageDbId}:${id}:config` });
+      }
+      return next;
+    });
+  }, [trackWidgets, pageDbId]);
 
   const removeWidget = useCallback<Ctx["removeWidget"]>((id) => {
+    const target = widgets.find((w) => w.id === id);
     trackWidgets((prev) => prev.filter((w) => w.id !== id));
     setSelectedId((s) => (s === id ? null : s));
-  }, [trackWidgets]);
+    if (target) logWidgetActivity("widget.delete", target);
+  }, [widgets, trackWidgets]);
 
   const duplicateWidget = useCallback<Ctx["duplicateWidget"]>((id) => {
     trackWidgets((prev) => {
       const src = prev.find((w) => w.id === id);
       if (!src) return prev;
       const copy: Widget = { ...src, id: uid(), x: src.x, y: src.y + src.h, config: JSON.parse(JSON.stringify(src.config)) };
+      logWidgetActivity("widget.duplicate", copy);
       return [...prev, copy];
     });
   }, [trackWidgets]);
 
   const toggleLock = useCallback<Ctx["toggleLock"]>((id) => {
-    trackWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, locked: !w.locked } : w)));
+    trackWidgets((prev) => {
+      const cur = prev.find((w) => w.id === id);
+      if (!cur) return prev;
+      const next = prev.map((w) => (w.id === id ? { ...w, locked: !w.locked } : w));
+      logWidgetActivity(next.find((w) => w.id === id)!.locked ? "widget.lock" : "widget.unlock", next.find((w) => w.id === id)!);
+      return next;
+    });
   }, [trackWidgets]);
 
   const moveZ = useCallback<Ctx["moveZ"]>((id, dir) => {
@@ -188,6 +225,7 @@ export function BuilderProvider({
       const next = [...prev];
       const [w] = next.splice(idx, 1);
       if (dir === "front") next.push(w); else next.unshift(w);
+      logWidgetActivity(dir === "front" ? "widget.z_front" : "widget.z_back", w);
       return next;
     });
   }, [trackWidgets]);
@@ -197,11 +235,21 @@ export function BuilderProvider({
       const it = items.find((i) => i.i === w.id);
       if (!it) return w;
       const moved = it.x !== w.x || it.y !== w.y || it.w !== w.w || it.h !== w.h;
+      if (moved) {
+        const isMove = it.x !== w.x || it.y !== w.y;
+        const isResize = it.w !== w.w || it.h !== w.h;
+        logWidgetActivity(
+          isResize && !isMove ? "widget.resize" : isMove && !isResize ? "widget.move" : "widget.resize",
+          w,
+          { detail: { x: it.x, y: it.y, w: it.w, h: it.h, fromX: w.x, fromY: w.y, fromW: w.w, fromH: w.h } },
+          { key: `${pageDbId}:${w.id}:layout` },
+        );
+      }
       return moved
         ? { ...w, x: it.x, y: it.y, w: it.w, h: it.h, config: { ...w.config, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 } }
         : w;
     }));
-  }, [trackWidgets]);
+  }, [trackWidgets, pageDbId]);
 
   const save = useCallback(async (): Promise<boolean> => {
     if (!pageDbId) return false;
@@ -260,6 +308,7 @@ export function BuilderProvider({
     futureRef.current = [];
     setCanUndo(false);
     setCanRedo(false);
+    logActivity("layout.reset", { detail: { widgetCount: defaultLayout.length } });
     return true;
   }, [pageDbId, defaultLayout, apiBase]);
 
@@ -271,6 +320,7 @@ export function BuilderProvider({
     setWidgets(prev);
     setCanUndo(pastRef.current.length > 0);
     setCanRedo(futureRef.current.length > 0);
+    logActivity("undo");
   }, [widgets]);
 
   const redo = useCallback(() => {
@@ -281,6 +331,7 @@ export function BuilderProvider({
     setWidgets(next);
     setCanUndo(pastRef.current.length > 0);
     setCanRedo(futureRef.current.length > 0);
+    logActivity("redo");
   }, [widgets]);
 
   // canUndo and canRedo are managed via useState above

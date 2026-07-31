@@ -2,12 +2,17 @@ import { Eye, Pencil, Save, RotateCcw, Download, Upload, Undo2, Redo2, RefreshCw
 import { useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { logActivity } from "@/lib/activity";
 import { useBuilder } from "./store";
 
 export function BuilderToolbar({ title }: { title: string }) {
   const { mode, setMode, save, reset, exportJson, importJson, widgets, isDirty, undo, redo, canUndo, canRedo, refreshKpi } = useBuilder();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const switchMode = (m: "view" | "edit") => {
+    setMode(m);
+    logActivity(m === "edit" ? "mode.edit" : "mode.view");
+  };
 
   const onExport = () => {
     const blob = new Blob([exportJson()], { type: "application/json" });
@@ -17,12 +22,14 @@ export function BuilderToolbar({ title }: { title: string }) {
     a.download = `${title.replace(/\s+/g, "_")}.layout.json`;
     a.click();
     URL.revokeObjectURL(url);
+    logActivity("layout.export", { detail: { filename: a.download, widgetCount: widgets.length } });
   };
 
   const onImport = async (f: File) => {
     const text = await f.text();
     importJson(text);
     toast.success("Layout importé");
+    logActivity("layout.import", { detail: { filename: f.name } });
   };
 
   return (
@@ -33,12 +40,12 @@ export function BuilderToolbar({ title }: { title: string }) {
       </div>
       <Button
         size="sm" variant={mode === "edit" ? "default" : "outline"}
-        onClick={() => setMode(mode === "edit" ? "view" : "edit")}
+        onClick={() => switchMode(mode === "edit" ? "view" : "edit")}
         className="h-8 text-xs uppercase tracking-wider"
       >
         {mode === "edit" ? <><Eye className="h-3 w-3 mr-1" /> Vue</> : <><Pencil className="h-3 w-3 mr-1" /> Éditer</>}
       </Button>
-      <Button size="sm" variant="outline" onClick={refreshKpi} className="h-8 text-xs" title="Rafraîchir les données KPI">
+      <Button size="sm" variant="outline" onClick={() => { refreshKpi(); logActivity("kpi.refresh"); }} className="h-8 text-xs" title="Rafraîchir les données KPI">
         <RefreshCw className="h-3 w-3 mr-1" /> Actualiser
       </Button>
       {mode === "edit" && (

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\BuilderActivityLog;
 use App\Models\BuilderPage;
 use App\Models\BuilderPageGroup;
 use Illuminate\Http\JsonResponse;
@@ -46,6 +47,11 @@ class BuilderPageGroupController extends Controller
             'sort_order' => $maxSort + 1,
         ]);
 
+        $this->logActivity('group.create', [
+            'group_id' => $group->id,
+            'detail' => ['name' => $group->name, 'slug' => $group->slug],
+        ]);
+
         return response()->json([
             'message' => 'Group created.',
             'group' => $group,
@@ -55,7 +61,7 @@ class BuilderPageGroupController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $group = BuilderPageGroup::find($id);
-        if (!$group) {
+        if (! $group) {
             return response()->json(['message' => 'Group not found'], 404);
         }
 
@@ -65,7 +71,12 @@ class BuilderPageGroupController extends Controller
         ]);
 
         if (isset($validated['name'])) {
+            $before = $group->name;
             $group->name = trim($validated['name']);
+            $this->logActivity('group.update', [
+                'group_id' => $group->id,
+                'detail' => ['field' => 'name', 'before' => $before, 'after' => $group->name],
+            ]);
         }
 
         if (isset($validated['sort_order'])) {
@@ -83,11 +94,16 @@ class BuilderPageGroupController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $group = BuilderPageGroup::find($id);
-        if (!$group) {
+        if (! $group) {
             return response()->json(['message' => 'Group not found'], 404);
         }
 
         BuilderPage::where('group_id', $group->id)->update(['group_id' => null]);
+
+        $this->logActivity('group.delete', [
+            'group_id' => $group->id,
+            'detail' => ['name' => $group->name, 'slug' => $group->slug],
+        ]);
 
         $group->delete();
 
@@ -107,6 +123,14 @@ class BuilderPageGroupController extends Controller
         $page->sort_order = $maxSort + 1;
         $page->save();
 
+        $this->logActivity('group.assign_page', [
+            'page_id' => $page->id,
+            'page_slug' => $page->slug,
+            'page_name' => $page->name,
+            'group_id' => $page->group_id,
+            'detail' => ['group_id' => $page->group_id, 'sort_order' => $page->sort_order],
+        ]);
+
         return response()->json([
             'message' => 'Page assigned.',
             'page' => $page,
@@ -125,6 +149,10 @@ class BuilderPageGroupController extends Controller
             BuilderPage::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
         }
 
+        $this->logActivity('group.reorder_pages', [
+            'detail' => ['pages' => $validated['pages']],
+        ]);
+
         return response()->json(['message' => 'Pages reordered.']);
     }
 
@@ -140,6 +168,10 @@ class BuilderPageGroupController extends Controller
             BuilderPageGroup::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
         }
 
+        $this->logActivity('group.reorder_groups', [
+            'detail' => ['groups' => $validated['groups']],
+        ]);
+
         return response()->json(['message' => 'Groups reordered.']);
     }
 
@@ -152,10 +184,21 @@ class BuilderPageGroupController extends Controller
             ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
             ->exists()
         ) {
-            $slug = $this->slugify($base) . '-' . $i++;
+            $slug = $this->slugify($base).'-'.$i++;
         }
 
         return $slug;
+    }
+
+    private function logActivity(string $action, array $data = []): void
+    {
+        BuilderActivityLog::create(array_merge([
+            'user_id' => auth()->id(),
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'action' => $action,
+            'created_at' => now(),
+        ], $data));
     }
 
     private function slugify(string $name): string
@@ -167,6 +210,6 @@ class BuilderPageGroupController extends Controller
             ->trim('-')
             ->limit(40, '');
 
-        return $slug->isEmpty() ? 'group-' . Str::random(7) : $slug->value();
+        return $slug->isEmpty() ? 'group-'.Str::random(7) : $slug->value();
     }
 }

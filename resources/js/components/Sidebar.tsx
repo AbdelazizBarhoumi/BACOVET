@@ -14,6 +14,7 @@ import {
     Trash2,
     Loader2,
     BarChart3,
+    History,
 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
@@ -494,6 +495,21 @@ const Sidebar = () => {
                             />
                             <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
                                 ADMINISTRATION
+                            </span>
+                        </Link>
+                        <Link
+                            href="/v3/trace"
+                            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                                pathname === '/v3/trace'
+                                    ? 'border-l-2 border-primary bg-primary/15 text-primary'
+                                    : 'hover:bg-sidebar-accent'
+                            }`}
+                        >
+                            <History
+                                className={`h-4 w-4 ${pathname === '/v3/trace' ? 'text-white' : 'text-primary'}`}
+                            />
+                            <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
+                                TRACES V3
                             </span>
                         </Link>
                     </>

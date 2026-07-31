@@ -31,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/v4-auth/*',
             'api/builder-pages/*',
             'api/builder-pages',
+            'api/builder-activity',
             'api/v4/builder-pages/*',
             'api/v4/builder-pages',
             'api/v4/builder-page-groups/*',

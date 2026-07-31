@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { logActivity } from "@/lib/activity";
 import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
 import { useBuilder, DEFAULT_CONFIG_FOR, DEFAULT_SIZE } from "./store";
 import {
@@ -540,10 +541,18 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
     let next = t;
     for (const [r, c] of parsed) next = withCell(next, r, c, patch);
     onChange(next);
+    logActivity("table.cell.edit", {
+      widget_id: widgetId,
+      widget_type: "table-grid",
+      detail: { cells: parsed.map(([r, c]) => `${r},${c}`), keys: Object.keys(patch) },
+    }, { key: `${widgetId}:cell` });
   };
 
   const { tableCursor } = useBuilder();
   const cur = tableCursor[widgetId];
+
+  const tgLog = (action: string, detail: Record<string, unknown> = {}) =>
+    logActivity(action, { widget_id: widgetId, widget_type: "table-grid", detail });
 
   return (
     <div className="space-y-2">
@@ -552,19 +561,19 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
       {/* Insert at position */}
       <div className="grid grid-cols-2 gap-1">
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
-          disabled={!region} onClick={() => region && onChange(addRow(t, region.r1 - 1))}>
+          disabled={!region} onClick={() => { if (region) { onChange(addRow(t, region.r1 - 1)); tgLog("table.row.add", { at: region.r1, position: "before" }); } }}>
           <Plus className="h-3 w-3 mr-1" /> Ligne ↑
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
-          disabled={!region} onClick={() => region && onChange(addRow(t, region.r1))}>
+          disabled={!region} onClick={() => { if (region) { onChange(addRow(t, region.r1)); tgLog("table.row.add", { at: region.r1, position: "after" }); } }}>
           <Plus className="h-3 w-3 mr-1" /> Ligne ↓
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
-          disabled={!region} onClick={() => region && onChange(addCol(t, region.c1 - 1))}>
+          disabled={!region} onClick={() => { if (region) { onChange(addCol(t, region.c1 - 1)); tgLog("table.col.add", { at: region.c1, position: "before" }); } }}>
           <Plus className="h-3 w-3 mr-1" /> Col. ←
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
-          disabled={!region} onClick={() => region && onChange(addCol(t, region.c1))}>
+          disabled={!region} onClick={() => { if (region) { onChange(addCol(t, region.c1)); tgLog("table.col.add", { at: region.c1, position: "after" }); } }}>
           <Plus className="h-3 w-3 mr-1" /> Col. →
         </Button>
       </div>
@@ -572,11 +581,11 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
       {/* Delete row/col */}
       <div className="grid grid-cols-2 gap-1">
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
-          disabled={!region} onClick={() => region && onChange(removeRow(t, region.r1))}>
+          disabled={!region} onClick={() => { if (region) { onChange(removeRow(t, region.r1)); tgLog("table.row.delete", { at: region.r1 }); } }}>
           <Minus className="h-3 w-3 mr-1" /> Suppr. ligne
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
-          disabled={!region} onClick={() => region && onChange(removeCol(t, region.c1))}>
+          disabled={!region} onClick={() => { if (region) { onChange(removeCol(t, region.c1)); tgLog("table.col.delete", { at: region.c1 }); } }}>
           <Minus className="h-3 w-3 mr-1" /> Suppr. col.
         </Button>
       </div>
@@ -585,22 +594,22 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
       <div className="grid grid-cols-2 gap-1">
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!region || region.r1 === 0}
-          onClick={() => region && onChange(moveRow(t, region.r1, region.r1 - 1))}>
+          onClick={() => { if (region) { onChange(moveRow(t, region.r1, region.r1 - 1)); tgLog("table.row.move", { from: region.r1, to: region.r1 - 1 }); } }}>
           <ArrowUp className="h-3 w-3 mr-1" /> Monter ligne
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!region || region.r1 >= t.rows - 1}
-          onClick={() => region && onChange(moveRow(t, region.r1, region.r1 + 1))}>
+          onClick={() => { if (region) { onChange(moveRow(t, region.r1, region.r1 + 1)); tgLog("table.row.move", { from: region.r1, to: region.r1 + 1 }); } }}>
           <ArrowDown className="h-3 w-3 mr-1" /> Descendre ligne
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!region || region.c1 === 0}
-          onClick={() => region && onChange(moveCol(t, region.c1, region.c1 - 1))}>
+          onClick={() => { if (region) { onChange(moveCol(t, region.c1, region.c1 - 1)); tgLog("table.col.move", { from: region.c1, to: region.c1 - 1 }); } }}>
           <ArrowLeft className="h-3 w-3 mr-1" /> Reculer col.
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!region || region.c1 >= t.cols - 1}
-          onClick={() => region && onChange(moveCol(t, region.c1, region.c1 + 1))}>
+          onClick={() => { if (region) { onChange(moveCol(t, region.c1, region.c1 + 1)); tgLog("table.col.move", { from: region.c1, to: region.c1 + 1 }); } }}>
           <ArrowRight className="h-3 w-3 mr-1" /> Avancer col.
         </Button>
       </div>
@@ -608,12 +617,12 @@ function TableGridInspector({ widgetId, t, onChange, kpiList }: {
       <div className="grid grid-cols-2 gap-1">
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!region || (region.r1 === region.r2 && region.c1 === region.c2)}
-          onClick={() => { if (region) { onChange(mergeRegion(t, region.r1, region.c1, region.r2, region.c2)); clearSel(); } }}>
+          onClick={() => { if (region) { onChange(mergeRegion(t, region.r1, region.c1, region.r2, region.c2)); clearSel(); tgLog("table.merge", { r1: region.r1, c1: region.c1, r2: region.r2, c2: region.c2 }); } }}>
           <Merge className="h-3 w-3 mr-1" /> Fusionner
         </Button>
         <Button size="sm" variant="outline" className="h-7 text-[10px]"
           disabled={!parsed.length}
-          onClick={() => { for (const [r, c] of parsed) onChange(unmergeAt(t, r, c)); clearSel(); }}>
+          onClick={() => { for (const [r, c] of parsed) onChange(unmergeAt(t, r, c)); clearSel(); tgLog("table.unmerge", { cells: parsed.map(([r, c]) => `${r},${c}`) }); }}>
           <Split className="h-3 w-3 mr-1" /> Séparer
         </Button>
       </div>

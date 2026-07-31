@@ -1,6 +1,77 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
- * @see routes/web.php:53
+ * @see routes/web.php:46
+ * @route '/v3/trace'
+ */
+export const trace = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: trace.url(options),
+    method: 'get',
+})
+
+trace.definition = {
+    methods: ["get","head"],
+    url: '/v3/trace',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+ * @see routes/web.php:46
+ * @route '/v3/trace'
+ */
+trace.url = (options?: RouteQueryOptions) => {
+    return trace.definition.url + queryParams(options)
+}
+
+/**
+ * @see routes/web.php:46
+ * @route '/v3/trace'
+ */
+trace.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: trace.url(options),
+    method: 'get',
+})
+/**
+ * @see routes/web.php:46
+ * @route '/v3/trace'
+ */
+trace.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: trace.url(options),
+    method: 'head',
+})
+
+    /**
+ * @see routes/web.php:46
+ * @route '/v3/trace'
+ */
+    const traceForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: trace.url(options),
+        method: 'get',
+    })
+
+            /**
+ * @see routes/web.php:46
+ * @route '/v3/trace'
+ */
+        traceForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: trace.url(options),
+            method: 'get',
+        })
+            /**
+ * @see routes/web.php:46
+ * @route '/v3/trace'
+ */
+        traceForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: trace.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    trace.form = traceForm
+/**
+ * @see routes/web.php:57
  * @route '/p/{slug}'
  */
 export const page = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -14,7 +85,7 @@ page.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:53
+ * @see routes/web.php:57
  * @route '/p/{slug}'
  */
 page.url = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -41,7 +112,7 @@ page.url = (args: { slug: string | number } | [slug: string | number ] | string 
 }
 
 /**
- * @see routes/web.php:53
+ * @see routes/web.php:57
  * @route '/p/{slug}'
  */
 page.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -49,7 +120,7 @@ page.get = (args: { slug: string | number } | [slug: string | number ] | string 
     method: 'get',
 })
 /**
- * @see routes/web.php:53
+ * @see routes/web.php:57
  * @route '/p/{slug}'
  */
 page.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -58,7 +129,7 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
 })
 
     /**
- * @see routes/web.php:53
+ * @see routes/web.php:57
  * @route '/p/{slug}'
  */
     const pageForm = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -67,7 +138,7 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
     })
 
             /**
- * @see routes/web.php:53
+ * @see routes/web.php:57
  * @route '/p/{slug}'
  */
         pageForm.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -75,7 +146,7 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
             method: 'get',
         })
             /**
- * @see routes/web.php:53
+ * @see routes/web.php:57
  * @route '/p/{slug}'
  */
         pageForm.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

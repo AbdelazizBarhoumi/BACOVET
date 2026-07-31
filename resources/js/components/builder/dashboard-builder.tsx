@@ -1,5 +1,6 @@
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { logActivity, setPageContext } from "@/lib/activity";
 import { Canvas } from "./canvas";
 import { Inspector } from "./inspector";
 import { Palette } from "./palette";
@@ -11,6 +12,16 @@ import type { Widget } from "./types";
 export function DashboardBuilder({
   pageId, pageDbId, title, defaultLayout, apiBase,
 }: { pageId: string; pageDbId: number; title: string; defaultLayout: Widget[]; apiBase?: string }) {
+  const loggedViewRef = useRef(false);
+
+  useEffect(() => {
+    setPageContext({ page_id: pageDbId, page_slug: pageId, page_name: title });
+    if (!loggedViewRef.current) {
+      loggedViewRef.current = true;
+      logActivity("page.view");
+    }
+  }, [pageDbId, pageId, title]);
+
   return (
     <BuilderProvider pageId={pageId} pageDbId={pageDbId} defaultLayout={defaultLayout} apiBase={apiBase}>
       <BuilderShell title={title} />

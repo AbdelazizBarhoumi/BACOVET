@@ -2,23 +2,24 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\DataMappingController;
-use App\Http\Controllers\Api\DataSnapshotController;
+use App\Http\Controllers\Api\BuilderActivityController;
 use App\Http\Controllers\Api\BuilderKpiController;
 use App\Http\Controllers\Api\BuilderPageController;
 use App\Http\Controllers\Api\BuilderPageGroupController;
 use App\Http\Controllers\Api\BuilderPageGroupV4Controller;
 use App\Http\Controllers\Api\BuilderPageV4Controller;
-use App\Http\Controllers\Api\V4AuthController;
-use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\DataMappingController;
+use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\KpiEndpointController;
 use App\Http\Controllers\Api\LogisticsController;
 use App\Http\Controllers\Api\MethodesController;
 use App\Http\Controllers\Api\NovacityEndpointsController;
 use App\Http\Controllers\Api\ProductionController;
 use App\Http\Controllers\Api\QualityController;
+use App\Http\Controllers\Api\V4AuthController;
 use App\Http\Controllers\BrowserLogController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -40,6 +41,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/methods', fn () => Inertia::render('methods'))->name('methods');
     Route::get('/admin', fn () => Inertia::render('admin'))->name('admin');
     Route::get('/kpi-endpoints', fn () => Inertia::render('kpi-endpoints'))->name('kpi-endpoints');
+
+    // V3 activity trace — IT only
+    Route::get('/v3/trace', fn () => Inertia::render('v3/trace'))->middleware('role:it')->name('v3.trace');
 });
 
 Route::get('/unauthorized', fn () => Inertia::render('unauthorized'))->name('unauthorized');
@@ -52,9 +56,10 @@ Route::get('/v2/{any?}', fn () => view('v2'))->where('any', '.*')->name('v2');
 Route::get('/v3', fn () => Inertia::render('v3/page-builder'))->name('v3');
 Route::get('/p/{slug}', function ($slug) {
     $page = \App\Models\BuilderPage::where('slug', $slug)->first();
-    if (!$page) {
+    if (! $page) {
         abort(404);
     }
+
     return Inertia::render('v3/p/[slug]', [
         'pageId' => $page->id,
         'slug' => $page->slug,
@@ -87,6 +92,11 @@ Route::prefix('api/builder-page-groups')->group(function () {
 Route::get('/api/builder-kpis', [BuilderKpiController::class, 'index']);
 Route::get('/api/builder-kpis/data', [BuilderKpiController::class, 'data']);
 
+// ── V3 BUILDER ACTIVITY TRACE ─────────────────────────────────────
+// Capture: any authenticated user (fire-and-forget). Query: IT only.
+Route::post('/api/builder-activity', [BuilderActivityController::class, 'store'])->middleware('auth');
+Route::get('/api/builder-activity', [BuilderActivityController::class, 'index'])->middleware(['auth', 'role:it']);
+
 // ── V4 PAGE BUILDER (standalone login) ─────────────────────────────
 Route::get('/v4/login', fn () => Inertia::render('v4/login'))->name('v4.login');
 
@@ -103,6 +113,7 @@ Route::middleware('v4.auth')->group(function () {
         if (! $page) {
             abort(404);
         }
+
         return Inertia::render('v4/p/[slug]', [
             'pageId' => $page->id,
             'slug' => $page->slug,

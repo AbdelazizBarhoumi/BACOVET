@@ -1,6 +1,7 @@
 import BuilderPageController from './BuilderPageController'
 import BuilderPageGroupController from './BuilderPageGroupController'
 import BuilderKpiController from './BuilderKpiController'
+import BuilderActivityController from './BuilderActivityController'
 import V4AuthController from './V4AuthController'
 import BuilderPageV4Controller from './BuilderPageV4Controller'
 import BuilderPageGroupV4Controller from './BuilderPageGroupV4Controller'
@@ -24,6 +25,7 @@ const Api = {
     BuilderPageController: Object.assign(BuilderPageController, BuilderPageController),
 BuilderPageGroupController: Object.assign(BuilderPageGroupController, BuilderPageGroupController),
 BuilderKpiController: Object.assign(BuilderKpiController, BuilderKpiController),
+BuilderActivityController: Object.assign(BuilderActivityController, BuilderActivityController),
 V4AuthController: Object.assign(V4AuthController, V4AuthController),
 BuilderPageV4Controller: Object.assign(BuilderPageV4Controller, BuilderPageV4Controller),
 BuilderPageGroupV4Controller: Object.assign(BuilderPageGroupV4Controller, BuilderPageGroupV4Controller),

@@ -1,6 +1,7 @@
 import { Copy, Lock, LockOpen, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WidthProvider, ReactGridLayout, type Layout, type LayoutItem } from "react-grid-layout/legacy";
+import { logActivity, logWidgetActivity } from "@/lib/activity";
 import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
 import KpiDetailModal from "./kpi-detail-modal";
 import { useBuilder } from "./store";
@@ -72,6 +73,7 @@ export function Canvas() {
 
       const cur = tableCursor[selectedId];
       const sel = tableSel[selectedId] ?? [];
+      const activeWidget = widgets.find((x) => x.id === selectedId);
 
       // Ctrl+C: copy
       if ((e.ctrlKey || e.metaKey) && e.key === "c" && sel.length > 0) {
@@ -83,6 +85,7 @@ export function Canvas() {
         const c1 = Math.min(...parsed.map((p) => p[1]));
         const c2 = Math.max(...parsed.map((p) => p[1]));
         setTableClipboard(copyCells(tg, r1, c1, r2, c2));
+        if (activeWidget) logWidgetActivity("table.copy", activeWidget, { detail: { region: { r1, c1, r2, c2 } } });
         return;
       }
 
@@ -92,6 +95,7 @@ export function Canvas() {
         e.stopPropagation();
         const next = pasteCells(tg, cur[0], cur[1], tableClipboard);
         updateConfig(selectedId, { tableGrid: next });
+        if (activeWidget) logWidgetActivity("table.paste", activeWidget, { detail: { at: cur } });
         return;
       }
 
@@ -109,6 +113,7 @@ export function Canvas() {
         let next = tg;
         for (const [r, c] of parsed) next = withCell(next, r, c, { content: "", kpiCode: undefined, displayMode: undefined });
         updateConfig(selectedId, { tableGrid: next });
+        if (activeWidget) logWidgetActivity("table.cut", activeWidget, { detail: { region: { r1, c1, r2, c2 } } });
         return;
       }
 
@@ -270,6 +275,7 @@ export function Canvas() {
   const handleWidgetClick = (w: typeof widgets[number]) => {
     if (mode === "view" && w.config.kpiCode && KPI_COMPATIBLE.has(w.type)) {
       setDetailModal({ kpiCode: w.config.kpiCode });
+      logWidgetActivity("kpi.detail_view", w);
     }
   };
 
@@ -319,7 +325,10 @@ export function Canvas() {
                 w={w}
                 editing={mode === "edit"}
                 onCellSelect={(r, c, add) => handleCellSelect(w.id, r, c, add)}
-                onCellKpiClick={(kpiCode) => setDetailModal({ kpiCode })}
+                onCellKpiClick={(kpiCode) => {
+                  setDetailModal({ kpiCode });
+                  logActivity("kpi.detail_view", { widget_id: w.id, widget_type: w.type, kpi_code: kpiCode });
+                }}
                 selectedCells={tableSel[w.id]}
                 cursor={tableCursor[w.id]}
                 kpiData={kpiData}
@@ -337,31 +346,50 @@ export function Canvas() {
                   } else {
                     setTableClipboard(copyCells(tg, r, c, r, c));
                   }
+                  logWidgetActivity("table.copy", w, { detail: { from: [r, c] } });
                 }}
                 onPaste={(r, c) => {
                   const tg = w.config.tableGrid;
                   const clip = tableClipboard;
-                  if (tg && clip) updateConfig(w.id, { tableGrid: pasteCells(tg, r, c, clip) });
+                  if (tg && clip) {
+                    updateConfig(w.id, { tableGrid: pasteCells(tg, r, c, clip) });
+                    logWidgetActivity("table.paste", w, { detail: { at: [r, c] } });
+                  }
                 }}
                 onInsertRow={(r, pos) => {
                   const tg = w.config.tableGrid;
-                  if (tg) updateConfig(w.id, { tableGrid: addRow(tg, pos === "after" ? r : r - 1) });
+                  if (tg) {
+                    updateConfig(w.id, { tableGrid: addRow(tg, pos === "after" ? r : r - 1) });
+                    logWidgetActivity("table.row.add", w, { detail: { at: r, position: pos } });
+                  }
                 }}
                 onInsertCol={(c, pos) => {
                   const tg = w.config.tableGrid;
-                  if (tg) updateConfig(w.id, { tableGrid: addCol(tg, pos === "after" ? c : c - 1) });
+                  if (tg) {
+                    updateConfig(w.id, { tableGrid: addCol(tg, pos === "after" ? c : c - 1) });
+                    logWidgetActivity("table.col.add", w, { detail: { at: c, position: pos } });
+                  }
                 }}
                 onDeleteRow={(r) => {
                   const tg = w.config.tableGrid;
-                  if (tg) updateConfig(w.id, { tableGrid: removeRow(tg, r) });
+                  if (tg) {
+                    updateConfig(w.id, { tableGrid: removeRow(tg, r) });
+                    logWidgetActivity("table.row.delete", w, { detail: { at: r } });
+                  }
                 }}
                 onDeleteCol={(c) => {
                   const tg = w.config.tableGrid;
-                  if (tg) updateConfig(w.id, { tableGrid: removeCol(tg, c) });
+                  if (tg) {
+                    updateConfig(w.id, { tableGrid: removeCol(tg, c) });
+                    logWidgetActivity("table.col.delete", w, { detail: { at: c } });
+                  }
                 }}
                 onResize={(colWidths, rowHeights) => {
                   const tg = w.config.tableGrid;
-                  if (tg) updateConfig(w.id, { tableGrid: { ...tg, colWidths, rowHeights } });
+                  if (tg) {
+                    updateConfig(w.id, { tableGrid: { ...tg, colWidths, rowHeights } });
+                    logWidgetActivity("table.resize", w, { detail: { colWidths, rowHeights } }, { key: `${w.id}:tgresize` });
+                  }
                 }}
               />
               {mode === "edit" && isSelected && (

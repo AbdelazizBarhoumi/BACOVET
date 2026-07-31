@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::index
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:14
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:15
  * @route '/api/builder-page-groups'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::index
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:14
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:15
  * @route '/api/builder-page-groups'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::index
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:14
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:15
  * @route '/api/builder-page-groups'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::index
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:14
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:15
  * @route '/api/builder-page-groups'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::index
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:14
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:15
  * @route '/api/builder-page-groups'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::index
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:14
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:15
  * @route '/api/builder-page-groups'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::index
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:14
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:15
  * @route '/api/builder-page-groups'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::store
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:32
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:33
  * @route '/api/builder-page-groups'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -94,7 +94,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::store
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:32
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:33
  * @route '/api/builder-page-groups'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::store
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:32
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:33
  * @route '/api/builder-page-groups'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -113,7 +113,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::store
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:32
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:33
  * @route '/api/builder-page-groups'
  */
     const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -123,7 +123,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::store
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:32
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:33
  * @route '/api/builder-page-groups'
  */
         storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -134,7 +134,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     store.form = storeForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::assignPage
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:97
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:113
  * @route '/api/builder-page-groups/assign-page'
  */
 export const assignPage = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -149,7 +149,7 @@ assignPage.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::assignPage
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:97
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:113
  * @route '/api/builder-page-groups/assign-page'
  */
 assignPage.url = (options?: RouteQueryOptions) => {
@@ -158,7 +158,7 @@ assignPage.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::assignPage
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:97
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:113
  * @route '/api/builder-page-groups/assign-page'
  */
 assignPage.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -168,7 +168,7 @@ assignPage.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::assignPage
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:97
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:113
  * @route '/api/builder-page-groups/assign-page'
  */
     const assignPageForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -183,7 +183,7 @@ assignPage.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::assignPage
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:97
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:113
  * @route '/api/builder-page-groups/assign-page'
  */
         assignPageForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -199,7 +199,7 @@ assignPage.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
     assignPage.form = assignPageForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderPages
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:116
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:140
  * @route '/api/builder-page-groups/reorder-pages'
  */
 export const reorderPages = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -214,7 +214,7 @@ reorderPages.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderPages
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:116
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:140
  * @route '/api/builder-page-groups/reorder-pages'
  */
 reorderPages.url = (options?: RouteQueryOptions) => {
@@ -223,7 +223,7 @@ reorderPages.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderPages
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:116
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:140
  * @route '/api/builder-page-groups/reorder-pages'
  */
 reorderPages.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -233,7 +233,7 @@ reorderPages.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderPages
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:116
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:140
  * @route '/api/builder-page-groups/reorder-pages'
  */
     const reorderPagesForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -248,7 +248,7 @@ reorderPages.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderPages
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:116
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:140
  * @route '/api/builder-page-groups/reorder-pages'
  */
         reorderPagesForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -264,7 +264,7 @@ reorderPages.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
     reorderPages.form = reorderPagesForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderGroups
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:131
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:159
  * @route '/api/builder-page-groups/reorder-groups'
  */
 export const reorderGroups = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -279,7 +279,7 @@ reorderGroups.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderGroups
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:131
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:159
  * @route '/api/builder-page-groups/reorder-groups'
  */
 reorderGroups.url = (options?: RouteQueryOptions) => {
@@ -288,7 +288,7 @@ reorderGroups.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderGroups
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:131
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:159
  * @route '/api/builder-page-groups/reorder-groups'
  */
 reorderGroups.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -298,7 +298,7 @@ reorderGroups.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderGroups
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:131
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:159
  * @route '/api/builder-page-groups/reorder-groups'
  */
     const reorderGroupsForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -313,7 +313,7 @@ reorderGroups.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::reorderGroups
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:131
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:159
  * @route '/api/builder-page-groups/reorder-groups'
  */
         reorderGroupsForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -329,7 +329,7 @@ reorderGroups.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
     reorderGroups.form = reorderGroupsForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::update
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:61
  * @route '/api/builder-page-groups/{id}'
  */
 export const update = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -344,7 +344,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::update
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:61
  * @route '/api/builder-page-groups/{id}'
  */
 update.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -372,7 +372,7 @@ update.url = (args: { id: string | number } | [id: string | number ] | string | 
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::update
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:61
  * @route '/api/builder-page-groups/{id}'
  */
 update.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -382,7 +382,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::update
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:61
  * @route '/api/builder-page-groups/{id}'
  */
     const updateForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -397,7 +397,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::update
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:55
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:61
  * @route '/api/builder-page-groups/{id}'
  */
         updateForm.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -413,7 +413,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::destroy
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:83
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:94
  * @route '/api/builder-page-groups/{id}'
  */
 export const destroy = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -428,7 +428,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::destroy
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:83
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:94
  * @route '/api/builder-page-groups/{id}'
  */
 destroy.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -456,7 +456,7 @@ destroy.url = (args: { id: string | number } | [id: string | number ] | string |
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::destroy
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:83
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:94
  * @route '/api/builder-page-groups/{id}'
  */
 destroy.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -466,7 +466,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::destroy
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:83
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:94
  * @route '/api/builder-page-groups/{id}'
  */
     const destroyForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -481,7 +481,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageGroupController::destroy
- * @see app/Http/Controllers/Api/BuilderPageGroupController.php:83
+ * @see app/Http/Controllers/Api/BuilderPageGroupController.php:94
  * @route '/api/builder-page-groups/{id}'
  */
         destroyForm.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
