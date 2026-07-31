@@ -16,11 +16,13 @@ export function EndpointDetailDialog({
     onOpenChange,
     entry,
     loading,
+    keys,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     entry?: EndpointEntry | null;
     loading?: boolean;
+    keys?: { primaryKey: { column: string; confidence: number } | null; uniqueColumns: string[] };
 }) {
     const structure = entry ? inferStructure(entry) : null;
 
@@ -115,6 +117,25 @@ export function EndpointDetailDialog({
                         </TabsContent>
 
                         <TabsContent value="structure">
+                            {keys?.primaryKey && (
+                                <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[10px] tracking-wider uppercase">
+                                    <span className="text-muted-foreground">Primary key: </span>
+                                    <span className="font-bold">
+                                        🔑 {keys.primaryKey.column}
+                                    </span>
+                                    {keys.uniqueColumns.length > 1 && (
+                                        <>
+                                            <span className="text-muted-foreground">
+                                                {' '}
+                                                · candidates:{' '}
+                                            </span>
+                                            {keys.uniqueColumns
+                                                .filter((name) => name !== keys.primaryKey?.column)
+                                                .join(', ')}
+                                        </>
+                                    )}
+                                </div>
+                            )}
                             {structure ? (
                                 <StructureViewer
                                     columns={structure.columns}

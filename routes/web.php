@@ -381,6 +381,7 @@ Route::get('/novacity-config', [NovacityEndpointsController::class, 'config']);
 // ── NOVACITY ENDPOINTS MANAGER (CRUD) — IT only ─────────────────────────
 Route::middleware(['auth', 'role:it'])->prefix('novacity-endpoints')->group(function () {
     Route::get('/structure', [NovacityEndpointsController::class, 'structure']);
+    Route::get('/schema', [NovacityEndpointsController::class, 'schema']);
     Route::get('/list', [NovacityEndpointsController::class, 'index']);
     Route::post('/', [NovacityEndpointsController::class, 'store']);
     Route::post('/reorder', [NovacityEndpointsController::class, 'reorder']);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\EndpointSchemaAnalyzer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -13,12 +14,16 @@ class NovacityEndpointsController extends Controller
     /** @var array|null Cached parsed data.json — avoids re-reading 2.2MB file per request. */
     private static ?array $cachedItems = null;
 
+    /** @var array|null Cached schema analysis (invalidated alongside items). */
+    private static ?array $cachedSchema = null;
+
     /**
      * Invalidate the in-memory cache (used by tests and after file changes).
      */
     public static function flushCache(): void
     {
         self::$cachedItems = null;
+        self::$cachedSchema = null;
     }
 
     /**
@@ -404,6 +409,35 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
+     * Analyze primary keys, foreign-key candidates and shared join columns.
+     */
+    public function schema(Request $request): JsonResponse
+    {
+        $items = $this->loadItems();
+
+        if ($items === null) {
+            return response()->json(['error' => 'data.json not found or invalid'], 404);
+        }
+
+        if (self::$cachedSchema === null) {
+            self::$cachedSchema = (new EndpointSchemaAnalyzer)->analyze($items);
+        }
+
+        $result = self::$cachedSchema;
+
+        $column = (string) $request->query('column', '');
+
+        if ($column !== '') {
+            $result['columns'] = array_values(array_filter(
+                $result['columns'],
+                fn ($shared) => strcasecmp((string) $shared['name'], $column) === 0
+            ));
+        }
+
+        return response()->json($result);
+    }
+
+    /**
      * Return Novacity connection config (base URL, API key, JWT token) from env.
      */
     public function config(): JsonResponse
@@ -622,6 +656,7 @@ class NovacityEndpointsController extends Controller
         }
 
         self::$cachedItems = $normalized;
+        self::$cachedSchema = null;
 
         return true;
     }

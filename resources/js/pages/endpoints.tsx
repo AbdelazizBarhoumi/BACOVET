@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app-shell';
 import { EndpointDetailDialog } from '@/components/endpoints/EndpointDetailDialog';
@@ -10,8 +10,11 @@ import {
     EndpointsToolbar,
     type ToolbarValue,
 } from '@/components/endpoints/EndpointsToolbar';
+import { SchemaPanel } from '@/components/endpoints/SchemaPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Panel } from '@/components/widgets';
 import { useEndpoints } from '@/hooks/use-endpoints';
+import { inferEntryKeys } from '@/lib/relationship-utils';
 import {
     fetchEndpoint,
     type EndpointEntry,
@@ -93,10 +96,10 @@ export default function EndpointsPage() {
         setFormOpen(true);
     }, []);
 
-    const handleView = useCallback(async (summary: EndpointSummary) => {
+    const openEntry = useCallback(async (entryId: string) => {
         setDetailLoading(true);
         try {
-            const full = await fetchEndpoint(summary.id);
+            const full = await fetchEndpoint(entryId);
             setDetailEntry(full);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Failed to load entry');
@@ -104,6 +107,13 @@ export default function EndpointsPage() {
             setDetailLoading(false);
         }
     }, []);
+
+    const handleView = useCallback(
+        (summary: EndpointSummary) => {
+            void openEntry(summary.id);
+        },
+        [openEntry],
+    );
 
     const handleEdit = useCallback(async (summary: EndpointSummary) => {
         try {
@@ -169,46 +179,62 @@ export default function EndpointsPage() {
 
     const sources = Object.keys(stats?.by_source ?? {});
 
+    const detailKeys = useMemo(
+        () => (detailEntry ? inferEntryKeys(detailEntry) : null),
+        [detailEntry],
+    );
+
     return (
         <>
             <Head title="Endpoints — BACOVET" />
-            <AppShell page="/endpoints" title="Endpoints" subtitle="Registre data.json — CRUD & structure">
-                <div className="space-y-4">
-                    {error && (
-                        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs text-destructive">
-                            {error}
-                        </div>
-                    )}
+            <AppShell page="/endpoints" title="Endpoints" subtitle="Registre data.json — CRUD, structure & joins">
+                <Tabs defaultValue="endpoints">
+                    <TabsList>
+                        <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
+                        <TabsTrigger value="schema">Schema &amp; joins</TabsTrigger>
+                    </TabsList>
 
-                    <EndpointStatCards stats={stats} />
+                    <TabsContent value="endpoints" className="space-y-4">
+                        {error && (
+                            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs text-destructive">
+                                {error}
+                            </div>
+                        )}
 
-                    <Panel
-                        title="Endpoints"
-                        right={
-                            <EndpointsToolbar
-                                value={toolbar}
-                                onChange={handleToolbarChange}
-                                onRefresh={handleRefresh}
-                                onNew={handleNew}
+                        <EndpointStatCards stats={stats} />
+
+                        <Panel
+                            title="Endpoints"
+                            right={
+                                <EndpointsToolbar
+                                    value={toolbar}
+                                    onChange={handleToolbarChange}
+                                    onRefresh={handleRefresh}
+                                    onNew={handleNew}
+                                    loading={loading}
+                                    sources={sources}
+                                />
+                            }
+                        >
+                            <EndpointsTable
+                                items={items}
                                 loading={loading}
-                                sources={sources}
+                                onView={handleView}
+                                onEdit={handleEdit}
+                                onDuplicate={handleDuplicate}
+                                onDelete={handleDelete}
+                                page={page}
+                                perPage={perPage}
+                                total={total}
+                                onPageChange={goToPage}
                             />
-                        }
-                    >
-                        <EndpointsTable
-                            items={items}
-                            loading={loading}
-                            onView={handleView}
-                            onEdit={handleEdit}
-                            onDuplicate={handleDuplicate}
-                            onDelete={handleDelete}
-                            page={page}
-                            perPage={perPage}
-                            total={total}
-                            onPageChange={goToPage}
-                        />
-                    </Panel>
-                </div>
+                        </Panel>
+                    </TabsContent>
+
+                    <TabsContent value="schema">
+                        <SchemaPanel onOpenEntry={(entryId) => void openEntry(entryId)} />
+                    </TabsContent>
+                </Tabs>
 
                 <EndpointFormDialog
                     open={formOpen}
@@ -223,6 +249,7 @@ export default function EndpointsPage() {
                     onOpenChange={(open) => !open && setDetailEntry(null)}
                     entry={detailEntry}
                     loading={detailLoading}
+                    keys={detailKeys ?? undefined}
                 />
             </AppShell>
         </>

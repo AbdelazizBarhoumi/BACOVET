@@ -146,6 +146,80 @@ export const fetchStructures = async (): Promise<EntryStructure[]> => {
     return result.structure;
 };
 
+// ── Schema analysis (primary/foreign keys + shared join columns) ────────
+
+export type SchemaColumn = {
+    name: string;
+    type: 'string' | 'integer' | 'number' | 'boolean' | 'date' | 'null' | 'mixed';
+    nullable: boolean;
+    distinct_count: number;
+    unique: boolean;
+    samples: unknown[];
+};
+
+export type SchemaEntry = {
+    id: string;
+    name: string;
+    slug: string;
+    source: string;
+    object_type: string | null;
+    row_count: number;
+    columns: SchemaColumn[];
+    primary_key: { column: string; confidence: number } | null;
+    candidate_keys: string[];
+};
+
+export type SharedColumnEndpoint = {
+    entry_id: string;
+    entry_name: string;
+    slug: string;
+    source: string;
+    distinct_count: number;
+};
+
+export type SharedColumn = {
+    name: string;
+    type: SchemaColumn['type'];
+    endpoint_count: number;
+    sources: string[];
+    endpoints: SharedColumnEndpoint[];
+    distinct_values: unknown[];
+};
+
+export type ForeignKeyRef = {
+    entry_id: string;
+    entry_name: string;
+    column: string;
+    match: 'name';
+    coverage: number;
+    confidence: number;
+};
+
+export type ForeignKey = {
+    entry_id: string;
+    entry_name: string;
+    references: {
+        column: string;
+        refs: ForeignKeyRef[];
+    }[];
+};
+
+export type SchemaAnalysis = {
+    entries: SchemaEntry[];
+    columns: SharedColumn[];
+    foreign_keys: ForeignKey[];
+    generated_at: string;
+};
+
+export const fetchSchema = async (column?: string): Promise<SchemaAnalysis> => {
+    const params = new URLSearchParams();
+    if (column) params.set('column', column);
+    const query = params.toString();
+    return fetchWithToken<SchemaAnalysis>(
+        `${BASE_URL}/novacity-endpoints/schema${query ? `?${query}` : ''}`,
+    );
+};
+
 // ── Mutations ────────────────────────────────────────────────────────────
 
 export const createEndpoint = async (
