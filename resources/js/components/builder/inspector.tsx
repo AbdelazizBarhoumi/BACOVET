@@ -7,10 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
-import { useBuilder } from "./store";
+import { useBuilder, DEFAULT_CONFIG_FOR, DEFAULT_SIZE } from "./store";
 import {
   addCol, addRow, cellAt, mergeRegion, moveCol, moveRow, removeCol, removeRow, unmergeAt, withCell,
-  type TableGrid, type WidgetType,
+  type TableGrid, type WidgetType, type WidgetConfig,
 } from "./types";
 import { useKpiData } from "./useKpiData";
 import { resolveKpiSeries } from "./widgets/shared";
@@ -41,17 +41,18 @@ const TYPE_OPTIONS: { value: WidgetType; label: string }[] = [
   { value: "table", label: "Table simple" },
   { value: "table-grid", label: "Tableau libre" },
   { value: "text", label: "Texte / Titre" },
-  { value: "image", label: "Image" },
   { value: "divider", label: "Séparateur" },
 ];
 
-const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
-  kpi: { w: 3, h: 3 }, gauge: { w: 3, h: 4 }, sparkline: { w: 3, h: 2 },
-  line: { w: 6, h: 4 }, bar: { w: 6, h: 4 }, pareto: { w: 6, h: 5 },
-  donut: { w: 3, h: 4 }, pie: { w: 4, h: 4 }, radar: { w: 5, h: 5 }, area: { w: 6, h: 4 }, combo: { w: 8, h: 5 },
-  table: { w: 6, h: 5 }, "table-grid": { w: 12, h: 6 },
-  text: { w: 6, h: 1 }, image: { w: 3, h: 3 }, divider: { w: 12, h: 1 },
-};
+const STYLE_KEYS: (keyof WidgetConfig)[] = [
+  'label', 'showLabel', 'labelFontSize', 'labelColor', 'labelAlign', 'labelTransform', 'labelPosition',
+  'bg', 'bgGradient', 'fg', 'accent',
+  'borderColor', 'borderWidth', 'borderStyle', 'radius', 'showBorder',
+  'padding', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+  'opacity', 'shadow',
+  'fontFamily', 'fontWeight', 'fontSize', 'lineHeight', 'letterSpacing', 'align',
+  'rotate', 'scale',
+];
 
 const KPI_COMPATIBLE = ["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"];
 
@@ -79,7 +80,7 @@ export function Inspector() {
   const set = (patch: Partial<typeof c>) => updateConfig(selected.id, patch);
 
   const isTableGrid = t === "table-grid";
-  const hasValue = ["kpi", "gauge", "donut"].includes(t);
+  const hasValue = ["kpi", "gauge", "donut", "table", "table-grid"].includes(t);
   const hasSubtitle = t === "donut";
   const hasTarget = ["kpi", "gauge", "line", "bar", "area", "combo"].includes(t);
 
@@ -87,13 +88,13 @@ export function Inspector() {
   const hasScaler = ["area", "line", "bar", "combo", "sparkline", "radar", "pie", "pareto"].includes(t);
 
   const hasAccent = ["gauge", "sparkline", "line", "bar", "donut", "pie", "radar", "area", "combo"].includes(t) && t !== "kpi";
-  const hasFontFamily = t !== "divider" && t !== "image";
+  const hasFontFamily = t !== "divider";
   const hasTypography = ["text", "table-grid"].includes(t);
   const hasBg = t !== "divider";
   const hasBgGradient = t !== "divider";
   const hasFg = t !== "divider";
   const hasBorder = true; // all widgets get border + radius controls
-  const hasShowLabel = !["text", "image", "divider"].includes(t);
+  const hasShowLabel = !["text", "divider"].includes(t);
   const hasShowKpiCode = KPI_COMPATIBLE.includes(t);
   const hasShowBorder = true;
   const hasShadow = t !== "divider";
@@ -108,7 +109,12 @@ export function Inspector() {
           <Select value={selected.type} onValueChange={(v) => {
             const newType = v as WidgetType;
             const size = DEFAULT_SIZE[newType];
-            updateWidget(selected.id, { type: newType, w: size.w, h: size.h });
+            const defaults = DEFAULT_CONFIG_FOR[newType];
+            const preserved: Record<string, unknown> = {};
+            for (const key of STYLE_KEYS) {
+              if (key in c) preserved[key] = c[key];
+            }
+            updateWidget(selected.id, { type: newType, w: size.w, h: size.h, config: { ...defaults, ...preserved } });
           }}>
             <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -272,11 +278,6 @@ export function Inspector() {
             </Field>
           )}
 
-          {selected.type === "image" && (
-            <Field label="URL de l'image">
-              <Input value={c.imageUrl ?? ""} onChange={(e) => set({ imageUrl: e.target.value })} className="h-7 text-xs" />
-            </Field>
-          )}
         </TabsContent>
 
         {/* ─── TAB 2: STYLE ─── */}

@@ -9,10 +9,10 @@ import { BuilderToolbar } from "./toolbar";
 import type { Widget } from "./types";
 
 export function DashboardBuilder({
-  pageId, pageDbId, title, defaultLayout,
-}: { pageId: string; pageDbId: number; title: string; defaultLayout: Widget[] }) {
+  pageId, pageDbId, title, defaultLayout, apiBase,
+}: { pageId: string; pageDbId: number; title: string; defaultLayout: Widget[]; apiBase?: string }) {
   return (
-    <BuilderProvider pageId={pageId} pageDbId={pageDbId} defaultLayout={defaultLayout}>
+    <BuilderProvider pageId={pageId} pageDbId={pageDbId} defaultLayout={defaultLayout} apiBase={apiBase}>
       <BuilderShell title={title} />
     </BuilderProvider>
   );

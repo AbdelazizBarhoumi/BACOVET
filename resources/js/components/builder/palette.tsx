@@ -1,6 +1,6 @@
 import {
   BarChart3, Gauge as GaugeIcon, LineChart as LineIcon, PieChart,
-  Sigma, Table as TableIcon, Type, Image as ImageIcon, Minus, Activity, TrendingUp, Grid3x3,
+  Sigma, Table as TableIcon, Type, Minus, Activity, TrendingUp, Grid3x3,
   Radar, AreaChart as AreaIcon, BarChart, Loader2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -24,7 +24,6 @@ const WIDGETS: { type: WidgetType; label: string; icon: React.ComponentType<{ cl
   { type: "table", label: "Table simple", icon: TableIcon },
   { type: "table-grid", label: "Tableau libre", icon: Grid3x3 },
   { type: "text", label: "Texte / Titre", icon: Type },
-  { type: "image", label: "Image", icon: ImageIcon },
   { type: "divider", label: "Séparateur", icon: Minus },
 ];
 

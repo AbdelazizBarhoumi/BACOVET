@@ -44,6 +44,10 @@ return [
             'driver' => 'session',
             'provider' => 'data_users_provider',
         ],
+        'v4_users' => [
+            'driver' => 'session',
+            'provider' => 'v4_users_provider',
+        ],
     ],
 
     /*
@@ -71,6 +75,10 @@ return [
         'data_users_provider' => [
             'driver' => 'eloquent',
             'model' => App\Models\DataUser::class,
+        ],
+        'v4_users_provider' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\V4User::class,
         ],
     ],
 

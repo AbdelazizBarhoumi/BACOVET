@@ -31,7 +31,7 @@ export function TableGridWidget({ c, editing, onCellSelect, onCellKpiClick, sele
         <TableGridRenderer t={c.tableGrid!} editing={editing} onCellSelect={onCellSelect}
           onCellKpiClick={onCellKpiClick} selectedCells={selectedCells} cursor={cursor} kpiData={kpiData}
           onCopy={onCopy} onPaste={onPaste} onInsertRow={onInsertRow} onInsertCol={onInsertCol}
-          onDeleteRow={onDeleteRow} onDeleteCol={onDeleteCol} onResize={onResize} />
+          onDeleteRow={onDeleteRow} onDeleteCol={onDeleteCol} onResize={onResize} decimals={c.decimals} />
       ))}
       {editing && (
         <div className="absolute top-1 right-1 z-20 opacity-0 group-hover/tg:opacity-100 transition-opacity">
@@ -45,9 +45,10 @@ export function TableGridWidget({ c, editing, onCellSelect, onCellKpiClick, sele
 }
 
 function TableGridRenderer({ t, editing, onCellSelect, onCellKpiClick, selectedCells, cursor, kpiData,
-  onCopy, onPaste, onInsertRow, onInsertCol, onDeleteRow, onDeleteCol, onResize }: {
+  onCopy, onPaste, onInsertRow, onInsertCol, onDeleteRow, onDeleteCol, onResize, decimals }: {
   t: TableGrid;
   editing: boolean;
+  decimals?: number;
   onCellSelect?: (r: number, c: number, add: boolean) => void;
   onCellKpiClick?: (kpiCode: string) => void;
   selectedCells?: string[];
@@ -174,7 +175,7 @@ function TableGridRenderer({ t, editing, onCellSelect, onCellKpiClick, selectedC
       const cell: TableCell = t.cells.find((x) => x.r === r && x.c === c) ?? { r, c };
       if (cell.hidden) continue;
       const value = cell.kpiCode
-        ? formatValue(cell, kpiData)
+        ? formatValue(cell, kpiData, decimals)
         : cell.content ?? "";
       const isHead = cell.isHeader || (t.headerRow && r === 0) || (t.headerCol && c === 0);
       const zebra = t.zebra && !isHead && r % 2 === 1;
@@ -299,14 +300,14 @@ const ContextMenu = ({ ref, x, y, items, onClose }: {
   );
 };
 
-function formatValue(cell: TableCell, kpiData?: KpiDataMap): string {
+function formatValue(cell: TableCell, kpiData?: KpiDataMap, defaultDecimals?: number): string {
   if (!cell.kpiCode) return cell.content ?? "";
 
   // Show actual value if displayMode is "value"
   if (cell.displayMode === "value") {
     const kpiResult = kpiData?.get(cell.kpiCode);
     if (kpiResult && kpiResult.scalar_value !== null) {
-      const decimals = cell.decimals ?? 1;
+      const decimals = cell.decimals ?? defaultDecimals ?? 1;
       const unit = cell.unit ?? "";
       return `${kpiResult.scalar_value.toFixed(decimals).replace(".", ",")}${unit}`;
     }

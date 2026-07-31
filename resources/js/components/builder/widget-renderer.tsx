@@ -5,7 +5,6 @@ import { ComboChartWidget } from "./widgets/combo-chart";
 import { DividerWidget } from "./widgets/divider";
 import { DonutWidget } from "./widgets/donut";
 import { GaugeWidget } from "./widgets/gauge";
-import { ImageWidget } from "./widgets/image";
 import { KpiWidget } from "./widgets/kpi";
 import { LineChartWidget } from "./widgets/line-chart";
 import { ParetoWidget } from "./widgets/pareto";
@@ -68,8 +67,6 @@ export function WidgetRenderer({ w, editing, onCellSelect, onCellKpiClick, selec
         onDeleteRow={onDeleteRow} onDeleteCol={onDeleteCol} onResize={onResize} />;
     case "text":
       return <TextWidget c={c} />;
-    case "image":
-      return <ImageWidget c={c} />;
     case "divider":
       return <DividerWidget c={c} />;
     default:

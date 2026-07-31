@@ -17,7 +17,7 @@ export function SimpleTableWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: K
             return (
               <tr key={i} className="border-t border-border">
                 <td className="px-2 py-1">{r.x}</td>
-                <td className="px-2 py-1 text-right font-bold" style={sc ? { color: sc } : undefined}>{r.v}</td>
+                <td className="px-2 py-1 text-right font-bold" style={sc ? { color: sc } : undefined}>{r.v.toFixed(c.decimals ?? 1).replace(".", ",")}{c.unit ?? ""}</td>
               </tr>
             );
           })}

@@ -13,7 +13,6 @@ export type WidgetType =
   | "table"
   | "table-grid"
   | "text"
-  | "image"
   | "divider";
 
 export type TableCell = {
@@ -58,7 +57,6 @@ export type WidgetConfig = {
   decimals?: number;
   target?: number;
   text?: string;
-  imageUrl?: string;
   // style
   bg?: string;
   bgGradient?: string; // full CSS gradient string, overrides bg when set

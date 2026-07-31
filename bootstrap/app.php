@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'audit' => \App\Http\Middleware\LogAuditTrail::class,
             'active.user' => \App\Http\Middleware\EnsureActiveUser::class,
             'standalone.user' => \App\Http\Middleware\ResolveStandaloneUser::class,
+            'v4.auth' => \App\Http\Middleware\EnsureV4Authenticated::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -27,8 +28,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'browser-log',
             'auth/login',
             'api/data-auth/*',
+            'api/v4-auth/*',
             'api/builder-pages/*',
             'api/builder-pages',
+            'api/v4/builder-pages/*',
+            'api/v4/builder-pages',
+            'api/v4/builder-page-groups/*',
+            'api/v4/builder-page-groups',
         ]);
 
         $middleware->web(append: [

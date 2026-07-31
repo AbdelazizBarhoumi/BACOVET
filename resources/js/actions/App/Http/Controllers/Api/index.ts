@@ -1,6 +1,9 @@
 import BuilderPageController from './BuilderPageController'
 import BuilderPageGroupController from './BuilderPageGroupController'
 import BuilderKpiController from './BuilderKpiController'
+import V4AuthController from './V4AuthController'
+import BuilderPageV4Controller from './BuilderPageV4Controller'
+import BuilderPageGroupV4Controller from './BuilderPageGroupV4Controller'
 import SettingController from './SettingController'
 import NovacityProxyController from './NovacityProxyController'
 import AuthController from './AuthController'
@@ -21,6 +24,9 @@ const Api = {
     BuilderPageController: Object.assign(BuilderPageController, BuilderPageController),
 BuilderPageGroupController: Object.assign(BuilderPageGroupController, BuilderPageGroupController),
 BuilderKpiController: Object.assign(BuilderKpiController, BuilderKpiController),
+V4AuthController: Object.assign(V4AuthController, V4AuthController),
+BuilderPageV4Controller: Object.assign(BuilderPageV4Controller, BuilderPageV4Controller),
+BuilderPageGroupV4Controller: Object.assign(BuilderPageGroupV4Controller, BuilderPageGroupV4Controller),
 SettingController: Object.assign(SettingController, SettingController),
 NovacityProxyController: Object.assign(NovacityProxyController, NovacityProxyController),
 AuthController: Object.assign(AuthController, AuthController),

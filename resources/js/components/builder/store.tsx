@@ -62,7 +62,7 @@ const STYLE_DEFAULTS: Partial<WidgetConfig> = {
   labelFontSize: 10, labelTransform: "uppercase", labelPosition: "top",
 };
 
-const DEFAULT_CONFIG_FOR: Record<WidgetType, WidgetConfig> = {
+export const DEFAULT_CONFIG_FOR: Record<WidgetType, WidgetConfig> = {
   kpi: { ...STYLE_DEFAULTS, label: "KPI", unit: "%", decimals: 1, target: 90, accent: "#22c55e", showTarget: true, showLabel: true, showKpiCode: true, shadow: "sm" },
   gauge: { ...STYLE_DEFAULTS, label: "Gauge", target: 85, accent: "#3b82f6", shadow: "sm" },
   sparkline: { ...STYLE_DEFAULTS, label: "Trend", accent: "#3b82f6" },
@@ -77,21 +77,20 @@ const DEFAULT_CONFIG_FOR: Record<WidgetType, WidgetConfig> = {
   table: { ...STYLE_DEFAULTS, label: "Table" },
   "table-grid": { ...STYLE_DEFAULTS, label: "Tableau libre", tableGrid: makeEmptyTable(3, 4), padding: 4 },
   text: { ...STYLE_DEFAULTS, label: "Titre", text: "Texte libre", fontSize: 16, fontWeight: 700, align: "left", fg: "var(--foreground)", radius: 4 },
-  image: { ...STYLE_DEFAULTS, label: "Image", imageUrl: "" },
   divider: { ...STYLE_DEFAULTS, label: "Divider", bg: "var(--border)" },
 };
 
-const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
+export const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
   kpi: { w: 3, h: 3 }, gauge: { w: 3, h: 4 }, sparkline: { w: 3, h: 2 },
   line: { w: 6, h: 4 }, bar: { w: 6, h: 4 }, pareto: { w: 6, h: 5 },
   donut: { w: 3, h: 4 }, pie: { w: 4, h: 4 }, radar: { w: 5, h: 5 }, area: { w: 6, h: 4 }, combo: { w: 8, h: 5 },
   table: { w: 6, h: 5 }, "table-grid": { w: 12, h: 6 },
-  text: { w: 6, h: 1 }, image: { w: 3, h: 3 }, divider: { w: 12, h: 1 },
+  text: { w: 6, h: 1 }, divider: { w: 12, h: 1 },
 };
 
 export function BuilderProvider({
-  pageId, pageDbId, defaultLayout, children,
-}: { pageId: string; pageDbId: number; defaultLayout: Widget[]; children: ReactNode }) {
+  pageId, pageDbId, defaultLayout, children, apiBase = "/api/builder-pages",
+}: { pageId: string; pageDbId: number; defaultLayout: Widget[]; children: ReactNode; apiBase?: string }) {
   const [mode, setMode] = useState<Mode>("view");
   const [widgets, setWidgets] = useState<Widget[]>(defaultLayout);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -208,7 +207,7 @@ export function BuilderProvider({
     if (!pageDbId) return false;
     const payload = { layout: { version: 1, widgets } };
     try {
-      const res = await fetch(`/api/builder-pages/${pageDbId}`, {
+      const res = await fetch(`${apiBase}/${pageDbId}`, {
         method: "PUT",
         credentials: "include",
         headers: {
@@ -225,7 +224,7 @@ export function BuilderProvider({
     } catch {
       return false;
     }
-  }, [pageDbId, widgets]);
+  }, [pageDbId, widgets, apiBase]);
 
   const reset = useCallback(async (): Promise<boolean> => {
     if (!pageDbId) {
@@ -239,7 +238,7 @@ export function BuilderProvider({
       return true;
     }
     try {
-      const res = await fetch(`/api/builder-pages/${pageDbId}`, {
+      const res = await fetch(`${apiBase}/${pageDbId}`, {
         method: "PUT",
         credentials: "include",
         headers: {
@@ -262,7 +261,7 @@ export function BuilderProvider({
     setCanUndo(false);
     setCanRedo(false);
     return true;
-  }, [pageDbId, defaultLayout]);
+  }, [pageDbId, defaultLayout, apiBase]);
 
   const undo = useCallback(() => {
     if (pastRef.current.length === 0) return;

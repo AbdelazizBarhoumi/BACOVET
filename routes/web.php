@@ -7,6 +7,9 @@ use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\BuilderKpiController;
 use App\Http\Controllers\Api\BuilderPageController;
 use App\Http\Controllers\Api\BuilderPageGroupController;
+use App\Http\Controllers\Api\BuilderPageGroupV4Controller;
+use App\Http\Controllers\Api\BuilderPageV4Controller;
+use App\Http\Controllers\Api\V4AuthController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\DevelopmentController;
 use App\Http\Controllers\Api\FilterController;
@@ -83,6 +86,50 @@ Route::prefix('api/builder-page-groups')->group(function () {
 // ── V3 BUILDER KPI API ────────────────────────────────────────────
 Route::get('/api/builder-kpis', [BuilderKpiController::class, 'index']);
 Route::get('/api/builder-kpis/data', [BuilderKpiController::class, 'data']);
+
+// ── V4 PAGE BUILDER (standalone login) ─────────────────────────────
+Route::get('/v4/login', fn () => Inertia::render('v4/login'))->name('v4.login');
+
+Route::post('/api/v4-auth/check', [V4AuthController::class, 'check']);
+Route::post('/api/v4-auth/set-password', [V4AuthController::class, 'setPassword']);
+Route::post('/api/v4-auth/login', [V4AuthController::class, 'login']);
+Route::post('/api/v4-auth/logout', [V4AuthController::class, 'logout']);
+Route::get('/api/v4-auth/me', [V4AuthController::class, 'me']);
+
+Route::middleware('v4.auth')->group(function () {
+    Route::get('/v4', fn () => Inertia::render('v4/page-builder'))->name('v4');
+    Route::get('/v4/p/{slug}', function ($slug) {
+        $page = \App\Models\BuilderPageV4::where('slug', $slug)->first();
+        if (! $page) {
+            abort(404);
+        }
+        return Inertia::render('v4/p/[slug]', [
+            'pageId' => $page->id,
+            'slug' => $page->slug,
+            'pageName' => $page->name,
+            'layout' => $page->layout['widgets'] ?? [],
+        ]);
+    })->name('v4.page');
+
+    Route::prefix('api/v4/builder-pages')->group(function () {
+        Route::get('/', [BuilderPageV4Controller::class, 'index']);
+        Route::get('/{slug}', [BuilderPageV4Controller::class, 'show']);
+        Route::post('/', [BuilderPageV4Controller::class, 'store']);
+        Route::put('/{id}', [BuilderPageV4Controller::class, 'update']);
+        Route::delete('/{id}', [BuilderPageV4Controller::class, 'destroy']);
+        Route::post('/{id}/duplicate', [BuilderPageV4Controller::class, 'duplicate']);
+    });
+
+    Route::prefix('api/v4/builder-page-groups')->group(function () {
+        Route::get('/', [BuilderPageGroupV4Controller::class, 'index']);
+        Route::post('/', [BuilderPageGroupV4Controller::class, 'store']);
+        Route::put('/assign-page', [BuilderPageGroupV4Controller::class, 'assignPage']);
+        Route::put('/reorder-pages', [BuilderPageGroupV4Controller::class, 'reorderPages']);
+        Route::put('/reorder-groups', [BuilderPageGroupV4Controller::class, 'reorderGroups']);
+        Route::put('/{id}', [BuilderPageGroupV4Controller::class, 'update']);
+        Route::delete('/{id}', [BuilderPageGroupV4Controller::class, 'destroy']);
+    });
+});
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 
