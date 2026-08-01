@@ -203,16 +203,24 @@ function useInteractiveRows(visual: Visual, rows: Row[]) {
     const { crossFilter, interactionFor } = usePbi();
     return useMemo(() => {
         if (!crossFilter || crossFilter.sourceId === visual.id)
-            return { rows, dim: false };
-        if (crossFilter.table && visualTable(visual) && crossFilter.table !== visualTable(visual))
-            return { rows, dim: false };
+            return { rows, dim: false, match: null };
+        if (
+            (crossFilter.table &&
+                visualTable(visual) &&
+                crossFilter.table !== visualTable(visual)) ||
+            (!crossFilter.table &&
+                visualTable(visual) &&
+                !visual.axis.some((f) => f.name === crossFilter.column))
+        )
+            return { rows, dim: false, match: null };
         const mode = interactionFor(crossFilter.sourceId, visual.id);
-        if (mode === 'none') return { rows, dim: false };
-        const filtered = rows.filter(
-            (r) => String(r[crossFilter.column]) === crossFilter.value,
-        );
-        return { rows: filtered, dim: mode === 'highlight' };
-    }, [crossFilter, interactionFor, rows, visual.id]);
+        if (mode === 'none') return { rows, dim: false, match: null };
+        const matches = (r: Row) =>
+            String(r[crossFilter.column]) === crossFilter.value;
+        if (mode === 'filter')
+            return { rows: rows.filter(matches), dim: false, match: null };
+        return { rows, dim: false, match: matches };
+    }, [crossFilter, interactionFor, rows, visual]);
 }
 
 export function VisualView({
@@ -222,10 +230,10 @@ export function VisualView({
     visual: Visual;
     rows: Row[];
 }) {
-    const { rows, dim } = useInteractiveRows(visual, allRows);
+    const { rows, match } = useInteractiveRows(visual, allRows);
     const sm = visual.smallMultiples[0]?.name;
 
-    if (!sm) return <ChartBody visual={visual} rows={rows} dim={dim} />;
+    if (!sm) return <ChartBody visual={visual} rows={rows} match={match} />;
 
     const cells = distinctValues(sm, rows);
     if (!cells.length)
@@ -247,7 +255,7 @@ export function VisualView({
                             rows={rows.filter(
                                 (r) => String(r[sm]) === String(value),
                             )}
-                            dim={dim}
+                            match={match}
                         />
                     </div>
                 </div>
@@ -259,11 +267,11 @@ export function VisualView({
 function ChartBody({
     visual,
     rows,
-    dim,
+    match,
 }: {
     visual: Visual;
     rows: Row[];
-    dim: boolean;
+    match: ((r: Row) => boolean) | null;
 }) {
     const { applyCrossFilter, setTooltipHover, tooltipHover } = usePbi();
 
@@ -292,12 +300,62 @@ function ChartBody({
         );
     };
 
+    const matchSet = useMemo(() => {
+        if (!match || !axisCol) return null;
+        const s = new Set<string>();
+        for (const r of rows) if (match(r)) s.add(String(r[axisCol]));
+        return s;
+    }, [match, rows, axisCol]);
+
+    /** Cell opacity per data item when a cross-highlight is active. */
+    const itemOpacity = (d: Record<string, string | number>) =>
+        matchSet
+            ? matchSet.has(String(d['category']))
+                ? 1
+                : 0.2
+            : 1;
+
+    /** Point renderer for line/area/combo: clickable dots, dimmed during highlight. */
+    const pointDot = (color: string) => {
+        if (!axisCol) return false;
+        return ({
+            cx,
+            cy,
+            payload,
+        }: {
+            cx?: number;
+            cy?: number;
+            payload?: { category?: string | number };
+        }) =>
+            cx != null ? (
+                <circle
+                    cx={cx}
+                    cy={cy ?? 0}
+                    r={matchSet ? 3 : 2}
+                    fill={
+                        matchSet
+                            ? matchSet.has(String(payload?.category))
+                                ? color
+                                : 'rgba(148,163,184,0.25)'
+                            : color
+                    }
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPointClick(payload);
+                    }}
+                />
+            ) : (
+                <g />
+            );
+    };
+
     const hasValues = visual.values.length > 0;
     const wrap = (node: React.ReactNode) => (
         <div
-            className={cn('h-full w-full', dim && 'opacity-70')}
+            className="h-full w-full"
             onMouseLeave={() => {
-                if (tooltipHover?.sourceId === visual.id) setTooltipHover(null);
+                if (tooltipHover?.sourceId === visual.id)
+                    setTooltipHover(null);
             }}
         >
             {node}
@@ -358,6 +416,7 @@ function ChartBody({
                 <MapVisual
                     data={data}
                     series={series}
+                    matchSet={matchSet}
                     onPointClick={onPointClick}
                 />
             );
@@ -469,7 +528,7 @@ function ChartBody({
                                 onPointClick(d)
                             }
                         >
-                            {data.map((_, i) => (
+                            {data.map((d, i) => (
                                 <Cell
                                     key={i}
                                     fill={
@@ -478,6 +537,7 @@ function ChartBody({
                                                 PALETTE.length
                                         ]
                                     }
+                                    fillOpacity={itemOpacity(d)}
                                 />
                             ))}
                             {visual.showLabels && (
@@ -500,8 +560,12 @@ function ChartBody({
             const key = series[0] ?? 'value';
             const tm = data.map((d, i) => ({
                 name: String(d['category']),
+                category: d['category'],
                 size: Number(d[key]) || 0,
-                fill: PALETTE[i % PALETTE.length],
+                fill:
+                    matchSet && !matchSet.has(String(d['category']))
+                        ? 'rgba(148,163,184,0.2)'
+                        : PALETTE[i % PALETTE.length],
             }));
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
@@ -511,6 +575,15 @@ function ChartBody({
                         nameKey="name"
                         stroke="var(--card)"
                         isAnimationActive={false}
+                        onClick={(node) =>
+                            onPointClick({
+                                category: (
+                                    node as {
+                                        category?: string | number;
+                                    }
+                                ).category,
+                            })
+                        }
                     >
                         <Tooltip content={chartTooltip(visual)} />
                     </Treemap>
@@ -526,6 +599,7 @@ function ChartBody({
                             dataKey={series[0] ?? 'value'}
                             data={data}
                             isAnimationActive
+                            onClick={onPointClick}
                         >
                             <LabelList
                                 position="right"
@@ -535,10 +609,11 @@ function ChartBody({
                                     fill: 'var(--foreground)',
                                 }}
                             />
-                            {data.map((_, i) => (
+                            {data.map((d, i) => (
                                 <Cell
                                     key={i}
                                     fill={PALETTE[i % PALETTE.length]}
+                                    fillOpacity={itemOpacity(d)}
                                 />
                             ))}
                         </Funnel>
@@ -586,7 +661,12 @@ function ChartBody({
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         <Bar dataKey="base" stackId="w" fill="transparent" />
-                        <Bar dataKey="delta" stackId="w" radius={[2, 2, 0, 0]}>
+                        <Bar
+                            dataKey="delta"
+                            stackId="w"
+                            radius={[2, 2, 0, 0]}
+                            onClick={onPointClick}
+                        >
                             {wdata.map((d, i) => (
                                 <Cell
                                     key={i}
@@ -595,6 +675,7 @@ function ChartBody({
                                             ? 'var(--chart-2)'
                                             : 'var(--destructive)'
                                     }
+                                    fillOpacity={itemOpacity(d)}
                                 />
                             ))}
                         </Bar>
@@ -629,7 +710,7 @@ function ChartBody({
                                 dataKey={s}
                                 stroke={PALETTE[i % PALETTE.length]}
                                 strokeWidth={2}
-                                dot={false}
+                                dot={pointDot(PALETTE[i % PALETTE.length])}
                             />
                         ))}
                         {analyticsLines(visual, data, series)}
@@ -668,6 +749,7 @@ function ChartBody({
                                 stroke={PALETTE[i % PALETTE.length]}
                                 fill={PALETTE[i % PALETTE.length]}
                                 fillOpacity={0.35}
+                                dot={pointDot(PALETTE[i % PALETTE.length])}
                             />
                         ))}
                     </AreaChart>
@@ -701,7 +783,15 @@ function ChartBody({
                                     fill={PALETTE[0]}
                                     radius={[2, 2, 0, 0]}
                                     onClick={onPointClick}
-                                />
+                                >
+                                    {data.map((d, idx) => (
+                                        <Cell
+                                            key={idx}
+                                            fill={PALETTE[0]}
+                                            fillOpacity={itemOpacity(d)}
+                                        />
+                                    ))}
+                                </Bar>
                             ) : (
                                 <Line
                                     key={s}
@@ -709,6 +799,7 @@ function ChartBody({
                                     dataKey={s}
                                     stroke={PALETTE[i]}
                                     strokeWidth={2}
+                                    dot={pointDot(PALETTE[i])}
                                 />
                             ),
                         )}
@@ -747,6 +838,37 @@ function ChartBody({
                             data={data}
                             fill="var(--chart-1)"
                             onClick={onPointClick}
+                            shape={
+                                matchSet
+                                    ? ({
+                                          cx,
+                                          cy,
+                                          payload,
+                                      }: {
+                                          cx?: number;
+                                          cy?: number;
+                                          payload?: { category?: string | number };
+                                      }) =>
+                                          cx != null ? (
+                                              <circle
+                                                  cx={cx}
+                                                  cy={cy ?? 0}
+                                                  r={4}
+                                                  fill={
+                                                      matchSet.has(
+                                                          String(
+                                                              payload?.category,
+                                                          ),
+                                                      )
+                                                          ? 'var(--chart-1)'
+                                                          : 'rgba(148,163,184,0.25)'
+                                                  }
+                                              />
+                                          ) : (
+                                              <g />
+                                          )
+                                    : undefined
+                            }
                         />
                     </ScatterChart>
                 </ResponsiveContainer>,
@@ -798,7 +920,20 @@ function ChartBody({
                                 }
                                 radius={[0, 2, 2, 0]}
                                 onClick={onPointClick}
-                            />
+                            >
+                                {bdata.map((d, idx) => (
+                                    <Cell
+                                        key={idx}
+                                        fill={
+                                            PALETTE[
+                                                (i + visual.colorIndex) %
+                                                    PALETTE.length
+                                            ]
+                                        }
+                                        fillOpacity={itemOpacity(d)}
+                                    />
+                                ))}
+                            </Bar>
                         ))}
                     </BarChart>
                 </ResponsiveContainer>,
@@ -850,6 +985,18 @@ function ChartBody({
                                 radius={[2, 2, 0, 0]}
                                 onClick={onPointClick}
                             >
+                                {cdata.map((d, idx) => (
+                                    <Cell
+                                        key={idx}
+                                        fill={
+                                            PALETTE[
+                                                (i + visual.colorIndex) %
+                                                    PALETTE.length
+                                            ]
+                                        }
+                                        fillOpacity={itemOpacity(d)}
+                                    />
+                                ))}
                                 {visual.showLabels && (
                                     <LabelList
                                         position="top"
@@ -1421,10 +1568,12 @@ function ScriptVisual({
 function MapVisual({
     data,
     series,
+    matchSet,
     onPointClick,
 }: {
     data: Record<string, string | number>[];
     series: string[];
+    matchSet: Set<string> | null;
     onPointClick: (p: { category?: string | number }) => void;
 }) {
     const key = series[0];
@@ -1434,6 +1583,7 @@ function MapVisual({
         <div className="grid h-full grid-cols-3 content-start gap-1 overflow-auto rounded bg-muted/40 p-1">
             {data.map((d, i) => {
                 const v = Number(d[key]) || 0;
+                const dimmed = matchSet && !matchSet.has(String(d['category']));
                 return (
                     <button
                         key={i}
@@ -1441,6 +1591,7 @@ function MapVisual({
                         className="flex flex-col items-center justify-center rounded p-1 text-[10px]"
                         style={{
                             backgroundColor: `color-mix(in oklch, var(--chart-1) ${(v / max) * 80 + 10}%, transparent)`,
+                            opacity: dimmed ? 0.25 : 1,
                         }}
                     >
                         <span className="truncate">{d['category']}</span>

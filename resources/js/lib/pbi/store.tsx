@@ -726,7 +726,20 @@ export function PbiProvider({
         select: (id) => setState((s) => ({ ...s, selectedId: id })),
         addVisual,
         updateVisual,
-        removeVisual: (id) => mapVisuals((vs) => vs.filter((v) => v.id !== id)),
+        removeVisual: (id) =>
+            setState((s) => ({
+                ...s,
+                crossFilter:
+                    s.crossFilter?.sourceId === id ? null : s.crossFilter,
+                pages: s.pages.map((p) =>
+                    p.id === s.activePageId
+                        ? {
+                              ...p,
+                              visuals: p.visuals.filter((v) => v.id !== id),
+                          }
+                        : p,
+                ),
+            })),
         duplicateVisual: (id) =>
             mapVisuals((vs) => {
                 const v = vs.find((x) => x.id === id);

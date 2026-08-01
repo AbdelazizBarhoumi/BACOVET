@@ -344,6 +344,8 @@ function EditBody() {
         editInteractions,
         drillthrough,
         clearDrillthrough,
+        crossFilter,
+        clearCrossFilter,
     } = usePbi();
     const [dax, setDax] = useState(false);
     const [paneCollapsed, setPaneCollapsed] = useState<
@@ -367,6 +369,23 @@ function EditBody() {
                 <div className="bg-brand/15 px-3 py-1 text-[11px] text-foreground">
                     Edit interactions is on — select a source visual, then
                     choose Filter / Highlight / None on each other visual.
+                </div>
+            )}
+            {crossFilter && (
+                <div className="flex items-center gap-2 bg-brand/15 px-3 py-1 text-[11px]">
+                    Cross-filtered:{' '}
+                    <span className="font-medium">
+                        {crossFilter.table
+                            ? `${crossFilter.table}[${crossFilter.column}]`
+                            : crossFilter.column}{' '}
+                        = {crossFilter.value}
+                    </span>
+                    <button
+                        onClick={clearCrossFilter}
+                        className="underline hover:text-brand"
+                    >
+                        Clear
+                    </button>
                 </div>
             )}
             {drillthrough && (
