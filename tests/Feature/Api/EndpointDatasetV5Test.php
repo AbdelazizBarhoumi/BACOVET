@@ -177,6 +177,39 @@ class EndpointDatasetV5Test extends TestCase
         );
     }
 
+    public function test_index_includes_empty_fixture_tables_with_schema(): void
+    {
+        $this->writeFixture([
+            $this->structure('sales', ['Category', 'Region', 'Amount', 'IsReturned', 'SaleDate']),
+            $this->structure('sales_duplicate', ['Category', 'DuplicateName']),
+            $this->structure('dates', ['SaleDate']),
+            $this->structure('empty_table', ['Category', 'Amount']),
+        ]);
+
+        foreach (['sales', 'sales_duplicate', 'dates', 'empty_table'] as $slug) {
+            EndpointDataset::create([
+                'slug' => "api/data/{$slug}",
+                'name' => $slug,
+                'row_count' => $slug === 'empty_table' ? 0 : 1,
+                'columns' => [['name' => 'Category', 'type' => 'text']],
+                'sample_data' => $slug === 'empty_table' ? [] : [['Category' => 'A']],
+                'last_status' => 'ok',
+                'method' => 'GET',
+            ]);
+        }
+
+        $response = $this->getJson('/api/v5/endpoint-datasets')->assertStatus(200);
+
+        $datasets = collect($response->json('datasets'))->keyBy('slug');
+        $this->assertCount(4, $datasets);
+        $this->assertSame(0, $datasets['api/data/empty_table']['row_count']);
+        $this->assertSame(
+            ['Category', 'Amount'],
+            array_column($datasets['api/data/empty_table']['columns'], 'name'),
+        );
+        $this->assertSame([], $datasets['api/data/empty_table']['sample_data']);
+    }
+
     private function writeFixture(array $data): void
     {
         $path = storage_path(self::FIXTURE);
@@ -184,5 +217,19 @@ class EndpointDatasetV5Test extends TestCase
             mkdir(dirname($path), 0777, true);
         }
         file_put_contents($path, json_encode($data, JSON_THROW_ON_ERROR));
+    }
+
+    private function structure(string $slug, array $columns): array
+    {
+        return [
+            'name' => $slug,
+            'method' => 'GET',
+            'endpoint' => "http://novacity/api/data/{$slug}",
+            'response' => [
+                'label' => $slug,
+                'columns' => $columns,
+                'data' => [],
+            ],
+        ];
     }
 }

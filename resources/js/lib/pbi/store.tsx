@@ -14,10 +14,12 @@ import {
     hasColumn,
     isMeasure,
     normalizeWellField,
+    registerMeasure,
     setTables,
     type Agg,
     type AnalyticsLine,
     type CrossFilter,
+    type Field,
     type Interaction,
     type Page,
     type PageFormat,
@@ -42,6 +44,10 @@ export function defaultDropWell(type: VisualType): WellName {
         : 'values';
 }
 
+function isSlicerType(type: VisualType): boolean {
+    return ['slicer', 'buttonSlicer', 'listSlicer', 'inputSlicer', 'dateSlicer'].includes(type);
+}
+
 export type ReportFilter = {
     column: string;
     values: string[];
@@ -58,6 +64,7 @@ export type Bookmark = {
     pageId: string;
     filters: ReportFilter[];
     slicerSelections: Record<string, string[]>;
+    slicerDateRanges: Record<string, SlicerDateRange>;
     hidden: Record<string, boolean>;
     crossFilter: CrossFilter;
 };
@@ -67,6 +74,25 @@ export type TooltipHover = {
     column: string;
     value: string;
 };
+
+export type SlicerDateRange = { from?: string; to?: string };
+
+export function slicerKey(table: string | undefined, column: string, value: string) {
+    return JSON.stringify([table ?? '', column, value]);
+}
+
+function parseSlicerKey(key: string): { table: string; column: string; value: string } | null {
+    try {
+        const parsed: unknown = JSON.parse(key);
+        if (Array.isArray(parsed) && parsed.length === 3)
+            return { table: String(parsed[0]), column: String(parsed[1]), value: String(parsed[2]) };
+    } catch {
+        const separator = key.indexOf('::');
+        if (separator >= 0)
+            return { table: '', column: key.slice(0, separator), value: key.slice(separator + 2) };
+    }
+    return null;
+}
 
 export type PaneName =
     | 'filters'
@@ -83,6 +109,7 @@ export type State = {
     selectedId: string | null;
     filters: ReportFilter[];
     slicerSelections: Record<string, string[]>;
+    slicerDateRanges: Record<string, SlicerDateRange>;
     /** slicer id -> synced page ids */
     slicerSync: Record<string, string[]>;
     crossFilter: CrossFilter;
@@ -100,6 +127,8 @@ export type State = {
     ribbonTab: string;
     openPanes: Record<PaneName, boolean>;
     drillthrough: { pageId: string; column: string; value: string } | null;
+    /** user-defined DAX measures created in the formula bar */
+    measures: Field[];
 };
 
 export const defaultPageFormat = (): PageFormat => ({
@@ -135,12 +164,30 @@ export function wf(name: unknown, table?: string, agg: Agg = 'sum', label?: stri
 
 function normalizeState(state: State): State {
     const wells = ['axis', 'legend', 'values', 'tooltips', 'smallMultiples', 'drillFields'] as const;
+    const visuals = state.pages.flatMap((page) => page.visuals);
+    const slicerSelections = Object.fromEntries(
+        Object.entries(state.slicerSelections ?? {}).map(([visualId, selections]) => {
+            const table = visuals.find((visual) => visual.id === visualId)?.axis[0]?.table;
+            return [
+                visualId,
+                selections.map((selection) => {
+                    const parsed = parseSlicerKey(selection);
+                    return parsed
+                        ? slicerKey(parsed.table || table, parsed.column, parsed.value)
+                        : selection;
+                }),
+            ];
+        }),
+    );
     return {
         ...state,
         // Cross-filters and tooltip hover state are transient interactions;
         // persisting them can reopen a report with every slicer filtered out.
         crossFilter: null,
         tooltipHover: null,
+        slicerDateRanges: state.slicerDateRanges ?? {},
+        measures: state.measures ?? [],
+        slicerSelections,
         pages: state.pages.map((page) => ({
             ...page,
             visuals: page.visuals.map((visual) => {
@@ -286,6 +333,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
     selectedId: null,
     filters: [],
     slicerSelections: {},
+    slicerDateRanges: {},
     slicerSync: {},
     crossFilter: null,
     interactions: {},
@@ -297,7 +345,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
     snapToGrid: true,
     zoom: 100,
     mobileView: false,
-    ribbonTab: 'Home',
+    ribbonTab: 'Insert',
     openPanes: {
         filters: true,
         visualizations: true,
@@ -308,6 +356,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
         analytics: false,
     },
     drillthrough: null,
+    measures: [],
 });
 
 type Ctx = State & {
@@ -334,6 +383,12 @@ type Ctx = State & {
         name: unknown,
         table?: string,
     ) => void;
+    toggleField: (
+        visualId: string,
+        well: WellName,
+        name: unknown,
+        table?: string,
+    ) => void;
     removeWellField: (visualId: string, well: WellName, index: number) => void;
     setWellAgg: (
         visualId: string,
@@ -351,9 +406,10 @@ type Ctx = State & {
     setPageFormat: (id: string, patch: Partial<PageFormat>) => void;
     setActivePage: (id: string) => void;
     toggleSlicer: (visualId: string, column: string, value: string) => void;
+    setSlicerDateRange: (visualId: string, range: SlicerDateRange) => void;
     clearSlicer: (visualId: string) => void;
     setSlicerSync: (visualId: string, pageId: string) => void;
-    applyCrossFilter: (sourceId: string, column: string, value: string) => void;
+    applyCrossFilter: (sourceId: string, column: string, value: string, table?: string) => void;
     clearCrossFilter: () => void;
     setTooltipHover: (hover: TooltipHover | null) => void;
     setInteraction: (
@@ -368,10 +424,12 @@ type Ctx = State & {
         scope?: 'page' | 'report',
     ) => void;
     toggleFilterValue: (column: string, value: string, table?: string) => void;
+    setFilterScope: (column: string, table: string | undefined, scope: 'page' | 'report') => void;
     removeFilter: (column: string, table?: string) => void;
     addBookmark: (name: string) => void;
     applyBookmark: (id: string) => void;
     removeBookmark: (id: string) => void;
+    addMeasure: (name: string, expression: string) => void;
     setTheme: (t: string) => void;
     setRibbonTab: (t: string) => void;
     togglePane: (p: PaneName) => void;
@@ -408,6 +466,14 @@ export function PbiProvider({
             : defaultState(tables),
     );
 
+    // Re-wire persisted DAX measures into the aggregation engine after a
+    // page reload (MEASURE_IMPL lives in module scope, not the layout).
+    useEffect(() => {
+        for (const m of rawState.measures ?? []) {
+            if (m.expression) registerMeasure(m.name, m.expression);
+        }
+    }, [rawState.measures]);
+
     const setState = useCallback<React.Dispatch<React.SetStateAction<State>>>(
         (updater) => {
             setRawState((prev) => {
@@ -443,7 +509,34 @@ export function PbiProvider({
     const updateVisual = useCallback(
         (id: string, patch: Partial<Visual>) =>
             mapVisuals((vs) =>
-                vs.map((v) => (v.id === id ? { ...v, ...patch } : v)),
+                vs.map((v) => {
+                    if (v.id !== id) return v;
+                    const next = { ...patch };
+                    for (const key of ['x', 'y', 'w', 'h'] as const) {
+                        const value = next[key];
+                        if (value !== undefined && !Number.isFinite(value))
+                            delete next[key];
+                    }
+                    if (next.x !== undefined) next.x = Math.max(0, next.x);
+                    if (next.y !== undefined) next.y = Math.max(0, next.y);
+                    if (next.w !== undefined) next.w = Math.max(80, next.w);
+                    if (next.h !== undefined) next.h = Math.max(60, next.h);
+                    if (next.colorIndex !== undefined)
+                        next.colorIndex = Math.max(0, Math.min(7, Math.round(next.colorIndex)));
+                    const result = { ...v, ...next };
+                    if (next.type && next.type !== v.type) {
+                        if (isSlicerType(next.type) && !result.axis.length && result.values.length) {
+                            result.axis = [result.values[0]!];
+                            result.values = result.values.slice(1);
+                        } else if (!isSlicerType(next.type) && !result.values.length) {
+                            const numericAxis = result.axis.find(
+                                (field) => fieldType(field.name, field.table) === 'number',
+                            );
+                            if (numericAxis) result.values = [numericAxis];
+                        }
+                    }
+                    return result;
+                }),
             ),
         [mapVisuals],
     );
@@ -487,6 +580,56 @@ export function PbiProvider({
         [mapVisuals],
     );
 
+    const toggleField = useCallback(
+        (visualId: string, well: WellName, name: unknown, table?: string) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const field = normalizeWellField({ name, table }, table);
+                    if (!field) return v;
+                    const matches = (candidate: WellField) =>
+                        candidate.name === field.name &&
+                        candidate.table === field.table;
+                    const present = (
+                        [
+                            'axis',
+                            'legend',
+                            'values',
+                            'tooltips',
+                            'smallMultiples',
+                            'drillFields',
+                        ] as WellName[]
+                    ).some((wellName) => v[wellName].some(matches));
+                    if (present) {
+                        return {
+                            ...v,
+                            axis: v.axis.filter((x) => !matches(x)),
+                            legend: v.legend.filter((x) => !matches(x)),
+                            values: v.values.filter((x) => !matches(x)),
+                            tooltips: v.tooltips.filter((x) => !matches(x)),
+                            smallMultiples: v.smallMultiples.filter(
+                                (x) => !matches(x),
+                            ),
+                            drillFields: v.drillFields.filter(
+                                (x) => !matches(x),
+                            ),
+                        };
+                    }
+                    const normalized = wf(
+                        field.name,
+                        field.table,
+                        field.agg,
+                        field.label,
+                    );
+                    if (v[well].some(matches)) return v;
+                    const next = [...v[well], normalized];
+                    const single = well === 'axis' || well === 'legend';
+                    return { ...v, [well]: single ? next.slice(-1) : next };
+                }),
+            ),
+        [mapVisuals],
+    );
+
     const tableRows = useMemo(() => {
         const map: Record<string, Row[]> = {};
         for (const t of tables) {
@@ -505,6 +648,21 @@ export function PbiProvider({
                         f.values.includes(String(r[f.column])),
                     );
             }
+            for (const [visualId, range] of Object.entries(state.slicerDateRanges)) {
+                if (!range.from && !range.to) continue;
+                const onPage = page.visuals.some((v) => v.id === visualId);
+                const synced = (state.slicerSync[visualId] ?? []).includes(state.activePageId);
+                if (!onPage && !synced) continue;
+                const slicer = state.pages
+                    .flatMap((p) => p.visuals)
+                    .find((v) => v.id === visualId);
+                const field = slicer?.axis[0];
+                if (!field || (field.table && field.table !== t.name) || !hasColumn(t, field.name)) continue;
+                out = out.filter((r) => {
+                    const day = String(r[field.name] ?? '').slice(0, 10);
+                    return !!day && (!range.from || day >= range.from) && (!range.to || day <= range.to);
+                });
+            }
             for (const [visualId, sel] of Object.entries(
                 state.slicerSelections,
             )) {
@@ -516,9 +674,9 @@ export function PbiProvider({
                 if (!onPage && !synced) continue;
                 const byCol = new Map<string, string[]>();
                 for (const s of sel) {
-                    const [c, v] = s.split('::');
-                    if (!c || v === undefined) continue;
-                    byCol.set(c, [...(byCol.get(c) ?? []), v]);
+                    const parsed = parseSlicerKey(s);
+                    if (!parsed || (parsed.table && parsed.table !== t.name)) continue;
+                    byCol.set(parsed.column, [...(byCol.get(parsed.column) ?? []), parsed.value]);
                 }
                 for (const [c, vals] of byCol) {
                     if (!hasColumn(t, c)) continue;
@@ -540,6 +698,7 @@ export function PbiProvider({
         tables,
         state.filters,
         state.slicerSelections,
+        state.slicerDateRanges,
         state.slicerSync,
         state.activePageId,
         state.drillthrough,
@@ -615,6 +774,7 @@ export function PbiProvider({
                 );
             }),
         dropField,
+        toggleField,
         removeWellField: (visualId, well, index) =>
             mapVisuals((vs) =>
                 vs.map((v) =>
@@ -728,7 +888,19 @@ export function PbiProvider({
                 ...s,
                 pages: s.pages.map((p) =>
                     p.id === id
-                        ? { ...p, format: { ...p.format, ...patch } }
+                        ? {
+                              ...p,
+                              format: {
+                                  ...p.format,
+                                  ...patch,
+                                  ...(patch.width !== undefined && Number.isFinite(patch.width)
+                                      ? { width: Math.max(320, patch.width) }
+                                      : {}),
+                                  ...(patch.height !== undefined && Number.isFinite(patch.height)
+                                      ? { height: Math.max(240, patch.height) }
+                                      : {}),
+                              },
+                          }
                         : p,
                 ),
             })),
@@ -736,7 +908,10 @@ export function PbiProvider({
             setState((s) => ({ ...s, activePageId: id, selectedId: null })),
         toggleSlicer: (visualId, column, value) =>
             setState((s) => {
-                const key = `${column}::${value}`;
+                const visual = s.pages
+                    .flatMap((p) => p.visuals)
+                    .find((v) => v.id === visualId);
+                const key = slicerKey(visual?.axis[0]?.table, column, value);
                 const cur = s.slicerSelections[visualId] ?? [];
                 const next = cur.includes(key)
                     ? cur.filter((x) => x !== key)
@@ -749,10 +924,22 @@ export function PbiProvider({
                     },
                 };
             }),
+        setSlicerDateRange: (visualId, range) =>
+            setState((s) => ({
+                ...s,
+                slicerDateRanges: {
+                    ...s.slicerDateRanges,
+                    [visualId]: range,
+                },
+            })),
         clearSlicer: (visualId) =>
             setState((s) => ({
                 ...s,
                 slicerSelections: { ...s.slicerSelections, [visualId]: [] },
+                slicerDateRanges: {
+                    ...s.slicerDateRanges,
+                    [visualId]: {},
+                },
             })),
         setSlicerSync: (visualId, pageId) =>
             setState((s) => {
@@ -765,15 +952,16 @@ export function PbiProvider({
                     slicerSync: { ...s.slicerSync, [visualId]: next },
                 };
             }),
-        applyCrossFilter: (sourceId, column, value) =>
+        applyCrossFilter: (sourceId, column, value, table) =>
             setState((s) => {
                 const same =
                     s.crossFilter?.sourceId === sourceId &&
-                    s.crossFilter.column === column &&
-                    s.crossFilter.value === value;
+                    s.crossFilter?.column === column &&
+                    s.crossFilter?.value === value &&
+                    s.crossFilter?.table === table;
                 return {
                     ...s,
-                    crossFilter: same ? null : { sourceId, column, value },
+                    crossFilter: same ? null : { sourceId, column, value, table },
                 };
             }),
         clearCrossFilter: () => setState((s) => ({ ...s, crossFilter: null })),
@@ -826,6 +1014,19 @@ export function PbiProvider({
                         : f,
                 ),
             })),
+        setFilterScope: (column, table, scope) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    f.column === column && f.table === table
+                        ? {
+                              ...f,
+                              scope,
+                              pageId: scope === 'page' ? s.activePageId : undefined,
+                          }
+                        : f,
+                ),
+            })),
         removeFilter: (column, table) =>
             setState((s) => ({
                 ...s,
@@ -851,6 +1052,9 @@ export function PbiProvider({
                             slicerSelections: JSON.parse(
                                 JSON.stringify(s.slicerSelections),
                             ),
+                            slicerDateRanges: JSON.parse(
+                                JSON.stringify(s.slicerDateRanges),
+                            ),
                             hidden: Object.fromEntries(
                                 p.visuals.map((v) => [v.id, v.hidden]),
                             ),
@@ -873,6 +1077,9 @@ export function PbiProvider({
                     slicerSelections: JSON.parse(
                         JSON.stringify(b.slicerSelections),
                     ),
+                    slicerDateRanges: JSON.parse(
+                        JSON.stringify(b.slicerDateRanges ?? {}),
+                    ),
                     crossFilter: b.crossFilter,
                     pages: s.pages.map((p) =>
                         p.id === b.pageId
@@ -892,6 +1099,26 @@ export function PbiProvider({
                 ...s,
                 bookmarks: s.bookmarks.filter((b) => b.id !== id),
             })),
+        addMeasure: (name, expression) => {
+            registerMeasure(name, expression);
+            setState((s) =>
+                s.measures.some((m) => m.name === name)
+                    ? s
+                    : {
+                          ...s,
+                          measures: [
+                              ...s.measures,
+                              {
+                                  table: 'Measures',
+                                  name,
+                                  type: 'number',
+                                  measure: true,
+                                  expression,
+                              },
+                          ],
+                      },
+            );
+        },
         setTheme: (theme) => setState((s) => ({ ...s, theme })),
         setRibbonTab: (ribbonTab) => setState((s) => ({ ...s, ribbonTab })),
         togglePane: (p) =>

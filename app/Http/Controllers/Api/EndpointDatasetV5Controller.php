@@ -21,7 +21,6 @@ class EndpointDatasetV5Controller extends Controller
         $records = EndpointDataset::query()
             ->where('method', 'GET')
             ->where('last_status', 'ok')
-            ->where('row_count', '>', 0)
             ->whereIn('slug', $structureBySlug->keys())
             ->orderBy('slug')
             ->get()

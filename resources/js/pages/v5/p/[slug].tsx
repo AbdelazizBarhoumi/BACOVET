@@ -2,11 +2,18 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import {
     ArrowLeft,
+    BarChart3,
+    Bookmark,
+    ChevronsRight,
     Eye,
+    Filter,
+    Layers,
+    Link2,
     Pencil,
     RefreshCw,
     Save,
     Smartphone,
+    Table2,
     ZoomIn,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -14,9 +21,6 @@ import { toast } from 'sonner';
 import { Canvas, PageTabs } from '@/components/pbi/Canvas';
 import {
     DaxDialog,
-    PerformanceDialog,
-    PowerQueryDialog,
-    QnaDialog,
 } from '@/components/pbi/Dialogs';
 import {
     BookmarksPane,
@@ -47,7 +51,7 @@ function parseInitialState(layout: PageProps['layout']): State | undefined {
     const pbi = layout?.pbi;
     if (!pbi || !Array.isArray(pbi.pages) || !pbi.pages.length)
         return undefined;
-    return pbi;
+    return { ...pbi, ribbonTab: 'Insert' };
 }
 
 export default function V5PageView() {
@@ -249,7 +253,7 @@ function Shell({
                 </div>
             </header>
 
-            {mode === 'view' ? <ViewBody /> : <EditBody onSave={save} />}
+            {mode === 'view' ? <ViewBody /> : <EditBody /> }
         </div>
     );
 }
@@ -275,7 +279,58 @@ function ViewBody() {
     );
 }
 
-function EditBody({ onSave }: { onSave: () => void }) {
+function PaneShell({
+    title,
+    icon,
+    width,
+    collapsed,
+    onToggle,
+    children,
+}: {
+    title: string;
+    icon: React.ReactNode;
+    width: string;
+    collapsed: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+}) {
+    if (collapsed) {
+        return (
+            <aside className="flex min-h-0 w-9 shrink-0 flex-col items-center border-l border-border bg-panel py-2">
+                <button
+                    onClick={onToggle}
+                    title={title}
+                    className="rounded p-1.5 text-muted-foreground hover:bg-accent"
+                >
+                    {icon}
+                </button>
+                <button
+                    onClick={onToggle}
+                    title={`Expand ${title}`}
+                    className="mt-2 rounded px-1 py-1 font-bold text-[15px] leading-none text-muted-foreground hover:bg-accent [writing-mode:vertical-rl]"
+                >
+                    {title}
+                </button>
+                <button
+                    onClick={onToggle}
+                    title="Expand"
+                    className="mt-auto rounded p-1 text-muted-foreground hover:bg-accent"
+                >
+                    <ChevronsRight className="size-4 rotate-180" />
+                </button>
+            </aside>
+        );
+    }
+    return (
+        <aside
+            className={`min-h-0 shrink-0 overflow-hidden border-l border-border bg-panel ${width}`}
+        >
+            {children}
+        </aside>
+    );
+}
+
+function EditBody() {
     const {
         page,
         rows,
@@ -290,20 +345,23 @@ function EditBody({ onSave }: { onSave: () => void }) {
         drillthrough,
         clearDrillthrough,
     } = usePbi();
-    const [pq, setPq] = useState(false);
     const [dax, setDax] = useState(false);
-    const [perf, setPerf] = useState(false);
-    const [qna, setQna] = useState(false);
+    const [paneCollapsed, setPaneCollapsed] = useState<
+        Record<string, boolean>
+    >({
+        selection: false,
+        bookmarks: false,
+        syncSlicers: false,
+        filters: false,
+        visualizations: false,
+        fields: false,
+    });
+    const togglePaneCollapsed = (key: string) =>
+        setPaneCollapsed((p) => ({ ...p, [key]: !p[key] }));
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <Ribbon
-                onOpenPowerQuery={() => setPq(true)}
-                onOpenDax={() => setDax(true)}
-                onOpenPerformance={() => setPerf(true)}
-                onOpenQna={() => setQna(true)}
-                onSave={onSave}
-            />
+            <Ribbon onOpenDax={() => setDax(true)} />
 
             {editInteractions && (
                 <div className="bg-brand/15 px-3 py-1 text-[11px] text-foreground">
@@ -326,75 +384,124 @@ function EditBody({ onSave }: { onSave: () => void }) {
                     <Canvas />
                 </section>
                 {openPanes.selection && (
-                    <aside className="min-h-0 w-56 overflow-hidden border-l border-border bg-panel">
-                        <SelectionPane />
-                    </aside>
+                    <PaneShell
+                        title="Selection"
+                        icon={<Layers className="size-4" />}
+                        width="w-56"
+                        collapsed={paneCollapsed.selection}
+                        onToggle={() => togglePaneCollapsed('selection')}
+                    >
+                        <SelectionPane
+                            onCollapse={() => togglePaneCollapsed('selection')}
+                        />
+                    </PaneShell>
                 )}
                 {openPanes.bookmarks && (
-                    <aside className="min-h-0 w-52 overflow-hidden border-l border-border bg-panel">
-                        <BookmarksPane />
-                    </aside>
+                    <PaneShell
+                        title="Bookmarks"
+                        icon={<Bookmark className="size-4" />}
+                        width="w-52"
+                        collapsed={paneCollapsed.bookmarks}
+                        onToggle={() => togglePaneCollapsed('bookmarks')}
+                    >
+                        <BookmarksPane
+                            onCollapse={() => togglePaneCollapsed('bookmarks')}
+                        />
+                    </PaneShell>
                 )}
                 {openPanes.syncSlicers && (
-                    <aside className="min-h-0 w-52 overflow-hidden border-l border-border bg-panel">
-                        <SyncSlicersPane />
-                    </aside>
+                    <PaneShell
+                        title="Sync slicers"
+                        icon={<Link2 className="size-4" />}
+                        width="w-52"
+                        collapsed={paneCollapsed.syncSlicers}
+                        onToggle={() => togglePaneCollapsed('syncSlicers')}
+                    >
+                        <SyncSlicersPane
+                            onCollapse={() =>
+                                togglePaneCollapsed('syncSlicers')
+                            }
+                        />
+                    </PaneShell>
                 )}
                 {openPanes.filters && (
-                    <aside className="min-h-0 w-56 overflow-hidden border-l border-border bg-panel">
-                        <FiltersPane />
-                    </aside>
+                    <PaneShell
+                        title="Filters"
+                        icon={<Filter className="size-4" />}
+                        width="w-56"
+                        collapsed={paneCollapsed.filters}
+                        onToggle={() => togglePaneCollapsed('filters')}
+                    >
+                        <FiltersPane
+                            onCollapse={() => togglePaneCollapsed('filters')}
+                        />
+                    </PaneShell>
                 )}
-                <aside className="min-h-0 w-60 overflow-hidden border-l border-border bg-panel">
-                    <VisualizationsPane />
-                </aside>
-                <aside className="min-h-0 w-56 overflow-hidden border-l border-border bg-panel">
-                    <FieldsPane />
-                </aside>
+                <PaneShell
+                    title="Visualizations"
+                    icon={<BarChart3 className="size-4" />}
+                    width="w-60"
+                    collapsed={paneCollapsed.visualizations}
+                    onToggle={() => togglePaneCollapsed('visualizations')}
+                >
+                    <VisualizationsPane
+                        onCollapse={() => togglePaneCollapsed('visualizations')}
+                    />
+                </PaneShell>
+                <PaneShell
+                    title="Fields"
+                    icon={<Table2 className="size-4" />}
+                    width="w-56"
+                    collapsed={paneCollapsed.fields}
+                    onToggle={() => togglePaneCollapsed('fields')}
+                >
+                    <FieldsPane onCollapse={() => togglePaneCollapsed('fields')} />
+                </PaneShell>
             </main>
 
             <PageTabs />
-            <footer className="flex items-center justify-between gap-4 border-t border-border bg-panel px-3 py-1 text-[10px] text-muted-foreground">
-                <span>
-                    {page.visuals.length} visuals ·{' '}
-                    {rows.length.toLocaleString()} of{' '}
-                    {tables
-                        .reduce((t, td) => t + td.rows.length, 0)
-                        .toLocaleString()}{' '}
-                    rows in context · {filters.length} report filters
-                </span>
-                <span className="flex items-center gap-2">
-                    <button
-                        onClick={() =>
-                            setState((s) => ({
-                                ...s,
-                                mobileView: !s.mobileView,
-                            }))
-                        }
-                        className={mobileView ? 'text-brand-foreground' : ''}
-                        aria-label="Mobile layout"
-                    >
-                        <Smartphone className="size-3.5" />
-                    </button>
-                    <ZoomIn className="size-3.5" />
-                    <input
-                        type="range"
-                        min={30}
-                        max={200}
-                        step={5}
-                        value={zoom}
-                        onChange={(e) => setZoom(Number(e.target.value))}
-                        className="w-32 accent-[var(--brand)]"
-                        aria-label="Zoom"
-                    />
-                    <span className="w-9 tabular-nums">{zoom}%</span>
-                </span>
-            </footer>
+                    <footer className="flex items-center justify-between gap-4 border-t border-border bg-panel px-3 py-1 text-[10px] text-muted-foreground">
+                        <span>
+                            {page.visuals.length} visuals ·{' '}
+                            {rows.length.toLocaleString()} of{' '}
+                            {tables
+                                .reduce((t, td) => t + td.rows.length, 0)
+                                .toLocaleString()}{' '}
+                            rows in context · {filters.length} report filters
+                        </span>
+                        <span className="flex items-center gap-2">
+                            <button
+                                onClick={() =>
+                                    setState((s) => ({
+                                        ...s,
+                                        mobileView: !s.mobileView,
+                                    }))
+                                }
+                                className={
+                                    mobileView ? 'text-brand-foreground' : ''
+                                }
+                                aria-label="Mobile layout"
+                            >
+                                <Smartphone className="size-3.5" />
+                            </button>
+                            <ZoomIn className="size-3.5" />
+                            <input
+                                type="range"
+                                min={30}
+                                max={200}
+                                step={5}
+                                value={zoom}
+                                onChange={(e) =>
+                                    setZoom(Number(e.target.value))
+                                }
+                                className="w-32 accent-[var(--brand)]"
+                                aria-label="Zoom"
+                            />
+                            <span className="w-9 tabular-nums">{zoom}%</span>
+                        </span>
+                    </footer>
 
-            <PowerQueryDialog open={pq} onClose={() => setPq(false)} />
-            <DaxDialog open={dax} onClose={() => setDax(false)} />
-            <PerformanceDialog open={perf} onClose={() => setPerf(false)} />
-            <QnaDialog open={qna} onClose={() => setQna(false)} />
+            {dax && <DaxDialog onClose={() => setDax(false)} />}
         </div>
     );
 }

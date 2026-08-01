@@ -37,11 +37,12 @@ import {
     formatValue,
     isMeasure,
     measureLabel,
+    visualTable,
     type FieldType,
     type Row,
     type Visual,
 } from '@/lib/pbi/model';
-import { usePbi } from '@/lib/pbi/store';
+import { slicerKey, usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
 const PALETTE = [
@@ -203,6 +204,8 @@ function useInteractiveRows(visual: Visual, rows: Row[]) {
     return useMemo(() => {
         if (!crossFilter || crossFilter.sourceId === visual.id)
             return { rows, dim: false };
+        if (crossFilter.table && visualTable(visual) && crossFilter.table !== visualTable(visual))
+            return { rows, dim: false };
         const mode = interactionFor(crossFilter.sourceId, visual.id);
         if (mode === 'none') return { rows, dim: false };
         const filtered = rows.filter(
@@ -281,7 +284,12 @@ function ChartBody({
         payload: { category?: string | number } | undefined,
     ) => {
         if (!axisCol || !payload?.category) return;
-        applyCrossFilter(visual.id, axisCol, String(payload.category));
+        applyCrossFilter(
+            visual.id,
+            axisCol,
+            String(payload.category),
+            visual.axis[0]?.table,
+        );
     };
 
     const hasValues = visual.values.length > 0;
@@ -1029,7 +1037,13 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
 /* -------------------------------- Slicers -------------------------------- */
 
 function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
-    const { slicerSelections, toggleSlicer, clearSlicer } = usePbi();
+    const {
+        slicerSelections,
+        slicerDateRanges,
+        toggleSlicer,
+        setSlicerDateRange,
+        clearSlicer,
+    } = usePbi();
     const [q, setQ] = useState('');
     const col = visual.axis[0]?.name;
     const selection = slicerSelections[visual.id] ?? [];
@@ -1037,7 +1051,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const values = distinctValues(col, rows).filter((v) =>
         v.toLowerCase().includes(q.toLowerCase()),
     );
-    const isOn = (v: string) => selection.includes(`${col}::${v}`);
+    const isOn = (v: string) => selection.includes(slicerKey(visual.axis[0]?.table, col, v));
 
     if (visual.type === 'inputSlicer')
         return (
@@ -1066,12 +1080,27 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         );
 
     if (visual.type === 'dateSlicer')
+        {
+        const range = slicerDateRanges[visual.id] ?? {};
         return (
             <div className="flex h-full flex-col justify-center gap-2 p-2 text-[11px]">
+                <button
+                    onClick={() => setSlicerDateRange(visual.id, {})}
+                    className="self-end text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                    Clear
+                </button>
                 <label className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground">From</span>
                     <input
                         type="date"
+                        value={range.from ?? ''}
+                        onChange={(e) =>
+                            setSlicerDateRange(visual.id, {
+                                ...range,
+                                from: e.target.value || undefined,
+                            })
+                        }
                         className="rounded border border-border bg-background px-2 py-1"
                     />
                 </label>
@@ -1079,11 +1108,19 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                     <span className="text-muted-foreground">To</span>
                     <input
                         type="date"
+                        value={range.to ?? ''}
+                        onChange={(e) =>
+                            setSlicerDateRange(visual.id, {
+                                ...range,
+                                to: e.target.value || undefined,
+                            })
+                        }
                         className="rounded border border-border bg-background px-2 py-1"
                     />
                 </label>
             </div>
         );
+        }
 
     if (visual.type === 'buttonSlicer')
         return (
@@ -1105,7 +1142,6 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
             </div>
         );
 
-    const circular = visual.type === 'listSlicer';
     return (
         <div className="flex h-full flex-col">
             <button
@@ -1121,7 +1157,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-accent"
                     >
                         <input
-                            type={circular ? 'radio' : 'checkbox'}
+                            type="checkbox"
                             checked={isOn(v)}
                             onChange={() => toggleSlicer(visual.id, col, v)}
                             className="size-3 accent-[var(--brand)]"

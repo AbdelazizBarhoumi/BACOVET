@@ -203,6 +203,7 @@ export type CrossFilter = {
     column: string;
     value: string;
     sourceId: string;
+    table?: string;
 } | null;
 
 /** per-visual-pair interaction behaviour */
@@ -235,10 +236,120 @@ export const MEASURE_IMPL: Record<string, (rows: Row[]) => number> = {
     'Row Count': (rows) => rows.length,
 };
 
+function numericValues(rows: Row[], col: string): number[] {
+    return rows
+        .map((row) => row[col])
+        .filter((value): value is number | string =>
+            value !== null && value !== undefined && value !== '',
+        )
+        .map(Number)
+        .filter(Number.isFinite);
+}
+
 function sum(rows: Row[], col: string) {
-    let t = 0;
-    for (const r of rows) t += Number(r[col]) || 0;
-    return t;
+    return numericValues(rows, col).reduce((total, value) => total + value, 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* Custom measure creation + lightweight DAX evaluation                */
+/* ------------------------------------------------------------------ */
+
+/** Splits a `Table[Column]` (or `'Table Name'[Column]`, `[Column]`, `Table`) ref. */
+export function parseDaxRef(arg: string): {
+    table?: string;
+    column?: string;
+} {
+    const trimmed = arg.trim();
+    const quoted =
+        trimmed.match(/^(?:'([^']+)'\s*)?\[([^\]]+)\]$/) ??
+        trimmed.match(/^([^[\]]+)\s*\[([^\]]+)\]$/);
+    if (quoted)
+        return {
+            table: (quoted[1] ?? '').trim() || undefined,
+            column: quoted[2]!.trim(),
+        };
+    if (/^[^[\]]+$/.test(trimmed) && trimmed) return { table: trimmed };
+    return {};
+}
+
+/** Compiles a small, common subset of DAX into a row aggregator. */
+export function compileMeasure(expression: string): (rows: Row[]) => number {
+    const eq = expression.indexOf('=');
+    const rhs = (eq >= 0 ? expression.slice(eq + 1) : expression).trim();
+
+    const literal = rhs.match(/^[+-]?\d+(?:\.\d+)?$/);
+    if (literal) {
+        const value = Number(rhs);
+        return () => value;
+    }
+
+    const call = rhs.match(/^\s*([A-Za-z_]+)\s*\(\s*([^()]*?)\s*\)\s*$/);
+    if (!call) return () => 0;
+
+    const name = call[1]!.toUpperCase();
+    const ref = parseDaxRef(call[2]!);
+
+    if (!ref.column) {
+        if (name === 'COUNTROWS' || name === 'COUNT' || name === 'COUNTA')
+            return (rows) => rows.length;
+        return () => 0;
+    }
+
+    const col = ref.column;
+    return (rows) => {
+        switch (name) {
+            case 'SUM':
+                return sum(rows, col);
+            case 'AVERAGE':
+            case 'AVERAGEA': {
+                const values = numericValues(rows, col);
+                return values.length
+                    ? values.reduce((t, v) => t + v, 0) / values.length
+                    : 0;
+            }
+            case 'COUNT':
+                return rows.filter(
+                    (r) => r[col] !== null && r[col] !== undefined,
+                ).length;
+            case 'COUNTA':
+                return rows.filter((r) => r[col] !== null).length;
+            case 'DISTINCTCOUNT':
+                return new Set(rows.map((r) => r[col])).size;
+            case 'MIN': {
+                const values = numericValues(rows, col);
+                return values.length ? Math.min(...values) : 0;
+            }
+            case 'MAX': {
+                const values = numericValues(rows, col);
+                return values.length ? Math.max(...values) : 0;
+            }
+            case 'MEDIAN': {
+                const values = numericValues(rows, col).sort((a, b) => a - b);
+                if (!values.length) return 0;
+                const mid = Math.floor(values.length / 2);
+                return values.length % 2
+                    ? values[mid]!
+                    : (values[mid - 1]! + values[mid]!) / 2;
+            }
+            case 'PRODUCT':
+                return numericValues(rows, col).reduce((t, v) => t * v, 1);
+            default:
+                return 0;
+        }
+    };
+}
+
+/**
+ * Makes a measure usable by the aggregation engine. Custom measures live in
+ * the PBI state; this only wires the evaluator so `isMeasure` and `aggregate`
+ * resolve them like the built-in ones.
+ */
+export function registerMeasure(
+    name: string,
+    expression: string,
+    impl?: (rows: Row[]) => number,
+): void {
+    MEASURE_IMPL[name] = impl ?? compileMeasure(expression);
 }
 
 /* ------------------------------------------------------------------ */
@@ -282,19 +393,28 @@ export function aggregate(rows: Row[], wf: WellField): number {
     const col = wf.name;
     switch (wf.agg) {
         case 'count':
-            return rows.length;
+            return rows.filter(
+                (row) => row[col] !== null && row[col] !== undefined,
+            ).length;
         case 'distinct':
             return new Set(rows.map((r) => r[col])).size;
-        case 'avg':
-            return rows.length ? sum(rows, col) / rows.length : 0;
+        case 'avg': {
+            const values = numericValues(rows, col);
+            return values.length
+                ? values.reduce((total, value) => total + value, 0) /
+                      values.length
+                : 0;
+        }
         case 'min':
-            return rows.length
-                ? Math.min(...rows.map((r) => Number(r[col]) || 0))
-                : 0;
+            {
+                const values = numericValues(rows, col);
+                return values.length ? Math.min(...values) : 0;
+            }
         case 'max':
-            return rows.length
-                ? Math.max(...rows.map((r) => Number(r[col]) || 0))
-                : 0;
+            {
+                const values = numericValues(rows, col);
+                return values.length ? Math.max(...values) : 0;
+            }
         default:
             return sum(rows, col);
     }

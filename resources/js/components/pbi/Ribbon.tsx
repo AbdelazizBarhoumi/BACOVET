@@ -1,52 +1,50 @@
 import {
-    BarChart3,
     Bookmark,
     Braces,
     Calendar,
+    ChartArea,
+    ChartBar,
+    ChartBarBig,
+    ChartCandlestick,
+    ChartColumn,
+    ChartColumnBig,
+    ChartLine,
+    ChartPie,
+    ChartScatter,
+    ChartSpline,
+    CheckCheck,
     ChevronDown,
-    Clock,
+    Circle,
     Columns3,
-    Database,
-    FileDown,
+    Donut,
+    Frame,
     Gauge,
-    Grid2x2,
-    HelpCircle,
+    Grid3x3,
+    Hexagon,
     Image,
-    Keyboard,
     Layers,
     LayoutGrid,
     Link2,
-    ListTree,
-    Magnet,
-    MessageSquare,
-    MousePointerClick,
-    Palette,
-    RefreshCw,
-    Save,
-    Share2,
-    Shield,
-    Smartphone,
-    Sparkles,
-    Square,
+    List,
+    ListFilter,
+    Map,
+    MapPin,
+    SquareMousePointer,
     Table2,
     TextCursorInput,
+    Ticket,
+    ToggleLeft,
+    TrendingUp,
     Type,
-    Upload,
-    Wand2,
 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-    'File',
-    'Home',
     'Insert',
     'Modeling',
     'View',
-    'Optimize',
-    'Help',
 ] as const;
 
 type Action = {
@@ -54,6 +52,11 @@ type Action = {
     icon: React.ElementType;
     onClick?: () => void;
     active?: boolean;
+};
+
+type Group = {
+    title: string;
+    actions: Action[];
 };
 
 function Group({
@@ -82,265 +85,89 @@ function RibbonButton({ label, icon: Icon, onClick, active }: Action) {
                 active && 'bg-brand/15 ring-1 ring-brand',
             )}
         >
-            <Icon className="size-5 text-brand-foreground" strokeWidth={1.6} />
+            <Icon className="size-5 text-foreground" strokeWidth={1.6} />
             <span className="text-center">{label}</span>
         </button>
     );
 }
 
-export function Ribbon({
-    onOpenPowerQuery,
-    onOpenDax,
-    onOpenPerformance,
-    onOpenQna,
-    onSave,
-}: {
-    onOpenPowerQuery: () => void;
-    onOpenDax: () => void;
-    onOpenPerformance: () => void;
-    onOpenQna: () => void;
-    onSave?: () => void;
-}) {
+export function Ribbon({ onOpenDax }: { onOpenDax: () => void }) {
     const {
         ribbonTab,
         setRibbonTab,
         addVisual,
-        addPage,
         theme,
-        setTheme,
-        setState,
-        showGridlines,
-        snapToGrid,
-        mobileView,
-        editInteractions,
         openPanes,
         togglePane,
         addBookmark,
     } = usePbi();
     const [collapsed, setCollapsed] = useState(false);
-    const soon = (what: string) => () =>
-        toast.info(what, { description: 'Demo action' });
 
-    const groups: Record<string, { title: string; actions: Action[] }[]> = {
-        File: [
-            {
-                title: 'Report',
-                actions: [
-                    { label: 'New', icon: Square, onClick: soon('New report') },
-                    {
-                        label: 'Open',
-                        icon: Database,
-                        onClick: soon('Open report'),
-                    },
-                    {
-                        label: 'Save',
-                        icon: Save,
-                        onClick:
-                            onSave ??
-                            (() => toast.success('Report saved locally')),
-                    },
-                ],
-            },
-            {
-                title: 'Export',
-                actions: [
-                    {
-                        label: 'Export PDF',
-                        icon: FileDown,
-                        onClick: soon('Export to PDF'),
-                    },
-                    {
-                        label: 'Publish',
-                        icon: Upload,
-                        onClick: () => toast.success('Published to workspace'),
-                    },
-                ],
-            },
-        ],
-        Home: [
-            {
-                title: 'Data',
-                actions: [
-                    {
-                        label: 'Get data',
-                        icon: Database,
-                        onClick: onOpenPowerQuery,
-                    },
-                    {
-                        label: 'Excel',
-                        icon: Table2,
-                        onClick: soon('Import Excel workbook'),
-                    },
-                    {
-                        label: 'Enter data',
-                        icon: TextCursorInput,
-                        onClick: soon('Enter data'),
-                    },
-                ],
-            },
-            {
-                title: 'Queries',
-                actions: [
-                    {
-                        label: 'Transform data',
-                        icon: Wand2,
-                        onClick: onOpenPowerQuery,
-                    },
-                    {
-                        label: 'Refresh',
-                        icon: RefreshCw,
-                        onClick: () => toast.success('Model refreshed'),
-                    },
-                ],
-            },
-            {
-                title: 'Insert',
-                actions: [
-                    {
-                        label: 'New visual',
-                        icon: BarChart3,
-                        onClick: () => addVisual('column'),
-                    },
-                    {
-                        label: 'Text box',
-                        icon: Type,
-                        onClick: () => addVisual('text'),
-                    },
-                    { label: 'New page', icon: LayoutGrid, onClick: addPage },
-                ],
-            },
-            {
-                title: 'Calculations',
-                actions: [
-                    { label: 'New measure', icon: Braces, onClick: onOpenDax },
-                    {
-                        label: 'Quick measure',
-                        icon: Sparkles,
-                        onClick: onOpenDax,
-                    },
-                ],
-            },
-            {
-                title: 'Share',
-                actions: [
-                    {
-                        label: 'Publish',
-                        icon: Share2,
-                        onClick: () => toast.success('Published to workspace'),
-                    },
-                ],
-            },
-        ],
+    const groups: Record<string, Group[]> = {
         Insert: [
             {
-                title: 'Visuals',
+                title: 'Comparison',
                 actions: [
-                    {
-                        label: 'Column',
-                        icon: BarChart3,
-                        onClick: () => addVisual('column'),
-                    },
-                    {
-                        label: 'Line',
-                        icon: BarChart3,
-                        onClick: () => addVisual('line'),
-                    },
-                    {
-                        label: 'Waterfall',
-                        icon: BarChart3,
-                        onClick: () => addVisual('waterfall'),
-                    },
-                    {
-                        label: 'Treemap',
-                        icon: LayoutGrid,
-                        onClick: () => addVisual('treemap'),
-                    },
-                    {
-                        label: 'Map',
-                        icon: LayoutGrid,
-                        onClick: () => addVisual('map'),
-                    },
-                    {
-                        label: 'Table',
-                        icon: Table2,
-                        onClick: () => addVisual('table'),
-                    },
-                    {
-                        label: 'Card',
-                        icon: Square,
-                        onClick: () => addVisual('card'),
-                    },
-                    {
-                        label: 'Slicer',
-                        icon: Columns3,
-                        onClick: () => addVisual('buttonSlicer'),
-                    },
-                    {
-                        label: 'Gauge',
-                        icon: Gauge,
-                        onClick: () => addVisual('gauge'),
-                    },
+                    { label: 'Clustered column', icon: ChartColumnBig, onClick: () => addVisual('column') },
+                    { label: 'Stacked column', icon: ChartColumn, onClick: () => addVisual('stackedColumn') },
+                    { label: '100% stacked column', icon: ChartColumn, onClick: () => addVisual('stacked100Column') },
+                    { label: 'Clustered bar', icon: ChartBarBig, onClick: () => addVisual('bar') },
+                    { label: 'Stacked bar', icon: ChartBar, onClick: () => addVisual('stackedBar') },
+                    { label: '100% stacked bar', icon: ChartBar, onClick: () => addVisual('stacked100Bar') },
+                    { label: 'Line', icon: ChartLine, onClick: () => addVisual('line') },
+                    { label: 'Area', icon: ChartArea, onClick: () => addVisual('area') },
+                    { label: 'Stacked area', icon: ChartArea, onClick: () => addVisual('stackedArea') },
+                    { label: 'Combo', icon: ChartSpline, onClick: () => addVisual('combo') },
                 ],
             },
             {
-                title: 'AI visuals',
+                title: 'Part to whole',
                 actions: [
-                    { label: 'Q&A', icon: MessageSquare, onClick: onOpenQna },
-                    {
-                        label: 'Key influencers',
-                        icon: Sparkles,
-                        onClick: () => addVisual('keyInfluencers'),
-                    },
-                    {
-                        label: 'Decomp tree',
-                        icon: ListTree,
-                        onClick: () => addVisual('decompositionTree'),
-                    },
-                    {
-                        label: 'Smart narrative',
-                        icon: Type,
-                        onClick: () => addVisual('smartNarrative'),
-                    },
+                    { label: 'Pie', icon: ChartPie, onClick: () => addVisual('pie') },
+                    { label: 'Donut', icon: Donut, onClick: () => addVisual('donut') },
+                    { label: 'Treemap', icon: LayoutGrid, onClick: () => addVisual('treemap') },
+                    { label: 'Funnel', icon: ListFilter, onClick: () => addVisual('funnel') },
+                    { label: 'Ribbon', icon: Ticket, onClick: () => addVisual('ribbon') },
+                    { label: 'Waterfall', icon: ChartCandlestick, onClick: () => addVisual('waterfall') },
+                    { label: 'Scatter', icon: ChartScatter, onClick: () => addVisual('scatter') },
+                    { label: 'Bubble', icon: Circle, onClick: () => addVisual('bubble') },
                 ],
             },
             {
-                title: 'Scripted',
+                title: 'Single value',
                 actions: [
-                    {
-                        label: 'R visual',
-                        icon: Braces,
-                        onClick: () => addVisual('rVisual'),
-                    },
-                    {
-                        label: 'Python visual',
-                        icon: Braces,
-                        onClick: () => addVisual('pythonVisual'),
-                    },
+                    { label: 'Card', icon: Frame, onClick: () => addVisual('card') },
+                    { label: 'KPI', icon: TrendingUp, onClick: () => addVisual('kpi') },
+                    { label: 'Gauge', icon: Gauge, onClick: () => addVisual('gauge') },
+                    { label: 'Table', icon: Table2, onClick: () => addVisual('table') },
+                    { label: 'Matrix', icon: Grid3x3, onClick: () => addVisual('matrix') },
+                ],
+            },
+            {
+                title: 'Maps',
+                actions: [
+                    { label: 'Map', icon: MapPin, onClick: () => addVisual('map') },
+                    { label: 'Filled map', icon: Map, onClick: () => addVisual('filledMap') },
+                    { label: 'Shape map', icon: Hexagon, onClick: () => addVisual('shapeMap') },
+                ],
+            },
+            {
+                title: 'Slicers',
+                actions: [
+                    { label: 'Slicer (checkbox)', icon: CheckCheck, onClick: () => addVisual('slicer') },
+                    { label: 'Button slicer', icon: ToggleLeft, onClick: () => addVisual('buttonSlicer') },
+                    { label: 'List slicer', icon: List, onClick: () => addVisual('listSlicer') },
+                    { label: 'Input slicer', icon: TextCursorInput, onClick: () => addVisual('inputSlicer') },
+                    { label: 'Date slicer', icon: Calendar, onClick: () => addVisual('dateSlicer') },
                 ],
             },
             {
                 title: 'Elements',
                 actions: [
-                    {
-                        label: 'Text box',
-                        icon: Type,
-                        onClick: () => addVisual('text'),
-                    },
-                    {
-                        label: 'Image',
-                        icon: Image,
-                        onClick: () => addVisual('image'),
-                    },
-                    {
-                        label: 'Button',
-                        icon: Square,
-                        onClick: () => addVisual('button'),
-                    },
-                    {
-                        label: 'Bookmark',
-                        icon: Bookmark,
-                        onClick: () => addBookmark(''),
-                    },
+                    { label: 'Text box', icon: Type, onClick: () => addVisual('text') },
+                    { label: 'Image', icon: Image, onClick: () => addVisual('image') },
+                    { label: 'Button', icon: SquareMousePointer, onClick: () => addVisual('button') },
+                    { label: 'Bookmark', icon: Bookmark, onClick: () => addBookmark('') },
                 ],
             },
         ],
@@ -349,100 +176,10 @@ export function Ribbon({
                 title: 'Calculations',
                 actions: [
                     { label: 'New measure', icon: Braces, onClick: onOpenDax },
-                    { label: 'New column', icon: Columns3, onClick: onOpenDax },
-                    { label: 'New table', icon: Table2, onClick: onOpenDax },
-                ],
-            },
-            {
-                title: 'Relationships',
-                actions: [
-                    {
-                        label: 'Manage relationships',
-                        icon: Link2,
-                        onClick: soon('Manage relationships'),
-                    },
-                ],
-            },
-            {
-                title: 'Security',
-                actions: [
-                    {
-                        label: 'Manage roles',
-                        icon: Shield,
-                        onClick: soon('Row-level security roles'),
-                    },
-                ],
-            },
-            {
-                title: 'Calendars',
-                actions: [
-                    {
-                        label: 'Mark as date table',
-                        icon: Calendar,
-                        onClick: soon('Marked Date as date table'),
-                    },
                 ],
             },
         ],
         View: [
-            {
-                title: 'Themes',
-                actions: [
-                    {
-                        label: 'Default',
-                        icon: Palette,
-                        onClick: () => setTheme('default'),
-                        active: theme === 'default',
-                    },
-                    {
-                        label: 'Executive',
-                        icon: Palette,
-                        onClick: () => setTheme('executive'),
-                        active: theme === 'executive',
-                    },
-                    {
-                        label: 'Innovate',
-                        icon: Palette,
-                        onClick: () => setTheme('innovate'),
-                        active: theme === 'innovate',
-                    },
-                ],
-            },
-            {
-                title: 'Page options',
-                actions: [
-                    {
-                        label: 'Gridlines',
-                        icon: Grid2x2,
-                        active: showGridlines,
-                        onClick: () =>
-                            setState((s) => ({
-                                ...s,
-                                showGridlines: !s.showGridlines,
-                            })),
-                    },
-                    {
-                        label: 'Snap to grid',
-                        icon: Magnet,
-                        active: snapToGrid,
-                        onClick: () =>
-                            setState((s) => ({
-                                ...s,
-                                snapToGrid: !s.snapToGrid,
-                            })),
-                    },
-                    {
-                        label: 'Mobile layout',
-                        icon: Smartphone,
-                        active: mobileView,
-                        onClick: () =>
-                            setState((s) => ({
-                                ...s,
-                                mobileView: !s.mobileView,
-                            })),
-                    },
-                ],
-            },
             {
                 title: 'Show panes',
                 actions: [
@@ -472,59 +209,10 @@ export function Ribbon({
                     },
                 ],
             },
-            {
-                title: 'Interactions',
-                actions: [
-                    {
-                        label: 'Edit interactions',
-                        icon: MousePointerClick,
-                        active: editInteractions,
-                        onClick: () =>
-                            setState((s) => ({
-                                ...s,
-                                editInteractions: !s.editInteractions,
-                            })),
-                    },
-                    {
-                        label: 'Tab order',
-                        icon: Keyboard,
-                        onClick: () => togglePane('selection'),
-                    },
-                ],
-            },
-        ],
-        Optimize: [
-            {
-                title: 'Performance',
-                actions: [
-                    {
-                        label: 'Performance analyzer',
-                        icon: Clock,
-                        onClick: onOpenPerformance,
-                    },
-                ],
-            },
-        ],
-        Help: [
-            {
-                title: 'Support',
-                actions: [
-                    {
-                        label: 'Documentation',
-                        icon: HelpCircle,
-                        onClick: soon('Documentation'),
-                    },
-                    {
-                        label: 'Community',
-                        icon: MessageSquare,
-                        onClick: soon('Community forums'),
-                    },
-                ],
-            },
         ],
     };
 
-    const active = groups[ribbonTab] ?? [];
+    const active = groups[ribbonTab] ?? groups['Insert'] ?? [];
 
     return (
         <div className="border-b border-border bg-panel">
@@ -565,7 +253,7 @@ export function Ribbon({
                 </div>
             </div>
             {!collapsed && (
-                <div className="flex h-[86px] items-stretch overflow-x-auto border-t border-border bg-ribbon">
+                <div className="flex h-[100px] items-stretch overflow-x-auto border-t border-border bg-ribbon">
                     {active.map((g) => (
                         <Group key={g.title} title={g.title}>
                             {g.actions.map((a) => (
