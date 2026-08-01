@@ -7,6 +7,7 @@ import {
     useState,
     type ReactNode,
 } from 'react';
+import type { JoinRegistry } from './joins';
 import {
     PAGE_PRESETS,
     fieldType,
@@ -365,6 +366,7 @@ type Ctx = State & {
     rows: Row[];
     tables: TableDef[];
     tableRows: Record<string, Row[]>;
+    joins: JoinRegistry;
     highlightValue: CrossFilter;
     state: State;
     setState: React.Dispatch<React.SetStateAction<State>>;
@@ -445,13 +447,16 @@ export function PbiProvider({
     initialState,
     onChange,
     tables: tablesProp = [],
+    joins: joinsProp = {},
 }: {
     children: ReactNode;
     initialState?: State;
     onChange?: (state: State) => void;
     tables?: TableDef[];
+    joins?: JoinRegistry;
 }) {
     const tables = tablesProp;
+    const joins = joinsProp;
 
     // Keep model helpers correct during the initial state construction too.
     setTables(tables);
@@ -720,6 +725,7 @@ export function PbiProvider({
         rows,
         tables,
         tableRows,
+        joins,
         highlightValue: state.crossFilter,
         state,
         setState,

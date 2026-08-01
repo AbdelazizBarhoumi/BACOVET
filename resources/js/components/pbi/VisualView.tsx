@@ -27,6 +27,7 @@ import {
     YAxis,
     ZAxis,
 } from 'recharts';
+import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
 import {
     aggregate,
     buildChartData,
@@ -200,27 +201,19 @@ function EmptyVisual({ label }: { label: string }) {
 
 /** Applies cross-filter / cross-highlight coming from another visual. */
 function useInteractiveRows(visual: Visual, rows: Row[]) {
-    const { crossFilter, interactionFor } = usePbi();
+    const { crossFilter, interactionFor, joins } = usePbi();
     return useMemo(() => {
-        if (!crossFilter || crossFilter.sourceId === visual.id)
-            return { rows, dim: false, match: null };
-        if (
-            (crossFilter.table &&
-                visualTable(visual) &&
-                crossFilter.table !== visualTable(visual)) ||
-            (!crossFilter.table &&
-                visualTable(visual) &&
-                !visual.axis.some((f) => f.name === crossFilter.column))
-        )
-            return { rows, dim: false, match: null };
-        const mode = interactionFor(crossFilter.sourceId, visual.id);
-        if (mode === 'none') return { rows, dim: false, match: null };
-        const matches = (r: Row) =>
-            String(r[crossFilter.column]) === crossFilter.value;
-        if (mode === 'filter')
-            return { rows: rows.filter(matches), dim: false, match: null };
-        return { rows, dim: false, match: matches };
-    }, [crossFilter, interactionFor, rows, visual]);
+        const mode = interactionFor(crossFilter?.sourceId ?? '', visual.id);
+        return crossFilterRows(
+            rows,
+            crossFilter,
+            visual.id,
+            visualTable(visual),
+            visual.axis.some((f) => f.name === crossFilter?.column),
+            mode,
+            joins,
+        );
+    }, [crossFilter, interactionFor, joins, rows, visual]);
 }
 
 export function VisualView({
@@ -230,7 +223,12 @@ export function VisualView({
     visual: Visual;
     rows: Row[];
 }) {
-    const { rows, match } = useInteractiveRows(visual, allRows);
+    const { tables, joins } = usePbi();
+    const enrichedRows = useMemo(
+        () => enrichRows(visual, allRows, tables, joins),
+        [visual, allRows, tables, joins],
+    );
+    const { rows, match } = useInteractiveRows(visual, enrichedRows);
     const sm = visual.smallMultiples[0]?.name;
 
     if (!sm) return <ChartBody visual={visual} rows={rows} match={match} />;

@@ -38,7 +38,9 @@ import {
     fetchEndpointDatasets,
     type TableDef,
 } from '@/lib/pbi/datasets';
+import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
+import { fetchSchema } from '@/services/endpointManagerApi';
 
 type PageProps = {
     pageId: number;
@@ -63,6 +65,7 @@ export default function V5PageView() {
     const onStoreChange = useCallback(() => setDirty(true), []);
 
     const [tables, setTables] = useState<TableDef[]>([]);
+    const [joins, setJoins] = useState<JoinRegistry>({});
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
@@ -73,8 +76,16 @@ export default function V5PageView() {
             try {
                 const datasets = await fetchEndpointDatasets();
                 if (stop) return;
-                setTables(buildTables(datasets));
+                const built = buildTables(datasets);
+                setTables(built);
                 setFailed(false);
+                try {
+                    const schema = await fetchSchema();
+                    if (!stop) setJoins(buildJoinRegistry(schema, built));
+                } catch {
+                    // shared join registry is best-effort; cross-table
+                    // cross-filtering simply degrades to same-table only.
+                }
             } catch {
                 if (!stop) setFailed(true);
             } finally {
@@ -151,6 +162,7 @@ export default function V5PageView() {
                 initialState={initialState}
                 onChange={onStoreChange}
                 tables={tables}
+                joins={joins}
             >
                 <Shell
                     pageId={pageId}

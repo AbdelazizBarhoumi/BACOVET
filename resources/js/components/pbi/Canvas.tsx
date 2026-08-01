@@ -10,6 +10,7 @@ import {
     Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
 import type { Interaction } from '@/lib/pbi/model';
 import { visualTable } from '@/lib/pbi/model';
 import { defaultDropWell, usePbi, visualTypeLabel } from '@/lib/pbi/store';
@@ -119,6 +120,8 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         page,
         rows,
         tableRows,
+        tables,
+        joins,
         selected,
         select,
         updateVisual,
@@ -509,17 +512,42 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                             const recordsVisual = page.visuals.find(
                                 (v) => v.id === records,
                             );
-                            const recordsRows = recordsVisual
-                                ? (tableRows[visualTable(recordsVisual)] ??
-                                  rows)
-                                : rows;
+                            if (!recordsVisual) return null;
+                            const base =
+                                tableRows[visualTable(recordsVisual)] ?? rows;
+                            const vt = visualTable(recordsVisual);
+                            const enriched = enrichRows(
+                                recordsVisual,
+                                base,
+                                tables,
+                                joins,
+                            );
+                            const recordsRows = crossFilterRows(
+                                enriched,
+                                crossFilter,
+                                recordsVisual.id,
+                                vt,
+                                recordsVisual.axis.some(
+                                    (f) => f.name === crossFilter?.column,
+                                ),
+                                interactionFor(
+                                    crossFilter?.sourceId ?? '',
+                                    recordsVisual.id,
+                                ),
+                                joins,
+                            ).rows.slice(0, 100);
+                            const keys = [
+                                ...new Set(
+                                    recordsRows.flatMap((r) =>
+                                        Object.keys(r),
+                                    ),
+                                ),
+                            ];
                             return (
                                 <table className="w-full text-[11px]">
                                     <thead className="sticky top-0 bg-muted">
                                         <tr>
-                                            {Object.keys(
-                                                recordsRows[0] ?? {},
-                                            ).map((k) => (
+                                            {keys.map((k) => (
                                                 <th
                                                     key={k}
                                                     className="border-b border-border px-2 py-1 text-left"
@@ -530,25 +558,21 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {recordsRows
-                                            .slice(0, 100)
-                                            .map((r, i) => (
-                                                <tr
-                                                    key={i}
-                                                    className="hover:bg-accent"
-                                                >
-                                                    {Object.keys(
-                                                        recordsRows[0] ?? {},
-                                                    ).map((k) => (
-                                                        <td
-                                                            key={k}
-                                                            className="border-b border-border px-2 py-1"
-                                                        >
-                                                            {String(r[k])}
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
+                                        {recordsRows.map((r, i) => (
+                                            <tr
+                                                key={i}
+                                                className="hover:bg-accent"
+                                            >
+                                                {keys.map((k) => (
+                                                    <td
+                                                        key={k}
+                                                        className="border-b border-border px-2 py-1"
+                                                    >
+                                                        {String(r[k])}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             );

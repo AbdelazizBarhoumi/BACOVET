@@ -629,9 +629,6 @@ export function VisualizationsPane({
                         </div>
                     </div>
                 ))}
-                <button className="w-full rounded border border-dashed border-border py-1 text-[10px] text-muted-foreground hover:bg-accent">
-                    + Get more visuals (AppSource)
-                </button>
             </div>
 
             {!selected ? (
