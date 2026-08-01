@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\FilterController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\KpiEndpointController;
 use App\Http\Controllers\Api\LogisticsController;
+use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\MethodesController;
 use App\Http\Controllers\Api\NovacityEndpointsController;
 use App\Http\Controllers\Api\ProductionController;
@@ -49,6 +50,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // V3 activity trace — IT only
     Route::get('/v3/trace', fn () => Inertia::render('v3/trace'))->middleware('role:it')->name('v3.trace');
+
+    // Maintenance panel — IT only (artisan command runner)
+    Route::get('/maintenance', fn () => Inertia::render('maintenance'))->middleware('role:it')->name('maintenance');
 });
 
 Route::get('/unauthorized', fn () => Inertia::render('unauthorized'))->name('unauthorized');
@@ -264,6 +268,12 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
         Route::get('/kpi-endpoints/{kpiCode}', [KpiEndpointController::class, 'show']);
         Route::post('/kpi-endpoints/fire', [KpiEndpointController::class, 'fire']);
         Route::post('/kpi-endpoints/fire-all', [KpiEndpointController::class, 'fireAll']);
+
+        // ── MAINTENANCE PANEL (artisan command runner) ─────────────────────
+        Route::prefix('maintenance')->group(function () {
+            Route::get('/commands', [MaintenanceController::class, 'commands']);
+            Route::post('/run', [MaintenanceController::class, 'start'])->middleware('throttle:10,1');
+        });
     });
 
     // ── DATA SNAPSHOTS ─────────────────────────────────────────────────

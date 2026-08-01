@@ -16,6 +16,7 @@ import AuthController from './AuthController'
 import DataAuthController from './DataAuthController'
 import AdminController from './AdminController'
 import KpiEndpointController from './KpiEndpointController'
+import MaintenanceController from './MaintenanceController'
 import DataSnapshotController from './DataSnapshotController'
 import QualityController from './QualityController'
 import ProductionController from './ProductionController'
@@ -45,6 +46,7 @@ AuthController: Object.assign(AuthController, AuthController),
 DataAuthController: Object.assign(DataAuthController, DataAuthController),
 AdminController: Object.assign(AdminController, AdminController),
 KpiEndpointController: Object.assign(KpiEndpointController, KpiEndpointController),
+MaintenanceController: Object.assign(MaintenanceController, MaintenanceController),
 DataSnapshotController: Object.assign(DataSnapshotController, DataSnapshotController),
 QualityController: Object.assign(QualityController, QualityController),
 ProductionController: Object.assign(ProductionController, ProductionController),

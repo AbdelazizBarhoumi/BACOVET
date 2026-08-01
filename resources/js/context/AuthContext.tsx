@@ -29,7 +29,8 @@ export type RolePage =
     | '/endpoints'
     | '/unauthorized'
     | '/dashboard'
-    | '/v3';
+    | '/v3'
+    | '/maintenance';
 
 export const ROLE_LABEL: Record<Role, string> = {
     admin: 'IT / Administrateur',
@@ -54,6 +55,7 @@ export const ROLE_ACCESS: Record<Role, RolePage[]> = {
         '/endpoints',
         '/unauthorized',
         '/v3',
+        '/maintenance',
     ],
     direction: [
         '/quality',

@@ -11,6 +11,7 @@ import {
     Pencil,
     Plus,
     Settings,
+    Terminal,
     Trash2,
     Loader2,
     BarChart3,
@@ -528,6 +529,21 @@ const Sidebar = () => {
                             />
                             <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
                                 TRACES V3
+                            </span>
+                        </Link>
+                        <Link
+                            href="/maintenance"
+                            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                                pathname === '/maintenance'
+                                    ? 'border-l-2 border-primary bg-primary/15 text-primary'
+                                    : 'hover:bg-sidebar-accent'
+                            }`}
+                        >
+                            <Terminal
+                                className={`h-4 w-4 ${pathname === '/maintenance' ? 'text-white' : 'text-primary'}`}
+                            />
+                            <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
+                                MAINTENANCE
                             </span>
                         </Link>
                     </>
