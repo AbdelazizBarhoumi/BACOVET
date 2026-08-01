@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\BuilderPageGroupV4Controller;
 use App\Http\Controllers\Api\BuilderPageGroupV5Controller;
 use App\Http\Controllers\Api\BuilderPageV4Controller;
 use App\Http\Controllers\Api\BuilderPageV5Controller;
+use App\Http\Controllers\Api\BuilderPageV6Controller;
 use App\Http\Controllers\Api\DataMappingController;
 use App\Http\Controllers\Api\DataSnapshotController;
 use App\Http\Controllers\Api\DevelopmentController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Api\ProductionController;
 use App\Http\Controllers\Api\QualityController;
 use App\Http\Controllers\Api\V4AuthController;
 use App\Http\Controllers\Api\V5AuthController;
+use App\Http\Controllers\Api\V6AuthController;
 use App\Http\Controllers\BrowserLogController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -202,6 +204,38 @@ Route::middleware('v5.auth')->group(function () {
     // Capture + query both require a v5 session.
     Route::post('/api/v5-activity', [BuilderActivityV5Controller::class, 'store']);
     Route::get('/api/v5-activity', [BuilderActivityV5Controller::class, 'index']);
+});
+
+// ── V6 DASHBOARD (V4 foundation; data/measure/graph upgrades) ───────
+Route::get('/v6/login', fn () => Inertia::render('v6/login'))->name('v6.login');
+
+Route::post('/api/v6-auth/check', [V6AuthController::class, 'check']);
+Route::post('/api/v6-auth/set-password', [V6AuthController::class, 'setPassword']);
+Route::post('/api/v6-auth/login', [V6AuthController::class, 'login']);
+Route::post('/api/v6-auth/logout', [V6AuthController::class, 'logout']);
+Route::get('/api/v6-auth/me', [V6AuthController::class, 'me']);
+
+Route::middleware('v6.auth')->group(function () {
+    Route::get('/v6', function () {
+        $page = \App\Models\BuilderPageV6::orderBy('id')->first();
+        if (! $page) abort(404);
+        return redirect()->route('v6.page', ['slug' => $page->slug]);
+    })->name('v6');
+
+    Route::get('/v6/p/{slug}', function ($slug) {
+        $page = \App\Models\BuilderPageV6::where('slug', $slug)->first();
+        if (! $page) abort(404);
+        return Inertia::render('v6/p/[slug]', [
+            'pageId' => $page->id,
+            'slug' => $page->slug,
+            'pageName' => $page->name,
+            'layout' => $page->layout['widgets'] ?? [],
+            'measures' => $page->layout['measures'] ?? [],
+        ]);
+    })->name('v6.page');
+
+    Route::get('/api/v6/endpoint-datasets', [App\Http\Controllers\Api\EndpointDatasetV5Controller::class, 'index']);
+    Route::put('/api/v6/builder-pages/{id}', [BuilderPageV6Controller::class, 'update']);
 });
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);

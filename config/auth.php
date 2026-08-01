@@ -52,6 +52,10 @@ return [
             'driver' => 'session',
             'provider' => 'v5_users_provider',
         ],
+        'v6_users' => [
+            'driver' => 'session',
+            'provider' => 'v6_users_provider',
+        ],
     ],
 
     /*
@@ -87,6 +91,10 @@ return [
         'v5_users_provider' => [
             'driver' => 'eloquent',
             'model' => App\Models\V5User::class,
+        ],
+        'v6_users_provider' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\V6User::class,
         ],
     ],
 

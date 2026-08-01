@@ -71,7 +71,7 @@ export function Inspector() {
 
   if (!selected) {
     return (
-      <div className="w-72 shrink-0 border-l border-border bg-card/40 h-full p-4 text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute right-0 top-0 h-full w-72 z-30 border-l border-border bg-card p-4 text-xs text-muted-foreground overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         Sélectionnez un widget pour l'éditer.
       </div>
     );
@@ -103,7 +103,7 @@ export function Inspector() {
   const hasSpacing = t !== "divider";
 
   return (
-    <div className="w-72 shrink-0 border-l border-border bg-card/40 h-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute right-0 top-0 h-full w-72 z-30 border-l border-border bg-card overflow-y-auto shadow-lg" onClick={(e) => e.stopPropagation()}>
       <div className="p-3 border-b border-border flex items-center justify-between">
         <div className="flex-1 min-w-0">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Type</div>

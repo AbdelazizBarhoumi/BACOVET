@@ -1237,4 +1237,21 @@ return [
             ],
         ],
     ],
+    'api/data/vwitemtrx' => [
+        'refresh_frequency' => 'instant',
+        'all_frequencies' => ['instant'],
+        'keys' => [
+            [
+                'variable_key' => 'ProdGroup',
+                'variable_type' => 'Complex',
+                'is_filtered' => true,
+                'filter_key' => 'ProdGroup',
+                'filter_value' => null,
+                'has_function' => false,
+                'fn' => 'Latest',
+                'refresh_frequency' => 'instant',
+                'kpis' => ['F-REQtest'],
+            ],
+        ],
+    ],
 ];

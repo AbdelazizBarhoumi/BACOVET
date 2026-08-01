@@ -24,8 +24,9 @@ export type EndpointDataset = {
 
 export async function fetchEndpointDatasets(
     signal?: AbortSignal,
+    baseUrl = '/api/v5/endpoint-datasets',
 ): Promise<EndpointDataset[]> {
-    const res = await fetch('/api/v5/endpoint-datasets', {
+    const res = await fetch(baseUrl, {
         headers: { Accept: 'application/json' },
         signal,
     });

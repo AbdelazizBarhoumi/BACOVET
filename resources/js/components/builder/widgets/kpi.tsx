@@ -1,9 +1,19 @@
+import { useId } from "react";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
+import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import type { WidgetConfig } from "../types";
 import { boxStyle, resolveKpiSeries, type KpiDataMap } from "./shared";
 
+function lighten(hex: string, amt: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const mix = (c: number) => Math.round(c + (255 - c) * amt).toString(16).padStart(2, "0");
+  return `#${mix(r)}${mix(g)}${mix(b)}`;
+}
+
 export function KpiWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
   const style = boxStyle(c);
+  const gradientId = useId();
   const kpiResult = c.kpiCode ? kpiData?.get(c.kpiCode) : undefined;
   const hasData = kpiResult && kpiResult.scalar_value !== null;
   const v = hasData ? kpiResult!.scalar_value! : 0;
@@ -13,6 +23,15 @@ export function KpiWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMa
     : tgt ? (v >= tgt ? "ok" : v >= tgt * 0.9 ? "warn" : "bad") : "ok";
   const statusColor = status === "ok" ? "#22c55e" : status === "warn" ? "#f59e0b" : "#ef4444";
   const { series } = resolveKpiSeries(c, kpiData);
+
+  const prev = series.length >= 2 ? series[series.length - 2].v : null;
+  const last = series.length >= 1 ? series[series.length - 1].v : null;
+  const trendDelta = prev != null && last != null ? last - prev : null;
+  const trendPct = trendDelta != null && prev ? (trendDelta / Math.abs(prev)) * 100 : null;
+  const trendDir = trendDelta == null || Math.abs(trendDelta) < 1e-9 ? "flat" : trendDelta > 0 ? "up" : "down";
+  const trendColor = trendDir === "up" ? "#16a34a" : trendDir === "down" ? "#dc2626" : "#94a3b8";
+
+  const targetPct = tgt ? Math.min(100, Math.max(0, (v / tgt) * 100)) : 0;
 
   const labelStyle: React.CSSProperties = {
     fontSize: c.labelFontSize ?? 10,
@@ -24,38 +43,87 @@ export function KpiWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMa
   const hasLabel = c.showLabel !== false && !!c.label;
 
   return (
-    <div className="h-full w-full flex flex-col p-3 relative" style={style}>
+    <div className="h-full w-full flex flex-col p-3 relative group transition-shadow duration-200" style={style}>
       {hasLabel && (c.labelPosition ?? "top") === "top" && (
         <div className="mb-1 shrink-0" style={labelStyle}>{c.label}</div>
       )}
       {c.showKpiCode !== false && c.kpiCode && (
         <div className="text-[10px] font-mono text-muted-foreground">{c.kpiCode}</div>
       )}
-      <div className="flex items-end justify-between mt-1">
+      <div className="flex items-end justify-between mt-1 gap-2">
         {!c.kpiCode ? (
           <div className="text-sm text-muted-foreground">Sélectionnez un KPI</div>
         ) : !hasData ? (
           <div className="text-xl font-bold text-muted-foreground animate-pulse">—</div>
         ) : (
-          <div className="text-3xl font-black leading-none" style={{ color: statusColor }}>
-            {v.toFixed(c.decimals ?? 1).replace(".", ",")}
-            <span className="text-base ml-1 font-bold text-muted-foreground">{c.unit ?? ""}</span>
-          </div>
+          <>
+            <div
+              className="text-3xl font-black leading-none transition-transform duration-150 group-hover:scale-[1.03]"
+              style={{
+                backgroundImage: `linear-gradient(135deg, ${lighten(statusColor, 0.25)}, ${statusColor})`,
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              {v.toFixed(c.decimals ?? 1).replace(".", ",")}
+              <span
+                className="text-base ml-1 font-bold text-muted-foreground"
+                style={{ WebkitTextFillColor: "initial", backgroundImage: "none" }}
+              >
+                {c.unit ?? ""}
+              </span>
+            </div>
+            {trendPct != null && (
+              <div
+                className="flex items-center gap-0.5 text-[11px] font-semibold rounded-full px-1.5 py-0.5 mb-1 shrink-0"
+                style={{ color: trendColor, backgroundColor: `${trendColor}1a` }}
+                title={`${trendDelta! > 0 ? "+" : ""}${trendDelta!.toFixed(c.decimals ?? 1).replace(".", ",")}${c.unit ?? ""} vs période précédente`}
+              >
+                {trendDir === "up" ? <ArrowUpRight size={12} /> : trendDir === "down" ? <ArrowDownRight size={12} /> : <Minus size={12} />}
+                {Math.abs(trendPct).toFixed(0)}%
+              </div>
+            )}
+          </>
         )}
       </div>
-      {c.showTarget && c.target != null && (
-        <div className="flex items-center gap-1.5 mt-2">
-          <div className="h-1.5 w-1.5 rounded-full" style={{ background: statusColor }} />
-          <span className="text-[10px] font-medium text-muted-foreground">
-            Objectif : {tgt}{c.unit ?? ""}
-          </span>
+      {c.showTarget && c.target != null && hasData && (
+        <div className="mt-2 shrink-0">
+          <div className="h-1.5 rounded-full bg-black/5 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${targetPct}%`, backgroundColor: statusColor }}
+            />
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-[10px] font-medium text-muted-foreground">
+              Objectif : {tgt}{c.unit ?? ""}
+            </span>
+            <span className="text-[10px] font-semibold" style={{ color: statusColor }}>
+              {targetPct.toFixed(0)}%
+            </span>
+          </div>
         </div>
       )}
       {c.showSparkline && series.length > 0 && (
         <div className="h-8 mt-1">
           <ResponsiveContainer>
             <AreaChart data={series.map((s, i) => ({ x: i, y: s.v }))}>
-              <Area type="monotone" dataKey="y" stroke={statusColor} fill={statusColor} fillOpacity={0.2} strokeWidth={1.5} />
+              <defs>
+                <linearGradient id={`kpi-spark-${gradientId}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={statusColor} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={statusColor} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="y"
+                stroke={statusColor}
+                fill={`url(#kpi-spark-${gradientId})`}
+                strokeWidth={1.75}
+                dot={false}
+                activeDot={false}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>

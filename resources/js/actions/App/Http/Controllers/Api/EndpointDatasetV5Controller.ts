@@ -4,12 +4,12 @@ import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFo
  * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
  * @route '/api/v5/endpoint-datasets'
  */
-export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: index.url(options),
+const indexedeac22e0b4b55a526f755fe95e53b79 = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: indexedeac22e0b4b55a526f755fe95e53b79.url(options),
     method: 'get',
 })
 
-index.definition = {
+indexedeac22e0b4b55a526f755fe95e53b79.definition = {
     methods: ["get","head"],
     url: '/api/v5/endpoint-datasets',
 } satisfies RouteDefinition<["get","head"]>
@@ -19,8 +19,8 @@ index.definition = {
  * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
  * @route '/api/v5/endpoint-datasets'
  */
-index.url = (options?: RouteQueryOptions) => {
-    return index.definition.url + queryParams(options)
+indexedeac22e0b4b55a526f755fe95e53b79.url = (options?: RouteQueryOptions) => {
+    return indexedeac22e0b4b55a526f755fe95e53b79.definition.url + queryParams(options)
 }
 
 /**
@@ -28,8 +28,8 @@ index.url = (options?: RouteQueryOptions) => {
  * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
  * @route '/api/v5/endpoint-datasets'
  */
-index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
-    url: index.url(options),
+indexedeac22e0b4b55a526f755fe95e53b79.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: indexedeac22e0b4b55a526f755fe95e53b79.url(options),
     method: 'get',
 })
 /**
@@ -37,8 +37,8 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
  * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
  * @route '/api/v5/endpoint-datasets'
  */
-index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
-    url: index.url(options),
+indexedeac22e0b4b55a526f755fe95e53b79.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: indexedeac22e0b4b55a526f755fe95e53b79.url(options),
     method: 'head',
 })
 
@@ -47,8 +47,8 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
  * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
  * @route '/api/v5/endpoint-datasets'
  */
-    const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: index.url(options),
+    const indexedeac22e0b4b55a526f755fe95e53b79Form = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: indexedeac22e0b4b55a526f755fe95e53b79.url(options),
         method: 'get',
     })
 
@@ -57,8 +57,8 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
  * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
  * @route '/api/v5/endpoint-datasets'
  */
-        indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: index.url(options),
+        indexedeac22e0b4b55a526f755fe95e53b79Form.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: indexedeac22e0b4b55a526f755fe95e53b79.url(options),
             method: 'get',
         })
             /**
@@ -66,8 +66,8 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
  * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
  * @route '/api/v5/endpoint-datasets'
  */
-        indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: index.url({
+        indexedeac22e0b4b55a526f755fe95e53b79Form.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: indexedeac22e0b4b55a526f755fe95e53b79.url({
                         [options?.mergeQuery ? 'mergeQuery' : 'query']: {
                             _method: 'HEAD',
                             ...(options?.query ?? options?.mergeQuery ?? {}),
@@ -76,7 +76,91 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
             method: 'get',
         })
     
-    index.form = indexForm
+    indexedeac22e0b4b55a526f755fe95e53b79.form = indexedeac22e0b4b55a526f755fe95e53b79Form
+    /**
+* @see \App\Http\Controllers\Api\EndpointDatasetV5Controller::index
+ * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
+ * @route '/api/v6/endpoint-datasets'
+ */
+const index987e6948f94c450a6bfe7149e002e48d = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: index987e6948f94c450a6bfe7149e002e48d.url(options),
+    method: 'get',
+})
+
+index987e6948f94c450a6bfe7149e002e48d.definition = {
+    methods: ["get","head"],
+    url: '/api/v6/endpoint-datasets',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\Api\EndpointDatasetV5Controller::index
+ * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
+ * @route '/api/v6/endpoint-datasets'
+ */
+index987e6948f94c450a6bfe7149e002e48d.url = (options?: RouteQueryOptions) => {
+    return index987e6948f94c450a6bfe7149e002e48d.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Api\EndpointDatasetV5Controller::index
+ * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
+ * @route '/api/v6/endpoint-datasets'
+ */
+index987e6948f94c450a6bfe7149e002e48d.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: index987e6948f94c450a6bfe7149e002e48d.url(options),
+    method: 'get',
+})
+/**
+* @see \App\Http\Controllers\Api\EndpointDatasetV5Controller::index
+ * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
+ * @route '/api/v6/endpoint-datasets'
+ */
+index987e6948f94c450a6bfe7149e002e48d.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: index987e6948f94c450a6bfe7149e002e48d.url(options),
+    method: 'head',
+})
+
+    /**
+* @see \App\Http\Controllers\Api\EndpointDatasetV5Controller::index
+ * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
+ * @route '/api/v6/endpoint-datasets'
+ */
+    const index987e6948f94c450a6bfe7149e002e48dForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: index987e6948f94c450a6bfe7149e002e48d.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\Api\EndpointDatasetV5Controller::index
+ * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
+ * @route '/api/v6/endpoint-datasets'
+ */
+        index987e6948f94c450a6bfe7149e002e48dForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index987e6948f94c450a6bfe7149e002e48d.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\Api\EndpointDatasetV5Controller::index
+ * @see app/Http/Controllers/Api/EndpointDatasetV5Controller.php:16
+ * @route '/api/v6/endpoint-datasets'
+ */
+        index987e6948f94c450a6bfe7149e002e48dForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index987e6948f94c450a6bfe7149e002e48d.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    index987e6948f94c450a6bfe7149e002e48d.form = index987e6948f94c450a6bfe7149e002e48dForm
+
+export const index = {
+    '/api/v5/endpoint-datasets': indexedeac22e0b4b55a526f755fe95e53b79,
+    '/api/v6/endpoint-datasets': index987e6948f94c450a6bfe7149e002e48d,
+}
+
 const EndpointDatasetV5Controller = { index }
 
 export default EndpointDatasetV5Controller

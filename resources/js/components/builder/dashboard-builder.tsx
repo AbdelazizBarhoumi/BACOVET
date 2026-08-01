@@ -62,8 +62,10 @@ function BuilderShell({ title }: { title: string }) {
             )}
           </>
         )}
-        <Canvas />
-        {showInspector && <Inspector />}
+        <div className="relative flex-1 min-w-0 min-h-0">
+          <Canvas />
+          {showInspector && <Inspector />}
+        </div>
       </div>
     </div>
   );

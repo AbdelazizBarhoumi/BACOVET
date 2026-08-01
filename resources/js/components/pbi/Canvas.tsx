@@ -130,6 +130,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         showGridlines,
         snapToGrid,
         zoom,
+        setZoom,
         mobileView,
         addVisual,
         dropField,
@@ -154,6 +155,19 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     const [records, setRecords] = useState<string | null>(null);
     const scale = zoom / 100;
     const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const handler = (e: WheelEvent) => {
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+            setZoom(Math.min(300, Math.max(25, Math.round(zoom * factor))));
+        };
+        el.addEventListener('wheel', handler, { passive: false });
+        return () => el.removeEventListener('wheel', handler);
+    }, [zoom, setZoom]);
 
     const snap = useCallback(
         (n: number) =>

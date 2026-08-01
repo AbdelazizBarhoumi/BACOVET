@@ -21,7 +21,6 @@ type Ctx = {
   duplicateWidget: (id: string) => void;
   toggleLock: (id: string) => void;
   moveZ: (id: string, dir: "front" | "back") => void;
-  setLayoutBulk: (items: { i: string; x: number; y: number; w: number; h: number }[]) => void;
   save: () => Promise<boolean>;
   reset: () => Promise<boolean>;
   exportJson: () => string;
@@ -230,27 +229,6 @@ export function BuilderProvider({
     });
   }, [trackWidgets]);
 
-  const setLayoutBulk = useCallback<Ctx["setLayoutBulk"]>((items) => {
-    trackWidgets((prev) => prev.map((w) => {
-      const it = items.find((i) => i.i === w.id);
-      if (!it) return w;
-      const moved = it.x !== w.x || it.y !== w.y || it.w !== w.w || it.h !== w.h;
-      if (moved) {
-        const isMove = it.x !== w.x || it.y !== w.y;
-        const isResize = it.w !== w.w || it.h !== w.h;
-        logWidgetActivity(
-          isResize && !isMove ? "widget.resize" : isMove && !isResize ? "widget.move" : "widget.resize",
-          w,
-          { detail: { x: it.x, y: it.y, w: it.w, h: it.h, fromX: w.x, fromY: w.y, fromW: w.w, fromH: w.h } },
-          { key: `${pageDbId}:${w.id}:layout` },
-        );
-      }
-      return moved
-        ? { ...w, x: it.x, y: it.y, w: it.w, h: it.h, config: { ...w.config, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 } }
-        : w;
-    }));
-  }, [trackWidgets, pageDbId]);
-
   const save = useCallback(async (): Promise<boolean> => {
     if (!pageDbId) return false;
     const payload = { layout: { version: 1, widgets } };
@@ -353,7 +331,7 @@ export function BuilderProvider({
     select: setSelectedId, selected,
     addWidget, updateWidget, updateConfig, removeWidget, duplicateWidget,
     toggleLock, moveZ,
-    setLayoutBulk, save, reset, exportJson, importJson,
+    save, reset, exportJson, importJson,
     isDirty, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard,
     undo, redo, canUndo, canRedo,
     kpiRefreshTick, refreshKpi,

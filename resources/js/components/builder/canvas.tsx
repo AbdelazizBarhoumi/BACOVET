@@ -1,22 +1,35 @@
-import { Copy, Lock, LockOpen, X } from "lucide-react";
+import { Copy, GripVertical, Lock, LockOpen, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { WidthProvider, ReactGridLayout, type Layout, type LayoutItem } from "react-grid-layout/legacy";
 import { logActivity, logWidgetActivity } from "@/lib/activity";
 import { fetchKpiList, type KpiSeed } from "@/lib/kpi-rows";
 import KpiDetailModal from "./kpi-detail-modal";
 import { useBuilder } from "./store";
 import type { WidgetType } from "./types";
-import { addRow, addCol, removeRow, removeCol, copyCells, pasteCells, withCell } from "./types";
+import { addRow, addCol, removeRow, removeCol, copyCells, pasteCells, withCell, ROW_HEIGHT } from "./types";
 import { useKpiData } from "./useKpiData";
 import { WidgetRenderer } from "./widget-renderer";
 
-const ResponsiveGrid = WidthProvider(ReactGridLayout);
 const COLS = 24;
+const MIN_W = 1;
+const MIN_H = 1;
 const KPI_COMPATIBLE = new Set(["kpi", "gauge", "sparkline", "line", "bar", "pareto", "donut", "pie", "radar", "area", "combo", "table"]);
 
+type DragState = {
+  id: string;
+  mode: "move" | "resize";
+  startX: number;
+  startY: number;
+  ox: number;
+  oy: number;
+  ow: number;
+  oh: number;
+};
+
 export function Canvas() {
-  const { widgets, mode, setLayoutBulk, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard, undo, redo, kpiRefreshTick, updateConfig, setColWidthPx } = useBuilder();
+  const { widgets, mode, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard, undo, redo, kpiRefreshTick, updateConfig, colWidthPx, setColWidthPx } = useBuilder();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -31,6 +44,30 @@ export function Canvas() {
     return () => ro.disconnect();
   }, [setColWidthPx]);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      setZoom((z) => Math.min(3, Math.max(0.25, z * factor)));
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, []);
+
+  const contentW = useMemo(() => {
+    const base = colWidthPx * COLS;
+    if (widgets.length === 0) return base;
+    return Math.max(base, ...widgets.map((w) => (w.x + w.w) * colWidthPx));
+  }, [widgets, colWidthPx]);
+  const contentH = useMemo(() => {
+    const base = ROW_HEIGHT * 20;
+    if (widgets.length === 0) return base;
+    return Math.max(base, ...widgets.map((w) => (w.y + w.h) * ROW_HEIGHT));
+  }, [widgets]);
+
   const kpiCodes = useMemo(() => {
     const codes: string[] = [];
     for (const w of widgets) {
@@ -44,10 +81,6 @@ export function Canvas() {
     return [...new Set(codes)];
   }, [widgets]);
   const { data: kpiData, loading: kpiLoading } = useKpiData(kpiCodes, kpiRefreshTick);
-  const layout: Layout = widgets.map((w) => ({
-    i: w.id, x: w.x, y: w.y, w: w.w, h: w.h,
-    static: !!w.locked || mode !== "edit",
-  }));
 
   // KPI list for modal metadata
   const [kpiList, setKpiList] = useState<KpiSeed[]>([]);
@@ -55,6 +88,44 @@ export function Canvas() {
 
   // Detail modal state
   const [detailModal, setDetailModal] = useState<{ kpiCode: string } | null>(null);
+
+  const clamp = (n: number) => Math.max(0, n);
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!drag) return;
+    if (drag.mode === "move") {
+      const dx = (e.clientX - drag.startX) / colWidthPx / zoom;
+      const dy = (e.clientY - drag.startY) / ROW_HEIGHT / zoom;
+      updateWidget(drag.id, {
+        x: clamp(drag.ox + dx),
+        y: clamp(drag.oy + dy),
+      });
+    } else {
+      const dw = (e.clientX - drag.startX) / colWidthPx / zoom;
+      const dh = (e.clientY - drag.startY) / ROW_HEIGHT / zoom;
+      updateWidget(drag.id, {
+        w: Math.max(MIN_W, drag.ow + dw),
+        h: Math.max(MIN_H, drag.oh + dh),
+      });
+    }
+  };
+
+  const startDrag = (w: typeof widgets[number], kind: "move" | "resize", e: React.MouseEvent) => {
+    if (mode !== "edit" || w.locked) return;
+    e.stopPropagation();
+    e.preventDefault();
+    select(w.id);
+    setDrag({
+      id: w.id,
+      mode: kind,
+      startX: e.clientX,
+      startY: e.clientY,
+      ox: w.x,
+      oy: w.y,
+      ow: w.w,
+      oh: w.h,
+    });
+  };
 
   // Table-grid cell navigation & clipboard (capture phase, runs before widget movement)
   useEffect(() => {
@@ -245,20 +316,24 @@ export function Canvas() {
     return () => document.removeEventListener("keydown", handler);
   }, [undo, redo]);
 
-  const handleDrop = useCallback((layout: Layout, item: LayoutItem | undefined, e: Event) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     try {
-      const dragEvent = e as DragEvent;
-      const data = dragEvent.dataTransfer?.getData("application/json");
+      const data = e.dataTransfer?.getData("application/json");
       if (!data) return;
       const parsed = JSON.parse(data) as { type: WidgetType; config?: Record<string, unknown> };
-      const maxY = widgets.reduce((max, w) => Math.max(max, w.y + w.h), 0);
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const scrollLeft = containerRef.current?.scrollLeft ?? 0;
+      const scrollTop = containerRef.current?.scrollTop ?? 0;
+      const dropX = (e.clientX - rect.left + scrollLeft) / colWidthPx / zoom;
+      const dropY = (e.clientY - rect.top + scrollTop) / ROW_HEIGHT / zoom;
       addWidget(parsed.type, {
-        x: item?.x ?? 0,
-        y: item?.y ?? maxY,
+        x: clamp(dropX),
+        y: clamp(dropY),
         ...(parsed.config ? { config: parsed.config } : {}),
       });
     } catch { /* ignore invalid drops */ }
-  }, [widgets, addWidget]);
+  }, [widgets, addWidget, colWidthPx, zoom]);
 
   const handleCellSelect = (widgetId: string, r: number, c: number, add: boolean) => {
     setTableCursor((prev) => ({ ...prev, [widgetId]: [r, c] }));
@@ -287,141 +362,154 @@ export function Canvas() {
     <div
       ref={containerRef}
       tabIndex={0}
-      className="flex-1 min-w-0 overflow-auto bg-background outline-none focus:ring-1 focus:ring-primary/30 relative"
+      className="h-full min-w-0 overflow-auto bg-background outline-none focus:ring-1 focus:ring-primary/30 relative z-0"
       onClick={(e) => { if (e.target === e.currentTarget) select(null); }}
+      onMouseMove={mode === "edit" && drag ? onMouseMove : undefined}
+      onMouseUp={mode === "edit" && drag ? () => setDrag(null) : undefined}
+      onMouseLeave={mode === "edit" && drag ? () => setDrag(null) : undefined}
+      onDragOver={(e) => { if (mode === "edit") e.preventDefault(); }}
+      onDrop={(e) => { if (mode === "edit") handleDrop(e); }}
     >
       {kpiLoading && (
         <div className="absolute top-0 left-0 right-0 z-30 h-0.5 bg-primary/20">
           <div className="h-full bg-primary animate-pulse w-full" />
         </div>
       )}
-      <ResponsiveGrid
-        className="layout"
-        layout={layout}
-        cols={24}
-        rowHeight={30}
-        margin={[0, 0]}
-        compactType={null}
-        preventCollision={false}
-        isDraggable={mode === "edit"}
-        isResizable={mode === "edit"}
-        isDroppable={mode === "edit"}
-        onDrop={handleDrop}
-        onLayoutChange={(l: Layout) =>
-          setLayoutBulk(l.map((it: LayoutItem) => ({ i: it.i, x: it.x, y: it.y, w: it.w, h: it.h })))
-        }
-        draggableCancel=".no-drag,input,textarea,button,select"
-      >
-        {widgets.map((w) => {
-          const isSelected = selectedId === w.id;
-          return (
-            <div
-              key={w.id}
-              onMouseDownCapture={() => { if (mode === "edit") select(w.id); }}
-              onClick={() => handleWidgetClick(w)}
-              className={`relative group ${mode === "edit" ? "cursor-move" : "cursor-pointer"} ${isSelected ? "outline outline-2 outline-primary rounded-lg" : ""}`}
-            >
-              <WidgetRenderer
-                w={w}
-                editing={mode === "edit"}
-                onCellSelect={(r, c, add) => handleCellSelect(w.id, r, c, add)}
-                onCellKpiClick={(kpiCode) => {
-                  setDetailModal({ kpiCode });
-                  logActivity("kpi.detail_view", { widget_id: w.id, widget_type: w.type, kpi_code: kpiCode });
-                }}
-                selectedCells={tableSel[w.id]}
-                cursor={tableCursor[w.id]}
-                kpiData={kpiData}
-                onCopy={(r, c) => {
-                  const tg = w.config.tableGrid;
-                  if (!tg) return;
-                  const sel = tableSel[w.id] ?? [];
-                  if (sel.length > 0) {
-                    const parsed = sel.map((k) => k.split(",").map(Number));
-                    const r1 = Math.min(...parsed.map((p) => p[0]));
-                    const r2 = Math.max(...parsed.map((p) => p[0]));
-                    const c1 = Math.min(...parsed.map((p) => p[1]));
-                    const c2 = Math.max(...parsed.map((p) => p[1]));
-                    setTableClipboard(copyCells(tg, r1, c1, r2, c2));
-                  } else {
-                    setTableClipboard(copyCells(tg, r, c, r, c));
-                  }
-                  logWidgetActivity("table.copy", w, { detail: { from: [r, c] } });
-                }}
-                onPaste={(r, c) => {
-                  const tg = w.config.tableGrid;
-                  const clip = tableClipboard;
-                  if (tg && clip) {
-                    updateConfig(w.id, { tableGrid: pasteCells(tg, r, c, clip) });
-                    logWidgetActivity("table.paste", w, { detail: { at: [r, c] } });
-                  }
-                }}
-                onInsertRow={(r, pos) => {
-                  const tg = w.config.tableGrid;
-                  if (tg) {
-                    updateConfig(w.id, { tableGrid: addRow(tg, pos === "after" ? r : r - 1) });
-                    logWidgetActivity("table.row.add", w, { detail: { at: r, position: pos } });
-                  }
-                }}
-                onInsertCol={(c, pos) => {
-                  const tg = w.config.tableGrid;
-                  if (tg) {
-                    updateConfig(w.id, { tableGrid: addCol(tg, pos === "after" ? c : c - 1) });
-                    logWidgetActivity("table.col.add", w, { detail: { at: c, position: pos } });
-                  }
-                }}
-                onDeleteRow={(r) => {
-                  const tg = w.config.tableGrid;
-                  if (tg) {
-                    updateConfig(w.id, { tableGrid: removeRow(tg, r) });
-                    logWidgetActivity("table.row.delete", w, { detail: { at: r } });
-                  }
-                }}
-                onDeleteCol={(c) => {
-                  const tg = w.config.tableGrid;
-                  if (tg) {
-                    updateConfig(w.id, { tableGrid: removeCol(tg, c) });
-                    logWidgetActivity("table.col.delete", w, { detail: { at: c } });
-                  }
-                }}
-                onResize={(colWidths, rowHeights) => {
-                  const tg = w.config.tableGrid;
-                  if (tg) {
-                    updateConfig(w.id, { tableGrid: { ...tg, colWidths, rowHeights } });
-                    logWidgetActivity("table.resize", w, { detail: { colWidths, rowHeights } }, { key: `${w.id}:tgresize` });
-                  }
-                }}
-              />
-              {mode === "edit" && isSelected && (
-                <div className="no-drag absolute -top-3 -right-1 flex items-center gap-1 z-20">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleLock(w.id); }}
-                    className="h-5 w-5 rounded bg-secondary hover:bg-secondary/80 text-foreground grid place-items-center shadow border border-border"
-                    title={w.locked ? "Déverrouiller" : "Verrouiller"}
-                  >
-                    {w.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); duplicateWidget(w.id); }}
-                    className="h-5 w-5 rounded bg-secondary hover:bg-secondary/80 text-foreground grid place-items-center shadow border border-border"
-                    title="Dupliquer"
-                  >
-                    <Copy className="h-3 w-3" />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
-                    className="h-5 w-5 rounded-full bg-destructive text-destructive-foreground grid place-items-center shadow"
-                    title="Supprimer"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+      <div className="relative" style={{ width: contentW * zoom, height: contentH * zoom }}>
+        <div className="relative" style={{ width: contentW, height: contentH, transform: `scale(${zoom})`, transformOrigin: "0 0" }}>
+          {widgets.map((w) => {
+        const isSelected = selectedId === w.id;
+        return (
+          <div
+            key={w.id}
+            onMouseDownCapture={() => { if (mode === "edit") select(w.id); }}
+            onClick={() => handleWidgetClick(w)}
+            className={`group absolute rounded-lg ${isSelected ? "outline outline-2 outline-primary" : ""}`}
+            style={{
+              left: w.x * colWidthPx,
+              top: w.y * ROW_HEIGHT,
+              width: w.w * colWidthPx,
+              height: w.h * ROW_HEIGHT,
+            }}
+          >
+            <WidgetRenderer
+              w={w}
+              editing={mode === "edit"}
+              onCellSelect={(r, c, add) => handleCellSelect(w.id, r, c, add)}
+              onCellKpiClick={(kpiCode) => {
+                setDetailModal({ kpiCode });
+                logActivity("kpi.detail_view", { widget_id: w.id, widget_type: w.type, kpi_code: kpiCode });
+              }}
+              selectedCells={tableSel[w.id]}
+              cursor={tableCursor[w.id]}
+              kpiData={kpiData}
+              onCopy={(r, c) => {
+                const tg = w.config.tableGrid;
+                if (!tg) return;
+                const sel = tableSel[w.id] ?? [];
+                if (sel.length > 0) {
+                  const parsed = sel.map((k) => k.split(",").map(Number));
+                  const r1 = Math.min(...parsed.map((p) => p[0]));
+                  const r2 = Math.max(...parsed.map((p) => p[0]));
+                  const c1 = Math.min(...parsed.map((p) => p[1]));
+                  const c2 = Math.max(...parsed.map((p) => p[1]));
+                  setTableClipboard(copyCells(tg, r1, c1, r2, c2));
+                } else {
+                  setTableClipboard(copyCells(tg, r, c, r, c));
+                }
+                logWidgetActivity("table.copy", w, { detail: { from: [r, c] } });
+              }}
+              onPaste={(r, c) => {
+                const tg = w.config.tableGrid;
+                const clip = tableClipboard;
+                if (tg && clip) {
+                  updateConfig(w.id, { tableGrid: pasteCells(tg, r, c, clip) });
+                  logWidgetActivity("table.paste", w, { detail: { at: [r, c] } });
+                }
+              }}
+              onInsertRow={(r, pos) => {
+                const tg = w.config.tableGrid;
+                if (tg) {
+                  updateConfig(w.id, { tableGrid: addRow(tg, pos === "after" ? r : r - 1) });
+                  logWidgetActivity("table.row.add", w, { detail: { at: r, position: pos } });
+                }
+              }}
+              onInsertCol={(c, pos) => {
+                const tg = w.config.tableGrid;
+                if (tg) {
+                  updateConfig(w.id, { tableGrid: addCol(tg, pos === "after" ? c : c - 1) });
+                  logWidgetActivity("table.col.add", w, { detail: { at: c, position: pos } });
+                }
+              }}
+              onDeleteRow={(r) => {
+                const tg = w.config.tableGrid;
+                if (tg) {
+                  updateConfig(w.id, { tableGrid: removeRow(tg, r) });
+                  logWidgetActivity("table.row.delete", w, { detail: { at: r } });
+                }
+              }}
+              onDeleteCol={(c) => {
+                const tg = w.config.tableGrid;
+                if (tg) {
+                  updateConfig(w.id, { tableGrid: removeCol(tg, c) });
+                  logWidgetActivity("table.col.delete", w, { detail: { at: c } });
+                }
+              }}
+              onResize={(colWidths, rowHeights) => {
+                const tg = w.config.tableGrid;
+                if (tg) {
+                  updateConfig(w.id, { tableGrid: { ...tg, colWidths, rowHeights } });
+                  logWidgetActivity("table.resize", w, { detail: { colWidths, rowHeights } }, { key: `${w.id}:tgresize` });
+                }
+              }}
+            />
+
+            {mode === "edit" && (
+              <>
+                <div
+                  onMouseDown={(e) => startDrag(w, "move", e)}
+                  className={`absolute top-1 left-1 z-20 h-5 w-5 rounded bg-secondary hover:bg-secondary/80 text-foreground grid place-items-center shadow border border-border transition-opacity cursor-move ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                  title={w.locked ? "Widget verrouillé" : "Glisser pour déplacer"}
+                >
+                  <GripVertical className="h-3 w-3" />
                 </div>
-              )}
-            </div>
-          );
+                <div
+                  onMouseDown={(e) => startDrag(w, "resize", e)}
+                  className={`absolute bottom-0 right-0 z-20 h-3 w-3 cursor-nwse-resize rounded-sm bg-primary/70 hover:bg-primary transition-opacity ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                  title="Redimensionner"
+                />
+                {isSelected && (
+                  <div className="absolute -top-3 -right-1 flex items-center gap-1 z-20">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleLock(w.id); }}
+                      className="h-5 w-5 rounded bg-secondary hover:bg-secondary/80 text-foreground grid place-items-center shadow border border-border"
+                      title={w.locked ? "Déverrouiller" : "Verrouiller"}
+                    >
+                      {w.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); duplicateWidget(w.id); }}
+                      className="h-5 w-5 rounded bg-secondary hover:bg-secondary/80 text-foreground grid place-items-center shadow border border-border"
+                      title="Dupliquer"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
+                      className="h-5 w-5 rounded-full bg-destructive text-destructive-foreground grid place-items-center shadow"
+                      title="Supprimer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
         })}
-        {widgets.length === 0 && <div key="__empty" />}
-      </ResponsiveGrid>
+        </div>
+      </div>
       {widgets.length === 0 && (
         <div className="p-8 pt-64 text-center text-sm text-muted-foreground pointer-events-none">
           Ajoutez ou glissez un widget depuis la palette à gauche.
