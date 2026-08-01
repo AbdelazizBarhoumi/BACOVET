@@ -64,6 +64,12 @@ Schedule::command('sync:instant-endpoints')
     ->name('kpi-instant')
     ->withoutOverlapping();
 
+// Endpoint dataset snapshots for the V5 builder - keep columns/rows fresh
+Schedule::command('sync:endpoint-datasets')
+    ->everyMinute()
+    ->name('endpoint-datasets')
+    ->withoutOverlapping();
+
 Schedule::command('sync:kpi-endpoints', ['--frequency=daily', '--queue'])
     ->dailyAt('02:00')
     ->name('kpi-daily')

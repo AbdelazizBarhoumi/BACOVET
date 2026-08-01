@@ -1,12 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import {
-    SALES,
-    MEASURES,
-    TABLES,
-    formatNumber,
-    type Row,
-} from '@/lib/pbi/model';
+import { MEASURES, formatNumber, type Row } from '@/lib/pbi/model';
 import { mkVisual, usePbi, wf } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
@@ -58,8 +52,9 @@ export function PowerQueryDialog({
     open: boolean;
     onClose: () => void;
 }) {
+    const { tables } = usePbi();
     const [tab, setTab] = useState('Home');
-    const [table, setTable] = useState('Sales');
+    const [table, setTable] = useState('');
     const [steps, setSteps] = useState<Step[]>([
         { label: 'Source' },
         { label: 'Navigation' },
@@ -68,19 +63,20 @@ export function PowerQueryDialog({
     const [hidden, setHidden] = useState<string[]>([]);
     const [sortCol, setSortCol] = useState<string | null>(null);
 
-    const def = TABLES.find((t) => t.name === table) ?? TABLES[0]!;
-    const columns = def.fields
+    const def = tables.find((t) => t.name === table) ?? tables[0];
+    const columns = (def?.fields ?? [])
         .map((f) => f.name)
         .filter((c) => !hidden.includes(c));
 
-    const rows: Row[] = useMemo(() => {
-        const data = [...SALES].slice(0, 400);
+    const rows: Row[] = (() => {
+        if (!def) return [];
+        const data = [...def.rows].slice(0, 400);
         if (sortCol)
             data.sort((a, b) =>
                 String(a[sortCol]).localeCompare(String(b[sortCol])),
             );
         return data.slice(0, 200);
-    }, [sortCol]);
+    })();
 
     const addStep = (label: string) => {
         setSteps((s) => [...s, { label }]);
@@ -149,11 +145,17 @@ export function PowerQueryDialog({
             },
             {
                 label: 'Advanced editor',
-                run: () => toast.info('let Source = Sales in Source'),
+                run: () =>
+                    toast.info(
+                        `let Source = ${def?.name ?? 'Query'} in Source`,
+                    ),
             },
             {
                 label: 'Query dependencies',
-                run: () => toast.info('Sales → Date, Product, Region'),
+                run: () =>
+                    toast.info(
+                        tables.map((t) => t.name).join(' → ') || 'No queries',
+                    ),
             },
         ],
         Tools: [
@@ -200,7 +202,7 @@ export function PowerQueryDialog({
                         <div className="mb-1 text-[11px] font-semibold">
                             Queries
                         </div>
-                        {TABLES.map((t) => (
+                        {tables.map((t) => (
                             <button
                                 key={t.name}
                                 onClick={() => setTable(t.name)}
@@ -212,42 +214,53 @@ export function PowerQueryDialog({
                                 {t.name}
                             </button>
                         ))}
+                        {!tables.length && (
+                            <p className="text-[11px] text-muted-foreground">
+                                No datasets loaded.
+                            </p>
+                        )}
                     </div>
                     <div className="max-h-[45vh] overflow-auto">
-                        <table className="w-full border-collapse text-[11px]">
-                            <thead className="sticky top-0 bg-muted">
-                                <tr>
-                                    {columns.map((c) => (
-                                        <th
-                                            key={c}
-                                            onClick={() => setSortCol(c)}
-                                            className="cursor-pointer border-r border-b border-border px-2 py-1 text-left font-semibold whitespace-nowrap hover:bg-accent"
-                                        >
-                                            {c}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((r, i) => (
-                                    <tr key={i} className="hover:bg-accent">
+                        {!def ? (
+                            <p className="p-3 text-[11px] text-muted-foreground">
+                                No data to preview.
+                            </p>
+                        ) : (
+                            <table className="w-full border-collapse text-[11px]">
+                                <thead className="sticky top-0 bg-muted">
+                                    <tr>
                                         {columns.map((c) => (
-                                            <td
+                                            <th
                                                 key={c}
-                                                className="border-r border-b border-border px-2 py-[3px] whitespace-nowrap"
+                                                onClick={() => setSortCol(c)}
+                                                className="cursor-pointer border-r border-b border-border px-2 py-1 text-left font-semibold whitespace-nowrap hover:bg-accent"
                                             >
-                                                {typeof r[c] === 'number'
-                                                    ? formatNumber(
-                                                          Number(r[c]),
-                                                          false,
-                                                      )
-                                                    : String(r[c] ?? '')}
-                                            </td>
+                                                {c}
+                                            </th>
                                         ))}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {rows.map((r, i) => (
+                                        <tr key={i} className="hover:bg-accent">
+                                            {columns.map((c) => (
+                                                <td
+                                                    key={c}
+                                                    className="border-r border-b border-border px-2 py-[3px] whitespace-nowrap"
+                                                >
+                                                    {typeof r[c] === 'number'
+                                                        ? formatNumber(
+                                                              Number(r[c]),
+                                                              false,
+                                                          )
+                                                        : String(r[c] ?? '')}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                     <div className="border-l border-border p-2">
                         <div className="mb-1 text-[11px] font-semibold">
@@ -306,7 +319,7 @@ export function DaxDialog({
     open: boolean;
     onClose: () => void;
 }) {
-    const [expr, setExpr] = useState('New Measure = SUM ( Sales[Sales] )');
+    const [expr, setExpr] = useState('New Measure = COUNTROWS ( <table> )');
     return (
         <Modal open={open} onClose={onClose} title="DAX formula bar">
             <div className="space-y-3 p-4">
@@ -395,25 +408,38 @@ export function QnaDialog({
     open: boolean;
     onClose: () => void;
 }) {
-    const { setState, activePageId } = usePbi();
-    const [q, setQ] = useState('total sales by category');
+    const { setState, activePageId, tables } = usePbi();
+    const [q, setQ] = useState('');
+
+    const primary = tables[0];
+    const textCols = (primary?.fields ?? []).filter(
+        (f) => f.type === 'text' || f.type === 'date',
+    );
+    const numCols = (primary?.fields ?? []).filter((f) => f.type === 'number');
+    const suggestBy = textCols[0]?.name;
+    const suggestVal = numCols[0]?.name;
+    const suggestions =
+        suggestBy && suggestVal
+            ? [
+                  `${suggestVal} by ${suggestBy}`,
+                  `sum of ${suggestVal} by ${suggestBy}`,
+                  `average of ${suggestVal} by ${suggestBy}`,
+                  `count of ${suggestBy}`,
+              ]
+            : [];
 
     const run = () => {
+        if (!primary || !suggestBy || !suggestVal) {
+            toast.error('No datasets loaded');
+            return;
+        }
         const text = q.toLowerCase();
-        const by = text.includes('country')
-            ? 'Country'
-            : text.includes('month')
-              ? 'Month'
-              : text.includes('region')
-                ? 'Region'
-                : text.includes('year')
-                  ? 'Year'
-                  : 'Category';
-        const measure = text.includes('profit')
-            ? 'Total Profit'
-            : text.includes('quantity')
-              ? 'Quantity'
-              : 'Total Sales';
+        const by =
+            textCols.find((f) => text.includes(f.name.toLowerCase()))?.name ??
+            suggestBy;
+        const measure =
+            numCols.find((f) => text.includes(f.name.toLowerCase()))?.name ??
+            suggestVal;
         const type: 'donut' | 'line' | 'column' =
             text.includes('share') || text.includes('pie')
                 ? 'donut'
@@ -423,8 +449,8 @@ export function QnaDialog({
 
         const visual = mkVisual(type, 0, 0, 6, 4, {
             title: `${measure} by ${by}`,
-            axis: [wf(by)],
-            values: [wf(measure)],
+            axis: [wf(by, primary.name)],
+            values: [wf(measure, primary.name)],
         });
         setState((s) => ({
             ...s,
@@ -452,15 +478,14 @@ export function QnaDialog({
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     className="w-full rounded border border-border bg-background px-3 py-2 text-[13px]"
-                    placeholder="e.g. total profit by country"
+                    placeholder={
+                        suggestBy && suggestVal
+                            ? `e.g. ${suggestVal} by ${suggestBy}`
+                            : 'No datasets loaded'
+                    }
                 />
                 <div className="flex flex-wrap gap-1 text-[11px]">
-                    {[
-                        'total sales by month',
-                        'total profit by country',
-                        'sales share by category',
-                        'quantity by region',
-                    ].map((s) => (
+                    {suggestions.map((s) => (
                         <button
                             key={s}
                             onClick={() => setQ(s)}

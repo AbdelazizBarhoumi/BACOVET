@@ -172,6 +172,9 @@ Route::middleware('v5.auth')->group(function () {
         ]);
     })->name('v5.page');
 
+    // V5 builder endpoint datasets (from endpoint_datasets table, refreshed by sync commands)
+    Route::get('/api/v5/endpoint-datasets', [App\Http\Controllers\Api\EndpointDatasetV5Controller::class, 'index']);
+
     Route::prefix('api/v5/builder-pages')->group(function () {
         Route::get('/', [BuilderPageV5Controller::class, 'index']);
         Route::get('/{slug}', [BuilderPageV5Controller::class, 'show']);

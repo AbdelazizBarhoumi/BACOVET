@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     Area,
     AreaChart,
@@ -31,8 +31,13 @@ import {
     aggregate,
     buildChartData,
     distinctValues,
+    fieldLabel,
+    fieldType,
     formatNumber,
+    formatValue,
+    isMeasure,
     measureLabel,
+    type FieldType,
     type Row,
     type Visual,
 } from '@/lib/pbi/model';
@@ -62,6 +67,126 @@ const tooltipStyle = {
     fontSize: 11,
     color: 'var(--popover-foreground)',
 };
+
+type TooltipDatum = Record<string, string | number | boolean | null>;
+
+/** Shared recharts tooltip that honors the Tooltips well, formatted by type. */
+function CustomTooltip({
+    active,
+    payload,
+    label,
+    visual,
+}: {
+    active?: boolean;
+    payload?: {
+        name?: string | number;
+        value?: unknown;
+        payload?: TooltipDatum;
+    }[];
+    label?: string | number;
+    visual: Visual;
+}) {
+    const { setTooltipHover } = usePbi();
+    const hoverCol = visual.axis[0]?.name;
+
+    useEffect(() => {
+        if (active && label !== undefined && label !== '' && hoverCol) {
+            setTooltipHover({
+                sourceId: visual.id,
+                column: hoverCol,
+                value: String(label),
+            });
+        } else if (active === false || active === undefined) {
+            setTooltipHover(null);
+        }
+        return () => {
+            setTooltipHover(null);
+        };
+    }, [active, hoverCol, label, setTooltipHover, visual.id]);
+
+    if (!active || !payload?.length) return null;
+    const datum = payload[0]?.payload ?? {};
+    const rows: { label: string; value: string; strong?: boolean }[] = [];
+
+    if (label !== undefined && label !== '') {
+        rows.push({ label: 'Category', value: String(label) });
+    }
+
+    for (const p of payload) {
+        if (p.value === undefined || p.value === null) continue;
+        const key = String(p.name ?? '');
+        const name = key.startsWith('tt:') ? key.slice(3) : key;
+        const ttField = visual.tooltips.find((t) => t.name === name);
+        const type =
+            key.startsWith('tt:') && ttField
+                ? fieldType(ttField.name, ttField.table)
+                : key.startsWith('tt:') && name
+                  ? fieldType(name)
+                  : typeof p.value === 'number'
+                    ? 'number'
+                    : 'text';
+        rows.push({
+            label: name,
+            value: formatValue(p.value, type as FieldType),
+            strong: !key.startsWith('tt:'),
+        });
+    }
+
+    for (const tt of visual.tooltips) {
+        const key = `tt:${tt.name}`;
+        if (!(key in datum) || datum[key] === null || datum[key] === undefined)
+            continue;
+        rows.push({
+            label: measureLabel(tt),
+            value: formatValue(
+                datum[key],
+                isMeasure(tt.name) ? 'number' : fieldType(tt.name, tt.table),
+            ),
+            strong: false,
+        });
+    }
+
+    if (!rows.length) return null;
+
+    return (
+        <div
+            className="max-w-56 space-y-0.5 rounded px-2 py-1.5 shadow-lg"
+            style={tooltipStyle}
+        >
+            {rows.map((r, i) => (
+                <div
+                    key={i}
+                    className="flex items-center justify-between gap-3"
+                >
+                    <span className="truncate text-muted-foreground">
+                        {r.label}
+                    </span>
+                    <span
+                        className={
+                            r.strong
+                                ? 'font-semibold tabular-nums'
+                                : 'tabular-nums'
+                        }
+                    >
+                        {r.value}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function chartTooltip(visual: Visual) {
+    return (props: {
+        active?: boolean;
+        payload?: {
+            name?: string | number;
+            value?: unknown;
+            payload?: TooltipDatum;
+        }[];
+        label?: string | number;
+    }) => <CustomTooltip {...props} visual={visual} />;
+}
 
 function EmptyVisual({ label }: { label: string }) {
     return (
@@ -94,12 +219,61 @@ export function VisualView({
     visual: Visual;
     rows: Row[];
 }) {
-    const { applyCrossFilter } = usePbi();
     const { rows, dim } = useInteractiveRows(visual, allRows);
+    const sm = visual.smallMultiples[0]?.name;
+
+    if (!sm) return <ChartBody visual={visual} rows={rows} dim={dim} />;
+
+    const cells = distinctValues(sm, rows);
+    if (!cells.length)
+        return <EmptyVisual label="No data for Small multiples" />;
+
+    return (
+        <div className="grid h-full w-full grid-cols-2 gap-1 overflow-auto p-1 lg:grid-cols-3">
+            {cells.map((value) => (
+                <div
+                    key={value}
+                    className="flex min-w-0 flex-col rounded border border-border"
+                >
+                    <div className="truncate border-b border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {value}
+                    </div>
+                    <div className="min-h-0 flex-1">
+                        <ChartBody
+                            visual={visual}
+                            rows={rows.filter(
+                                (r) => String(r[sm]) === String(value),
+                            )}
+                            dim={dim}
+                        />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function ChartBody({
+    visual,
+    rows,
+    dim,
+}: {
+    visual: Visual;
+    rows: Row[];
+    dim: boolean;
+}) {
+    const { applyCrossFilter, setTooltipHover, tooltipHover } = usePbi();
 
     const { data, series } = useMemo(
-        () => buildChartData(rows, visual.axis, visual.legend, visual.values),
-        [rows, visual.axis, visual.legend, visual.values],
+        () =>
+            buildChartData(
+                rows,
+                visual.axis,
+                visual.legend,
+                visual.values,
+                visual.tooltips,
+            ),
+        [rows, visual.axis, visual.legend, visual.values, visual.tooltips],
     );
 
     const axisCol = visual.axis[0]?.name;
@@ -112,7 +286,14 @@ export function VisualView({
 
     const hasValues = visual.values.length > 0;
     const wrap = (node: React.ReactNode) => (
-        <div className={cn('h-full w-full', dim && 'opacity-70')}>{node}</div>
+        <div
+            className={cn('h-full w-full', dim && 'opacity-70')}
+            onMouseLeave={() => {
+                if (tooltipHover?.sourceId === visual.id) setTooltipHover(null);
+            }}
+        >
+            {node}
+        </div>
     );
 
     switch (visual.type) {
@@ -143,7 +324,7 @@ export function VisualView({
         case 'listSlicer':
         case 'inputSlicer':
         case 'dateSlicer':
-            return <SlicerVisual visual={visual} />;
+            return <SlicerVisual visual={visual} rows={rows} />;
         case 'qna':
             return <QnaVisual visual={visual} rows={rows} />;
         case 'smartNarrative':
@@ -193,7 +374,7 @@ export function VisualView({
                             </div>
                             {visual.axis[0] && (
                                 <div className="text-[10px] text-muted-foreground">
-                                    by {visual.axis[0].name}
+                                    by {fieldLabel(visual.axis[0])}
                                 </div>
                             )}
                         </div>
@@ -299,10 +480,7 @@ export function VisualView({
                                 />
                             )}
                         </Pie>
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
                             <Legend wrapperStyle={{ fontSize: 10 }} />
                         )}
@@ -326,10 +504,7 @@ export function VisualView({
                         stroke="var(--card)"
                         isAnimationActive={false}
                     >
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                     </Treemap>
                 </ResponsiveContainer>,
             );
@@ -338,10 +513,7 @@ export function VisualView({
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <FunnelChart>
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         <Funnel
                             dataKey={series[0] ?? 'value'}
                             data={data}
@@ -404,10 +576,7 @@ export function VisualView({
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         <Bar dataKey="base" stackId="w" fill="transparent" />
                         <Bar dataKey="delta" stackId="w" radius={[2, 2, 0, 0]}>
                             {wdata.map((d, i) => (
@@ -441,10 +610,7 @@ export function VisualView({
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
                             <Legend wrapperStyle={{ fontSize: 10 }} />
                         )}
@@ -479,10 +645,7 @@ export function VisualView({
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
                             <Legend wrapperStyle={{ fontSize: 10 }} />
                         )}
@@ -518,10 +681,7 @@ export function VisualView({
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
                             <Legend wrapperStyle={{ fontSize: 10 }} />
                         )}
@@ -574,10 +734,7 @@ export function VisualView({
                         {visual.type === 'bubble' && (
                             <ZAxis dataKey={zKey} range={[40, 500]} />
                         )}
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         <Scatter
                             data={data}
                             fill="var(--chart-1)"
@@ -617,10 +774,7 @@ export function VisualView({
                             width={90}
                             {...axisProps}
                         />
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && series.length > 1 && (
                             <Legend wrapperStyle={{ fontSize: 10 }} />
                         )}
@@ -671,10 +825,7 @@ export function VisualView({
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && series.length > 1 && (
                             <Legend wrapperStyle={{ fontSize: 10 }} />
                         )}
@@ -809,9 +960,9 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                     <tr>
                         {groupCol && (
                             <th className="border-b border-border px-2 py-1 text-left font-semibold">
-                                {groupCol}
+                                {fieldLabel(visual.axis[0]!)}
                                 {legendCol && visual.type === 'matrix'
-                                    ? ` / ${legendCol}`
+                                    ? ` / ${fieldLabel(visual.legend[0]!)}`
                                     : ''}
                             </th>
                         )}
@@ -877,13 +1028,13 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
 
 /* -------------------------------- Slicers -------------------------------- */
 
-function SlicerVisual({ visual }: { visual: Visual }) {
+function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const { slicerSelections, toggleSlicer, clearSlicer } = usePbi();
     const [q, setQ] = useState('');
     const col = visual.axis[0]?.name;
     const selection = slicerSelections[visual.id] ?? [];
     if (!col) return <EmptyVisual label="Slicer" />;
-    const values = distinctValues(col).filter((v) =>
+    const values = distinctValues(col, rows).filter((v) =>
         v.toLowerCase().includes(q.toLowerCase()),
     );
     const isOn = (v: string) => selection.includes(`${col}::${v}`);
@@ -1010,7 +1161,7 @@ function SmartNarrative({
             <p>
                 <strong>{key}</strong> totalled{' '}
                 <strong>{formatNumber(total)}</strong> across {data.length}{' '}
-                {visual.axis[0]?.name ?? 'categories'} and{' '}
+                {visual.axis[0] ? fieldLabel(visual.axis[0]) : 'categories'} and{' '}
                 {rows.length.toLocaleString()} rows in the current filter
                 context.
             </p>
@@ -1146,19 +1297,19 @@ function DecompositionTree({ visual, rows }: { visual: Visual; rows: Row[] }) {
 }
 
 function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
-    const [q, setQ] = useState('total sales by category');
-    const col = /country/i.test(q)
-        ? 'Country'
-        : /month/i.test(q)
-          ? 'Month'
-          : 'Category';
+    const [q, setQ] = useState('');
+    const firstRow = rows[0] ?? {};
+    const textKey =
+        Object.keys(firstRow).find((k) => typeof firstRow[k] !== 'number') ??
+        Object.keys(firstRow)[0] ??
+        '';
     const { data, series } = buildChartData(
         rows,
-        [{ table: 'Sales', name: col, agg: 'count' }],
+        textKey ? [{ table: '', name: textKey, agg: 'count' }] : [],
         [],
         visual.values.length
             ? visual.values
-            : [{ table: 'Measures', name: 'Total Sales', agg: 'sum' }],
+            : [{ table: 'Measures', name: 'Row Count', agg: 'sum' }],
     );
     return (
         <div className="flex h-full flex-col gap-1">
@@ -1176,10 +1327,7 @@ function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
-                        <Tooltip
-                            contentStyle={tooltipStyle}
-                            formatter={(x: number) => formatNumber(x)}
-                        />
+                        <Tooltip content={chartTooltip(visual)} />
                         <Bar
                             dataKey={series[0] ?? 'value'}
                             fill="var(--chart-1)"

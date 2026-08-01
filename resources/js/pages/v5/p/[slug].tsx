@@ -1,7 +1,15 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, Eye, Pencil, Save, Smartphone, ZoomIn } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+    ArrowLeft,
+    Eye,
+    Pencil,
+    RefreshCw,
+    Save,
+    Smartphone,
+    ZoomIn,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Canvas, PageTabs } from '@/components/pbi/Canvas';
 import {
@@ -21,7 +29,11 @@ import {
 import { Ribbon } from '@/components/pbi/Ribbon';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
-import { SALES } from '@/lib/pbi/model';
+import {
+    buildTables,
+    fetchEndpointDatasets,
+    type TableDef,
+} from '@/lib/pbi/datasets';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
 
 type PageProps = {
@@ -46,6 +58,33 @@ export default function V5PageView() {
     const [dirty, setDirty] = useState(false);
     const onStoreChange = useCallback(() => setDirty(true), []);
 
+    const [tables, setTables] = useState<TableDef[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [failed, setFailed] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
+
+    useEffect(() => {
+        let stop = false;
+        const load = async () => {
+            try {
+                const datasets = await fetchEndpointDatasets();
+                if (stop) return;
+                setTables(buildTables(datasets));
+                setFailed(false);
+            } catch {
+                if (!stop) setFailed(true);
+            } finally {
+                if (!stop) setLoading(false);
+            }
+        };
+        load();
+        const timer = setInterval(load, 50_000);
+        return () => {
+            stop = true;
+            clearInterval(timer);
+        };
+    }, [retryKey]);
+
     if (!slug || !pageName) {
         return (
             <div className="min-h-screen bg-background text-foreground">
@@ -64,10 +103,51 @@ export default function V5PageView() {
         );
     }
 
+    if (loading) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
+                <Head title={`${pageName} — BACOVET`} />
+                <div className="size-6 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+                <p className="text-[12px] text-muted-foreground">
+                    Chargement des données…
+                </p>
+            </div>
+        );
+    }
+
+    if (failed && !tables.length) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
+                <Head title={`${pageName} — BACOVET`} />
+                <h1 className="text-sm font-semibold">
+                    Impossible de charger les données
+                </h1>
+                <p className="max-w-sm text-center text-[12px] text-muted-foreground">
+                    Les datasets d'endpoints ne sont pas disponibles pour le
+                    moment. Réessayez dans quelques instants.
+                </p>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                        setLoading(true);
+                        setRetryKey((k) => k + 1);
+                    }}
+                >
+                    <RefreshCw className="mr-1 size-3.5" /> Réessayer
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="flex h-screen flex-col bg-background text-foreground">
             <Head title={`${pageName} — BACOVET`} />
-            <PbiProvider initialState={initialState} onChange={onStoreChange}>
+            <PbiProvider
+                initialState={initialState}
+                onChange={onStoreChange}
+                tables={tables}
+            >
                 <Shell
                     pageId={pageId}
                     slug={slug}
@@ -175,7 +255,7 @@ function Shell({
 }
 
 function ViewBody() {
-    const { page, rows, selected } = usePbi();
+    const { page, rows, selected, tables } = usePbi();
     return (
         <div className="flex min-h-0 flex-1 flex-col bg-muted">
             <main className="flex min-h-0 flex-1 overflow-auto">
@@ -187,8 +267,8 @@ function ViewBody() {
             <footer className="flex items-center justify-between border-t border-border bg-panel px-3 py-1 text-[10px] text-muted-foreground">
                 <span>
                     {page.name} · {page.visuals.length} visual(s) ·{' '}
-                    {rows.length.toLocaleString()} lignes ·{' '}
-                    {selected ? '1 sélectionné' : ''}
+                    {tables.length} dataset(s) · {rows.length.toLocaleString()}{' '}
+                    lignes · {selected ? '1 sélectionné' : ''}
                 </span>
             </footer>
         </div>
@@ -199,6 +279,7 @@ function EditBody({ onSave }: { onSave: () => void }) {
     const {
         page,
         rows,
+        tables,
         filters,
         openPanes,
         zoom,
@@ -277,8 +358,10 @@ function EditBody({ onSave }: { onSave: () => void }) {
                 <span>
                     {page.visuals.length} visuals ·{' '}
                     {rows.length.toLocaleString()} of{' '}
-                    {SALES.length.toLocaleString()} rows in context ·{' '}
-                    {filters.length} report filters
+                    {tables
+                        .reduce((t, td) => t + td.rows.length, 0)
+                        .toLocaleString()}{' '}
+                    rows in context · {filters.length} report filters
                 </span>
                 <span className="flex items-center gap-2">
                     <button

@@ -16,15 +16,20 @@ import { useState } from 'react';
 import {
     MEASURES,
     PAGE_PRESETS,
-    TABLES,
     distinctValues,
+    fieldLabel,
     fieldType,
     isMeasure,
     measureLabel,
     type Agg,
     type VisualType,
 } from '@/lib/pbi/model';
-import { usePbi, visualTypeLabel, type WellName } from '@/lib/pbi/store';
+import {
+    defaultDropWell,
+    usePbi,
+    visualTypeLabel,
+    type WellName,
+} from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------ Icon set ------------------------------ */
@@ -32,7 +37,7 @@ import { cn } from '@/lib/utils';
  * the stroke weight and proportions of the lucide-react icons above. */
 
 type IconProps = { className?: string };
-type IconComponent = (props: IconProps) => JSX.Element;
+type IconComponent = (props: IconProps) => React.JSX.Element;
 
 function svgIcon(paths: React.ReactNode, accent: string): IconComponent {
     return function Icon({ className }: IconProps) {
@@ -56,9 +61,22 @@ function svgIcon(paths: React.ReactNode, accent: string): IconComponent {
 // A varied, friendly accent per icon so the visual-type picker reads as
 // colorful at a glance instead of a wall of monochrome outlines.
 const ICON_PALETTE = [
-    '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#22c55e',
-    '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#f43f5e', '#ec4899',
-    '#d946ef', '#a855f7', '#8b5cf6', '#6366f1',
+    '#3b82f6',
+    '#0ea5e9',
+    '#06b6d4',
+    '#14b8a6',
+    '#10b981',
+    '#22c55e',
+    '#84cc16',
+    '#f59e0b',
+    '#f97316',
+    '#ef4444',
+    '#f43f5e',
+    '#ec4899',
+    '#d946ef',
+    '#a855f7',
+    '#8b5cf6',
+    '#6366f1',
 ];
 let iconPaletteCursor = 0;
 function nextIconColor(): string {
@@ -71,58 +89,220 @@ function nextIconColor(): string {
 const IconColumn = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="7" y="13" width="3" height="5" fill="currentColor" stroke="none" />
-        <rect x="12" y="9" width="3" height="9" fill="currentColor" stroke="none" />
-        <rect x="17" y="5" width="3" height="13" fill="currentColor" stroke="none" />
+        <rect
+            x="7"
+            y="13"
+            width="3"
+            height="5"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="12"
+            y="9"
+            width="3"
+            height="9"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="17"
+            y="5"
+            width="3"
+            height="13"
+            fill="currentColor"
+            stroke="none"
+        />
     </>,
     nextIconColor(),
 );
 const IconStackedColumn = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="7" y="14" width="4" height="4" fill="currentColor" stroke="none" />
-        <rect x="7" y="8" width="4" height="6" fill="currentColor" stroke="none" opacity={0.5} />
-        <rect x="14" y="11" width="4" height="7" fill="currentColor" stroke="none" />
-        <rect x="14" y="5" width="4" height="6" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect
+            x="7"
+            y="14"
+            width="4"
+            height="4"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="7"
+            y="8"
+            width="4"
+            height="6"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
+        <rect
+            x="14"
+            y="11"
+            width="4"
+            height="7"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="14"
+            y="5"
+            width="4"
+            height="6"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
     </>,
     nextIconColor(),
 );
 const IconStacked100Column = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="7" y="10" width="4" height="8" fill="currentColor" stroke="none" />
-        <rect x="7" y="4" width="4" height="6" fill="currentColor" stroke="none" opacity={0.5} />
-        <rect x="14" y="14" width="4" height="4" fill="currentColor" stroke="none" />
-        <rect x="14" y="4" width="4" height="10" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect
+            x="7"
+            y="10"
+            width="4"
+            height="8"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="7"
+            y="4"
+            width="4"
+            height="6"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
+        <rect
+            x="14"
+            y="14"
+            width="4"
+            height="4"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="14"
+            y="4"
+            width="4"
+            height="10"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
     </>,
     nextIconColor(),
 );
 const IconBar = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="5" y="6" width="10" height="3" fill="currentColor" stroke="none" />
-        <rect x="5" y="11" width="14" height="3" fill="currentColor" stroke="none" />
-        <rect x="5" y="16" width="7" height="3" fill="currentColor" stroke="none" />
+        <rect
+            x="5"
+            y="6"
+            width="10"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="5"
+            y="11"
+            width="14"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="5"
+            y="16"
+            width="7"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+        />
     </>,
     nextIconColor(),
 );
 const IconStackedBar = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="5" y="7" width="6" height="3" fill="currentColor" stroke="none" />
-        <rect x="11" y="7" width="8" height="3" fill="currentColor" stroke="none" opacity={0.5} />
-        <rect x="5" y="14" width="10" height="3" fill="currentColor" stroke="none" />
-        <rect x="15" y="14" width="4" height="3" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect
+            x="5"
+            y="7"
+            width="6"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="11"
+            y="7"
+            width="8"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
+        <rect
+            x="5"
+            y="14"
+            width="10"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="15"
+            y="14"
+            width="4"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
     </>,
     nextIconColor(),
 );
 const IconStacked100Bar = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="5" y="7" width="9" height="3" fill="currentColor" stroke="none" />
-        <rect x="14" y="7" width="5" height="3" fill="currentColor" stroke="none" opacity={0.5} />
-        <rect x="5" y="14" width="5" height="3" fill="currentColor" stroke="none" />
-        <rect x="10" y="14" width="9" height="3" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect
+            x="5"
+            y="7"
+            width="9"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="14"
+            y="7"
+            width="5"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
+        <rect
+            x="5"
+            y="14"
+            width="5"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="10"
+            y="14"
+            width="9"
+            height="3"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
     </>,
     nextIconColor(),
 );
@@ -136,7 +316,12 @@ const IconLine = svgIcon(
 const IconArea = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <path d="M5 15 10 9 14 13 20 5 20 18 5 18 Z" fill="currentColor" stroke="none" opacity={0.5} />
+        <path
+            d="M5 15 10 9 14 13 20 5 20 18 5 18 Z"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
         <polyline points="5,15 10,9 14,13 20,5" />
     </>,
     nextIconColor(),
@@ -144,17 +329,51 @@ const IconArea = svgIcon(
 const IconStackedArea = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <path d="M5 17 10 14 14 15 20 12 20 18 5 18 Z" fill="currentColor" stroke="none" opacity={0.35} />
-        <path d="M5 12 10 8 14 11 20 6 20 18 5 18 Z" fill="currentColor" stroke="none" opacity={0.6} />
+        <path
+            d="M5 17 10 14 14 15 20 12 20 18 5 18 Z"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.35}
+        />
+        <path
+            d="M5 12 10 8 14 11 20 6 20 18 5 18 Z"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
     </>,
     nextIconColor(),
 );
 const IconCombo = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="6" y="12" width="3" height="6" fill="currentColor" stroke="none" opacity={0.6} />
-        <rect x="11" y="9" width="3" height="9" fill="currentColor" stroke="none" opacity={0.6} />
-        <rect x="16" y="14" width="3" height="4" fill="currentColor" stroke="none" opacity={0.6} />
+        <rect
+            x="6"
+            y="12"
+            width="3"
+            height="6"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
+        <rect
+            x="11"
+            y="9"
+            width="3"
+            height="9"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
+        <rect
+            x="16"
+            y="14"
+            width="3"
+            height="4"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
         <polyline points="6,10 11,6 16,11 20,4" />
     </>,
     nextIconColor(),
@@ -164,7 +383,11 @@ const IconCombo = svgIcon(
 const IconPie = svgIcon(
     <>
         <circle cx="12" cy="12" r="9" />
-        <path d="M12 3 A9 9 0 0 1 20 15 L12 12 Z" fill="currentColor" stroke="none" />
+        <path
+            d="M12 3 A9 9 0 0 1 20 15 L12 12 Z"
+            fill="currentColor"
+            stroke="none"
+        />
     </>,
     nextIconColor(),
 );
@@ -184,7 +407,10 @@ const IconTreemap = svgIcon(
     </>,
     nextIconColor(),
 );
-const IconFunnel = svgIcon(<path d="M3 4h18l-7 8v7l-4 2v-9Z" />, nextIconColor());
+const IconFunnel = svgIcon(
+    <path d="M3 4h18l-7 8v7l-4 2v-9Z" />,
+    nextIconColor(),
+);
 const IconRibbon = svgIcon(
     <>
         <path d="M3 8c4-3 6 3 10 0s6-3 8 0" />
@@ -195,10 +421,40 @@ const IconRibbon = svgIcon(
 const IconWaterfall = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <rect x="5" y="12" width="3" height="6" fill="currentColor" stroke="none" />
-        <rect x="9" y="7" width="3" height="5" fill="currentColor" stroke="none" opacity={0.6} />
-        <rect x="13" y="10" width="3" height="2" fill="currentColor" stroke="none" opacity={0.6} />
-        <rect x="17" y="5" width="3" height="7" fill="currentColor" stroke="none" />
+        <rect
+            x="5"
+            y="12"
+            width="3"
+            height="6"
+            fill="currentColor"
+            stroke="none"
+        />
+        <rect
+            x="9"
+            y="7"
+            width="3"
+            height="5"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
+        <rect
+            x="13"
+            y="10"
+            width="3"
+            height="2"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
+        <rect
+            x="17"
+            y="5"
+            width="3"
+            height="7"
+            fill="currentColor"
+            stroke="none"
+        />
     </>,
     nextIconColor(),
 );
@@ -216,9 +472,30 @@ const IconScatter = svgIcon(
 const IconBubble = svgIcon(
     <>
         <path d="M3 3v18h18" />
-        <circle cx="8" cy="14" r="2.5" fill="currentColor" stroke="none" opacity={0.6} />
-        <circle cx="14" cy="10" r="3.5" fill="currentColor" stroke="none" opacity={0.6} />
-        <circle cx="18" cy="15" r="1.8" fill="currentColor" stroke="none" opacity={0.6} />
+        <circle
+            cx="8"
+            cy="14"
+            r="2.5"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
+        <circle
+            cx="14"
+            cy="10"
+            r="3.5"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
+        <circle
+            cx="18"
+            cy="15"
+            r="1.8"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.6}
+        />
     </>,
     nextIconColor(),
 );
@@ -227,7 +504,14 @@ const IconBubble = svgIcon(
 const IconCard = svgIcon(
     <>
         <rect x="3" y="4" width="18" height="16" rx="2" />
-        <line x1="6" y1="9" x2="11" y2="9" strokeWidth={1.4} strokeOpacity={0.5} />
+        <line
+            x1="6"
+            y1="9"
+            x2="11"
+            y2="9"
+            strokeWidth={1.4}
+            strokeOpacity={0.5}
+        />
         <line x1="6" y1="15" x2="16" y2="15" strokeWidth={3} />
     </>,
     nextIconColor(),
@@ -261,8 +545,24 @@ const IconTable = svgIcon(
 const IconMatrix = svgIcon(
     <>
         <rect x="3" y="4" width="18" height="16" />
-        <rect x="3" y="4" width="18" height="5" fill="currentColor" stroke="none" opacity={0.3} />
-        <rect x="3" y="4" width="6" height="16" fill="currentColor" stroke="none" opacity={0.3} />
+        <rect
+            x="3"
+            y="4"
+            width="18"
+            height="5"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.3}
+        />
+        <rect
+            x="3"
+            y="4"
+            width="6"
+            height="16"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.3}
+        />
         <line x1="3" y1="9" x2="21" y2="9" />
         <line x1="3" y1="14" x2="21" y2="14" />
         <line x1="9" y1="4" x2="9" y2="20" />
@@ -282,13 +582,20 @@ const IconMap = svgIcon(
 );
 const IconFilledMap = svgIcon(
     <>
-        <path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2Z" fill="currentColor" opacity={0.3} />
+        <path
+            d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2Z"
+            fill="currentColor"
+            opacity={0.3}
+        />
         <line x1="9" y1="3" x2="9" y2="19" />
         <line x1="15" y1="5" x2="15" y2="21" />
     </>,
     nextIconColor(),
 );
-const IconShapeMap = svgIcon(<path d="M12 2 20 7v10l-8 5-8-5V7Z" />, nextIconColor());
+const IconShapeMap = svgIcon(
+    <path d="M12 2 20 7v10l-8 5-8-5V7Z" />,
+    nextIconColor(),
+);
 
 // Slicers
 const IconCheckboxSlicer = svgIcon(
@@ -301,7 +608,16 @@ const IconCheckboxSlicer = svgIcon(
 const IconButtonSlicer = svgIcon(
     <>
         <rect x="3" y="9" width="5" height="6" rx="1.5" />
-        <rect x="9.5" y="9" width="5" height="6" rx="1.5" fill="currentColor" stroke="none" opacity={0.5} />
+        <rect
+            x="9.5"
+            y="9"
+            width="5"
+            height="6"
+            rx="1.5"
+            fill="currentColor"
+            stroke="none"
+            opacity={0.5}
+        />
         <rect x="16" y="9" width="5" height="6" rx="1.5" />
     </>,
     nextIconColor(),
@@ -382,7 +698,15 @@ const IconQna = svgIcon(
 const IconRVisual = svgIcon(
     <>
         <rect x="3" y="3" width="18" height="18" rx="3" />
-        <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight={600} fill="currentColor" stroke="none">
+        <text
+            x="12"
+            y="16"
+            textAnchor="middle"
+            fontSize="10"
+            fontWeight={600}
+            fill="currentColor"
+            stroke="none"
+        >
             R
         </text>
     </>,
@@ -391,7 +715,15 @@ const IconRVisual = svgIcon(
 const IconPythonVisual = svgIcon(
     <>
         <rect x="3" y="3" width="18" height="18" rx="3" />
-        <text x="12" y="15" textAnchor="middle" fontSize="7" fontWeight={600} fill="currentColor" stroke="none">
+        <text
+            x="12"
+            y="15"
+            textAnchor="middle"
+            fontSize="7"
+            fontWeight={600}
+            fill="currentColor"
+            stroke="none"
+        >
             PY
         </text>
     </>,
@@ -399,7 +731,14 @@ const IconPythonVisual = svgIcon(
 );
 const IconTextBox = svgIcon(
     <>
-        <rect x="3" y="4" width="18" height="16" rx="1.5" strokeDasharray="3 2" />
+        <rect
+            x="3"
+            y="4"
+            width="18"
+            height="16"
+            rx="1.5"
+            strokeDasharray="3 2"
+        />
         <line x1="7" y1="9" x2="17" y2="9" />
         <line x1="7" y1="13" x2="14" y2="13" />
     </>,
@@ -440,7 +779,17 @@ const IconFieldDate = svgIcon(
     </>,
     '#7c3aed',
 );
-const IconFieldText = svgIcon(<path d="M7 17 11 5 15 17 M8.5 12.5h5" />, '#f97316');
+const IconFieldText = svgIcon(
+    <path d="M7 17 11 5 15 17 M8.5 12.5h5" />,
+    '#f97316',
+);
+const IconFieldBoolean = svgIcon(
+    <>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
+    </>,
+    '#0ea5e9',
+);
 
 function PaneHeader({
     title,
@@ -462,19 +811,13 @@ function PaneHeader({
 /* ---------------------------- Fields pane ---------------------------- */
 
 export function FieldsPane() {
-    const { addFilter, selected, dropField } = usePbi();
+    const { addFilter, selected, dropField, tables } = usePbi();
     const [query, setQuery] = useState('');
-    const [open, setOpen] = useState<Record<string, boolean>>({
-        Measures: true,
-        Sales: true,
-        Date: true,
-        Product: true,
-        Region: true,
-    });
+    const [open, setOpen] = useState<Record<string, boolean>>({});
 
     const groups = [
         { name: 'Measures', fields: MEASURES },
-        ...TABLES.map((t) => ({ name: t.name, fields: t.fields })),
+        ...tables.map((t) => ({ name: t.name, fields: t.fields })),
     ];
 
     return (
@@ -525,14 +868,18 @@ export function FieldsPane() {
                                         onDragStart={(e) => {
                                             e.dataTransfer.setData(
                                                 'text/plain',
-                                                f.name,
+                                                JSON.stringify({
+                                                    table: g.name,
+                                                    name: f.name,
+                                                }),
                                             );
                                             // Ctrl+drag duplicates a field into another bucket
                                             e.dataTransfer.effectAllowed =
                                                 e.ctrlKey ? 'copy' : 'move';
                                         }}
                                         onDoubleClick={() =>
-                                            !f.measure && addFilter(f.name)
+                                            !f.measure &&
+                                            addFilter(f.name, g.name)
                                         }
                                         title={
                                             f.expression ??
@@ -554,11 +901,13 @@ export function FieldsPane() {
                                                 if (!selected) return;
                                                 dropField(
                                                     selected.id,
-                                                    f.measure ||
-                                                        f.type === 'number'
-                                                        ? 'values'
-                                                        : 'axis',
+                                                                                                        defaultDropWell(selected.type) === 'axis'
+                                                                                                                ? 'axis'
+                                                                                                                : f.measure || f.type === 'number'
+                                                                                                                    ? 'values'
+                                                                                                                    : 'axis',
                                                     f.name,
+                                                    g.name,
                                                 );
                                             }}
                                             className="size-3 accent-[var(--brand)]"
@@ -569,6 +918,8 @@ export function FieldsPane() {
                                             <IconFieldNumber className="size-3" />
                                         ) : f.type === 'date' ? (
                                             <IconFieldDate className="size-3" />
+                                        ) : f.type === 'boolean' ? (
+                                            <IconFieldBoolean className="size-3" />
                                         ) : (
                                             <IconFieldText className="size-3" />
                                         )}
@@ -614,7 +965,11 @@ const VISUAL_GROUPS: {
             },
             { type: 'line', label: 'Line', Icon: IconLine },
             { type: 'area', label: 'Area', Icon: IconArea },
-            { type: 'stackedArea', label: 'Stacked area', Icon: IconStackedArea },
+            {
+                type: 'stackedArea',
+                label: 'Stacked area',
+                Icon: IconStackedArea,
+            },
             {
                 type: 'combo',
                 label: 'Line and stacked column',
@@ -737,12 +1092,20 @@ export function VisualizationsPane() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                     e.preventDefault();
-                    if (selected)
-                        dropField(
-                            selected.id,
-                            name,
-                            e.dataTransfer.getData('text/plain'),
-                        );
+                    if (!selected) return;
+                    const raw = e.dataTransfer.getData('text/plain');
+                    try {
+                        const payload = JSON.parse(raw);
+                        if (payload?.name)
+                            dropField(
+                                selected.id,
+                                name,
+                                payload.name,
+                                payload.table,
+                            );
+                    } catch {
+                        dropField(selected.id, name, raw);
+                    }
                 }}
                 className="min-h-9 rounded border border-dashed border-border bg-background p-1"
             >
@@ -753,12 +1116,14 @@ export function VisualizationsPane() {
                             className="mb-1 flex items-center gap-1 rounded bg-muted px-2 py-1 text-[11px]"
                         >
                             <span className="flex-1 truncate">
-                                {fieldType(f.name) === 'number' &&
+                                {name === 'values' &&
+                                fieldType(f.name, f.table) === 'number' &&
                                 !isMeasure(f.name)
                                     ? measureLabel(f)
-                                    : f.name}
+                                    : fieldLabel(f)}
                             </span>
-                            {fieldType(f.name) === 'number' &&
+                            {name === 'values' &&
+                                fieldType(f.name, f.table) === 'number' &&
                                 !isMeasure(f.name) && (
                                     <select
                                         value={f.agg}
@@ -1202,11 +1567,23 @@ export function VisualizationsPane() {
 /* ---------------------------- Filters pane ---------------------------- */
 
 export function FiltersPane() {
-    const { filters, addFilter, toggleFilterValue, removeFilter, selected } =
-        usePbi();
-    const columns = TABLES.flatMap((t) => t.fields)
-        .filter((f) => f.type !== 'number')
-        .map((f) => f.name);
+    const {
+        filters,
+        addFilter,
+        toggleFilterValue,
+        removeFilter,
+        selected,
+        tables,
+        tableRows,
+    } = usePbi();
+    const columns = tables.flatMap((t) =>
+        t.fields
+            .filter((f) => f.type !== 'number' && f.type !== 'boolean')
+            .map((f) => ({ name: f.name, table: t.name })),
+    );
+
+    const rowsFor = (f: (typeof filters)[number]) =>
+        (f.table && tableRows[f.table]) || [];
 
     return (
         <div className="flex h-full flex-col">
@@ -1217,15 +1594,19 @@ export function FiltersPane() {
             <div className="px-3 pb-2">
                 <select
                     value=""
-                    onChange={(e) =>
-                        e.target.value && addFilter(e.target.value)
-                    }
+                    onChange={(e) => {
+                        const [table, name] = e.target.value.split('::');
+                        if (name) addFilter(name, table);
+                    }}
                     className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
                 >
                     <option value="">Add a filter field…</option>
                     {columns.map((c) => (
-                        <option key={c} value={c}>
-                            {c}
+                        <option
+                            key={`${c.table}::${c.name}`}
+                            value={`${c.table}::${c.name}`}
+                        >
+                            {c.name} ({c.table})
                         </option>
                     ))}
                 </select>
@@ -1244,7 +1625,7 @@ export function FiltersPane() {
                 )}
                 {filters.map((f) => (
                     <div
-                        key={f.column}
+                        key={`${f.table ?? ''}::${f.column}`}
                         className="rounded border border-border bg-background p-2"
                     >
                         <div className="mb-1 flex items-center justify-between text-[11px] font-medium">
@@ -1257,12 +1638,14 @@ export function FiltersPane() {
                                         : '(All)'}
                                 </span>
                             </span>
-                            <button onClick={() => removeFilter(f.column)}>
+                            <button
+                                onClick={() => removeFilter(f.column, f.table)}
+                            >
                                 <X className="size-3 text-muted-foreground hover:text-destructive" />
                             </button>
                         </div>
                         <div className="max-h-36 overflow-auto">
-                            {distinctValues(f.column).map((v) => (
+                            {distinctValues(f.column, rowsFor(f)).map((v) => (
                                 <label
                                     key={v}
                                     className="flex items-center gap-2 py-[1px] text-[11px]"
@@ -1271,7 +1654,11 @@ export function FiltersPane() {
                                         type="checkbox"
                                         checked={f.values.includes(v)}
                                         onChange={() =>
-                                            toggleFilterValue(f.column, v)
+                                            toggleFilterValue(
+                                                f.column,
+                                                v,
+                                                f.table,
+                                            )
                                         }
                                         className="size-3 accent-[var(--brand)]"
                                     />

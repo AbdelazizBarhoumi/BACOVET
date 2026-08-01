@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Interaction } from '@/lib/pbi/model';
-import { usePbi, visualTypeLabel } from '@/lib/pbi/store';
+import { visualTable } from '@/lib/pbi/model';
+import { defaultDropWell, usePbi, visualTypeLabel } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 import { VisualView } from './VisualView';
 
@@ -28,10 +29,96 @@ type DragState = {
     oh: number;
 };
 
+const POPUP_WIDTH = 280;
+const POPUP_HEIGHT = 200;
+
+/** Floating tooltip page shown on hover of a visual that has a tooltipPageId. */
+function TooltipPagePopup() {
+    const { tooltipHover, pages, page, tableRows, rows } = usePbi();
+    const [pos, setPos] = useState({ x: 0, y: 0 });
+
+    useEffect(() => {
+        const move = (e: MouseEvent) => setPos({ x: e.clientX, y: e.clientY });
+        window.addEventListener('mousemove', move);
+        return () => window.removeEventListener('mousemove', move);
+    }, []);
+
+    if (!tooltipHover) return null;
+    const source = page.visuals.find((v) => v.id === tooltipHover.sourceId);
+    const tooltipPage = source?.tooltipPageId
+        ? pages.find((p) => p.id === source.tooltipPageId)
+        : null;
+    if (!tooltipPage) return null;
+
+    const tpVisuals = tooltipPage.visuals.filter((v) => !v.hidden);
+    if (!tpVisuals.length) return null;
+
+    const scale = Math.min(
+        POPUP_WIDTH / tooltipPage.format.width,
+        POPUP_HEIGHT / tooltipPage.format.height,
+        1,
+    );
+    const x = Math.max(
+        8,
+        Math.min(pos.x + 14, window.innerWidth - POPUP_WIDTH - 8),
+    );
+    const y = Math.max(
+        8,
+        Math.min(pos.y + 14, window.innerHeight - POPUP_HEIGHT - 8),
+    );
+
+    return (
+        <div
+            className="pointer-events-none fixed z-50 overflow-hidden rounded border border-border bg-card shadow-xl"
+            style={{
+                left: x,
+                top: y,
+                width: POPUP_WIDTH,
+                height: POPUP_HEIGHT,
+                backgroundColor: tooltipPage.format.background,
+            }}
+        >
+            <div
+                className="relative"
+                style={{
+                    width: tooltipPage.format.width,
+                    height: tooltipPage.format.height,
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top left',
+                }}
+            >
+                {tpVisuals.map((tv) => {
+                    const base = tableRows[visualTable(tv)] ?? rows;
+                    const hovered = base.filter(
+                        (r) =>
+                            String(r[tooltipHover.column]) ===
+                            tooltipHover.value,
+                    );
+                    return (
+                        <div
+                            key={tv.id}
+                            className="absolute p-1"
+                            style={{
+                                left: tv.x,
+                                top: tv.y,
+                                width: tv.w,
+                                height: tv.h,
+                            }}
+                        >
+                            <VisualView visual={tv} rows={hovered} />
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     const {
         page,
         rows,
+        tableRows,
         selected,
         select,
         updateVisual,
@@ -144,6 +231,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
 
                     {ordered.map((v) => {
                         if (v.hidden) return null;
+                        const vRows = tableRows[visualTable(v)] ?? rows;
                         const isSel = selected?.id === v.id;
                         const interactionTarget =
                             !readOnly &&
@@ -175,9 +263,21 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     if (readOnly) return;
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    const name =
+                                    const raw =
                                         e.dataTransfer.getData('text/plain');
-                                    if (name) dropField(v.id, 'values', name);
+                                    if (!raw) return;
+                                    try {
+                                        const payload = JSON.parse(raw);
+                                        if (payload?.name)
+                                            dropField(
+                                                v.id,
+                                                defaultDropWell(v.type),
+                                                payload.name,
+                                                payload.table,
+                                            );
+                                    } catch {
+                                        dropField(v.id, defaultDropWell(v.type), raw);
+                                    }
                                 }}
                                 className={cn(
                                     'group absolute flex flex-col rounded p-2',
@@ -279,7 +379,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     )}
                                 </div>
                                 <div className="min-h-0 flex-1">
-                                    <VisualView visual={v} rows={rows} />
+                                    <VisualView visual={v} rows={vRows} />
                                 </div>
 
                                 {interactionTarget && (
@@ -369,9 +469,11 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                         label="Drill through to detail"
                         onClick={() => {
                             const col = menuVisual.axis[0]?.name;
+                            const vRows =
+                                tableRows[visualTable(menuVisual)] ?? rows;
                             const val =
                                 crossFilter?.value ??
-                                (col ? String(rows[0]?.[col] ?? '') : '');
+                                (col ? String(vRows[0]?.[col] ?? '') : '');
                             if (col && val) openDrillthrough(col, val);
                             setMenu(null);
                         }}
@@ -403,37 +505,59 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                         <h3 className="mb-2 text-sm font-semibold">
                             Data point records
                         </h3>
-                        <table className="w-full text-[11px]">
-                            <thead className="sticky top-0 bg-muted">
-                                <tr>
-                                    {Object.keys(rows[0] ?? {}).map((k) => (
-                                        <th
-                                            key={k}
-                                            className="border-b border-border px-2 py-1 text-left"
-                                        >
-                                            {k}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.slice(0, 100).map((r, i) => (
-                                    <tr key={i} className="hover:bg-accent">
-                                        {Object.keys(rows[0] ?? {}).map((k) => (
-                                            <td
-                                                key={k}
-                                                className="border-b border-border px-2 py-1"
-                                            >
-                                                {String(r[k])}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        {(() => {
+                            const recordsVisual = page.visuals.find(
+                                (v) => v.id === records,
+                            );
+                            const recordsRows = recordsVisual
+                                ? (tableRows[visualTable(recordsVisual)] ??
+                                  rows)
+                                : rows;
+                            return (
+                                <table className="w-full text-[11px]">
+                                    <thead className="sticky top-0 bg-muted">
+                                        <tr>
+                                            {Object.keys(
+                                                recordsRows[0] ?? {},
+                                            ).map((k) => (
+                                                <th
+                                                    key={k}
+                                                    className="border-b border-border px-2 py-1 text-left"
+                                                >
+                                                    {k}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {recordsRows
+                                            .slice(0, 100)
+                                            .map((r, i) => (
+                                                <tr
+                                                    key={i}
+                                                    className="hover:bg-accent"
+                                                >
+                                                    {Object.keys(
+                                                        recordsRows[0] ?? {},
+                                                    ).map((k) => (
+                                                        <td
+                                                            key={k}
+                                                            className="border-b border-border px-2 py-1"
+                                                        >
+                                                            {String(r[k])}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            );
+                        })()}
                     </div>
                 </div>
             )}
+
+            <TooltipPagePopup />
         </div>
     );
 }

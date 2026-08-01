@@ -6,6 +6,7 @@ import V4AuthController from './V4AuthController'
 import BuilderPageV4Controller from './BuilderPageV4Controller'
 import BuilderPageGroupV4Controller from './BuilderPageGroupV4Controller'
 import V5AuthController from './V5AuthController'
+import EndpointDatasetV5Controller from './EndpointDatasetV5Controller'
 import BuilderPageV5Controller from './BuilderPageV5Controller'
 import BuilderPageGroupV5Controller from './BuilderPageGroupV5Controller'
 import BuilderActivityV5Controller from './BuilderActivityV5Controller'
@@ -34,6 +35,7 @@ V4AuthController: Object.assign(V4AuthController, V4AuthController),
 BuilderPageV4Controller: Object.assign(BuilderPageV4Controller, BuilderPageV4Controller),
 BuilderPageGroupV4Controller: Object.assign(BuilderPageGroupV4Controller, BuilderPageGroupV4Controller),
 V5AuthController: Object.assign(V5AuthController, V5AuthController),
+EndpointDatasetV5Controller: Object.assign(EndpointDatasetV5Controller, EndpointDatasetV5Controller),
 BuilderPageV5Controller: Object.assign(BuilderPageV5Controller, BuilderPageV5Controller),
 BuilderPageGroupV5Controller: Object.assign(BuilderPageGroupV5Controller, BuilderPageGroupV5Controller),
 BuilderActivityV5Controller: Object.assign(BuilderActivityV5Controller, BuilderActivityV5Controller),

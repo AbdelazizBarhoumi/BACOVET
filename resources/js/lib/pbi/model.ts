@@ -1,6 +1,6 @@
-// Data model, sample dataset and aggregation engine for the report canvas.
+// Data model, dataset tables and aggregation engine for the report canvas.
 
-export type FieldType = 'number' | 'text' | 'date';
+export type FieldType = 'number' | 'text' | 'date' | 'boolean';
 
 export type Field = {
     table: string;
@@ -11,7 +11,7 @@ export type Field = {
     expression?: string;
 };
 
-export type Row = Record<string, string | number>;
+export type Row = Record<string, string | number | boolean | null>;
 
 export type Agg = 'sum' | 'avg' | 'count' | 'min' | 'max' | 'distinct';
 
@@ -19,7 +19,61 @@ export type WellField = {
     table: string;
     name: string;
     agg: Agg;
+    /** Optional friendly presentation name; never used for row lookup. */
+    label?: string;
 };
+
+export type FieldReference = {
+    table?: string | undefined;
+    name: string;
+};
+
+const AGGREGATIONS: Agg[] = ['sum', 'avg', 'count', 'distinct', 'min', 'max'];
+
+/** Converts drag metadata and legacy persisted values into a physical field reference. */
+export function parseFieldReference(input: unknown, fallbackTable?: string): FieldReference | null {
+    if (typeof input === 'string') {
+        const value = input.trim();
+        if (!value) return null;
+        try {
+            const parsed: unknown = JSON.parse(value);
+            if (parsed && typeof parsed === 'object')
+                return parseFieldReference(parsed, fallbackTable);
+        } catch {
+            // A normal column name is not JSON and is valid as-is. Values
+            // that look like serialized metadata but are malformed are not.
+            if (value.startsWith('{') || value.startsWith('[')) return null;
+        }
+        return { name: value, table: fallbackTable || undefined };
+    }
+
+    if (!input || typeof input !== 'object') return null;
+    const value = input as Record<string, unknown>;
+    const name = parseFieldReference(value.name, fallbackTable);
+    if (!name) return null;
+    const table = typeof value.table === 'string' && value.table.trim()
+        ? value.table.trim()
+        : name.table || fallbackTable;
+    return { name: name.name, table: table || undefined };
+}
+
+export function normalizeWellField(input: unknown, fallbackTable?: string): WellField | null {
+    if (!input || typeof input !== 'object') {
+        const reference = parseFieldReference(input, fallbackTable);
+        return reference ? { table: reference.table ?? '', name: reference.name, agg: 'sum' } : null;
+    }
+
+    const value = input as Record<string, unknown>;
+    const reference = parseFieldReference(value.name, typeof value.table === 'string' ? value.table : fallbackTable);
+    if (!reference) return null;
+    const agg = AGGREGATIONS.includes(value.agg as Agg) ? (value.agg as Agg) : 'sum';
+    const label = typeof value.label === 'string' && value.label.trim() ? value.label.trim() : undefined;
+    return { table: reference.table ?? '', name: reference.name, agg, ...(label ? { label } : {}) };
+}
+
+export function fieldLabel(wf: Pick<WellField, 'name' | 'label'>): string {
+    return wf.label?.trim() || wf.name;
+}
 
 export type VisualType =
     | 'column'
@@ -154,197 +208,31 @@ export type CrossFilter = {
 /** per-visual-pair interaction behaviour */
 export type Interaction = 'filter' | 'highlight' | 'none';
 
-/* ------------------------------------------------------------------ */
-/* Sample data — deterministic pseudo-random "Adventure Works" style   */
-/* ------------------------------------------------------------------ */
-
-const CATEGORIES = ['Bikes', 'Accessories', 'Clothing', 'Components'] as const;
-const SUBCATEGORIES: Record<string, string[]> = {
-    Bikes: ['Mountain Bikes', 'Road Bikes', 'Touring Bikes'],
-    Accessories: ['Helmets', 'Tires', 'Bottles', 'Locks'],
-    Clothing: ['Jerseys', 'Gloves', 'Shorts', 'Caps'],
-    Components: ['Wheels', 'Brakes', 'Handlebars', 'Saddles'],
-};
-const REGIONS = [
-    { country: 'United States', region: 'Northwest', group: 'North America' },
-    { country: 'United States', region: 'Southwest', group: 'North America' },
-    { country: 'United States', region: 'Northeast', group: 'North America' },
-    { country: 'United States', region: 'Southeast', group: 'North America' },
-    { country: 'United States', region: 'Central', group: 'North America' },
-    { country: 'Canada', region: 'Canada', group: 'North America' },
-    { country: 'France', region: 'France', group: 'Europe' },
-    { country: 'Germany', region: 'Germany', group: 'Europe' },
-    { country: 'United Kingdom', region: 'United Kingdom', group: 'Europe' },
-    { country: 'Australia', region: 'Australia', group: 'Pacific' },
-];
-const CHANNELS = ['Online', 'Reseller', 'Retail'];
-
-function mulberry32(seed: number) {
-    return function () {
-        seed |= 0;
-        seed = (seed + 0x6d2b79f5) | 0;
-        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-const MONTHS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-];
-
-function buildSales(): Row[] {
-    const rnd = mulberry32(20240711);
-    const rows: Row[] = [];
-    let id = 1;
-    for (let year = 2022; year <= 2024; year++) {
-        for (let m = 0; m < 12; m++) {
-            for (const geo of REGIONS) {
-                for (const cat of CATEGORIES) {
-                    const subs = SUBCATEGORIES[cat] ?? [];
-                    const sub = subs[Math.floor(rnd() * subs.length)] ?? cat;
-                    const channel =
-                        CHANNELS[Math.floor(rnd() * CHANNELS.length)] ??
-                        'Online';
-                    const seasonal =
-                        1 + 0.35 * Math.sin(((m + 3) / 12) * Math.PI * 2);
-                    const growth = 1 + (year - 2022) * 0.18;
-                    const base =
-                        cat === 'Bikes'
-                            ? 42000
-                            : cat === 'Components'
-                              ? 16000
-                              : cat === 'Clothing'
-                                ? 9000
-                                : 6000;
-                    const sales = Math.round(
-                        base * seasonal * growth * (0.55 + rnd() * 0.9),
-                    );
-                    const quantity = Math.max(
-                        1,
-                        Math.round(sales / (60 + rnd() * 220)),
-                    );
-                    const cost = Math.round(sales * (0.55 + rnd() * 0.2));
-                    rows.push({
-                        SalesOrder: `SO-${10000 + id++}`,
-                        Year: year,
-                        Month: MONTHS[m] ?? '',
-                        MonthKey: m + 1,
-                        Quarter: `Q${Math.floor(m / 3) + 1}`,
-                        Date: `${year}-${String(m + 1).padStart(2, '0')}-15`,
-                        Country: geo.country,
-                        Region: geo.region,
-                        Group: geo.group,
-                        Category: cat,
-                        Subcategory: sub,
-                        Channel: channel,
-                        Sales: sales,
-                        Cost: cost,
-                        Profit: sales - cost,
-                        Quantity: quantity,
-                    });
-                }
-            }
-        }
-    }
-    return rows;
-}
-
-export const SALES: Row[] = buildSales();
-
+/** A dataset table: a named set of fields backed by captured endpoint rows. */
 export type TableDef = { name: string; fields: Field[]; rows: Row[] };
 
-export const TABLES: TableDef[] = [
-    {
-        name: 'Sales',
-        rows: SALES,
-        fields: [
-            { table: 'Sales', name: 'SalesOrder', type: 'text' },
-            { table: 'Sales', name: 'Channel', type: 'text' },
-            { table: 'Sales', name: 'Sales', type: 'number' },
-            { table: 'Sales', name: 'Cost', type: 'number' },
-            { table: 'Sales', name: 'Profit', type: 'number' },
-            { table: 'Sales', name: 'Quantity', type: 'number' },
-        ],
-    },
-    {
-        name: 'Date',
-        rows: SALES,
-        fields: [
-            { table: 'Date', name: 'Date', type: 'date' },
-            { table: 'Date', name: 'Year', type: 'text' },
-            { table: 'Date', name: 'Quarter', type: 'text' },
-            { table: 'Date', name: 'Month', type: 'text' },
-            { table: 'Date', name: 'MonthKey', type: 'number' },
-        ],
-    },
-    {
-        name: 'Product',
-        rows: SALES,
-        fields: [
-            { table: 'Product', name: 'Category', type: 'text' },
-            { table: 'Product', name: 'Subcategory', type: 'text' },
-        ],
-    },
-    {
-        name: 'Region',
-        rows: SALES,
-        fields: [
-            { table: 'Region', name: 'Group', type: 'text' },
-            { table: 'Region', name: 'Country', type: 'text' },
-            { table: 'Region', name: 'Region', type: 'text' },
-        ],
-    },
-];
+/* ------------------------------------------------------------------ */
+/* Dataset tables — populated at runtime from the fetched endpoints.   */
+/* ------------------------------------------------------------------ */
+
+export let TABLES: TableDef[] = [];
+
+export function setTables(tables: TableDef[]): void {
+    TABLES = tables;
+}
 
 export const MEASURES: Field[] = [
     {
         table: 'Measures',
-        name: 'Total Sales',
+        name: 'Row Count',
         type: 'number',
         measure: true,
-        expression: 'Total Sales = SUM ( Sales[Sales] )',
-    },
-    {
-        table: 'Measures',
-        name: 'Total Profit',
-        type: 'number',
-        measure: true,
-        expression: 'Total Profit = SUM ( Sales[Profit] )',
-    },
-    {
-        table: 'Measures',
-        name: 'Profit Margin',
-        type: 'number',
-        measure: true,
-        expression: 'Profit Margin = DIVIDE ( [Total Profit], [Total Sales] )',
-    },
-    {
-        table: 'Measures',
-        name: 'Order Count',
-        type: 'number',
-        measure: true,
-        expression: 'Order Count = COUNTROWS ( Sales )',
+        expression: 'Row Count = COUNTROWS ( <table> )',
     },
 ];
 
 export const MEASURE_IMPL: Record<string, (rows: Row[]) => number> = {
-    'Total Sales': (rows) => sum(rows, 'Sales'),
-    'Total Profit': (rows) => sum(rows, 'Profit'),
-    'Profit Margin': (rows) =>
-        sum(rows, 'Sales') ? sum(rows, 'Profit') / sum(rows, 'Sales') : 0,
-    'Order Count': (rows) => rows.length,
+    'Row Count': (rows) => rows.length,
 };
 
 function sum(rows: Row[], col: string) {
@@ -354,20 +242,39 @@ function sum(rows: Row[], col: string) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Aggregation engine                                                   */
+/* Aggregation engine                                                  */
 /* ------------------------------------------------------------------ */
 
 export function isMeasure(name: string) {
     return name in MEASURE_IMPL;
 }
 
-export function fieldType(name: string): FieldType {
+/** First table that exposes a column with the given name. */
+export function findTableForField(name: string): string {
+    for (const t of TABLES) {
+        if (t.fields.some((f) => f.name === name)) return t.name;
+    }
+    return '';
+}
+
+export function fieldType(name: string, table?: string): FieldType {
     if (isMeasure(name)) return 'number';
+    if (table) {
+        for (const t of TABLES) {
+            if (t.name !== table) continue;
+            const f = t.fields.find((x) => x.name === name);
+            if (f) return f.type;
+        }
+    }
     for (const t of TABLES) {
         const f = t.fields.find((x) => x.name === name);
         if (f) return f.type;
     }
     return 'text';
+}
+
+export function hasColumn(table: TableDef, name: string): boolean {
+    return table.fields.some((f) => f.name === name);
 }
 
 export function aggregate(rows: Row[], wf: WellField): number {
@@ -395,7 +302,8 @@ export function aggregate(rows: Row[], wf: WellField): number {
 
 export function measureLabel(wf: WellField) {
     if (isMeasure(wf.name)) return wf.name;
-    if (fieldType(wf.name) === 'number') {
+    if (wf.label?.trim()) return wf.label.trim();
+    if (fieldType(wf.name, wf.table) === 'number') {
         const p =
             wf.agg === 'sum'
                 ? 'Sum of'
@@ -408,26 +316,35 @@ export function measureLabel(wf: WellField) {
                       : wf.agg === 'min'
                         ? 'Min of'
                         : 'Max of';
-        return `${p} ${wf.name}`;
+        return `${p} ${fieldLabel(wf)}`;
     }
-    return `Count of ${wf.name}`;
+    return `Count of ${fieldLabel(wf)}`;
 }
-
-const MONTH_ORDER = new Map(MONTHS.map((m, i) => [m, i]));
 
 export function buildChartData(
     rows: Row[],
     axis: WellField[],
     legend: WellField[],
     values: WellField[],
+    tooltips: WellField[] = [],
 ) {
     const axisCol = axis[0]?.name;
     const legendCol = legend[0]?.name;
 
+    const withTooltips = (item: Record<string, string | number>, groupRows: Row[]) => {
+        for (const t of tooltips) {
+            item[`tt:${t.name}`] = aggregate(groupRows, t);
+        }
+        return item;
+    };
+
     if (!axisCol) {
         const single: Record<string, string | number> = { category: 'Total' };
         values.forEach((v) => (single[measureLabel(v)] = aggregate(rows, v)));
-        return { data: [single], series: values.map(measureLabel) };
+        return {
+            data: [withTooltips(single, rows)],
+            series: values.map(measureLabel),
+        };
     }
 
     const groups = new Map<string, Row[]>();
@@ -461,16 +378,10 @@ export function buildChartData(
                 item[measureLabel(v)] = aggregate(groupRows, v);
             });
         }
-        return item;
+        return withTooltips(item, groupRows);
     });
 
-    if (axisCol === 'Month') {
-        data.sort(
-            (a, b) =>
-                (MONTH_ORDER.get(String(a['category'])) ?? 0) -
-                (MONTH_ORDER.get(String(b['category'])) ?? 0),
-        );
-    } else if (fieldType(axisCol) === 'number' || axisCol === 'Year') {
+    if (fieldType(axisCol, axis[0]?.table) === 'number') {
         data.sort((a, b) => Number(a['category']) - Number(b['category']));
     } else if (values.length && !legendCol) {
         const key = measureLabel(values[0]!);
@@ -480,16 +391,36 @@ export function buildChartData(
     return { data, series: [...seriesSet] };
 }
 
-export function distinctValues(col: string, rows: Row[] = SALES) {
+export function distinctValues(col: string, rows: Row[]) {
     const s = new Set<string>();
     for (const r of rows) s.add(String(r[col]));
-    const out = [...s];
-    if (col === 'Month')
-        out.sort(
-            (a, b) => (MONTH_ORDER.get(a) ?? 0) - (MONTH_ORDER.get(b) ?? 0),
-        );
-    else out.sort();
-    return out;
+    return [...s].sort();
+}
+
+/** Table backing a visual — resolved from its first populated well. */
+export function visualTable(
+    v: Pick<
+        Visual,
+        | 'axis'
+        | 'legend'
+        | 'values'
+        | 'drillFields'
+        | 'smallMultiples'
+        | 'tooltips'
+    >,
+): string {
+    const wells = [
+        v.axis,
+        v.legend,
+        v.values,
+        v.drillFields,
+        v.smallMultiples,
+        v.tooltips,
+    ];
+    for (const well of wells) {
+        if (well[0]?.table) return well[0].table;
+    }
+    return '';
 }
 
 export function formatNumber(n: number, compact = true) {
@@ -501,4 +432,58 @@ export function formatNumber(n: number, compact = true) {
     if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
     if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
     return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+export function formatValue(
+    value: unknown,
+    type: FieldType = 'text',
+): string {
+    if (value === null || value === undefined) return '—';
+    if (type === 'number' && typeof value === 'number')
+        return formatNumber(value);
+    if (type === 'boolean')
+        return value === true ? 'Yes' : value === false ? 'No' : String(value);
+    if (type === 'date') {
+        const parsed = value instanceof Date ? value : new Date(String(value));
+        if (!Number.isNaN(parsed.getTime()))
+            return parsed.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+            });
+    }
+    return String(value);
+}
+
+/* ------------------------------------------------------------------ */
+/* Column type inference                                               */
+/* ------------------------------------------------------------------ */
+
+function isDateString(v: string): boolean {
+    const trimmed = v.trim();
+    if (!/^\d{4}-\d{2}-\d{2}([T ].*)?$/.test(trimmed)) return false;
+    return !Number.isNaN(Date.parse(trimmed.slice(0, 10)));
+}
+
+export function inferFieldType(values: unknown[]): FieldType {
+    let numbers = 0;
+    let dates = 0;
+    let booleans = 0;
+    let texts = 0;
+    for (const v of values) {
+        if (v === null || v === undefined) continue;
+        if (typeof v === 'boolean') booleans++;
+        else if (typeof v === 'number') numbers++;
+        else if (typeof v === 'string') {
+            if (isDateString(v)) dates++;
+            else texts++;
+        } else texts++;
+    }
+    const total = numbers + dates + booleans + texts;
+    if (!total) return 'text';
+    if (numbers === total) return 'number';
+    if (booleans === total) return 'boolean';
+    if (dates === total) return 'date';
+    if (numbers >= total * 0.8) return 'number';
+    return 'text';
 }

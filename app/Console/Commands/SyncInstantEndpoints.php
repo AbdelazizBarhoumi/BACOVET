@@ -168,6 +168,10 @@ class SyncInstantEndpoints extends Command
         }
         $this->info("KPI results computed.");
 
+        // Refresh the endpoint_datasets snapshot used by the V5 builder.
+        $this->info("Refreshing endpoint datasets...");
+        $this->call('sync:endpoint-datasets');
+
         return self::SUCCESS;
     }
 
