@@ -216,6 +216,8 @@ function normalizeState(state: State): State {
             ...page,
             visuals: page.visuals.map((visual) => {
                 const next = { ...visual };
+                if (next.maxCategories === undefined || next.maxCategories === null)
+                    next.maxCategories = 200;
                 for (const well of wells) {
                     next[well] = (visual[well] ?? [])
                         .map((field) => normalizeWellField(field))
@@ -268,6 +270,7 @@ export function mkVisual(
         conditionalFormat: false,
         subtotals: true,
         drillLevel: 0,
+        maxCategories: 200,
         ...init,
     };
 }
@@ -611,6 +614,8 @@ export function PbiProvider({
                     if (next.h !== undefined) next.h = Math.max(60, next.h);
                     if (next.colorIndex !== undefined)
                         next.colorIndex = Math.max(0, Math.min(7, Math.round(next.colorIndex)));
+                    if (next.maxCategories !== undefined)
+                        next.maxCategories = Math.max(2, Math.min(5000, Math.round(next.maxCategories)));
                     const result = { ...v, ...next };
                     if (next.type && next.type !== v.type) {
                         if (isSlicerType(next.type) && !result.axis.length && result.values.length) {

@@ -1,4 +1,5 @@
 import { Trash2, Copy, Merge, Split, Plus, Minus, AlignLeft, AlignCenter, AlignRight, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { logActivity } from "./activity";
+import { bindFieldToRole, roleEligible, unbindFieldFromRole, type FieldRef, type FieldRole } from "./field-binds";
 import { useBuilder, DEFAULT_CONFIG_FOR, DEFAULT_SIZE } from "./store";
 import {
   addCol, addRow, cellAt, mergeRegion, moveCol, moveRow, removeCol, removeRow, unmergeAt, withCell,
@@ -497,7 +499,7 @@ export function Inspector() {
         {/* ─── TAB: DONNÉES ─── */}
         {hasDataTab && (
           <TabsContent value="data" className="space-y-3 pt-3">
-            <DataBindingInspector c={c} set={set} singleValue={SINGLE_VALUE_WIDGETS.includes(t)} isMatrix={t === "matrix"} />
+            <DataBindingInspector c={c} set={set} singleValue={SINGLE_VALUE_WIDGETS.includes(t)} isMatrix={t === "matrix"} isScatter={t === "scatter" || t === "bubble"} />
           </TabsContent>
         )}
 
@@ -743,13 +745,14 @@ function TableGridInspector({ widgetId, t, onChange }: {
   );
 }
 
-function DataBindingInspector({ c, set, singleValue, isMatrix }: {
+function DataBindingInspector({ c, set, singleValue, isMatrix, isScatter }: {
   c: WidgetConfig;
   set: (patch: Partial<WidgetConfig>) => void;
   singleValue: boolean;
   isMatrix: boolean;
+  isScatter: boolean;
 }) {
-  const { datasets, measures } = useBuilder();
+  const { datasets, allMeasures, selected: widget, updateConfig } = useBuilder();
   const ds = datasets.find((d) => d.slug === c.datasetSlug);
   const dsColumns = ds?.columns ?? [];
   const axisFields = dsColumns.filter((col) => normFieldType(col.type) !== "number");
@@ -761,24 +764,45 @@ function DataBindingInspector({ c, set, singleValue, isMatrix }: {
       .filter((col) => normFieldType(col.type) === "number")
       .map((col) => ({ key: `${d.slug}::${col.name}`, slug: d.slug, name: col.name, label: `${dsLabel(d)}.${col.name}` })),
   );
-  const measureOptions = measures.map((m) => ({ key: `::${m.name}`, slug: undefined, name: m.name, label: `${m.name} (mesure)` }));
+  const measureOptions = allMeasures.map((m) => ({ key: `::${m.name}`, slug: undefined, name: m.name, label: `${m.name} (mesure)` }));
+
+  type FieldOption = { key: string; name: string; label: string; ref: FieldRef };
+  const dimOptions: FieldOption[] = axisFields.map((f) => ({
+    key: f.name,
+    name: f.name,
+    label: f.name,
+    ref: { table: ds?.slug ?? "", name: f.name, type: normFieldType(f.type), datasetSlug: ds?.slug },
+  }));
+  const valueOptions: FieldOption[] = [
+    ...measureOptions.map((o) => ({ key: o.key, name: o.name, label: o.label, ref: { table: "Measures", name: o.name, type: "number" as const, measure: true } })),
+    ...allValueOptions.map((o) => ({ key: o.key, name: o.name, label: o.label, ref: { table: o.slug, name: o.name, type: "number" as const, datasetSlug: o.slug } })),
+  ];
 
   const boundValues = c.dataValues?.length ? c.dataValues : c.dataValue ? [c.dataValue] : [];
-  const addValue = (v: string) => {
-    const idx = v.indexOf("::");
-    const slug = idx > 0 ? v.slice(0, idx) : undefined;
-    const name = v.slice(idx + 2);
-    if (boundValues.includes(name)) return;
-    const next = [...boundValues, name];
-    set({ dataValues: next, dataValue: next[0], dataValueSources: { ...c.dataValueSources, [name]: slug ?? c.datasetSlug ?? "" } });
+  const boundTips = c.dataTooltips ?? [];
+
+  const bindRef = (ref: FieldRef, role: FieldRole) => {
+    if (!widget) return;
+    if (role === "values" && singleValue) {
+      set({
+        datasetSlug: ref.datasetSlug ?? c.datasetSlug,
+        dataValue: ref.name,
+        dataValues: [ref.name],
+        dataValueSources: { ...c.dataValueSources, [ref.name]: ref.datasetSlug ?? c.datasetSlug ?? "" },
+        scatterX: undefined, scatterY: undefined, scatterSize: undefined,
+      });
+      return;
+    }
+    bindFieldToRole(updateConfig, widget, ref, role);
   };
-  const removeValue = (v: string) => {
-    const next = boundValues.filter((n) => n !== v);
-    const sources = { ...c.dataValueSources };
-    delete sources[v];
-    set({ dataValues: next, dataValue: next[0], dataValueSources: sources });
+  const removeFrom = (role: FieldRole, name?: string) => {
+    if (!widget) return;
+    unbindFieldFromRole(updateConfig, widget, role, name);
   };
-  const unset = () => set({ datasetSlug: undefined, dataAxis: undefined, dataValue: undefined, dataValues: undefined, dataValueSources: undefined, dataGroup: undefined });
+  const unset = () => set({ datasetSlug: undefined, dataAxis: undefined, dataValue: undefined, dataValues: undefined, dataValueSources: undefined, dataGroup: undefined, dataLegend: undefined, dataTooltips: undefined, scatterX: undefined, scatterY: undefined, scatterSize: undefined });
+
+  const isScatterBound = !!(c.scatterX && c.scatterY);
+  const primaryWells = isScatter ? "scatter" : "chart";
 
   return (
     <>
@@ -789,7 +813,7 @@ function DataBindingInspector({ c, set, singleValue, isMatrix }: {
           // Multi-value widgets keep their value bindings (each value has its own source);
           // single-value widgets read dataValue directly, so their binding must reset.
           if (singleValue) {
-            set({ datasetSlug: slug, dataAxis: undefined, dataValue: undefined, dataValues: undefined, dataValueSources: undefined, dataGroup: undefined });
+            set({ datasetSlug: slug, dataAxis: undefined, dataValue: undefined, dataValues: undefined, dataValueSources: undefined, dataGroup: undefined, dataLegend: undefined, dataTooltips: undefined, scatterX: undefined, scatterY: undefined, scatterSize: undefined });
           } else {
             set({ datasetSlug: slug, dataAxis: undefined, dataGroup: undefined });
           }
@@ -808,71 +832,133 @@ function DataBindingInspector({ c, set, singleValue, isMatrix }: {
 
       {c.datasetSlug && (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Axe (catégorie)">
-              <Select value={c.dataAxis ?? "__none"} onValueChange={(v) => set({ dataAxis: v === "__none" ? undefined : v })}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value="__none" className="text-xs">— aucun —</SelectItem>
-                  {axisFields.map((f) => (
-                    <SelectItem key={f.name} value={f.name} className="text-xs">{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Ajouter une valeur">
-              <Select value="__none" onValueChange={(v) => { if (v !== "__none") addValue(v); }}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="+ Valeur…" /></SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value="__none" className="text-xs">— choisir —</SelectItem>
-                  {measureOptions.map((o) => (
-                    <SelectItem key={o.key} value={o.key} className="text-xs" disabled={boundValues.includes(o.name)}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                  {allValueOptions.length > 0 && <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Datasets</div>}
-                  {allValueOptions.map((o) => (
-                    <SelectItem key={o.key} value={o.key} className="text-xs" disabled={boundValues.includes(o.name)}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          <Field label="Valeurs">
-            {boundValues.length === 0 ? (
-              <div className="rounded border border-dashed border-border px-2 py-1.5 text-[11px] text-muted-foreground">Aucune valeur liée</div>
-            ) : (
-              <div className="space-y-1.5">
-                {boundValues.map((v) => {
-                  const source = c.dataValueSources?.[v] ?? c.datasetSlug;
-                  const srcDs = datasets.find((d) => d.slug === source);
-                  const foreign = !!source && source !== c.datasetSlug;
-                  const chipLabel = foreign && srcDs ? `${dsLabel(srcDs)}.${v}` : v;
-                  return (
-                    <div key={v} className="flex items-center gap-1.5">
-                      <span className="flex min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px]">
-                        <span className={`truncate ${foreign ? "text-foreground" : ""}`}>{chipLabel}</span>
-                        <button onClick={() => removeValue(v)} className="ml-auto shrink-0 text-muted-foreground hover:text-destructive" title="Retirer">
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </span>
-                      <Select value={c.dataAggregations?.[v] ?? c.dataAggregation ?? "sum"} onValueChange={(a) => set({ dataAggregations: { ...c.dataAggregations, [v]: a as Agg } })}>
-                        <SelectTrigger className="h-6 w-[6.5rem] text-[10px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {["sum", "avg", "count", "min", "max", "distinct"].map((a) => (
-                            <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                })}
+          {primaryWells === "scatter" ? (
+            <>
+              <DropWell
+                title="Axe (catégorie)"
+                hint="Dimension optionnelle qui groupera les points"
+                role="axis"
+                bound={c.dataAxis ? [c.dataAxis] : []}
+                eligible={(ref) => roleEligible(ref, "axis")}
+                onBind={(ref) => bindRef(ref, "axis")}
+                onRemove={() => removeFrom("axis")}
+                options={dimOptions.filter((o) => o.name !== c.dataAxis)}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <DropWell
+                  title="X"
+                  role="scatterX"
+                  bound={c.scatterX ? [c.scatterX] : []}
+                  eligible={(ref) => roleEligible(ref, "scatterX")}
+                  onBind={(ref) => bindRef(ref, "scatterX")}
+                  onRemove={() => removeFrom("scatterX")}
+                  options={valueOptions.filter((o) => o.name !== c.scatterX)}
+                  compact
+                />
+                <DropWell
+                  title="Y"
+                  role="scatterY"
+                  bound={c.scatterY ? [c.scatterY] : []}
+                  eligible={(ref) => roleEligible(ref, "scatterY")}
+                  onBind={(ref) => bindRef(ref, "scatterY")}
+                  onRemove={() => removeFrom("scatterY")}
+                  options={valueOptions.filter((o) => o.name !== c.scatterY)}
+                  compact
+                />
               </div>
-            )}
-          </Field>
+              <DropWell
+                title="Taille (bubble)"
+                hint="Valeur numérique optionnelle pour le rayon"
+                role="scatterSize"
+                bound={c.scatterSize ? [c.scatterSize] : []}
+                eligible={(ref) => roleEligible(ref, "scatterSize")}
+                onBind={(ref) => bindRef(ref, "scatterSize")}
+                onRemove={() => removeFrom("scatterSize")}
+                options={valueOptions.filter((o) => o.name !== c.scatterSize)}
+              />
+              {!isScatterBound && (
+                <div className="rounded border border-amber-300/50 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-700">
+                  Déposez une valeur dans <b>X</b> et <b>Y</b> pour afficher le nuage de points.
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <DropWell
+                title="Axe (catégorie)"
+                hint="Déposez une dimension ici"
+                role="axis"
+                bound={c.dataAxis ? [c.dataAxis] : []}
+                eligible={(ref) => roleEligible(ref, "axis")}
+                onBind={(ref) => bindRef(ref, "axis")}
+                onRemove={() => removeFrom("axis")}
+                options={dimOptions.filter((o) => o.name !== c.dataAxis)}
+              />
+              <Field label={singleValue ? "Valeur" : "Valeurs"}>
+                {boundValues.length === 0 ? (
+                  <div className="rounded border border-dashed border-border px-2 py-1.5 text-[11px] text-muted-foreground">Déposez une valeur ici (nombre ou mesure)</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {boundValues.map((v) => {
+                      const source = c.dataValueSources?.[v] ?? c.datasetSlug;
+                      const srcDs = datasets.find((d) => d.slug === source);
+                      const foreign = !!source && source !== c.datasetSlug;
+                      const chipLabel = foreign && srcDs ? `${dsLabel(srcDs)}.${v}` : v;
+                      return (
+                        <div key={v} className="flex items-center gap-1.5">
+                          <span className="flex min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px]">
+                            <span className={`truncate ${foreign ? "text-foreground" : ""}`}>{chipLabel}</span>
+                            <button onClick={() => removeFrom("values", v)} className="ml-auto shrink-0 text-muted-foreground hover:text-destructive" title="Retirer">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </span>
+                          <Select value={c.dataAggregations?.[v] ?? c.dataAggregation ?? "sum"} onValueChange={(a) => set({ dataAggregations: { ...c.dataAggregations, [v]: a as Agg } })}>
+                            <SelectTrigger className="h-6 w-[6.5rem] text-[10px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {["sum", "avg", "count", "min", "max", "distinct"].map((a) => (
+                                <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Field>
+              <DropWell
+                title="+ Valeur"
+                role="values"
+                bound={[]}
+                eligible={(ref) => roleEligible(ref, "values")}
+                onBind={(ref) => bindRef(ref, "values")}
+                onRemove={() => undefined}
+                options={valueOptions.filter((o) => !boundValues.includes(o.name))}
+                hideChips
+              />
+            </>
+          )}
+
+          <DropWell
+            title="Légende"
+            hint="Une dimension qui découpe la mesure en plusieurs séries"
+            role="legend"
+            bound={c.dataLegend ? [c.dataLegend] : []}
+            eligible={(ref) => roleEligible(ref, "legend")}
+            onBind={(ref) => bindRef(ref, "legend")}
+            onRemove={() => removeFrom("legend")}
+            options={dimOptions.filter((o) => o.name !== c.dataLegend)}
+          />
+          <DropWell
+            title="Info-bulle"
+            hint="Colonnes ou mesures ajoutées à l'infobulle"
+            role="tooltip"
+            bound={boundTips}
+            eligible={(ref) => roleEligible(ref, "tooltip")}
+            onBind={(ref) => bindRef(ref, "tooltip")}
+            onRemove={(name) => removeFrom("tooltip", name)}
+            options={[...dimOptions, ...valueOptions].filter((o) => !boundTips.includes(o.name))}
+          />
 
           <Field label="Agrégation par défaut">
             <Select value={c.dataAggregation ?? "sum"} onValueChange={(v) => set({ dataAggregation: v as Agg })}>
@@ -883,6 +969,13 @@ function DataBindingInspector({ c, set, singleValue, isMatrix }: {
                 ))}
               </SelectContent>
             </Select>
+          </Field>
+
+          <Field label="Nombre max de catégories">
+            <Input type="number" min={1} max={500} value={c.maxCategories ?? 50}
+              onChange={(e) => set({ maxCategories: e.target.value === "" ? undefined : Math.max(1, Number(e.target.value)) })}
+              className="h-7 text-xs" />
+            <div className="text-[10px] text-muted-foreground">Au-delà, le reste est regroupé dans « Autres ».</div>
           </Field>
 
           {isMatrix && (
@@ -905,6 +998,78 @@ function DataBindingInspector({ c, set, singleValue, isMatrix }: {
         </>
       )}
     </>
+  );
+}
+
+function DropWell({ title, hint, bound, eligible, onBind, onRemove, options, compact, hideChips }: {
+  title: string;
+  hint?: string;
+  role: FieldRole;
+  bound: string[];
+  eligible: (ref: FieldRef) => boolean;
+  onBind: (ref: FieldRef) => void;
+  onRemove: (name?: string) => void;
+  options: { key: string; name: string; label: string; ref: FieldRef }[];
+  compact?: boolean;
+  hideChips?: boolean;
+}) {
+  const [dragging, setDragging] = useState(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const raw = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("application/json");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { kind?: string; table?: string; name?: string; type?: string; measure?: boolean; datasetSlug?: string };
+      if (parsed.kind !== "field" || !parsed.table || !parsed.name || !parsed.type) return;
+      const ref: FieldRef = { table: parsed.table, name: parsed.name, type: parsed.type as FieldRef["type"], measure: parsed.measure, datasetSlug: parsed.datasetSlug };
+      if (!eligible(ref)) return;
+      onBind(ref);
+    } catch { /* ignore invalid drops */ }
+  };
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+        <span>{title}</span>
+        <Select value="__none" onValueChange={(v) => {
+          if (v === "__none") return;
+          const opt = options.find((o) => o.key === v);
+          if (opt) onBind(opt.ref);
+        }}>
+          <SelectTrigger className="h-5 w-7 rounded px-0 text-center text-xs" title="Ajouter une colonne"><SelectValue>+</SelectValue></SelectTrigger>
+          <SelectContent className="max-h-64">
+            <SelectItem value="__none" className="text-xs">— choisir —</SelectItem>
+            {options.map((o) => (
+              <SelectItem key={o.key} value={o.key} className="text-xs">{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Label>
+      {!hideChips && bound.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {bound.map((name) => (
+            <span key={name} className="flex items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px]">
+              <span className="truncate max-w-36">{name}</span>
+              <button onClick={() => onRemove(name)} className="shrink-0 text-muted-foreground hover:text-destructive" title="Retirer">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        className={`flex items-center gap-1 rounded border px-2 py-1.5 text-[11px] transition-colors ${compact ? "h-7" : ""} ${dragging ? "border-primary bg-primary/10" : "border-dashed border-border text-muted-foreground"} ${hideChips && bound.length === 0 ? "h-8" : ""}`}
+      >
+        <span className="truncate">
+          {hideChips ? "Déposez une valeur ici" : hint ?? "Déposez un champ ici"}
+        </span>
+      </div>
+    </div>
   );
 }
 

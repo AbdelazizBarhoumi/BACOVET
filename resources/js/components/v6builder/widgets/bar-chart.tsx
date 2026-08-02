@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, WidgetTooltip, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function BarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const gradId = useId().replace(/:/g, "");
@@ -16,6 +16,7 @@ export function BarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
     ? multiSeries[0].data.map((row, i) => ({
         name: row.x,
         ...Object.fromEntries(multiSeries.map((ms) => [ms.name, ms.data[i]?.v ?? 0])),
+        ...(series[i]?.tips ?? {}),
       }))
     : [];
 
@@ -39,7 +40,7 @@ export function BarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
             <XAxis dataKey="name" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "#e5e7eb" }} />
+            <Tooltip content={<WidgetTooltip />} />
             {multiSeries.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
             {multiSeries.length === 1 ? (
               <Bar dataKey={multiSeries[0].name} name={multiSeries[0].label} fill={c.accent ?? "#ec4899"} radius={[4, 4, 0, 0]}>

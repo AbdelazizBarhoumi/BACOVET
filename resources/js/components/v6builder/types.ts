@@ -88,6 +88,16 @@ export type WidgetConfig = {
   dataAggregation?: Agg;
   /** Per-field aggregation override, keyed by field name; falls back to dataAggregation. */
   dataAggregations?: Record<string, Agg>;
+  /** Dimension that splits each value into one series per category value (Power-BI-style legend). */
+  dataLegend?: string;
+  /** Extra fields appended to the chart tooltip (any column or measure). */
+  dataTooltips?: string[];
+  /** Scatter/bubble explicit value fields (X / Y / size). */
+  scatterX?: string;
+  scatterY?: string;
+  scatterSize?: string;
+  /** Top-N category cap for large data; remaining rows merge into an "Autres" bucket. */
+  maxCategories?: number;
   analyticsConstant?: number;
   analyticsAverage?: boolean;
   tableGrid?: TableGrid;

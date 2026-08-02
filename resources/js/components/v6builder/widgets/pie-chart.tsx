@@ -1,9 +1,9 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, PIE_COLORS, hasWidgetBinding, useWidgetData, useCrossFilter, rechartClickLabel, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
+import { boxStyle, wrap, PIE_COLORS, hasWidgetBinding, useWidgetData, useCrossFilter, rechartClickLabel, WidgetTooltip, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function PieChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { multiSeries, hasSeries, measureError } = useWidgetData(c, id);
+  const { multiSeries, hasSeries, series, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
   if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
@@ -19,7 +19,7 @@ export function PieChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
           <ResponsiveContainer key={ms.name} width="100%" height="100%">
             <PieChart>
               <Pie
-                data={ms.data.map((s) => ({ name: s.x, value: s.v }))}
+                data={ms.data.map((s, i) => ({ name: s.x, value: s.v, ...(series[i]?.tips ?? {}) }))}
                 dataKey="value"
                 nameKey="name"
                 cx="50%"
@@ -44,7 +44,7 @@ export function PieChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
                   />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "#e5e7eb" }} />
+              <Tooltip content={<WidgetTooltip />} />
             </PieChart>
           </ResponsiveContainer>
         ))}

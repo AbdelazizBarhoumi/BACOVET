@@ -3,15 +3,19 @@ import {
     aggregate,
     buildChartData,
     compileMeasure,
+    evaluateMeasure,
     fieldLabel,
     inferFieldType,
     isMeasure,
+    measureError,
     measureLabel,
     normalizeWellField,
     parseDaxRef,
     parseFieldReference,
     registerMeasure,
     setTables,
+    unregisterMeasure,
+    validateMeasureExpression,
     type TableDef,
 } from './model';
 import { slicerKey } from './store';
@@ -192,5 +196,109 @@ describe('PBI custom measures (DAX)', () => {
                 agg: 'sum',
             }),
         ).toBe(22);
+    });
+});
+
+describe('Phase 3 measure engine (simplified forms)', () => {
+    const sales: TableDef = {
+        name: 'Sales',
+        fields: [
+            { table: 'Sales', name: 'Customer', type: 'text' },
+            { table: 'Sales', name: 'Amount', type: 'number' },
+            { table: 'Sales', name: 'Cost', type: 'number' },
+        ],
+        rows: [
+            { Customer: 'Alice', Amount: 100, Cost: 40 },
+            { Customer: 'Bob', Amount: 50, Cost: 10 },
+            { Customer: 'Bob', Amount: 25, Cost: 5 },
+            { Customer: '', Amount: null, Cost: null },
+        ],
+    };
+    const rows = sales.rows;
+
+    it('accepts the documented examples', () => {
+        expect(compileMeasure('SUM(Amount)')(rows)).toBe(175);
+        expect(compileMeasure('AVG(Amount)')(rows)).toBeCloseTo(175 / 3);
+        expect(compileMeasure('AVERAGE(Amount)')(rows)).toBeCloseTo(175 / 3);
+        expect(compileMeasure('COUNT(Customer)')(rows)).toBe(3);
+        expect(compileMeasure('SUM(Amount)-SUM(Cost)')(rows)).toBe(120);
+    });
+
+    it('evaluates arithmetic with precedence and parens', () => {
+        expect(compileMeasure('SUM(Amount)+SUM(Cost)*2')(rows)).toBe(175 + 55 * 2);
+        expect(compileMeasure('(SUM(Amount)-SUM(Cost))/3')(rows)).toBeCloseTo(40);
+        expect(compileMeasure('SUM(Amount)/SUM(Cost)')(rows)).toBeCloseTo(175 / 55);
+        expect(compileMeasure('SUM(Amount)+1')(rows)).toBe(176);
+    });
+
+    it('returns 0 on division by zero (DAX BLANK semantics)', () => {
+        expect(compileMeasure('10/0')([])).toBe(0);
+        const zeroCost = [{ Customer: 'A', Amount: 5, Cost: 0 }];
+        expect(compileMeasure('SUM(Amount)/SUM(Cost)')(zeroCost)).toBe(0);
+    });
+
+    it('returns 0 for an empty dataset', () => {
+        expect(compileMeasure('SUM(Amount)')([])).toBe(0);
+        expect(evaluateMeasure('SUM(Amount)', [])).toEqual({ value: 0 });
+    });
+
+    it('flags a deleted-column dependency instead of silently returning 0', () => {
+        expect(compileMeasure('SUM(Gone)')(rows)).toBe(0);
+        expect(evaluateMeasure('SUM(Gone)', rows).error).toContain('Gone');
+        const result = evaluateMeasure('SUM(Amount)-SUM(Gone)', rows);
+        expect(result.error).toContain('Gone');
+    });
+
+    it('rejects invalid formulas at validation time', () => {
+        expect(validateMeasureExpression('Total = SUM(').ok).toBe(false);
+        expect(validateMeasureExpression('Total = FOO(Amount)').ok).toBe(false);
+        expect(validateMeasureExpression('Total = SUM(Amount))').ok).toBe(false);
+        expect(validateMeasureExpression('Total = SUM(Amount').ok).toBe(false);
+        expect(validateMeasureExpression('Total = ').ok).toBe(false);
+        expect(validateMeasureExpression('Total = SUM(Amount)').ok).toBe(true);
+    });
+
+    it('validates column dependencies when the dataset columns are known', () => {
+        const columns = ['Customer', 'Amount', 'Cost'];
+        expect(validateMeasureExpression('Total = SUM(Amount)', columns).ok).toBe(true);
+        expect(validateMeasureExpression('Total = SUM(Gone)', columns).ok).toBe(false);
+        const result = validateMeasureExpression('Total = SUM(Gone)', columns);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toContain('Gone');
+    });
+
+    it('resolves [Name] measure references', () => {
+        const total = compileMeasure('SUM(Amount)');
+        const margin = compileMeasure('SUM(Amount)-SUM(Cost)');
+        const ref = evaluateMeasure('[Total Sales]', rows, { 'Total Sales': total });
+        expect(ref).toEqual({ value: 175 });
+        expect(evaluateMeasure('[Margin]-10', rows, { Margin: margin })).toEqual({ value: 110 });
+    });
+});
+
+describe('measure error registry + unregistration', () => {
+    it('records a validation error for a broken measure and clears it once fixed', () => {
+        setTables([table]);
+        registerMeasure('Broken', 'Broken = SUM(Gone)');
+        expect(measureError('Broken')).toContain('Gone');
+        registerMeasure('Broken', 'Broken = SUM(wip_chaine[WIP_Chaine])');
+        expect(measureError('Broken')).toBeUndefined();
+    });
+
+    it('keeps built-in measures healthy', () => {
+        setTables([table]);
+        registerMeasure('Row Count', 'Row Count = COUNTROWS ( <table> )');
+        expect(measureError('Row Count')).toBeUndefined();
+        unregisterMeasure('Row Count');
+    });
+
+    it('removes a measure and its error from the engine', () => {
+        setTables([table]);
+        registerMeasure('Temp', 'Temp = SUM(Gone)');
+        expect(isMeasure('Temp')).toBe(true);
+        expect(measureError('Temp')).toBeDefined();
+        unregisterMeasure('Temp');
+        expect(isMeasure('Temp')).toBe(false);
+        expect(measureError('Temp')).toBeUndefined();
     });
 });

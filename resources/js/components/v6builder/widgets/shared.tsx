@@ -1,26 +1,32 @@
 import { TriangleAlert } from "lucide-react";
 import { useBuilder } from "../store";
 import type { WidgetConfig } from "../types";
-import { DATASET_COLORS, useDatasetData } from "./use-dataset";
+import { DATASET_COLORS, useDatasetData, type ScatterPoint } from "./use-dataset";
 
 export function hasWidgetBinding(c: WidgetConfig | undefined): boolean {
-  return !!(c?.datasetSlug && (c.dataValue || c.dataValues?.length));
+  if (!c?.datasetSlug) return false;
+  if (c.dataValue || c.dataValues?.length) return true;
+  return !!(c.scatterX && c.scatterY);
 }
 
 export type MultiSeries = {
   name: string;
   label: string;
   color: string;
-  data: { x: string; v: number }[];
+  data: { x: string; v: number; tips?: Record<string, string | number> }[];
 };
+
+export type VisualSeries = { x: string; v: number; tips: Record<string, string | number> };
 
 /**
  * Unified widget data source. Returns dataset-aggregated series/scalar for a
  * widget bound to an endpoint dataset (datasetSlug + dataValue(s)). Enables
  * dragging columns onto any chart widget, and multiple values → multiple series.
+ * When a Legend dimension is bound, multiSeries is split into one series per
+ * legend value (Power-BI style). Scatter/bubble widgets get explicit X/Y points.
  */
-export function useWidgetData(c: WidgetConfig, widgetId?: string): {
-  series: { x: string; v: number }[];
+export function useVisualData(c: WidgetConfig, widgetId?: string): {
+  series: VisualSeries[];
   multiSeries: MultiSeries[];
   hasSeries: boolean;
   scalar: number;
@@ -28,24 +34,142 @@ export function useWidgetData(c: WidgetConfig, widgetId?: string): {
   rows: Record<string, unknown>[];
   loading: boolean;
   measureError: string | null;
+  /** Per-axis aggregated tooltip fields (aligned with `series`). */
+  tips: Record<string, string | number>[];
+  /** Scatter/bubble points when config.scatterX/scatterY are bound (empty otherwise). */
+  scatterPoints: ScatterPoint[];
 } {
   const ds = useDatasetData(c, widgetId);
-  const hasData = !!c.datasetSlug && (!!c.dataValue || !!c.dataValues?.length) && ds.hasData;
+  const hasValues = !!c.dataValue || !!c.dataValues?.length;
+  const hasScatter = !!c.scatterX && !!c.scatterY;
+  const hasData = !!c.datasetSlug && (hasValues || hasScatter) && ds.hasData;
 
-  const series = hasData ? ds.data.map((d) => ({ x: d.name, v: d.value })) : [];
+  const series: VisualSeries[] = hasData
+    ? ds.multi.map((d) => ({ x: d.name, v: d.value, tips: d.tips }))
+    : [];
   const multiSeries: MultiSeries[] = hasData
-    ? ds.valueFields.map((vf, i) => ({
-        name: vf.key,
-        label: vf.label,
-        color: DATASET_COLORS[i % DATASET_COLORS.length],
-        data: ds.multi.map((d) => ({ x: d.name, v: d.values[vf.key] ?? 0 })),
-      }))
+    ? (ds.legendSeries.length
+        ? ds.legendSeries
+        : ds.valueFields.map((vf, i) => ({
+            name: vf.key,
+            label: vf.label,
+            color: DATASET_COLORS[i % DATASET_COLORS.length],
+            data: ds.multi.map((d) => ({ x: d.name, v: d.values[vf.key] ?? 0, tips: d.tips })),
+          })))
     : [];
   const hasSeries = hasData;
-  const scalar = hasData ? ds.data.reduce((sum, d) => sum + d.value, 0) : 0;
+  const scalar = hasData ? ds.multi.reduce((sum, d) => sum + d.value, 0) : 0;
   const hasScalar = hasData;
 
-  return { series, multiSeries, hasSeries, scalar, hasScalar, rows: hasData ? ds.rows : [], loading: false, measureError: ds.measureError };
+  return {
+    series,
+    multiSeries,
+    hasSeries,
+    scalar,
+    hasScalar,
+    rows: hasData ? ds.rows : [],
+    loading: false,
+    measureError: ds.measureError,
+    tips: hasData ? ds.multi.map((d) => d.tips) : [],
+    scatterPoints: hasData ? ds.scatterPoints : [],
+  };
+}
+
+/** Legacy alias kept for existing callers. */
+export const useWidgetData = useVisualData;
+
+export const LEGEND_COLORS = DATASET_COLORS;
+
+/** Cyclic legend color for a series index. */
+export function legendColorFor(seriesIndex: number): string {
+  return LEGEND_COLORS[seriesIndex % LEGEND_COLORS.length];
+}
+
+/** Display label for a legend series. */
+export function legendValueFor(ms: MultiSeries): string {
+  return ms.label;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Recharts <Tooltip content={...}> rendering the chart's bound fields plus any
+ * config.dataTooltips extras aggregated per axis group.
+ */
+export function WidgetTooltip({ active, payload, label }: { active?: boolean; payload?: unknown[]; label?: unknown }) {
+  if (!active || !payload?.length) return null;
+  const row = (payload[0] as { payload?: Record<string, unknown> })?.payload;
+  const tips = row?.tips as Record<string, string | number> | undefined;
+  return (
+    <div className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-[11px] shadow-lg">
+      {label != null && String(label) !== "" && <div className="mb-1 font-semibold text-foreground">{String(label)}</div>}
+      {payload.map((entry, i) => {
+        const e = entry as { name?: string; value?: unknown; color?: string };
+        const valueText = Array.isArray(e.value) ? e.value.map((v) => String(v)).join(" · ") : String(e.value ?? "");
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-foreground">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: e.color }} />
+            <span>{e.name}</span>
+            <span className="ml-auto pl-3 font-mono tabular-nums">{valueText}</span>
+          </div>
+        );
+      })}
+      {tips &&
+        Object.entries(tips).map(([key, value]) => (
+          <div key={key} className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="w-2 shrink-0" />
+            <span>{key}</span>
+            <span className="ml-auto pl-3 font-mono tabular-nums">{String(value)}</span>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+/**
+ * ECharts tooltip formatter: renders the hovered series plus any
+ * config.dataTooltips extras carried on the data item's `tips` field.
+ */
+export function widgetTooltipFormatter() {
+  return (params: unknown): string => {
+    const arr = Array.isArray(params) ? params : [params];
+    const p0 = arr[0] as { name?: unknown };
+    const lines: string[] = [];
+    if (p0?.name != null && String(p0.name) !== "") {
+      lines.push(`<div style="font-weight:600;margin-bottom:4px">${escapeHtml(String(p0.name))}</div>`);
+    }
+    for (const p of arr) {
+      const pp = p as { seriesName?: unknown; value?: unknown; color?: unknown; data?: unknown };
+      const raw = pp.value;
+      const val = Array.isArray(raw) ? raw[raw.length - 1] : raw;
+      lines.push(
+        `<div style="display:flex;gap:8px;align-items:center">
+          <span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${escapeHtml(String(pp.color ?? "#ccc"))}"></span>
+          <span>${escapeHtml(String(pp.seriesName ?? ""))}</span>
+          <span style="margin-left:auto;padding-left:14px;font-variant-numeric:tabular-nums">${escapeHtml(String(val ?? ""))}</span>
+        </div>`,
+      );
+      const tips = (pp.data as { tips?: Record<string, string | number> } | undefined)?.tips;
+      if (tips) {
+        for (const [key, value] of Object.entries(tips)) {
+          lines.push(
+            `<div style="display:flex;gap:8px;align-items:center;color:#6b7280">
+              <span style="width:8px"></span>
+              <span>${escapeHtml(key)}</span>
+              <span style="margin-left:auto;padding-left:14px;font-variant-numeric:tabular-nums">${escapeHtml(String(value))}</span>
+            </div>`,
+          );
+        }
+      }
+    }
+    return `<div style="font-size:12px;color:#374151;line-height:1.7">${lines.join("")}</div>`;
+  };
 }
 
 /** Widget-sized inline warning when a bound measure formula is invalid or references a deleted column. */

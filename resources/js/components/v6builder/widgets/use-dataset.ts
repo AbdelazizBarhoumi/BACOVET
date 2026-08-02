@@ -2,51 +2,28 @@ import { useMemo } from "react";
 import type { EndpointDataset } from "@/lib/v6/datasets";
 import { compileMeasure, validateMeasureExpression, type Row } from "@/lib/v6/model";
 import { useBuilder } from "../store";
-import type { Agg, WidgetConfig } from "../types";
+import type { WidgetConfig } from "../types";
+import {
+  aggregateDataset,
+  aggregateDatasetMulti,
+  aggregateLegendSeries,
+  aggregateScatter,
+  fieldAggregation,
+  valueFieldLabel,
+  type AggregatedRow,
+  type LegendSeries,
+  type MultiAggregatedRow,
+  type ScatterPoint,
+  type ValueField,
+} from "./aggregate";
 
-export type AggregatedRow = { name: string; value: number; x: number; y: number };
-
-export type MultiAggregatedRow = AggregatedRow & {
-  /** One entry per value field, keyed by its unique key (source::name for foreign values). */
-  values: Record<string, number>;
-};
-
-export type ValueField = {
-  name: string;
-  /** Unique key used to index `values`: plain name for primary/measure values, `source::name` for foreign ones. */
-  key: string;
-  label: string;
-  isMeasure: boolean;
-  /** Source dataset slug this value is resolved against (falls back to the widget dataset). */
-  source: string;
-  /** Measure validation error (invalid formula, deleted column…). */
-  error?: string;
-};
+export { aggregateDataset, aggregateDatasetMulti, valueFieldLabel, fieldAggregation } from "./aggregate";
+export type { AggregatedRow, MultiAggregatedRow, LegendSeries, ScatterPoint, ValueField } from "./aggregate";
 
 const COLORS = ["#3b82f6", "#22c55e", "#ec4899", "#f59e0b", "#a855f7", "#06b6d4", "#ef4444", "#14b8a6"];
 
-const AGG_PREFIX: Record<string, string> = {
-  sum: "Sum of",
-  avg: "Average of",
-  count: "Count of",
-  distinct: "Distinct count of",
-  min: "Min of",
-  max: "Max of",
-};
-
-/** Display label for a value field: measures keep their name, columns get an aggregation prefix (like V5). */
-export function valueFieldLabel(name: string, isMeasure: boolean, agg: string): string {
-  if (isMeasure) return name;
-  return `${AGG_PREFIX[agg] ?? "Sum of"} ${name}`;
-}
-
-/** Per-field aggregation override, falling back to the global config aggregation. */
-export function fieldAggregation(config: WidgetConfig, name: string): Agg {
-  return config.dataAggregations?.[name] ?? config.dataAggregation ?? "sum";
-}
-
 /** Source dataset for a value field: per-field override, falling back to the widget dataset. */
-export function valueSource(config: WidgetConfig, name: string): string {
+function valueSource(config: WidgetConfig, name: string): string {
   return config.dataValueSources?.[name] ?? config.datasetSlug ?? "";
 }
 
@@ -145,85 +122,6 @@ function enrichRows(
   });
 }
 
-function aggregateValues(values: Row[], config: WidgetConfig, measureFns: Record<string, ((rows: Row[]) => number) | null>, valueFields: ValueField[]): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const vf of valueFields) {
-    const agg = fieldAggregation(config, vf.name);
-    const fn = measureFns[vf.name];
-    if (fn) {
-      out[vf.key] = fn(values) ?? 0;
-      continue;
-    }
-    const numeric = values
-      .map((row) => Number(row[vf.key]))
-      .filter((number) => Number.isFinite(number));
-    out[vf.key] = agg === "count"
-      ? numeric.length
-      : agg === "avg"
-        ? (numeric.length ? numeric.reduce((sum, item) => sum + item, 0) / numeric.length : 0)
-        : agg === "min"
-          ? (numeric.length ? Math.min(...numeric) : 0)
-          : agg === "max"
-            ? (numeric.length ? Math.max(...numeric) : 0)
-            : agg === "distinct"
-              ? new Set(numeric).size
-              : numeric.reduce((sum, item) => sum + item, 0);
-  }
-  return out;
-}
-
-export function aggregateDataset(rows: Row[], config: WidgetConfig, measureFn: ((rows: Row[]) => number) | null): AggregatedRow[] {
-  const axis = config.dataAxis;
-  const value = config.dataValue!;
-  const groups = new Map<string, Row[]>();
-  for (const row of rows) {
-    const key = String(axis ? row[axis] ?? "(vide)" : "Total");
-    const values = groups.get(key) ?? [];
-    values.push(row);
-    groups.set(key, values);
-  }
-  return [...groups.entries()].map(([name, values]) => {
-    const agg = fieldAggregation(config, value);
-    const numericValues = measureFn
-      ? [measureFn(values)]
-      : values
-          .map((row) => Number(row[value]))
-          .filter((number) => Number.isFinite(number));
-    const result = measureFn
-      ? numericValues[0] ?? 0
-      : agg === "count"
-        ? numericValues.length
-        : agg === "avg"
-          ? (numericValues.length ? numericValues.reduce((sum, item) => sum + item, 0) / numericValues.length : 0)
-          : agg === "min"
-            ? (numericValues.length ? Math.min(...numericValues) : 0)
-            : agg === "max"
-              ? (numericValues.length ? Math.max(...numericValues) : 0)
-              : agg === "distinct"
-                ? new Set(numericValues).size
-                : numericValues.reduce((sum, item) => sum + item, 0);
-    return { name, value: result, x: Number(name) || 0, y: result };
-  });
-}
-
-/** Multi-value aggregation: one { name, values } row per axis group, with a value per bound field. */
-export function aggregateDatasetMulti(rows: Row[], config: WidgetConfig, measureFns: Record<string, ((rows: Row[]) => number) | null>, valueFields: ValueField[]): MultiAggregatedRow[] {
-  if (!valueFields.length) return [];
-  const axis = config.dataAxis;
-  const groups = new Map<string, Row[]>();
-  for (const row of rows) {
-    const key = String(axis ? row[axis] ?? "(vide)" : "Total");
-    const values = groups.get(key) ?? [];
-    values.push(row);
-    groups.set(key, values);
-  }
-  return [...groups.entries()].map(([name, values]) => {
-    const perField = aggregateValues(values, config, measureFns, valueFields);
-    const first = valueFields[0]!.key;
-    return { name, value: perField[first] ?? 0, x: Number(name) || 0, y: perField[first] ?? 0, values: perField };
-  });
-}
-
 /**
  * Reads the shared (already slicer-filtered) rows for the widget's dataset from
  * the store, then applies the active cross-filter — unless this widget was the
@@ -238,13 +136,22 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
   loading: boolean;
   hasData: boolean;
   measureError: string | null;
+  /** Legend-split series when config.dataLegend is bound (empty otherwise). */
+  legendSeries: LegendSeries[];
+  /** Scatter/bubble points when config.scatterX/scatterY are bound (empty otherwise). */
+  scatterPoints: ScatterPoint[];
 } {
   const { allMeasures, filteredRowsBySlug, datasets, crossFilter } = useBuilder();
 
   const valueNames = useMemo(() => {
+    if (c.scatterX && c.scatterY) {
+      const names = [c.scatterX, c.scatterY];
+      if (c.scatterSize) names.push(c.scatterSize);
+      return names;
+    }
     if (c.dataValues?.length) return c.dataValues;
     return c.dataValue ? [c.dataValue] : [];
-  }, [c.dataValues, c.dataValue]);
+  }, [c.scatterX, c.scatterY, c.scatterSize, c.dataValues, c.dataValue]);
 
   const joinRegistry = useMemo(() => buildJoinRegistry(datasets), [datasets]);
 
@@ -273,23 +180,21 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
 
   const measureFns = useMemo(() => {
     const map: Record<string, ((rows: Row[]) => number) | null> = {};
-    for (const name of valueNames) {
+    for (const name of [...valueNames, ...(c.dataTooltips ?? [])]) {
       const measureDef = allMeasures.find((measure) => measure.name === name);
       map[name] = measureDef ? compileMeasure(measureDef.expression) : null;
     }
     return map;
-  }, [allMeasures, valueNames]);
+  }, [allMeasures, valueNames, c.dataTooltips]);
+
+  const primaryRows = filteredRowsBySlug[c.datasetSlug ?? ""] ?? [];
 
   const rows = useMemo(() => {
-    let out = filteredRowsBySlug[c.datasetSlug ?? ""] ?? [];
-    if (crossFilter && crossFilter.sourceId !== widgetId && c.datasetSlug) {
-      const ds = datasets.find((item) => item.slug === c.datasetSlug);
-      if (ds?.columns?.some((col) => col.name === crossFilter.column)) {
-        out = out.filter((row) => String(row[crossFilter.column]) === crossFilter.value);
-      }
-    }
-    return out;
-  }, [filteredRowsBySlug, c.datasetSlug, crossFilter, widgetId, datasets]);
+    if (!crossFilter || crossFilter.sourceId === widgetId || !c.datasetSlug) return primaryRows;
+    const ds = datasets.find((item) => item.slug === c.datasetSlug);
+    if (!ds?.columns?.some((col) => col.name === crossFilter.column)) return primaryRows;
+    return primaryRows.filter((row) => String(row[crossFilter.column]) === crossFilter.value);
+  }, [primaryRows, crossFilter, widgetId, c.datasetSlug, datasets]);
 
   const enrichedRows = useMemo(
     () => enrichRows(rows, valueFields, filteredRowsBySlug, c.datasetSlug ?? "", joinRegistry),
@@ -308,7 +213,17 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
     return [];
   }, [enrichedRows, c, valueNames, valueFields, measureFns]);
 
-  return { rows, data, multi, valueFields, loading: false, hasData: rows.length > 0, measureError };
+  const legendSeries = useMemo(() => {
+    if (!enrichedRows.length || !c.dataLegend || !valueFields.length) return [];
+    return aggregateLegendSeries(enrichedRows, c, measureFns, valueFields, c.dataLegend, COLORS);
+  }, [enrichedRows, c, measureFns, valueFields]);
+
+  const scatterPoints = useMemo(() => {
+    if (!enrichedRows.length) return [];
+    return aggregateScatter(enrichedRows, c, measureFns, valueFields, COLORS, c.dataLegend);
+  }, [enrichedRows, c, measureFns, valueFields]);
+
+  return { rows, data, multi, valueFields, loading: false, hasData: rows.length > 0, measureError, legendSeries, scatterPoints };
 }
 
 export { COLORS as DATASET_COLORS };

@@ -1,7 +1,7 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, echartsBarGradient, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, echartsBarGradient, widgetTooltipFormatter, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function ComboChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const { series, multiSeries, hasSeries, measureError } = useWidgetData(c, id);
@@ -11,6 +11,8 @@ export function ComboChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
     const xData = series.map((s) => s.x);
     const defaultColor = c.accent ?? "#3b82f6";
     const seriesMax = Math.max(...series.map((s) => Math.abs(s.v)), 1);
+    const tipsByX = new Map(series.map((s) => [s.x, s.tips]));
+    const withTips = (x: string, item: Record<string, unknown>) => tipsByX.has(x) ? { ...item, tips: tipsByX.get(x) } : item;
 
     const chartSeries = multiSeries.map((ms, i) => {
       const color = i === 0 ? defaultColor : ms.color;
@@ -20,7 +22,7 @@ export function ComboChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
           type: "bar" as const,
           barMaxWidth: 32,
           itemStyle: { borderRadius: [5, 5, 0, 0], color: echartsBarGradient(0, c.target, seriesMax) },
-          data: ms.data.map((s) => ({
+          data: ms.data.map((s) => withTips(s.x, {
             value: s.v,
             itemStyle: {
               color: echartsBarGradient(s.v, c.target, seriesMax),
@@ -37,7 +39,7 @@ export function ComboChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         symbolSize: 6,
         lineStyle: { width: 2, color },
         itemStyle: { color },
-        data: ms.data.map((s) => ({ value: s.v, itemStyle: { color, opacity: isDimmed(s.x) ? 0.2 : 1 } })),
+        data: ms.data.map((s) => withTips(s.x, { value: s.v, itemStyle: { color, opacity: isDimmed(s.x) ? 0.2 : 1 } })),
       };
     });
 
@@ -55,6 +57,7 @@ export function ComboChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         backgroundColor: "rgba(255,255,255,0.95)",
         borderColor: "#e5e7eb",
         textStyle: { color: "#374151", fontSize: 12 },
+        formatter: widgetTooltipFormatter(),
       },
       grid: { left: 8, right: 8, top: 32, bottom: 8, containLabel: true },
       xAxis: {

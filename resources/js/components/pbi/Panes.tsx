@@ -52,7 +52,9 @@ import {
     MEASURES,
     PAGE_PRESETS,
     distinctValues,
+    fieldIssue,
     fieldLabel,
+    fieldNumericIssue,
     fieldType,
     isMeasure,
     measureError,
@@ -844,49 +846,66 @@ export function VisualizationsPane({
                 className="min-h-9 rounded border border-dashed border-border bg-background p-1"
             >
                 {selected?.[name].length ? (
-                    selected[name].map((f, i) => (
-                        <div
-                            key={`${f.name}-${i}`}
-                            className="mb-1 flex items-center gap-1 rounded bg-muted px-2 py-1 text-[11px]"
-                        >
-                            <span className="flex-1 truncate">
-                                {name === 'values' &&
-                                fieldType(f.name, f.table) === 'number' &&
-                                !isMeasure(f.name)
-                                    ? measureLabel(f)
-                                    : fieldLabel(f)}
-                            </span>
-                            {name === 'values' &&
-                                fieldType(f.name, f.table) === 'number' &&
-                                !isMeasure(f.name) && (
-                                    <select
-                                        value={f.agg}
-                                        onChange={(e) =>
-                                            setWellAgg(
-                                                selected.id,
-                                                name,
-                                                i,
-                                                e.target.value as Agg,
-                                            )
-                                        }
-                                        className="rounded border border-border bg-background text-[10px]"
-                                    >
-                                        {AGGS.map((a) => (
-                                            <option key={a} value={a}>
-                                                {a}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                            <button
-                                onClick={() =>
-                                    removeWellField(selected.id, name, i)
-                                }
+                    selected[name].map((f, i) => {
+                        const issue =
+                            name === 'values'
+                                ? fieldNumericIssue(f) ?? fieldIssue(f)
+                                : fieldIssue(f);
+                        return (
+                            <div
+                                key={`${f.name}-${i}`}
+                                className="mb-1 flex items-center gap-1 rounded bg-muted px-2 py-1 text-[11px]"
                             >
-                                <X className="size-3 text-muted-foreground hover:text-destructive" />
-                            </button>
-                        </div>
-                    ))
+                                {issue && (
+                                    <TriangleAlert
+                                        className="size-3 shrink-0 text-warning"
+                                        aria-label={issue}
+                                    />
+                                )}
+                                <span className="flex-1 truncate">
+                                    {name === 'values' &&
+                                    fieldType(f.name, f.table) === 'number' &&
+                                    !isMeasure(f.name)
+                                        ? measureLabel(f)
+                                        : fieldLabel(f)}
+                                </span>
+                                {name === 'values' &&
+                                    fieldType(f.name, f.table) === 'number' &&
+                                    !isMeasure(f.name) && (
+                                        <select
+                                            value={f.agg}
+                                            onChange={(e) =>
+                                                setWellAgg(
+                                                    selected.id,
+                                                    name,
+                                                    i,
+                                                    e.target.value as Agg,
+                                                )
+                                            }
+                                            className="rounded border border-border bg-background text-[10px]"
+                                        >
+                                            {AGGS.map((a) => (
+                                                <option key={a} value={a}>
+                                                    {a}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                {issue && (
+                                    <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
+                                        {issue}
+                                    </span>
+                                )}
+                                <button
+                                    onClick={() =>
+                                        removeWellField(selected.id, name, i)
+                                    }
+                                >
+                                    <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                </button>
+                            </div>
+                        );
+                    })
                 ) : (
                     <div className="px-1 py-1 text-[11px] text-muted-foreground">
                         Add data fields here
@@ -1220,6 +1239,26 @@ export function VisualizationsPane({
                                         className="w-full rounded border border-border bg-background px-2 py-1"
                                     />
                                 </label>
+                                {!['card', 'kpi', 'table', 'matrix', 'scatter', 'bubble', 'text', 'image', 'button'].includes(selected.type) && (
+                                    <label className="block">
+                                        <span className="mb-1 block text-muted-foreground">
+                                            Max categories (extra rolled into "Other")
+                                        </span>
+                                        <input
+                                            type="number"
+                                            min={2}
+                                            value={selected.maxCategories}
+                                            onChange={(e) =>
+                                                updateVisual(selected.id, {
+                                                    maxCategories: Number(
+                                                        e.target.value,
+                                                    ),
+                                                })
+                                            }
+                                            className="w-full rounded border border-border bg-background px-2 py-1"
+                                        />
+                                    </label>
+                                )}
                                 <div className="grid grid-cols-2 gap-2">
                                     {(['x', 'y', 'w', 'h'] as const).map(
                                         (k) => (

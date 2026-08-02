@@ -96,6 +96,7 @@ function makeVisual(partial: Partial<Visual>): Visual {
         conditionalFormat: false,
         subtotals: false,
         drillLevel: 0,
+        maxCategories: 200,
         ...partial,
     };
 }

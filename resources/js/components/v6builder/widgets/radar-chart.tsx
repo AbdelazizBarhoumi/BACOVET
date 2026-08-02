@@ -1,7 +1,7 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, lighten, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, lighten, widgetTooltipFormatter, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function RadarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const { series, multiSeries, hasSeries, measureError } = useWidgetData(c, id);
@@ -28,6 +28,7 @@ export function RadarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         backgroundColor: "rgba(255,255,255,0.95)",
         borderColor: "#e5e7eb",
         textStyle: { color: "#374151", fontSize: 12 },
+        formatter: widgetTooltipFormatter(),
       },
       radar: {
         indicator: series.map((s) => ({ name: s.x, max: maxVal })),

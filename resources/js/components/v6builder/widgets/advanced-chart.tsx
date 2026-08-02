@@ -1,19 +1,20 @@
 import { useId } from "react";
-import { Bar, BarChart, Cell, Legend, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Bar, BarChart, Cell, Legend, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis, CartesianGrid } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, targetColor, barGradientStops, ScalerHeader, wrap, MeasureErrorBanner } from "./shared";
+import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, targetColor, barGradientStops, WidgetTooltip, ScalerHeader, wrap, MeasureErrorBanner } from "./shared";
 
 export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" | "treemap" | "waterfall" | "scatter" | "bubble" | "stacked-bar" | "stacked-area"; c: WidgetConfig; id?: string }) {
   const gradId = useId();
-  const { series, multiSeries, hasSeries, scalar, hasScalar, measureError } = useWidgetData(c, id);
+  const { series, multiSeries, hasSeries, scalar, hasScalar, scatterPoints, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
   if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
-  if (!hasSeries && !hasScalar) return wrap(c, boxStyle(c), noSeriesData());
+  if (!hasSeries && !hasScalar && !scatterPoints.length) return wrap(c, boxStyle(c), noSeriesData());
   const data = multiSeries.length
     ? multiSeries[0].data.map((row, i) => ({
         name: row.x,
         ...Object.fromEntries(multiSeries.map((ms) => [ms.name, ms.data[i]?.v ?? 0])),
+        ...(series[i]?.tips ?? {}),
       }))
     : [];
 
@@ -38,9 +39,17 @@ export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" |
   const gid = (i: number) => `adv-grad-${gradId}-${i}`;
 
   if (type === "scatter" || type === "bubble") {
+    const hasExplicit = scatterPoints.length > 0;
+    const legacyPoints = multiSeries.flatMap((ms) => ms.data.map((d) => ({ name: ms.label, x: Number(d.x) || 0, y: d.v, size: 60, color: ms.color })));
+    const points = hasExplicit ? scatterPoints : legacyPoints;
+    const maxSize = Math.max(...points.map((p) => p.size), 1);
     return wrap(c, boxStyle(c), <div className="flex h-full min-h-0 flex-col"><ScalerHeader series={series} c={c} /><div className="min-h-0 flex-1"><ResponsiveContainer width="100%" height="100%">
-      <ScatterChart onClick={onClick}><CartesianGrid stroke="var(--border)" /><XAxis dataKey="x" type="number" /><YAxis dataKey="y" type="number" /><Tooltip />
-        {multiSeries.map((ms) => <Scatter key={ms.name} name={ms.label} data={ms.data.map((d) => ({ x: Number(d.x) || 0, y: d.v }))} fill={ms.color} fillOpacity={1}>{ms.data.map((d, i) => <Cell key={i} fill={c.target ? targetColor(d.v, c.target, Math.max(...ms.data.map((x) => x.v), 1)) : ms.color} fillOpacity={dim(d.x)} />)}</Scatter>)}
+      <ScatterChart onClick={onClick}><CartesianGrid stroke="var(--border)" /><XAxis dataKey="x" type="number" /><YAxis dataKey="y" type="number" />
+        {type === "bubble" && hasExplicit && <ZAxis dataKey="size" range={[30, Math.min(220, 40 + maxSize)]} />}
+        <Tooltip content={<WidgetTooltip />} />
+        <Scatter name="Points" data={points as { x: number; y: number; name: string; size: number; color: string }[]} fill={c.accent ?? "#3b82f6"}>
+          {points.map((p, i) => <Cell key={i} fill={c.target && !hasExplicit ? targetColor(p.y, c.target, Math.max(...points.map((x) => x.y), 1)) : p.color} fillOpacity={dim(p.name)} />)}
+        </Scatter>
       </ScatterChart>
     </ResponsiveContainer></div></div>);
   }
@@ -81,7 +90,7 @@ export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" |
   return wrap(c, boxStyle(c), <div className="flex h-full min-h-0 flex-col"><ScalerHeader series={series} c={c} /><div className="min-h-0 flex-1"><ResponsiveContainer width="100%" height="100%">
     <BarChart data={data} onClick={onClick}>
       <defs>{gradients.map((g, i) => <linearGradient key={i} id={gid(i)} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={g.from} /><stop offset="100%" stopColor={g.to} /></linearGradient>)}</defs>
-      <CartesianGrid stroke="var(--border)" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip />{multiSeries.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}{c.analyticsAverage && <ReferenceLine y={series.reduce((sum, item) => sum + item.v, 0) / (series.length || 1)} stroke="#f59e0b" strokeDasharray="4 4" />}{c.analyticsConstant !== undefined && <ReferenceLine y={c.analyticsConstant} stroke="#ef4444" strokeDasharray="6 3" />}
+      <CartesianGrid stroke="var(--border)" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip content={<WidgetTooltip />} />{multiSeries.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}{c.analyticsAverage && <ReferenceLine y={series.reduce((sum, item) => sum + item.v, 0) / (series.length || 1)} stroke="#f59e0b" strokeDasharray="4 4" />}{c.analyticsConstant !== undefined && <ReferenceLine y={c.analyticsConstant} stroke="#ef4444" strokeDasharray="6 3" />}
       {multiSeries.map((ms, i) => (
         <Bar key={ms.name} dataKey={ms.name} name={ms.label} stackId={stacked ? "stack" : undefined} radius={[5, 5, 0, 0]} fill={i === 0 ? `url(#${gid(0)})` : ms.color}>
           {multiSeries.length === 1 && series.map((d, j) => <Cell key={j} fill={`url(#${gid(j)})`} fillOpacity={dim(d.x)} />)}

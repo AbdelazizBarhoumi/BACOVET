@@ -1,6 +1,6 @@
 import ReactECharts from "echarts-for-react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, lighten, noDataBound, noSeriesData, MeasureErrorBanner } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, lighten, widgetTooltipFormatter, noDataBound, noSeriesData, MeasureErrorBanner } from "./shared";
 
 export function DonutWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const { multiSeries, hasSeries, hasScalar, measureError } = useWidgetData(c, id);
@@ -20,6 +20,7 @@ export function DonutWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         backgroundColor: "rgba(255,255,255,0.95)",
         borderColor: "#e5e7eb",
         textStyle: { color: "#374151", fontSize: 12 },
+        formatter: widgetTooltipFormatter(),
       },
       series: [{
         type: "pie",

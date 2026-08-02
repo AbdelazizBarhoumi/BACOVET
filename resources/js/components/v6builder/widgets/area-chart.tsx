@@ -1,7 +1,7 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, targetColor, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, targetColor, widgetTooltipFormatter, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function AreaChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const { series, multiSeries, hasSeries, measureError } = useWidgetData(c, id);
@@ -11,6 +11,7 @@ export function AreaChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
     const xData = series.map((s) => s.x);
     const defaultColor = c.accent ?? "#3b82f6";
     const seriesMax = Math.max(...series.map((s) => Math.abs(s.v)), 1);
+    const tipsByX = new Map(series.map((s) => [s.x, s.tips]));
     const chartSeries = multiSeries.map((ms, i) => {
       const color = i === 0 ? defaultColor : ms.color;
       return {
@@ -32,6 +33,7 @@ export function AreaChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
             color: multiSeries.length === 1 && c.target ? targetColor(s.v, c.target, seriesMax) : color,
             opacity: isDimmed(s.x) ? 0.2 : 1,
           },
+          ...(tipsByX.has(s.x) ? { tips: tipsByX.get(s.x) } : {}),
         })),
       };
     });
@@ -53,6 +55,7 @@ export function AreaChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         borderColor: "#e5e7eb",
         textStyle: { color: "#374151", fontSize: 12 },
         axisPointer: { type: "line", lineStyle: { color: "#cbd5e1" } },
+        formatter: widgetTooltipFormatter(),
       },
       grid: { left: 8, right: 8, top: multiSeries.length > 1 ? 32 : 16, bottom: 8, containLabel: true },
       xAxis: {

@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { Bar, BarChart, Cell, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, barGradientStops, ScalerHeader, wrap, MeasureErrorBanner } from "./shared";
+import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, barGradientStops, WidgetTooltip, ScalerHeader, wrap, MeasureErrorBanner } from "./shared";
 
 export type ComparisonChartType = "column" | "stackedColumn" | "stacked100Column" | "stacked100Bar" | "ribbon";
 
@@ -17,6 +17,7 @@ export function ComparisonChartWidget({ type, c, id }: { type: ComparisonChartTy
     ? multiSeries[0].data.map((row, i) => ({
         name: row.x,
         ...Object.fromEntries(multiSeries.map((ms) => [ms.name, ms.data[i]?.v ?? 0])),
+        ...(series[i]?.tips ?? {}),
       }))
     : [];
 
@@ -33,7 +34,7 @@ export function ComparisonChartWidget({ type, c, id }: { type: ComparisonChartTy
       <CartesianGrid stroke="var(--border)" vertical={false} />
       <XAxis dataKey="name" />
       <YAxis {...(is100 ? { domain: [0, 100], unit: "%" } : {})} />
-      <Tooltip />
+      <Tooltip content={<WidgetTooltip />} />
       {multiSeries.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
       {c.analyticsAverage && <ReferenceLine y={series.reduce((sum, item) => sum + item.v, 0) / (series.length || 1)} stroke="#f59e0b" strokeDasharray="4 4" />}
       {c.analyticsConstant !== undefined && <ReferenceLine y={c.analyticsConstant} stroke="#ef4444" strokeDasharray="6 3" />}

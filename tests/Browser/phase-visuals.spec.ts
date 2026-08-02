@@ -62,3 +62,33 @@ test.describe('Phase 5 — Visualizations and field wells', () => {
         await expect(page.locator('body')).not.toContainText('"table"');
     });
 });
+
+test.describe('Phase 4 — visualization QA checklist', () => {
+    test.beforeEach(async ({ page }) => enterEditor(page));
+
+    test('scatter renders one point per numeric row', async ({ page }) => {
+        await page.locator('button[title="Scatter"]').click();
+        const dataSearch = page.getByPlaceholder('Search');
+        await dataSearch.fill('WIP_Chaine');
+        await page.locator('button').filter({ hasText: 'wip_chaine' }).first().click();
+        const fields = page.locator('div[draggable="true"]');
+        await fields.filter({ hasText: 'ProdGroup' }).first().dblclick();
+        await fields.filter({ hasText: 'WIP_Chaine' }).first().dblclick();
+        await expect(page.locator('.recharts-scatter-symbol')).toHaveCount(3);
+    });
+
+    test('shows a warning badge for an incompatible field assignment', async ({ page }) => {
+        await page.locator('button[title="Table"]').click();
+        const dataSearch = page.getByPlaceholder('Search');
+        await dataSearch.fill('ProdGroup');
+        await page.locator('button').filter({ hasText: 'wip_chaine' }).first().click();
+        await page.locator('div[draggable="true"]').filter({ hasText: 'ProdGroup' }).first().dblclick();
+        await expect(page.getByLabel('« ProdGroup » est un champ texte.')).toBeVisible();
+    });
+
+    test('renders an empty-state placeholder when no fields are assigned', async ({ page }) => {
+        await page.locator('button[title="Card"]').click();
+        await expect(page.getByText('Build visual')).toBeVisible();
+        await expect(page.getByText('Drag data fields here')).toBeVisible();
+    });
+});

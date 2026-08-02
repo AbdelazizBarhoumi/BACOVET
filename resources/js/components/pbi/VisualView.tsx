@@ -31,6 +31,7 @@ import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
 import {
     aggregate,
     buildChartData,
+    buildScatterData,
     distinctValues,
     fieldLabel,
     fieldType,
@@ -190,11 +191,11 @@ function chartTooltip(visual: Visual) {
     }) => <CustomTooltip {...props} visual={visual} />;
 }
 
-function EmptyVisual({ label }: { label: string }) {
+function EmptyVisual({ label, hint }: { label: string; hint?: string }) {
     return (
         <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-[11px] text-muted-foreground">
             <span className="font-medium">{label}</span>
-            <span>Drag data fields here</span>
+            <span>{hint ?? 'Drag data fields here'}</span>
         </div>
     );
 }
@@ -281,8 +282,20 @@ function ChartBody({
                 visual.legend,
                 visual.values,
                 visual.tooltips,
+                visual.maxCategories,
             ),
-        [rows, visual.axis, visual.legend, visual.values, visual.tooltips],
+        [rows, visual.axis, visual.legend, visual.values, visual.tooltips, visual.maxCategories],
+    );
+
+    const scatter = useMemo(
+        () =>
+            buildScatterData(
+                rows,
+                visual.axis[0],
+                visual.values[0],
+                visual.values[1],
+            ),
+        [rows, visual.axis, visual.values],
     );
 
     const axisCol = visual.axis[0]?.name;
@@ -424,6 +437,9 @@ function ChartBody({
 
     if (!hasValues && visual.type !== 'table' && visual.type !== 'matrix')
         return <EmptyVisual label={visual.type} />;
+
+    if (!rows.length)
+        return <EmptyVisual label="No data" hint="No data matches the current filters" />;
 
     switch (visual.type) {
         case 'card': {
@@ -810,6 +826,25 @@ function ChartBody({
             const xKey = series[0] ?? 'x';
             const yKey = series[1] ?? series[0] ?? 'y';
             const zKey = series[2] ?? yKey;
+            const raw = scatter.numeric
+                ? scatter.points.map((p) => ({
+                      x: p.x,
+                      y: p.y,
+                      ...(p.z !== undefined ? { z: p.z } : {}),
+                      ...(axisCol ? { category: String(p.raw[axisCol] ?? '') } : {}),
+                      ...(visual.legend[0]
+                          ? {
+                                legend: String(
+                                    p.raw[visual.legend[0].name] ?? '',
+                                ),
+                            }
+                          : {}),
+                  }))
+                : undefined;
+            const scData: unknown[] = raw ?? data;
+            const scXKey = raw ? 'x' : xKey;
+            const scYKey = raw ? 'y' : yKey;
+            const scZKey = raw ? 'z' : zKey;
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <ScatterChart
@@ -817,23 +852,23 @@ function ChartBody({
                     >
                         <CartesianGrid stroke="var(--border)" />
                         <XAxis
-                            dataKey={xKey}
+                            dataKey={scXKey}
                             type="number"
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
                         <YAxis
-                            dataKey={yKey}
+                            dataKey={scYKey}
                             type="number"
                             tickFormatter={(v) => formatNumber(v)}
                             {...axisProps}
                         />
                         {visual.type === 'bubble' && (
-                            <ZAxis dataKey={zKey} range={[40, 500]} />
+                            <ZAxis dataKey={scZKey} range={[40, 500]} />
                         )}
                         <Tooltip content={chartTooltip(visual)} />
                         <Scatter
-                            data={data}
+                            data={scData}
                             fill="var(--chart-1)"
                             onClick={onPointClick}
                             shape={
