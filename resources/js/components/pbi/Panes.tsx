@@ -1,11 +1,11 @@
 import {
-    AppsListRegular,
     BubbleMultipleRegular,
     ButtonRegular,
     CalendarLtrRegular,
     CardUiRegular,
     ChartMultipleRegular,
     CheckboxCheckedRegular,
+    ChevronDownRegular,
     DataAreaRegular,
     DataBarHorizontalRegular,
     DataBarVerticalRegular,
@@ -26,6 +26,8 @@ import {
     TextboxRegular,
     ToggleLeftRegular,
 } from '@fluentui/react-icons';
+import { usePage } from '@inertiajs/react';
+import axios from 'axios';
 import {
     Bookmark,
     ChevronDown,
@@ -44,9 +46,10 @@ import {
     Table2,
     Trash2,
     TriangleAlert,
+    Upload,
     X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
     relativeDateRange,
@@ -57,6 +60,7 @@ import {
     MEASURES,
     NUMBER_FORMATS,
     PAGE_PRESETS,
+    VALUE_AGGREGATION_MODES,
     distinctValues,
     fieldIssue,
     fieldLabel,
@@ -65,13 +69,14 @@ import {
     isMeasure,
     measureError,
     measureLabel,
-    normalizeConditionalFormat,
     type Agg,
-    type ConditionalFormat,
     type Field,
     type NumberFormat,
+    type ValueAggregationMode,
+    type Visual,
     type VisualType,
 } from '@/lib/pbi/model';
+import { SHAPE_KINDS, SHAPES, type ShapeKind } from '@/lib/pbi/shapes';
 import {
     defaultDropWell,
     usePbi,
@@ -85,8 +90,36 @@ import {
     themeById,
     type ReportTheme,
 } from '@/lib/pbi/themes';
+import { isSingleValueType, visualConfig } from '@/lib/pbi/visualConfig';
 import { cn } from '@/lib/utils';
+import { CartesianFormat } from './CartesianFormat';
+import { ConditionalFormatControl } from './ConditionalFormatDialog';
 import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
+import { SingleValueFormat } from './SingleValueFormat';
+
+/** Visual types that expose the conditional-formatting (fx) dialog. */
+const CONDITIONAL_FORMAT_TYPES: ReadonlySet<VisualType> = new Set([
+    'column',
+    'stackedColumn',
+    'stacked100Column',
+    'bar',
+    'stackedBar',
+    'stacked100Bar',
+    'line',
+    'area',
+    'stackedArea',
+    'combo',
+    'ribbon',
+    'waterfall',
+    'pie',
+    'donut',
+    'treemap',
+    'funnel',
+    'scatter',
+    'bubble',
+    'table',
+    'matrix',
+]);
 
 /* ------------------------------ Icon set ------------------------------- */
 /* The Visualizations pane and Data pane now use Microsoft's own Fluent UI
@@ -319,18 +352,19 @@ export function FieldsPane({
             (x) => x.name === f.name && x.table === 'Measures',
         );
 
+    const targetWell = (f: Field): WellName => {
+        if (!selected) return 'values';
+        if (isSingleValueType(selected.type)) return 'values';
+        return defaultDropWell(selected.type) === 'axis'
+            ? 'axis'
+            : f.measure || f.type === 'number'
+              ? 'values'
+              : 'axis';
+    };
+
     const toggleMeasure = (f: Field) => {
         if (!selected) return;
-        toggleField(
-            selected.id,
-            defaultDropWell(selected.type) === 'axis'
-                ? 'axis'
-                : f.measure || f.type === 'number'
-                  ? 'values'
-                  : 'axis',
-            f.name,
-            'Measures',
-        );
+        toggleField(selected.id, targetWell(f), f.name, 'Measures');
     };
 
     const groups = tables.map((t) => ({ name: t.name, fields: t.fields }));
@@ -436,13 +470,14 @@ export function FieldsPane({
                                                             ) => {
                                                                 e.dataTransfer.setData(
                                                                     'text/plain',
-                                                                    JSON.stringify(
-                                                                        {
-                                                                            table:
-                                                                                'Measures',
-                                                                            name: f.name,
-                                                                        },
-                                                                    ),
+                                                                JSON.stringify(
+                                                                    {
+                                                                        table:
+                                                                            'Measures',
+                                                                        name: f.name,
+                                                                        measure: true,
+                                                                    },
+                                                                ),
                                                                 );
                                                                 e.dataTransfer.effectAllowed =
                                                                     e.ctrlKey
@@ -612,6 +647,7 @@ export function FieldsPane({
                                                 JSON.stringify({
                                                     table: g.name,
                                                     name: f.name,
+                                                    measure: !!f.measure,
                                                 }),
                                             );
                                             // Ctrl+drag duplicates a field into another bucket
@@ -646,14 +682,7 @@ export function FieldsPane({
                                                 if (!selected) return;
                                                 toggleField(
                                                     selected.id,
-                                                    defaultDropWell(
-                                                        selected.type,
-                                                    ) === 'axis'
-                                                        ? 'axis'
-                                                        : f.measure ||
-                                                            f.type === 'number'
-                                                          ? 'values'
-                                                          : 'axis',
+                                                    targetWell(f),
                                                     f.name,
                                                     g.name,
                                                 );
@@ -791,7 +820,11 @@ const VISUAL_GROUPS: {
                 label: 'Button slicer',
                 Icon: ToggleLeftRegular,
             },
-            { type: 'listSlicer', label: 'List slicer', Icon: AppsListRegular },
+            {
+                type: 'dropdownSlicer',
+                label: 'Dropdown slicer',
+                Icon: ChevronDownRegular,
+            },
             {
                 type: 'inputSlicer',
                 label: 'Input slicer',
@@ -816,6 +849,12 @@ const VISUAL_GROUPS: {
 
 const AGGS: Agg[] = ['sum', 'avg', 'count', 'distinct', 'min', 'max'];
 
+const VALUE_AGGREGATION_LABELS: Record<ValueAggregationMode, string> = {
+    first: 'First',
+    latest: 'Latest',
+    count: 'Count',
+};
+
 export function VisualizationsPane({
     onCollapse,
 }: {
@@ -827,14 +866,27 @@ export function VisualizationsPane({
         updateVisual,
         dropField,
         removeWellField,
+        moveWellField,
         setWellAgg,
-        setConditionalFormat,
+        setWellValueAgg,
         toggleAnalytics,
         page,
         pages,
         setPageFormat,
     } = usePbi();
     const [tab, setTab] = useState<'fields' | 'format' | 'analytics'>('fields');
+    const [listOpen, setListOpen] = useState(true);
+    const [dragOverWell, setDragOverWell] = useState<WellName | null>(null);
+
+    const config = selected ? visualConfig(selected.type) : null;
+    const tabs: ('fields' | 'format' | 'analytics')[] = config
+        ? [
+              'fields',
+              'format',
+              ...(config.showAnalytics ? (['analytics'] as const) : []),
+          ]
+        : ['fields', 'format', 'analytics'];
+    const activeTab = tabs.includes(tab) ? tab : 'fields';
 
     const well = (name: WellName, label: string) => (
         <div className="mb-3">
@@ -842,13 +894,35 @@ export function VisualizationsPane({
                 {label}
             </div>
             <div
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                }}
+                onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOverWell(name);
+                }}
+                onDragLeave={(e) => {
+                    if (e.currentTarget.contains(e.relatedTarget as Node))
+                        return;
+                    setDragOverWell(null);
+                }}
                 onDrop={(e) => {
                     e.preventDefault();
+                    setDragOverWell(null);
                     if (!selected) return;
                     const raw = e.dataTransfer.getData('text/plain');
                     try {
                         const payload = JSON.parse(raw);
+                        if (payload?.fromWell && payload.fromWell !== name) {
+                            moveWellField(
+                                selected.id,
+                                payload.fromWell as WellName,
+                                payload.fromIndex as number,
+                                name,
+                            );
+                            return;
+                        }
                         if (payload?.name)
                             dropField(
                                 selected.id,
@@ -860,18 +934,41 @@ export function VisualizationsPane({
                         dropField(selected.id, name, raw);
                     }
                 }}
-                className="min-h-9 rounded border border-dashed border-border bg-background p-1"
+                className={cn(
+                    'min-h-9 rounded border border-dashed border-border bg-background p-1 transition-colors',
+                    dragOverWell === name &&
+                        'border-brand bg-brand/5 ring-1 ring-brand',
+                )}
             >
                 {selected?.[name].length ? (
                     selected[name].map((f, i) => {
                         const issue =
-                            name === 'values'
+                            name === 'values' &&
+                            config?.format !== 'singleValue'
                                 ? fieldNumericIssue(f) ?? fieldIssue(f)
                                 : fieldIssue(f);
+                        const numericField =
+                            name === 'values' &&
+                            fieldType(f.name, f.table) === 'number' &&
+                            !isMeasure(f.name);
                         return (
                             <div
                                 key={`${f.name}-${i}`}
-                                className="mb-1 flex items-center gap-1 rounded bg-muted px-2 py-1 text-[11px]"
+                                draggable
+                                onDragStart={(e) => {
+                                    e.dataTransfer.setData(
+                                        'text/plain',
+                                        JSON.stringify({
+                                            table: f.table,
+                                            name: f.name,
+                                            measure: isMeasure(f.name),
+                                            fromWell: name,
+                                            fromIndex: i,
+                                        }),
+                                    );
+                                    e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                className="mb-1 flex cursor-grab items-center gap-1 rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
                             >
                                 {issue && (
                                     <TriangleAlert
@@ -880,32 +977,62 @@ export function VisualizationsPane({
                                     />
                                 )}
                                 <span className="flex-1 truncate">
-                                    {name === 'values' &&
-                                    fieldType(f.name, f.table) === 'number' &&
-                                    !isMeasure(f.name)
+                                    {numericField
                                         ? measureLabel(f)
                                         : fieldLabel(f)}
                                 </span>
+                                {numericField && (
+                                    <select
+                                        value={f.agg}
+                                        onChange={(e) =>
+                                            setWellAgg(
+                                                selected.id,
+                                                name,
+                                                i,
+                                                e.target.value as Agg,
+                                            )
+                                        }
+                                        className="rounded border border-border bg-background text-[10px]"
+                                    >
+                                        {AGGS.map((a) => (
+                                            <option key={a} value={a}>
+                                                {a}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                                 {name === 'values' &&
-                                    fieldType(f.name, f.table) === 'number' &&
+                                    !numericField &&
                                     !isMeasure(f.name) && (
                                         <select
-                                            value={f.agg}
+                                            value={
+                                                f.valueAggregation ?? 'first'
+                                            }
                                             onChange={(e) =>
-                                                setWellAgg(
+                                                setWellValueAgg(
                                                     selected.id,
                                                     name,
                                                     i,
-                                                    e.target.value as Agg,
+                                                    e.target
+                                                        .value as ValueAggregationMode,
                                                 )
                                             }
                                             className="rounded border border-border bg-background text-[10px]"
                                         >
-                                            {AGGS.map((a) => (
-                                                <option key={a} value={a}>
-                                                    {a}
-                                                </option>
-                                            ))}
+                                            {VALUE_AGGREGATION_MODES.map(
+                                                (m) => (
+                                                    <option
+                                                        key={m}
+                                                        value={m}
+                                                    >
+                                                        {
+                                                            VALUE_AGGREGATION_LABELS[
+                                                                m
+                                                            ]
+                                                        }
+                                                    </option>
+                                                ),
+                                            )}
                                         </select>
                                     )}
                                 {issue && (
@@ -935,37 +1062,51 @@ export function VisualizationsPane({
     return (
         <div className="flex h-full flex-col">
             <PaneHeader title="Visualizations" onCollapse={onCollapse} />
-            <div className="max-h-56 overflow-auto border-b border-border px-2 pb-2">
-                {VISUAL_GROUPS.map((g) => (
-                    <div key={g.group} className="mb-2">
-                        <div className="mb-1 text-[9px] tracking-wide text-muted-foreground uppercase">
-                            {g.group}
+            <button
+                onClick={() => setListOpen((o) => !o)}
+                className="flex w-full items-center justify-between border-b border-border px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase hover:bg-accent"
+            >
+                <span>Visual types</span>
+                <ChevronDown
+                    className={cn(
+                        'size-3 transition-transform',
+                        listOpen && 'rotate-180',
+                    )}
+                />
+            </button>
+            {listOpen && (
+                <div className="max-h-56 overflow-auto border-b border-border px-2 pb-2">
+                    {VISUAL_GROUPS.map((g) => (
+                        <div key={g.group} className="mb-2">
+                            <div className="mb-1 text-[9px] tracking-wide text-muted-foreground uppercase">
+                                {g.group}
+                            </div>
+                            <div className="grid grid-cols-6 gap-1">
+                                {g.items.map((v) => (
+                                    <button
+                                        key={v.type}
+                                        title={v.label}
+                                        onClick={() =>
+                                            selected
+                                                ? updateVisual(selected.id, {
+                                                      type: v.type,
+                                                  })
+                                                : addVisual(v.type)
+                                        }
+                                        className={cn(
+                                            'flex h-7 items-center justify-center rounded border border-border text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground',
+                                            selected?.type === v.type &&
+                                                'border-brand bg-brand/15 text-brand',
+                                        )}
+                                    >
+                                        <v.Icon className="size-3.5" />
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <div className="grid grid-cols-6 gap-1">
-                            {g.items.map((v) => (
-                                <button
-                                    key={v.type}
-                                    title={v.label}
-                                    onClick={() =>
-                                        selected
-                                            ? updateVisual(selected.id, {
-                                                  type: v.type,
-                                              })
-                                            : addVisual(v.type)
-                                    }
-                                    className={cn(
-                                        'flex h-7 items-center justify-center rounded border border-border text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground',
-                                        selected?.type === v.type &&
-                                            'border-brand bg-brand/15 text-brand',
-                                    )}
-                                >
-                                    <v.Icon className="size-3.5" />
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
 
             {!selected ? (
                 <div className="flex-1 overflow-auto p-3 text-[11px]">
@@ -1078,72 +1219,140 @@ export function VisualizationsPane({
             ) : (
                 <>
                     <div className="flex border-b border-border text-[11px]">
-                        {(['fields', 'format', 'analytics'] as const).map(
-                            (t) => (
-                                <button
-                                    key={t}
-                                    onClick={() => setTab(t)}
-                                    className={cn(
-                                        'flex-1 py-1.5 capitalize',
-                                        tab === t
-                                            ? 'border-b-2 border-brand font-semibold'
-                                            : 'text-muted-foreground hover:text-foreground',
-                                    )}
-                                >
-                                    {t === 'fields'
-                                        ? 'Build visual'
-                                        : t === 'format'
-                                          ? 'Format'
-                                          : 'Analytics'}
-                                </button>
-                            ),
-                        )}
+                        {tabs.map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => setTab(t)}
+                                className={cn(
+                                    'flex-1 py-1.5 capitalize',
+                                    activeTab === t
+                                        ? 'border-b-2 border-brand font-semibold'
+                                        : 'text-muted-foreground hover:text-foreground',
+                                )}
+                            >
+                                {t === 'fields'
+                                    ? 'Build visual'
+                                    : t === 'format'
+                                      ? 'Format'
+                                      : 'Analytics'}
+                            </button>
+                        ))}
                     </div>
                     <div className="flex-1 overflow-auto p-3">
-                        {tab === 'fields' && (
+                        {activeTab === 'fields' && config && (
                             <>
-                                {well(
-                                    'axis',
-                                    selected.type
-                                        .toLowerCase()
-                                        .includes('slicer')
-                                        ? 'Field'
-                                        : 'X-axis / Rows',
+                                {config.build.map(({ well: wellName, label }) => (
+                                    <Fragment key={wellName}>
+                                        {well(
+                                            wellName,
+                                            wellName === 'axis' &&
+                                                selected.type
+                                                    .toLowerCase()
+                                                    .includes('slicer')
+                                                ? 'Field'
+                                                : label,
+                                        )}
+                                    </Fragment>
+                                ))}
+                                {config.build.some(
+                                    (w) => w.well === 'tooltips',
+                                ) && (
+                                    <label className="block text-[11px]">
+                                        <span className="mb-1 block text-muted-foreground">
+                                            Tooltip page
+                                        </span>
+                                        <select
+                                            value={
+                                                selected.tooltipPageId ?? ''
+                                            }
+                                            onChange={(e) =>
+                                                updateVisual(selected.id, {
+                                                    tooltipPageId:
+                                                        e.target.value ||
+                                                        undefined,
+                                                })
+                                            }
+                                            className="w-full rounded border border-border bg-background px-2 py-1"
+                                        >
+                                            <option value="">Default</option>
+                                            {pages.map((p) => (
+                                                <option
+                                                    key={p.id}
+                                                    value={p.id}
+                                                >
+                                                    {p.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
                                 )}
-                                {well('legend', 'Legend / Columns')}
-                                {well('values', 'Values')}
-                                {well('smallMultiples', 'Small multiples')}
-                                {well('tooltips', 'Tooltips')}
-                                {well(
-                                    'drillFields',
-                                    'Extraction / drill fields',
-                                )}
-                                <label className="block text-[11px]">
-                                    <span className="mb-1 block text-muted-foreground">
-                                        Tooltip page
-                                    </span>
-                                    <select
-                                        value={selected.tooltipPageId ?? ''}
-                                        onChange={(e) =>
-                                            updateVisual(selected.id, {
-                                                tooltipPageId:
-                                                    e.target.value || undefined,
-                                            })
-                                        }
-                                        className="w-full rounded border border-border bg-background px-2 py-1"
-                                    >
-                                        <option value="">Default</option>
-                                        {pages.map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
                             </>
                         )}
 
-                        {tab === 'format' && (
+                        {activeTab === 'format' && (
+                            config?.format === 'singleValue' ? (
+                                <SingleValueFormat visual={selected} />
+                            ) : config?.format === 'cartesian' ? (
+                                <CartesianFormat visual={selected} />
+                            ) : (
+                                <GenericFormat visual={selected} />
+                            )
+                        )}
+
+                        {activeTab === 'analytics' && config?.showAnalytics && (
+                            <div className="space-y-2 text-[11px]">
+                                {config.analyticsKinds.map((k) => (
+                                    <label
+                                        key={k}
+                                        className="flex items-center justify-between capitalize"
+                                    >
+                                        <span>{k} line</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={selected.analytics.some(
+                                                (a) => a.kind === k,
+                                            )}
+                                            onChange={() =>
+                                                toggleAnalytics(
+                                                    selected.id,
+                                                    k,
+                                                )
+                                            }
+                                            className="accent-[var(--brand)]"
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function GenericFormat({ visual }: { visual: Visual }) {
+    const selected = visual;
+    const { updateVisual } = usePbi();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { pageId } = usePage().props as unknown as { pageId: number };
+
+    const uploadImage = async (file: File) => {
+        const form = new FormData();
+        form.append('image', file);
+        try {
+            const { data } = await axios.post<{ url: string }>(
+                `/api/v5/builder-pages/${pageId}/images`,
+                form,
+            );
+            updateVisual(selected.id, { imageUrl: data.url });
+            toast.success('Image téléversée');
+        } catch {
+            toast.error("Échec du téléversement de l'image");
+        }
+    };
+
+    return (
                             <div className="space-y-3 text-[11px]">
                                 <label className="block">
                                     <span className="mb-1 block text-muted-foreground">
@@ -1159,6 +1368,9 @@ export function VisualizationsPane({
                                         className="w-full rounded border border-border bg-background px-2 py-1"
                                     />
                                 </label>
+                                {CONDITIONAL_FORMAT_TYPES.has(
+                                    selected.type,
+                                ) && <ConditionalFormatControl visual={selected} />}
                                 {(selected.type === 'text' ||
                                     selected.type === 'button') && (
                                     <label className="block">
@@ -1177,20 +1389,152 @@ export function VisualizationsPane({
                                     </label>
                                 )}
                                 {selected.type === 'image' && (
-                                    <label className="block">
-                                        <span className="mb-1 block text-muted-foreground">
-                                            Image URL
-                                        </span>
-                                        <input
-                                            value={selected.imageUrl ?? ''}
-                                            onChange={(e) =>
-                                                updateVisual(selected.id, {
-                                                    imageUrl: e.target.value,
-                                                })
-                                            }
-                                            className="w-full rounded border border-border bg-background px-2 py-1"
-                                        />
-                                    </label>
+                                    <>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Image URL
+                                            </span>
+                                            <input
+                                                value={selected.imageUrl ?? ''}
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        imageUrl: e.target.value,
+                                                    })
+                                                }
+                                                className="w-full rounded border border-border bg-background px-2 py-1"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Upload image
+                                            </span>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file =
+                                                        e.target.files?.[0];
+                                                    if (file)
+                                                        uploadImage(file);
+                                                    e.target.value = '';
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    fileInputRef.current?.click()
+                                                }
+                                                className="flex w-full items-center justify-center gap-1 rounded border border-border bg-background px-2 py-1 text-sm text-foreground hover:bg-accent"
+                                            >
+                                                <Upload className="size-3.5" />
+                                                Choose file…
+                                            </button>
+                                        </label>
+                                        {selected.imageUrl && (
+                                            <div className="flex items-center justify-center rounded border border-border bg-background p-1">
+                                                <img
+                                                    src={selected.imageUrl}
+                                                    alt="Preview"
+                                                    className="max-h-24 object-contain"
+                                                />
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                                {selected.type === 'shape' && (
+                                    <>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Shape
+                                            </span>
+                                            <select
+                                                value={selected.shape ?? 'rectangle'}
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        shape: e.target
+                                                            .value as ShapeKind,
+                                                    })
+                                                }
+                                                className="w-full rounded border border-border bg-background px-2 py-1"
+                                            >
+                                                {SHAPE_KINDS.map((k) => (
+                                                    <option key={k} value={k}>
+                                                        {SHAPES[k].label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Outline color
+                                            </span>
+                                            <input
+                                                type="color"
+                                                value={
+                                                    selected.background.startsWith(
+                                                        '#',
+                                                    )
+                                                        ? selected.background
+                                                        : '#ffffff'
+                                                }
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        background:
+                                                            e.target.value,
+                                                    })
+                                                }
+                                                className="h-7 w-full cursor-pointer rounded border border-border bg-background"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Rotation (deg)
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min={-180}
+                                                max={180}
+                                                value={selected.rotation ?? 0}
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        rotation: Number(
+                                                            e.target.value,
+                                                        ),
+                                                    })
+                                                }
+                                                className="w-full rounded border border-border bg-background px-2 py-1"
+                                            />
+                                        </label>
+                                        {selected.shape !== 'line' && (
+                                            <label className="block">
+                                                <span className="mb-1 block text-muted-foreground">
+                                                    Corner radius
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={40}
+                                                    value={
+                                                        selected.radius ?? 0
+                                                    }
+                                                    onChange={(e) =>
+                                                        updateVisual(
+                                                            selected.id,
+                                                            {
+                                                                radius: Number(
+                                                                    e.target
+                                                                        .value,
+                                                                ),
+                                                            },
+                                                        )
+                                                    }
+                                                    className="w-full rounded border border-border bg-background px-2 py-1"
+                                                />
+                                            </label>
+                                        )}
+                                    </>
                                 )}
                                 {(
                                     [
@@ -1201,135 +1545,165 @@ export function VisualizationsPane({
                                         ['shadow', 'Shadow'],
                                         ['subtotals', 'Totals / subtotals'],
                                     ] as const
-                                ).map(([key, label]) => (
-                                    <label
-                                        key={key}
-                                        className="flex items-center justify-between"
-                                    >
-                                        <span>{label}</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={Boolean(selected[key])}
-                                            onChange={(e) =>
-                                                updateVisual(selected.id, {
-                                                    [key]: e.target.checked,
-                                                })
-                                            }
-                                            className="accent-[var(--brand)]"
-                                        />
-                                    </label>
-                                ))}
-                                <label className="block">
-                                    <span className="mb-1 block text-muted-foreground">
-                                        Background
-                                    </span>
-                                    <input
-                                        type="color"
-                                        value={
-                                            selected.background.startsWith('#')
-                                                ? selected.background
-                                                : '#ffffff'
-                                        }
-                                        onChange={(e) =>
-                                            updateVisual(selected.id, {
-                                                background: e.target.value,
-                                            })
-                                        }
-                                        className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-                                    />
-                                </label>
-                                <label className="block">
-                                    <span className="mb-1 block text-muted-foreground">
-                                        Font
-                                    </span>
-                                    <select
-                                        value={selected.fontFamily ?? ''}
-                                        onChange={(e) =>
-                                            updateVisual(selected.id, {
-                                                fontFamily:
-                                                    e.target.value || undefined,
-                                            })
-                                        }
-                                        className="w-full rounded border border-border bg-background px-2 py-1"
-                                    >
-                                        <option value="">Report font</option>
-                                        <option value="ui-sans-serif, system-ui, sans-serif">
-                                            Sans-serif
-                                        </option>
-                                        <option value="Georgia, 'Times New Roman', serif">
-                                            Serif
-                                        </option>
-                                        <option value="ui-monospace, monospace">
-                                            Monospace
-                                        </option>
-                                    </select>
-                                    <div className="mt-2 grid grid-cols-2 gap-2">
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Size
-                                            </span>
+                                )
+                                    .filter(
+                                        ([key]) =>
+                                            selected.type !== 'shape' ||
+                                            key === 'border' ||
+                                            key === 'shadow',
+                                    )
+                                    .map(([key, label]) => (
+                                        <label
+                                            key={key}
+                                            className="flex items-center justify-between"
+                                        >
+                                            <span>{label}</span>
                                             <input
-                                                type="number"
-                                                min={8}
-                                                max={24}
-                                                value={selected.fontSize ?? 10}
+                                                type="checkbox"
+                                                checked={Boolean(selected[key])}
                                                 onChange={(e) =>
                                                     updateVisual(selected.id, {
-                                                        fontSize: Number(
-                                                            e.target.value,
-                                                        ),
+                                                        [key]: e.target.checked,
+                                                    })
+                                                }
+                                                className="accent-[var(--brand)]"
+                                            />
+                                        </label>
+                                    ))}
+                                {selected.type !== 'shape' && (
+                                    <label className="block">
+                                        <span className="mb-1 block text-muted-foreground">
+                                            Background
+                                        </span>
+                                        <input
+                                            type="color"
+                                            value={
+                                                selected.background.startsWith(
+                                                    '#',
+                                                )
+                                                    ? selected.background
+                                                    : '#ffffff'
+                                            }
+                                            onChange={(e) =>
+                                                updateVisual(selected.id, {
+                                                    background:
+                                                        e.target.value,
+                                                })
+                                            }
+                                            className="h-7 w-full cursor-pointer rounded border border-border bg-background"
+                                        />
+                                    </label>
+                                )}
+                                {selected.type !== 'shape' && (
+                                    <>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Font
+                                            </span>
+                                            <select
+                                                value={selected.fontFamily ?? ''}
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        fontFamily:
+                                                            e.target.value ||
+                                                            undefined,
                                                     })
                                                 }
                                                 className="w-full rounded border border-border bg-background px-2 py-1"
-                                            />
+                                            >
+                                                <option value="">Report font</option>
+                                                <option value="ui-sans-serif, system-ui, sans-serif">
+                                                    Sans-serif
+                                                </option>
+                                                <option value="Georgia, 'Times New Roman', serif">
+                                                    Serif
+                                                </option>
+                                                <option value="ui-monospace, monospace">
+                                                    Monospace
+                                                </option>
+                                            </select>
+                                            <div className="mt-2 grid grid-cols-2 gap-2">
+                                                <label className="block">
+                                                    <span className="mb-1 block text-muted-foreground">
+                                                        Size
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        min={8}
+                                                        max={24}
+                                                        value={
+                                                            selected.fontSize ?? 10
+                                                        }
+                                                        onChange={(e) =>
+                                                            updateVisual(
+                                                                selected.id,
+                                                                {
+                                                                    fontSize:
+                                                                        Number(
+                                                                            e.target
+                                                                                .value,
+                                                                        ),
+                                                                },
+                                                            )
+                                                        }
+                                                        className="w-full rounded border border-border bg-background px-2 py-1"
+                                                    />
+                                                </label>
+                                                <label className="block">
+                                                    <span className="mb-1 block text-muted-foreground">
+                                                        Color
+                                                    </span>
+                                                    <input
+                                                        type="color"
+                                                        value={
+                                                            selected.fontColor?.startsWith(
+                                                                '#',
+                                                            )
+                                                                ? selected.fontColor
+                                                                : '#000000'
+                                                        }
+                                                        onChange={(e) =>
+                                                            updateVisual(
+                                                                selected.id,
+                                                                {
+                                                                    fontColor:
+                                                                        e.target
+                                                                            .value,
+                                                                },
+                                                            )
+                                                        }
+                                                        className="h-7 w-full cursor-pointer rounded border border-border bg-background"
+                                                    />
+                                                </label>
+                                            </div>
                                         </label>
                                         <label className="block">
                                             <span className="mb-1 block text-muted-foreground">
-                                                Color
+                                                Number format
                                             </span>
-                                            <input
-                                                type="color"
+                                            <select
                                                 value={
-                                                    selected.fontColor?.startsWith(
-                                                        '#',
-                                                    )
-                                                        ? selected.fontColor
-                                                        : '#000000'
+                                                    selected.numberFormat ?? 'auto'
                                                 }
                                                 onChange={(e) =>
                                                     updateVisual(selected.id, {
-                                                        fontColor:
-                                                            e.target.value,
+                                                        numberFormat:
+                                                            (e.target
+                                                                .value as NumberFormat) ||
+                                                            undefined,
                                                     })
                                                 }
-                                                className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-                                            />
+                                                className="w-full rounded border border-border bg-background px-2 py-1"
+                                            >
+                                                {NUMBER_FORMATS.map((f) => (
+                                                    <option key={f} value={f}>
+                                                        {f}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </label>
-                                    </div>
-                                </label>
-                                <label className="block">
-                                    <span className="mb-1 block text-muted-foreground">
-                                        Number format
-                                    </span>
-                                    <select
-                                        value={selected.numberFormat ?? 'auto'}
-                                        onChange={(e) =>
-                                            updateVisual(selected.id, {
-                                                numberFormat:
-                                                    (e.target
-                                                        .value as NumberFormat) ||
-                                                    undefined,
-                                            })
-                                        }
-                                        className="w-full rounded border border-border bg-background px-2 py-1"
-                                    >
-                                        {NUMBER_FORMATS.map((f) => (
-                                            <option key={f} value={f}>
-                                                {f}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
+                                    </>
+                                )}
                                 {selected.border && (
                                     <div className="grid grid-cols-3 gap-2">
                                         <label className="block">
@@ -1373,108 +1747,26 @@ export function VisualizationsPane({
                                                 className="w-full rounded border border-border bg-background px-2 py-1"
                                             />
                                         </label>
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Radius
-                                            </span>
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                max={24}
-                                                value={selected.radius ?? 0}
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        radius: Number(
-                                                            e.target.value,
-                                                        ),
-                                                    })
-                                                }
-                                                className="w-full rounded border border-border bg-background px-2 py-1"
-                                            />
-                                        </label>
-                                    </div>
-                                )}
-                                {['table', 'matrix'].includes(
-                                    selected.type,
-                                ) && (
-                                    <div className="space-y-2">
-                                        <label className="flex items-center justify-between">
-                                            <span>Conditional formatting</span>
-                                            <select
-                                                value={
-                                                    normalizeConditionalFormat(
-                                                        selected.conditionalFormat,
-                                                    ).mode
-                                                }
-                                                onChange={(e) =>
-                                                    setConditionalFormat(
-                                                        selected.id,
-                                                        {
-                                                            mode: e.target
-                                                                .value as ConditionalFormat['mode'],
-                                                        },
-                                                    )
-                                                }
-                                                className="rounded border border-border bg-background px-1 py-0.5"
-                                            >
-                                                <option value="none">
-                                                    None
-                                                </option>
-                                                <option value="databars">
-                                                    Data bars
-                                                </option>
-                                                <option value="colorScale">
-                                                    Color scale
-                                                </option>
-                                            </select>
-                                        </label>
-                                        {normalizeConditionalFormat(
-                                            selected.conditionalFormat,
-                                        ).mode !== 'none' && (
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {(
-                                                    [
-                                                        ['minColor', 'Min'],
-                                                        ['midColor', 'Mid'],
-                                                        ['maxColor', 'Max'],
-                                                    ] as const
-                                                ).map(([key, label]) => (
-                                                    <label
-                                                        key={key}
-                                                        className="block"
-                                                    >
-                                                        <span className="mb-1 block text-muted-foreground">
-                                                            {label}
-                                                        </span>
-                                                        <input
-                                                            type="color"
-                                                            value={
-                                                                normalizeConditionalFormat(
-                                                                    selected.conditionalFormat,
-                                                                )[key].startsWith(
-                                                                    '#',
-                                                                )
-                                                                    ? normalizeConditionalFormat(
-                                                                          selected.conditionalFormat,
-                                                                      )[key]
-                                                                    : '#4c78d0'
-                                                            }
-                                                            onChange={(e) =>
-                                                                setConditionalFormat(
-                                                                    selected.id,
-                                                                    {
-                                                                        [key]:
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                    },
-                                                                )
-                                                            }
-                                                            className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-                                                        />
-                                                    </label>
-                                                ))}
-                                            </div>
+                                        {selected.type !== 'shape' && (
+                                            <label className="block">
+                                                <span className="mb-1 block text-muted-foreground">
+                                                    Radius
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={24}
+                                                    value={selected.radius ?? 0}
+                                                    onChange={(e) =>
+                                                        updateVisual(selected.id, {
+                                                            radius: Number(
+                                                                e.target.value,
+                                                            ),
+                                                        })
+                                                    }
+                                                    className="w-full rounded border border-border bg-background px-2 py-1"
+                                                />
+                                            </label>
                                         )}
                                     </div>
                                 )}
@@ -1486,7 +1778,7 @@ export function VisualizationsPane({
                                         type="range"
                                         min={0}
                                         max={7}
-                                        value={selected.colorIndex}
+                                        value={selected.colorIndex ?? 0}
                                         onChange={(e) =>
                                             updateVisual(selected.id, {
                                                 colorIndex: Number(
@@ -1495,14 +1787,14 @@ export function VisualizationsPane({
                                             })
                                         }
                                         className="w-full accent-[var(--brand)]"
-                                    />
+                                    />p
                                 </label>
                                 <label className="block">
                                     <span className="mb-1 block text-muted-foreground">
                                         Alt text (accessibility)
                                     </span>
                                     <input
-                                        value={selected.altText}
+                                        value={selected.altText ?? ''}
                                         onChange={(e) =>
                                             updateVisual(selected.id, {
                                                 altText: e.target.value,
@@ -1511,7 +1803,7 @@ export function VisualizationsPane({
                                         className="w-full rounded border border-border bg-background px-2 py-1"
                                     />
                                 </label>
-                                {!['card', 'kpi', 'table', 'matrix', 'scatter', 'bubble', 'text', 'image', 'button'].includes(selected.type) && (
+                                {!['card', 'kpi', 'table', 'matrix', 'scatter', 'bubble', 'text', 'image', 'button', 'shape'].includes(selected.type) && (
                                     <label className="block">
                                         <span className="mb-1 block text-muted-foreground">
                                             Max categories (extra rolled into "Other")
@@ -1564,45 +1856,6 @@ export function VisualizationsPane({
                                     )}
                                 </div>
                             </div>
-                        )}
-
-                        {tab === 'analytics' && (
-                            <div className="space-y-2 text-[11px]">
-                                {(
-                                    [
-                                        'constant',
-                                        'average',
-                                        'trend',
-                                        'forecast',
-                                    ] as const
-                                ).map((k) => (
-                                    <label
-                                        key={k}
-                                        className="flex items-center justify-between capitalize"
-                                    >
-                                        <span>{k} line</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={selected.analytics.some(
-                                                (a) => a.kind === k,
-                                            )}
-                                            onChange={() =>
-                                                toggleAnalytics(selected.id, k)
-                                            }
-                                            className="accent-[var(--brand)]"
-                                        />
-                                    </label>
-                                ))}
-                                <p className="pt-2 text-muted-foreground">
-                                    Lines apply to cartesian visuals (column,
-                                    line, combo).
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </>
-            )}
-        </div>
     );
 }
 
@@ -1782,6 +2035,8 @@ export function FiltersPane({
         [tables, measures],
     );
 
+    const [dragOver, setDragOver] = useState(false);
+
     const rowsFor = (f: (typeof filters)[number]) =>
         (f.table && tableRows[f.table]) || [];
 
@@ -1834,7 +2089,38 @@ export function FiltersPane({
                     ))}
                 </select>
             </div>
-            <div className="flex-1 space-y-2 overflow-auto px-3 pb-3">
+            <div
+                className={cn(
+                    'flex-1 space-y-2 overflow-auto px-3 pb-3',
+                    dragOver &&
+                        'ring-2 ring-brand ring-inset bg-brand/5',
+                )}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                }}
+                onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                }}
+                onDragLeave={(e) => {
+                    if (e.currentTarget.contains(e.relatedTarget as Node))
+                        return;
+                    setDragOver(false);
+                }}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const raw = e.dataTransfer.getData('text/plain');
+                    try {
+                        const payload = JSON.parse(raw);
+                        if (payload?.name && !payload.measure)
+                            addFilter(payload.name, payload.table);
+                    } catch {
+                        // ignore non-field drops
+                    }
+                }}
+            >
                 {selected && (
                     <p className="text-[10px] tracking-wide text-muted-foreground uppercase">
                         Filters on this visual: {selected.name}
@@ -1842,8 +2128,8 @@ export function FiltersPane({
                 )}
                 {!filters.length && (
                     <p className="text-[11px] text-muted-foreground">
-                        Filters on all pages. Double-click a field in the Data
-                        pane to add it here.
+                        Filters on all pages. Drag a field here or
+                        double-click one in the Data pane to add it.
                     </p>
                 )}
                 {filters.map((f) => (

@@ -1,3 +1,4 @@
+import { ChevronDown, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
     Area,
@@ -27,6 +28,14 @@ import {
     YAxis,
     ZAxis,
 } from 'recharts';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Slider } from '@/components/ui/slider';
+import {
+    cfAggToAgg,
+    conditionalColor,
+    parseColorCell,
+} from '@/lib/pbi/conditionalFormat';
+import type { RelativePreset } from '@/lib/pbi/filters';
 import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
 import {
     aggregate,
@@ -35,19 +44,35 @@ import {
     distinctValues,
     fieldLabel,
     fieldType,
+    formatCallout,
+    formatDisplayUnitValue,
     formatNumberWith,
     formatValue,
     formatWellValue,
     isMeasure,
     measureLabel,
+    normalizeAxisStyle,
+    normalizeBarStyle,
+    normalizeCalloutStyle,
+    normalizeCategoryLabelStyle,
     normalizeConditionalFormat,
+    normalizeDataLabelStyle,
+    normalizeGridlinesStyle,
+    normalizeLegendStyle,
+    normalizePlotAreaStyle,
+    singleValue,
+    singleValueLabel,
     visualTable,
+    wellForReference,
+    type AxisStyle,
+    type DataLabelPosition,
     type FieldType,
     type Row,
     type Visual,
     type WellField,
 } from '@/lib/pbi/model';
-import { slicerKey, usePbi } from '@/lib/pbi/store';
+import { ShapeGlyph } from '@/lib/pbi/shapes';
+import { slicerKey, usePbi, type SlicerDateMode } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
 const PALETTE = [
@@ -99,18 +124,119 @@ function tickFmt(visual: Pick<Visual, 'numberFormat'>) {
     return (v: number) => formatNumberWith(v, visual.numberFormat ?? 'auto');
 }
 
-const OKLCH_RE = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/;
+const GRIDLINE_DASH: Record<string, string | undefined> = {
+    solid: undefined,
+    dashed: '4 4',
+    dotted: '1 3',
+};
 
-/** Mixes two `oklch()` colors at ratio `t` (0..1); falls back to `b` when unparseable. */
-function oklchMix(a: string, b: string, t: number): string {
-    const pa = a.match(OKLCH_RE);
-    const pb = b.match(OKLCH_RE);
-    if (!pa || !pb) return t < 0.5 ? a : b;
-    const out = [1, 2, 3].map(
-        (i) =>
-            Number(pa[i]) * (1 - t) + Number(pb[i]) * t,
-    );
-    return `oklch(${out[0]} ${out[1]} ${out[2]})`;
+/** Recharts text style block from a FontStyle, falling back to defaults. */
+function fontStyleProps(
+    font: { fontSize?: number; color?: string; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean } | undefined,
+    fallback: { fontSize: number; color: string; fontFamily?: string },
+) {
+    return {
+        fontSize: font?.fontSize ?? fallback.fontSize,
+        fill: font?.color || fallback.color,
+        fontFamily: font?.fontFamily || fallback.fontFamily || undefined,
+        fontWeight: font?.bold ? 700 : undefined,
+        fontStyle: font?.italic ? 'italic' : undefined,
+        textDecoration: font?.underline ? 'underline' : undefined,
+    };
+}
+
+/** Recharts `label` prop for an axis title (undefined when empty). Vertical
+ * (Y) axes get rotated text running alongside the ticks. */
+function axisTitle(axis: AxisStyle, vertical?: boolean) {
+    if (!axis.title) return undefined;
+    const f = axis.titleFont;
+    return {
+        value: axis.title,
+        position: vertical
+            ? ('insideLeft' as const)
+            : ('insideTop' as const),
+        angle: vertical ? -90 : undefined,
+        offset: vertical ? 20 : -6,
+        fill: f?.color || 'var(--muted-foreground)',
+        fontSize: f?.fontSize ?? 11,
+        fontWeight: f?.bold ? 700 : undefined,
+        fontStyle: f?.italic ? 'italic' : undefined,
+    };
+}
+
+/** Recharts props for a numeric (value) axis honoring an AxisStyle. */
+function valueAxisProps(
+    axis: AxisStyle,
+    visual: Visual,
+    vertical?: boolean,
+) {
+    const props: Record<string, unknown> = {
+        hide: !axis.show,
+        tick: fontStyleProps(axis.labelsFont, {
+            fontSize: visual.fontSize ?? 10,
+            color: visual.fontColor || 'var(--muted-foreground)',
+            fontFamily: visual.fontFamily,
+        }),
+        tickFormatter: (v: number) =>
+            formatDisplayUnitValue(v, axis.displayUnits, axis.decimals),
+    };
+    const label = axisTitle(axis, vertical);
+    if (label) props.label = label;
+    if (axis.min !== undefined || axis.max !== undefined)
+        props.domain = [axis.min ?? 'auto', axis.max ?? 'auto'];
+    return props;
+}
+
+/** Recharts props for a category axis honoring an AxisStyle. */
+function categoryAxisProps(
+    axis: AxisStyle,
+    visual: Visual,
+    vertical?: boolean,
+) {
+    const props: Record<string, unknown> = {
+        hide: !axis.show,
+        tick: fontStyleProps(axis.labelsFont, {
+            fontSize: visual.fontSize ?? 10,
+            color: visual.fontColor || 'var(--muted-foreground)',
+            fontFamily: visual.fontFamily,
+        }),
+    };
+    const label = axisTitle(axis, vertical);
+    if (label) props.label = label;
+    return props;
+}
+
+/** Recharts LabelList position honoring the visual's data-label style. */
+function labelPosition(
+    pos: DataLabelPosition,
+    horizontal: boolean,
+): React.ComponentProps<typeof LabelList>['position'] {
+    if (horizontal) {
+        switch (pos) {
+            case 'insideEnd':
+                return 'insideRight';
+            case 'outsideEnd':
+                return 'right';
+            case 'insideCenter':
+                return 'center';
+            case 'insideBase':
+                return 'insideLeft';
+            default:
+                return 'right';
+        }
+    }
+    switch (pos) {
+        case 'insideEnd':
+            return 'insideTop';
+        case 'outsideEnd':
+            return 'top';
+        case 'insideCenter':
+            return 'center';
+        case 'insideBase':
+            return 'insideBottom';
+        default:
+            return 'top';
+    }
 }
 
 /** Shared recharts tooltip that honors the Tooltips well, formatted by type. */
@@ -145,7 +271,11 @@ function CustomTooltip({
         return () => {
             setTooltipHover(null);
         };
-    }, [active, hoverCol, label, setTooltipHover, visual.id]);
+        // setTooltipHover is an unstable context helper (recreated every
+        // provider render). Depending on it here would re-run this effect on
+        // every render and loop forever; it only wraps a stable setState.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active, hoverCol, label, visual.id]);
 
     if (!active || !payload?.length) return null;
     const datum = payload[0]?.payload ?? {};
@@ -240,6 +370,83 @@ function EmptyVisual({ label, hint }: { label: string; hint?: string }) {
     );
 }
 
+/** The big number of a card/kpi/gauge, honoring its callout + fx formatting. */
+function CalloutValue({
+    visual,
+    value,
+    type,
+    wf,
+    defaultColor,
+}: {
+    visual: Visual;
+    value: string | number | boolean | null;
+    type: FieldType;
+    wf: WellField;
+    defaultColor: string;
+}) {
+    const callout = normalizeCalloutStyle(visual.callout);
+    const n = typeof value === 'number' && isFinite(value) ? value : null;
+    const cf = normalizeConditionalFormat(visual.conditionalFormat);
+    const fxColor =
+        cf.style !== 'none'
+            ? conditionalColor(cf, value, n !== null ? [n] : [], value)
+            : undefined;
+    return (
+        <div
+            className="font-semibold tracking-tight"
+            style={{
+                fontFamily: callout.fontFamily || undefined,
+                fontSize: callout.fontSize ?? 24,
+                fontWeight: callout.bold ? 700 : undefined,
+                fontStyle: callout.italic ? 'italic' : undefined,
+                textDecoration: callout.underline ? 'underline' : undefined,
+                color: fxColor ?? callout.color ?? defaultColor,
+                whiteSpace: callout.textWrap ? 'normal' : 'nowrap',
+                textAlign: 'center',
+            }}
+        >
+            {formatCallout(value, callout, wf, type)}
+        </div>
+    );
+}
+
+/** The small label under a callout value. */
+function CategoryLabel({ visual, label }: { visual: Visual; label: string }) {
+    const category = normalizeCategoryLabelStyle(visual.categoryLabel);
+    if (!category.show) return null;
+    return (
+        <div
+            className="text-muted-foreground"
+            style={{
+                fontFamily: category.fontFamily || undefined,
+                fontSize: category.fontSize ?? 11,
+                fontWeight: category.bold ? 600 : undefined,
+                fontStyle: category.italic ? 'italic' : undefined,
+                textDecoration: category.underline ? 'underline' : undefined,
+                color: category.color || undefined,
+            }}
+        >
+            {label}
+        </div>
+    );
+}
+
+function ShapeVisual({ visual }: { visual: Visual }) {
+    return (
+        <ShapeGlyph
+            kind={visual.shape ?? 'rectangle'}
+            className="h-full w-full"
+            stroke={visual.background || 'var(--card)'}
+            strokeWidth={
+                visual.borderWidth && visual.borderWidth > 0
+                    ? visual.borderWidth
+                    : 2
+            }
+            radius={visual.radius}
+        />
+    );
+}
+
 /** Applies cross-filter / cross-highlight coming from another visual. */
 function useInteractiveRows(visual: Visual, rows: Row[]) {
     const { crossFilter, interactionFor, joins } = usePbi();
@@ -314,6 +521,21 @@ function ChartBody({
 }) {
     const { applyCrossFilter, setTooltipHover, tooltipHover } = usePbi();
 
+    const cf = normalizeConditionalFormat(visual.conditionalFormat);
+    const extra = useMemo(() => {
+        if (cf.style === 'none' || cf.style === 'fieldValue') return undefined;
+        if (cf.basedOn)
+            return (
+                wellForReference(
+                    { name: cf.basedOn, table: cf.basedOnTable },
+                    cfAggToAgg(cf.agg),
+                ) ?? undefined
+            );
+        return visual.values[0];
+    }, [cf, visual.values]);
+    const extraColor =
+        cf.style === 'fieldValue' && cf.fieldValue ? cf.fieldValue : undefined;
+
     const { data, series } = useMemo(
         () =>
             buildChartData(
@@ -323,9 +545,37 @@ function ChartBody({
                 visual.values,
                 visual.tooltips,
                 visual.maxCategories,
+                extra,
+                extraColor,
             ),
-        [rows, visual.axis, visual.legend, visual.values, visual.tooltips, visual.maxCategories],
+        [rows, visual.axis, visual.legend, visual.values, visual.tooltips, visual.maxCategories, extra, extraColor],
     );
+
+    const cfValues = useMemo(
+        () => data.map((d) => Number(d['_cf']) || 0),
+        [data],
+    );
+
+    /** Per-point conditional fill; falls back to the palette color. */
+    const pointFill = (
+        d: Record<string, string | number>,
+        fallback: string,
+    ) =>
+        conditionalColor(cf, d['_cf'] ?? null, cfValues, d['_cfx']) ?? fallback;
+
+    /** Whole-series color for line/area/scatter when formatting is active. */
+    const seriesColor = useMemo(() => {
+        if (cf.style === 'none') return null;
+        if (cf.style === 'fieldValue' && extraColor) {
+            for (const r of rows) {
+                const c = parseColorCell(r[extraColor]);
+                if (c) return c;
+            }
+            return null;
+        }
+        if (extra) return conditionalColor(cf, aggregate(rows, extra), [0]);
+        return null;
+    }, [cf, rows, extra, extraColor]);
 
     const scatter = useMemo(
         () =>
@@ -365,6 +615,116 @@ function ChartBody({
                 ? 1
                 : 0.2
             : 1;
+
+    /* ----- Cartesian (bar/column) style values ----- */
+
+    const horizontal =
+        visual.type === 'bar' ||
+        visual.type === 'stackedBar' ||
+        visual.type === 'stacked100Bar';
+    const xAxis = normalizeAxisStyle(visual.xAxis);
+    const yAxis = normalizeAxisStyle(visual.yAxis);
+    const gridlines = normalizeGridlinesStyle(visual.gridlines);
+    const bars = normalizeBarStyle(visual.bars);
+    const dataLabels = normalizeDataLabelStyle(visual.dataLabels);
+    const legend = normalizeLegendStyle(visual.legendStyle);
+    const plotArea = normalizePlotAreaStyle(visual.plotArea);
+
+    /** Base (series) fill honoring `bars.color` + palette rotation. */
+    const seriesBaseFill = (i: number) =>
+        bars.applyTo === 'all' && bars.color
+            ? bars.color
+            : PALETTE[(i + visual.colorIndex) % PALETTE.length];
+
+    /** Per-point fill: conditional format wins, then per-category color. */
+    const barFill = (
+        d: Record<string, string | number>,
+        i: number,
+    ) => {
+        const cat = String(d['category'] ?? '');
+        const perCat =
+            bars.applyTo === 'perCategory'
+                ? bars.categoryColors[cat]
+                : undefined;
+        return pointFill(d, perCat ?? seriesBaseFill(i));
+    };
+
+    /** Cell opacity combining cross-highlight + bar transparency. */
+    const barOpacity = (d: Record<string, string | number>) =>
+        itemOpacity(d) * (1 - (bars.transparency ?? 0) / 100);
+
+    const barRadius: number | [number, number, number, number] =
+        bars.radius ?? (horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0]);
+
+    const labelFormatter = (v: number) =>
+        dataLabels.displayUnits !== 'auto' ||
+        (dataLabels.decimals !== undefined &&
+            dataLabels.decimals !== null)
+            ? formatDisplayUnitValue(
+                  v,
+                  dataLabels.displayUnits,
+                  dataLabels.decimals,
+              )
+            : visualFmt(v, visual, visual.values[0]);
+
+    /** Legacy-safe: honor the pre-cartesian `showLabels` field too. */
+    const labelsShown = dataLabels.show || visual.showLabels === true;
+
+    const baseLabelStyle = fontStyleProps(dataLabels.font, {
+        fontSize: visual.fontSize ?? 9,
+        color: 'var(--muted-foreground)',
+        fontFamily: visual.fontFamily,
+    });
+
+    /** Per-series label style merging the shared base with any override. */
+    const labelStyleFor = (s: string) => {
+        const o =
+            dataLabels.applyTo === 'perSeries'
+                ? dataLabels.seriesStyles?.[s]
+                : undefined;
+        if (!o) return baseLabelStyle;
+        return fontStyleProps(
+            { ...(dataLabels.font ?? {}), ...(o.font ?? {}), color: o.color ?? o.font?.color },
+            {
+                fontSize: o.font?.fontSize ?? visual.fontSize ?? 9,
+                color:
+                    o.color ||
+                    dataLabels.font?.color ||
+                    'var(--muted-foreground)',
+                fontFamily:
+                    o.font?.fontFamily || visual.fontFamily,
+            },
+        );
+    };
+
+    /** Legacy-safe: honor the pre-cartesian `showLegend` field too. */
+    const legendShown =
+        legend.show &&
+        (visual.legendStyle !== undefined || visual.showLegend !== false);
+
+    const legendStyle = fontStyleProps(legend.font, {
+        fontSize: visual.fontSize ?? 10,
+        color: 'var(--muted-foreground)',
+        fontFamily: visual.fontFamily,
+    });
+
+    const plotStyle = {
+        background: plotArea.background || undefined,
+        border: plotArea.border
+            ? `${plotArea.borderWidth ?? 1}px solid ${
+                  plotArea.borderColor || 'var(--border)'
+              }`
+            : undefined,
+        borderRadius: 4,
+    } as const;
+
+    /** Wraps a chart in the plot-area surface (background/border). */
+    const plotWrap = (chart: React.ReactElement) =>
+        wrap(
+            <div className="h-full w-full" style={plotStyle}>
+                {chart}
+            </div>,
+        );
 
     /** Point renderer for line/area/combo: clickable dots, dimmed during highlight. */
     const pointDot = (color: string) => {
@@ -414,6 +774,19 @@ function ChartBody({
     );
 
     switch (visual.type) {
+        case 'shape':
+            return (
+                <div
+                    className="h-full w-full"
+                    style={{
+                        transform: visual.rotation
+                            ? `rotate(${visual.rotation}deg)`
+                            : undefined,
+                    }}
+                >
+                    <ShapeVisual visual={visual} />
+                </div>
+            );
         case 'text':
             return (
                 <div className="h-full w-full overflow-auto p-2 text-sm text-foreground">
@@ -428,7 +801,7 @@ function ChartBody({
                     className="h-full w-full object-contain"
                 />
             ) : (
-                <EmptyVisual label="Image — set a URL in Format" />
+                <EmptyVisual label="Image — upload or set a URL in Format" />
             );
         case 'button':
             return (
@@ -438,7 +811,7 @@ function ChartBody({
             );
         case 'slicer':
         case 'buttonSlicer':
-        case 'listSlicer':
+        case 'dropdownSlicer':
         case 'inputSlicer':
         case 'dateSlicer':
             return <SlicerVisual visual={visual} rows={rows} />;
@@ -484,54 +857,99 @@ function ChartBody({
 
     switch (visual.type) {
         case 'card': {
+            const callout = normalizeCalloutStyle(visual.callout);
             return wrap(
                 <div className="flex h-full flex-wrap items-center justify-around gap-2">
-                    {visual.values.map((v, i) => (
-                        <div key={i} className="flex flex-col items-center">
-                            <div className="text-3xl font-semibold tracking-tight text-foreground">
-                                {visualFmt(aggregate(rows, v), visual, v)}
+                    {visual.values.map((v, i) => {
+                        const type = fieldType(v.name, v.table);
+                        return (
+                            <div
+                                key={i}
+                                className="flex flex-col items-center"
+                                style={{
+                                    gap: callout.sourceSpacing ? 8 : 2,
+                                }}
+                            >
+                                <CalloutValue
+                                    visual={visual}
+                                    value={singleValue(rows, v)}
+                                    type={type}
+                                    wf={v}
+                                    defaultColor="var(--foreground)"
+                                />
+                                <CategoryLabel
+                                    visual={visual}
+                                    label={singleValueLabel(v, type)}
+                                />
+                                {visual.axis[0] && (
+                                    <div className="text-[10px] text-muted-foreground">
+                                        by {fieldLabel(visual.axis[0])}
+                                    </div>
+                                )}
                             </div>
-                            <div className="mt-1 text-[11px] text-muted-foreground">
-                                {measureLabel(v)}
-                            </div>
-                            {visual.axis[0] && (
-                                <div className="text-[10px] text-muted-foreground">
-                                    by {fieldLabel(visual.axis[0])}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>,
             );
         }
         case 'kpi': {
             const v = visual.values[0]!;
-            const val = aggregate(rows, v);
+            const type = fieldType(v.name, v.table);
+            const raw = singleValue(rows, v);
+            const numeric = typeof raw === 'number' && isFinite(raw);
+            const val = numeric ? raw : 0;
             const goal = val * 0.95;
             const good = val >= goal;
             return wrap(
                 <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <div
-                        className={cn(
-                            'text-3xl font-semibold tracking-tight',
-                            good ? 'text-success' : 'text-destructive',
-                        )}
-                    >
-                        {visualFmt(val, visual, v)}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                        {measureLabel(v)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                        Goal {visualFmt(goal, visual, v)}
-                    </div>
+                    <CalloutValue
+                        visual={visual}
+                        value={raw}
+                        type={type}
+                        wf={v}
+                        defaultColor={
+                            numeric
+                                ? good
+                                    ? 'var(--success)'
+                                    : 'var(--destructive)'
+                                : 'var(--foreground)'
+                        }
+                    />
+                    <CategoryLabel
+                        visual={visual}
+                        label={singleValueLabel(v, type)}
+                    />
+                    {numeric && (
+                        <div className="text-[10px] text-muted-foreground">
+                            Goal {visualFmt(goal, visual, v)}
+                        </div>
+                    )}
                 </div>,
             );
         }
         case 'gauge': {
             const v = visual.values[0]!;
-            const val = aggregate(rows, v);
+            const type = fieldType(v.name, v.table);
+            const raw = singleValue(rows, v);
+            const numeric = typeof raw === 'number' && isFinite(raw);
+            const val = numeric ? raw : 0;
             const max = val * 1.4 || 1;
+            if (!numeric)
+                return wrap(
+                    <div className="flex h-full flex-col items-center justify-center gap-1">
+                        <CalloutValue
+                            visual={visual}
+                            value={raw}
+                            type={type}
+                            wf={v}
+                            defaultColor="var(--foreground)"
+                        />
+                        <CategoryLabel
+                            visual={visual}
+                            label={singleValueLabel(v, type)}
+                        />
+                    </div>,
+                );
             return wrap(
                 <div className="relative h-full w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -556,9 +974,13 @@ function ChartBody({
                         </RadialBarChart>
                     </ResponsiveContainer>
                     <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center">
-                        <div className="text-xl font-semibold text-foreground">
-                            {visualFmt(val, visual, v)}
-                        </div>
+                        <CalloutValue
+                            visual={visual}
+                            value={val}
+                            type={type}
+                            wf={v}
+                            defaultColor="var(--foreground)"
+                        />
                         <div className="text-[10px] text-muted-foreground">
                             of {visualFmt(max, visual, v)}
                         </div>
@@ -586,12 +1008,13 @@ function ChartBody({
                             {data.map((d, i) => (
                                 <Cell
                                     key={i}
-                                    fill={
+                                    fill={pointFill(
+                                        d,
                                         PALETTE[
                                             (i + visual.colorIndex) %
                                                 PALETTE.length
-                                        ]
-                                    }
+                                        ],
+                                    )}
                                     fillOpacity={itemOpacity(d)}
                                 />
                             ))}
@@ -622,7 +1045,7 @@ function ChartBody({
                 fill:
                     matchSet && !matchSet.has(String(d['category']))
                         ? 'rgba(148,163,184,0.2)'
-                        : PALETTE[i % PALETTE.length],
+                        : pointFill(d, PALETTE[i % PALETTE.length]),
             }));
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
@@ -669,7 +1092,10 @@ function ChartBody({
                             {data.map((d, i) => (
                                 <Cell
                                     key={i}
-                                    fill={PALETTE[i % PALETTE.length]}
+                                    fill={pointFill(
+                                        d,
+                                        PALETTE[i % PALETTE.length],
+                                    )}
                                     fillOpacity={itemOpacity(d)}
                                 />
                             ))}
@@ -686,6 +1112,7 @@ function ChartBody({
                     base: number;
                     delta: number;
                     total: number;
+                    _cf?: string | number;
                 }[];
             }>(
                 (acc, d) => {
@@ -696,6 +1123,9 @@ function ChartBody({
                         base: acc.running,
                         delta: val,
                         total: running,
+                        ...(d['_cf'] !== undefined
+                            ? { _cf: d['_cf'] }
+                            : {}),
                     });
                     return { running, items: acc.items };
                 },
@@ -727,11 +1157,12 @@ function ChartBody({
                             {wdata.map((d, i) => (
                                 <Cell
                                     key={i}
-                                    fill={
+                                    fill={pointFill(
+                                        d,
                                         d.delta >= 0
                                             ? 'var(--chart-2)'
-                                            : 'var(--destructive)'
-                                    }
+                                            : 'var(--destructive)',
+                                    )}
                                     fillOpacity={itemOpacity(d)}
                                 />
                             ))}
@@ -760,16 +1191,20 @@ function ChartBody({
                         {visual.showLegend && (
                             <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
-                        {series.map((s, i) => (
-                            <Line
-                                key={s}
-                                type="monotone"
-                                dataKey={s}
-                                stroke={PALETTE[i % PALETTE.length]}
-                                strokeWidth={2}
-                                dot={pointDot(PALETTE[i % PALETTE.length])}
-                            />
-                        ))}
+                        {series.map((s, i) => {
+                            const color =
+                                seriesColor ?? PALETTE[i % PALETTE.length];
+                            return (
+                                <Line
+                                    key={s}
+                                    type="monotone"
+                                    dataKey={s}
+                                    stroke={color}
+                                    strokeWidth={2}
+                                    dot={pointDot(color)}
+                                />
+                            );
+                        })}
                         {analyticsLines(visual, data, series)}
                     </LineChart>
                 </ResponsiveContainer>,
@@ -795,20 +1230,24 @@ function ChartBody({
                         {visual.showLegend && (
                             <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
-                        {series.map((s, i) => (
-                            <Area
-                                key={s}
-                                type="monotone"
-                                dataKey={s}
-                                {...(visual.type === 'stackedArea'
-                                    ? { stackId: '1' }
-                                    : {})}
-                                stroke={PALETTE[i % PALETTE.length]}
-                                fill={PALETTE[i % PALETTE.length]}
-                                fillOpacity={0.35}
-                                dot={pointDot(PALETTE[i % PALETTE.length])}
-                            />
-                        ))}
+                        {series.map((s, i) => {
+                            const color =
+                                seriesColor ?? PALETTE[i % PALETTE.length];
+                            return (
+                                <Area
+                                    key={s}
+                                    type="monotone"
+                                    dataKey={s}
+                                    {...(visual.type === 'stackedArea'
+                                        ? { stackId: '1' }
+                                        : {})}
+                                    stroke={color}
+                                    fill={color}
+                                    fillOpacity={0.35}
+                                    dot={pointDot(color)}
+                                />
+                            );
+                        })}
                     </AreaChart>
                 </ResponsiveContainer>,
             );
@@ -844,7 +1283,7 @@ function ChartBody({
                                     {data.map((d, idx) => (
                                         <Cell
                                             key={idx}
-                                            fill={PALETTE[0]}
+                                            fill={pointFill(d, PALETTE[0])}
                                             fillOpacity={itemOpacity(d)}
                                         />
                                     ))}
@@ -854,9 +1293,9 @@ function ChartBody({
                                     key={s}
                                     type="monotone"
                                     dataKey={s}
-                                    stroke={PALETTE[i]}
+                                    stroke={seriesColor ?? PALETTE[i]}
                                     strokeWidth={2}
-                                    dot={pointDot(PALETTE[i])}
+                                    dot={pointDot(seriesColor ?? PALETTE[i])}
                                 />
                             ),
                         )}
@@ -912,7 +1351,7 @@ function ChartBody({
                         <Tooltip content={chartTooltip(visual)} />
                         <Scatter
                             data={scData}
-                            fill="var(--chart-1)"
+                            fill={seriesColor ?? 'var(--chart-1)'}
                             onClick={onPointClick}
                             shape={
                                 matchSet
@@ -936,7 +1375,8 @@ function ChartBody({
                                                               payload?.category,
                                                           ),
                                                       )
-                                                          ? 'var(--chart-1)'
+                                                          ? (seriesColor ??
+                                                            'var(--chart-1)')
                                                           : 'rgba(148,163,184,0.25)'
                                                   }
                                               />
@@ -958,7 +1398,7 @@ function ChartBody({
                     ? normalize(data, series)
                     : data;
             const stacked = visual.type !== 'bar' || visual.legend.length > 0;
-            return wrap(
+            return plotWrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={bdata}
@@ -966,51 +1406,76 @@ function ChartBody({
                         margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
                     >
                         <CartesianGrid
-                            stroke="var(--border)"
-                            horizontal={false}
+                            stroke={gridlines.color}
+                            horizontal={gridlines.vertical}
+                            vertical={gridlines.horizontal}
+                            strokeDasharray={GRIDLINE_DASH[gridlines.style]}
                         />
                         <XAxis
                             type="number"
-                            tickFormatter={tickFmt(visual)}
-                            {...axisPropsFor(visual)}
+                            {...valueAxisProps(xAxis, visual, false)}
                         />
                         <YAxis
                             type="category"
                             dataKey="category"
                             width={90}
-                            {...axisPropsFor(visual)}
+                            {...categoryAxisProps(yAxis, visual, true)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
-                        {visual.showLegend && series.length > 1 && (
-                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
+                        {legendShown && series.length > 1 && (
+                            <Legend
+                                layout={
+                                    legend.position === 'left' ||
+                                    legend.position === 'right'
+                                        ? 'vertical'
+                                        : 'horizontal'
+                                }
+                                verticalAlign={
+                                    legend.position === 'top'
+                                        ? 'top'
+                                        : legend.position === 'bottom'
+                                          ? 'bottom'
+                                          : 'middle'
+                                }
+                                align={
+                                    legend.position === 'left'
+                                        ? 'left'
+                                        : legend.position === 'right'
+                                          ? 'right'
+                                          : 'center'
+                                }
+                                wrapperStyle={legendStyle}
+                            />
                         )}
                         {series.map((s, i) => (
                             <Bar
                                 key={s}
                                 dataKey={s}
                                 {...(stacked ? { stackId: 'a' } : {})}
-                                fill={
-                                    PALETTE[
-                                        (i + visual.colorIndex) % PALETTE.length
-                                    ]
-                                }
-                                radius={[0, 2, 2, 0]}
+                                fill={seriesBaseFill(i)}
+                                radius={barRadius}
                                 onClick={onPointClick}
                             >
                                 {bdata.map((d, idx) => (
                                     <Cell
                                         key={idx}
-                                        fill={
-                                            PALETTE[
-                                                (i + visual.colorIndex) %
-                                                    PALETTE.length
-                                            ]
-                                        }
-                                        fillOpacity={itemOpacity(d)}
+                                        fill={barFill(d, i)}
+                                        fillOpacity={barOpacity(d)}
                                     />
                                 ))}
+                                {labelsShown && (
+                                    <LabelList
+                                        position={labelPosition(
+                                            dataLabels.position,
+                                            true,
+                                        )}
+                                        formatter={labelFormatter}
+                                        style={labelStyleFor(s)}
+                                    />
+                                )}
                             </Bar>
                         ))}
+                        {analyticsLines(visual, bdata, series, true)}
                     </BarChart>
                 </ResponsiveContainer>,
             );
@@ -1029,65 +1494,78 @@ function ChartBody({
                 visual.type === 'stacked100Column' ||
                 visual.type === 'ribbon' ||
                 visual.legend.length > 0;
-            return wrap(
+            return plotWrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={cdata}
                         margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
                     >
                         <CartesianGrid
-                            stroke="var(--border)"
-                            vertical={false}
+                            stroke={gridlines.color}
+                            horizontal={gridlines.horizontal}
+                            vertical={gridlines.vertical}
+                            strokeDasharray={GRIDLINE_DASH[gridlines.style]}
                         />
-                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
-                        <YAxis
-                            tickFormatter={tickFmt(visual)}
-                            {...axisPropsFor(visual)}
+                        <XAxis
+                            dataKey="category"
+                            {...categoryAxisProps(xAxis, visual, false)}
                         />
+                        <YAxis {...valueAxisProps(yAxis, visual, true)} />
                         <Tooltip content={chartTooltip(visual)} />
-                        {visual.showLegend && series.length > 1 && (
-                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
+                        {legendShown && series.length > 1 && (
+                            <Legend
+                                layout={
+                                    legend.position === 'left' ||
+                                    legend.position === 'right'
+                                        ? 'vertical'
+                                        : 'horizontal'
+                                }
+                                verticalAlign={
+                                    legend.position === 'top'
+                                        ? 'top'
+                                        : legend.position === 'bottom'
+                                          ? 'bottom'
+                                          : 'middle'
+                                }
+                                align={
+                                    legend.position === 'left'
+                                        ? 'left'
+                                        : legend.position === 'right'
+                                          ? 'right'
+                                          : 'center'
+                                }
+                                wrapperStyle={legendStyle}
+                            />
                         )}
                         {series.map((s, i) => (
                             <Bar
                                 key={s}
                                 dataKey={s}
                                 {...(stacked ? { stackId: 'a' } : {})}
-                                fill={
-                                    PALETTE[
-                                        (i + visual.colorIndex) % PALETTE.length
-                                    ]
-                                }
-                                radius={[2, 2, 0, 0]}
+                                fill={seriesBaseFill(i)}
+                                radius={barRadius}
                                 onClick={onPointClick}
                             >
                                 {cdata.map((d, idx) => (
                                     <Cell
                                         key={idx}
-                                        fill={
-                                            PALETTE[
-                                                (i + visual.colorIndex) %
-                                                    PALETTE.length
-                                            ]
-                                        }
-                                        fillOpacity={itemOpacity(d)}
+                                        fill={barFill(d, i)}
+                                        fillOpacity={barOpacity(d)}
                                     />
                                 ))}
-                                {visual.showLabels && (
+                                {labelsShown && (
                                     <LabelList
-                                        position="top"
-                                        formatter={(v: number) =>
-                                            visualFmt(v, visual, visual.values[0])
-                                        }
-                                        style={{
-                                            fontSize: visual.fontSize ?? 9,
-                                            fill: 'var(--muted-foreground)',
-                                        }}
+                                        position={labelPosition(
+                                            dataLabels.position,
+                                            false,
+                                        )}
+                                        formatter={labelFormatter}
+                                        style={labelStyleFor(s)}
                                     />
                                 )}
                             </Bar>
                         ))}
-                        {analyticsLines(visual, cdata, series)}
+                        {analyticsLines(visual, cdata, series, false)}
                     </BarChart>
                 </ResponsiveContainer>,
             );
@@ -1101,6 +1579,8 @@ function normalize(data: Record<string, string | number>[], series: string[]) {
         const out: Record<string, string | number> = {
             category: d['category'] as string,
         };
+        if (d['_cf'] !== undefined) out['_cf'] = d['_cf'];
+        if (d['_cfx'] !== undefined) out['_cfx'] = d['_cfx'];
         series.forEach((s) => (out[s] = ((Number(d[s]) || 0) / total) * 100));
         return out;
     });
@@ -1110,43 +1590,61 @@ function analyticsLines(
     visual: Visual,
     data: Record<string, string | number>[],
     series: string[],
+    horizontal = false,
 ) {
     if (!visual.analytics.length || !series.length) return null;
     const key = series[0]!;
     const vals = data.map((d) => Number(d[key]) || 0);
     const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
     const max = Math.max(...vals, 0);
+    const min = vals.length ? Math.min(...vals) : 0;
+    const sorted = [...vals].sort((a, b) => a - b);
+    const median = sorted.length
+        ? sorted.length % 2
+            ? sorted[Math.floor(sorted.length / 2)]!
+            : (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) /
+              2
+        : 0;
+    /** Stat line (average/constant/min/max/median) positioned on the value axis. */
+    const statLine = (value: number, color: string, label: string) => (
+        <ReferenceLine
+            key={label}
+            {...(horizontal ? { x: value } : { y: value })}
+            stroke={color}
+            strokeDasharray="4 4"
+            label={{
+                value: label,
+                fontSize: 9,
+                fill: 'var(--muted-foreground)',
+            }}
+        />
+    );
     return visual.analytics.map((a) => {
         if (a.kind === 'average')
-            return (
-                <ReferenceLine
-                    key="avg"
-                    y={avg}
-                    stroke="var(--chart-4)"
-                    strokeDasharray="4 4"
-                    label={{
-                        value: `Average ${visualFmt(
-                            avg,
-                            visual,
-                            visual.values[0],
-                        )}`,
-                        fontSize: 9,
-                        fill: 'var(--muted-foreground)',
-                    }}
-                />
+            return statLine(
+                avg,
+                'var(--chart-4)',
+                `Average ${visualFmt(avg, visual, visual.values[0])}`,
             );
         if (a.kind === 'constant')
-            return (
-                <ReferenceLine
-                    key="const"
-                    y={a.value ?? max * 0.8}
-                    stroke="var(--chart-5)"
-                    label={{
-                        value: 'Target',
-                        fontSize: 9,
-                        fill: 'var(--muted-foreground)',
-                    }}
-                />
+            return statLine(a.value ?? max * 0.8, 'var(--chart-5)', 'Target');
+        if (a.kind === 'min')
+            return statLine(
+                min,
+                'var(--chart-6)',
+                `Min ${visualFmt(min, visual, visual.values[0])}`,
+            );
+        if (a.kind === 'max')
+            return statLine(
+                max,
+                'var(--chart-6)',
+                `Max ${visualFmt(max, visual, visual.values[0])}`,
+            );
+        if (a.kind === 'median')
+            return statLine(
+                median,
+                'var(--chart-6)',
+                `Median ${visualFmt(median, visual, visual.values[0])}`,
             );
         if (a.kind === 'trend' || a.kind === 'forecast')
             return (
@@ -1170,11 +1668,27 @@ function analyticsLines(
 function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const groupCol = visual.axis[0]?.name;
     const legendCol = visual.legend[0]?.name;
+    const cf = normalizeConditionalFormat(visual.conditionalFormat);
+    const extra =
+        cf.style === 'none' || cf.style === 'fieldValue'
+            ? undefined
+            : cf.basedOn
+              ? (wellForReference(
+                    { name: cf.basedOn, table: cf.basedOnTable },
+                    cfAggToAgg(cf.agg),
+                ) ?? undefined)
+              : visual.values[0];
+    const extraColor =
+        cf.style === 'fieldValue' && cf.fieldValue ? cf.fieldValue : undefined;
     const { data, series } = buildChartData(
         rows,
         visual.axis,
         visual.type === 'matrix' ? visual.legend : [],
         visual.values,
+        [],
+        undefined,
+        extra,
+        extraColor,
     );
     if (!groupCol && !visual.values.length)
         return <EmptyVisual label="Table" />;
@@ -1184,24 +1698,12 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
             Math.max(...data.map((d) => Number(d[s]) || 0), 1),
         ]),
     );
-    const cf = normalizeConditionalFormat(visual.conditionalFormat);
+    const cfValues = data.map((d) => Number(d['_cf']) || 0);
 
-    /** Background tint for a value in a column when colorScale is on. */
-    const scaleColor = (col: string, val: number): string => {
-        const max = Number(maxByCol[col]) || 1;
-        const ratio = Math.max(0, Math.min(1, val / max));
-        const mid = cf.midColor;
-        const from = cf.minColor;
-        const to = cf.maxColor;
-        const mix = (a: string, b: string, t: number): string =>
-            a.startsWith('oklch') && b.startsWith('oklch')
-                ? oklchMix(a, b, t)
-                : t < 0.5
-                  ? from
-                  : to;
-        const c = ratio < 0.5 ? mix(from, mid, ratio * 2) : mix(mid, to, (ratio - 0.5) * 2);
-        return c;
-    };
+    /** Background tint for a table cell when conditional formatting is on. */
+    const cellColor = (d: Record<string, string | number>) =>
+        conditionalColor(cf, d['_cf'] ?? null, cfValues, d['_cfx']);
+
     const totals = series.map((s) =>
         data.reduce((t, d) => t + (Number(d[s]) || 0), 0),
     );
@@ -1241,25 +1743,24 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                                 const val = Number(d[s]) || 0;
                                 const pct =
                                     (val / (maxByCol[s] as number)) * 100;
+                                const background = cellColor(d);
                                 return (
                                     <td
                                         key={s}
                                         className="relative border-b border-border px-2 py-1 text-right tabular-nums"
                                         style={
-                                            cf.mode === 'colorScale'
-                                                ? {
-                                                      backgroundColor:
-                                                          scaleColor(s, val),
-                                                  }
+                                            background
+                                                ? { backgroundColor: background }
                                                 : undefined
                                         }
                                     >
-                                        {cf.mode === 'databars' && (
+                                        {cf.showDataBars && (
                                             <span
                                                 className="absolute inset-y-[2px] left-0 rounded-sm"
                                                 style={{
                                                     width: `${pct}%`,
-                                                    backgroundColor: cf.maxColor,
+                                                    backgroundColor:
+                                                        cf.max.color,
                                                     opacity: 0.15,
                                                 }}
                                             />
@@ -1298,17 +1799,87 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         slicerSelections,
         slicerDateRanges,
         toggleSlicer,
+        setSlicerSelection,
         setSlicerDateRange,
         clearSlicer,
     } = usePbi();
     const [q, setQ] = useState('');
+    const [open, setOpen] = useState(false);
     const col = visual.axis[0]?.name;
     const selection = slicerSelections[visual.id] ?? [];
     if (!col) return <EmptyVisual label="Slicer" />;
-    const values = distinctValues(col, rows).filter((v) =>
+    const allValues = distinctValues(col, rows);
+    const values = allValues.filter((v) =>
         v.toLowerCase().includes(q.toLowerCase()),
     );
     const isOn = (v: string) => selection.includes(slicerKey(visual.axis[0]?.table, col, v));
+    const selectedValue = allValues.find(isOn) ?? null;
+
+    if (visual.type === 'dropdownSlicer')
+        return (
+            <div className="flex h-full flex-col justify-center p-1">
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        <button
+                            className="flex w-full items-center gap-1.5 rounded border border-border bg-background px-2 py-1.5 text-left text-[11px] hover:bg-accent"
+                            onClick={() => setOpen((o) => !o)}
+                        >
+                            <span className="min-w-0 flex-1 truncate">
+                                {selectedValue ?? 'All'}
+                            </span>
+                            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                        align="start"
+                        className="flex max-h-64 w-60 flex-col p-0"
+                    >
+                        <div className="flex items-center gap-1 border-b border-border p-1.5">
+                            <input
+                                value={q}
+                                onChange={(e) => setQ(e.target.value)}
+                                placeholder="Search…"
+                                className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-1 text-[11px] focus:outline-none"
+                            />
+                            {selectedValue && (
+                                <button
+                                    onClick={() =>
+                                        setSlicerSelection(visual.id, col, null)
+                                    }
+                                    aria-label="Clear slicer"
+                                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                >
+                                    <X className="size-3" />
+                                </button>
+                            )}
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-auto p-1">
+                            {values.map((v) => (
+                                <button
+                                    key={v}
+                                    onClick={() => {
+                                        setSlicerSelection(visual.id, col, v);
+                                        setQ('');
+                                        setOpen(false);
+                                    }}
+                                    className={cn(
+                                        'block w-full truncate rounded px-1.5 py-1 text-left text-[11px] hover:bg-accent',
+                                        isOn(v) && 'bg-brand/15 font-medium',
+                                    )}
+                                >
+                                    {v}
+                                </button>
+                            ))}
+                            {!values.length && (
+                                <div className="px-1.5 py-1 text-[10px] text-muted-foreground">
+                                    No values
+                                </div>
+                            )}
+                        </div>
+                    </PopoverContent>
+                </Popover>
+            </div>
+        );
 
     if (visual.type === 'inputSlicer')
         return (
@@ -1336,48 +1907,210 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
             </div>
         );
 
-    if (visual.type === 'dateSlicer')
-        {
+    if (visual.type === 'dateSlicer') {
         const range = slicerDateRanges[visual.id] ?? {};
+        const mode: SlicerDateMode = range.mode ?? 'between';
+        const dateVals = allValues.filter((v) =>
+            /^\d{4}-\d{2}-\d{2}/.test(v),
+        );
+        const minIso = dateVals[0];
+        const maxIso = dateVals[dateVals.length - 1];
+        const minMs = minIso ? new Date(`${minIso}T00:00:00`).getTime() : 0;
+        const maxMs = maxIso ? new Date(`${maxIso}T00:00:00`).getTime() : 0;
+        const hasDomain = !!minIso && !!maxIso && minMs < maxMs;
+        const msToIso = (ms: number) => {
+            const d = new Date(ms);
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${d.getFullYear()}-${m}-${day}`;
+        };
+        const STEP = 86_400_000;
+        const MODES: { value: SlicerDateMode; label: string }[] = [
+            { value: 'between', label: 'Between' },
+            { value: 'before', label: 'Before' },
+            { value: 'after', label: 'After' },
+            { value: 'relative', label: 'Relative' },
+        ];
+        const RELATIVE_PRESETS: { key: RelativePreset; label: string }[] = [
+            { key: 'today', label: 'Today' },
+            { key: 'yesterday', label: 'Yesterday' },
+            { key: 'last7days', label: 'Last 7 days' },
+            { key: 'last30days', label: 'Last 30 days' },
+            { key: 'last90days', label: 'Last 90 days' },
+            { key: 'thisMonth', label: 'This month' },
+            { key: 'lastMonth', label: 'Last month' },
+            { key: 'thisYear', label: 'This year' },
+            { key: 'lastYear', label: 'Last year' },
+            { key: 'ytd', label: 'YTD' },
+        ];
+        const set = (patch: Partial<typeof range>) =>
+            setSlicerDateRange(visual.id, { ...range, ...patch });
+
+        let body: React.ReactNode;
+        if (mode === 'relative') {
+            body = (
+                <div className="flex flex-wrap gap-1">
+                    {RELATIVE_PRESETS.map((p) => {
+                        const active = range.relative === p.key;
+                        return (
+                            <button
+                                key={p.key}
+                                onClick={() =>
+                                    set({
+                                        mode: 'relative',
+                                        relative: p.key,
+                                        from: undefined,
+                                        to: undefined,
+                                    })
+                                }
+                                className={cn(
+                                    'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+                                    active
+                                        ? 'border-brand bg-brand text-brand-foreground'
+                                        : 'border-border hover:bg-accent',
+                                )}
+                            >
+                                {p.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        } else if (mode === 'before') {
+            body = (
+                <>
+                    {hasDomain && (
+                        <Slider
+                            min={minMs}
+                            max={maxMs}
+                            step={STEP}
+                            value={[range.to ? new Date(`${range.to}T00:00:00`).getTime() : maxMs]}
+                            onValueChange={([v]) =>
+                                set({ mode: 'before', to: msToIso(v), from: undefined })
+                            }
+                        />
+                    )}
+                    <label className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">To</span>
+                        <input
+                            type="date"
+                            value={range.to ?? ''}
+                            onChange={(e) =>
+                                set({
+                                    mode: 'before',
+                                    to: e.target.value || undefined,
+                                    from: undefined,
+                                })
+                            }
+                            className="rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                </>
+            );
+        } else if (mode === 'after') {
+            body = (
+                <>
+                    {hasDomain && (
+                        <Slider
+                            min={minMs}
+                            max={maxMs}
+                            step={STEP}
+                            value={[range.from ? new Date(`${range.from}T00:00:00`).getTime() : minMs]}
+                            onValueChange={([v]) =>
+                                set({ mode: 'after', from: msToIso(v), to: undefined })
+                            }
+                        />
+                    )}
+                    <label className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">From</span>
+                        <input
+                            type="date"
+                            value={range.from ?? ''}
+                            onChange={(e) =>
+                                set({
+                                    mode: 'after',
+                                    from: e.target.value || undefined,
+                                    to: undefined,
+                                })
+                            }
+                            className="rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                </>
+            );
+        } else {
+            body = (
+                <>
+                    {hasDomain && (
+                        <Slider
+                            min={minMs}
+                            max={maxMs}
+                            step={STEP}
+                            value={[
+                                range.from ? new Date(`${range.from}T00:00:00`).getTime() : minMs,
+                                range.to ? new Date(`${range.to}T00:00:00`).getTime() : maxMs,
+                            ]}
+                            onValueChange={([a, b]) =>
+                                set({ mode: 'between', from: msToIso(a), to: msToIso(b) })
+                            }
+                        />
+                    )}
+                    <label className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">From</span>
+                        <input
+                            type="date"
+                            value={range.from ?? ''}
+                            onChange={(e) =>
+                                set({ mode: 'between', from: e.target.value || undefined })
+                            }
+                            className="rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                    <label className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">To</span>
+                        <input
+                            type="date"
+                            value={range.to ?? ''}
+                            onChange={(e) =>
+                                set({ mode: 'between', to: e.target.value || undefined })
+                            }
+                            className="rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                </>
+            );
+        }
+
         return (
             <div className="flex h-full flex-col justify-center gap-2 p-2 text-[11px]">
-                <button
-                    onClick={() => setSlicerDateRange(visual.id, {})}
-                    className="self-end text-[10px] text-muted-foreground hover:text-foreground"
-                >
-                    Clear
-                </button>
-                <label className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">From</span>
-                    <input
-                        type="date"
-                        value={range.from ?? ''}
-                        onChange={(e) =>
-                            setSlicerDateRange(visual.id, {
-                                ...range,
-                                from: e.target.value || undefined,
-                            })
-                        }
-                        className="rounded border border-border bg-background px-2 py-1"
-                    />
-                </label>
-                <label className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">To</span>
-                    <input
-                        type="date"
-                        value={range.to ?? ''}
-                        onChange={(e) =>
-                            setSlicerDateRange(visual.id, {
-                                ...range,
-                                to: e.target.value || undefined,
-                            })
-                        }
-                        className="rounded border border-border bg-background px-2 py-1"
-                    />
-                </label>
+                <div className="flex items-center justify-between gap-1">
+                    <div className="flex gap-1">
+                        {MODES.map((m) => (
+                            <button
+                                key={m.value}
+                                onClick={() => set({ mode: m.value })}
+                                className={cn(
+                                    'rounded px-1.5 py-0.5 text-[9px] transition-colors',
+                                    mode === m.value
+                                        ? 'bg-brand text-brand-foreground'
+                                        : 'bg-accent/50 text-muted-foreground hover:bg-accent',
+                                )}
+                            >
+                                {m.label}
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        onClick={() => setSlicerDateRange(visual.id, {})}
+                        className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                        Clear
+                    </button>
+                </div>
+                {body}
             </div>
         );
-        }
+    }
 
     if (visual.type === 'buttonSlicer')
         return (

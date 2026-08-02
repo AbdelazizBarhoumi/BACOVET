@@ -1,52 +1,26 @@
 import {
     Bookmark,
     Braces,
-    Calendar,
-    ChartArea,
-    ChartBar,
-    ChartBarBig,
-    ChartCandlestick,
-    ChartColumn,
-    ChartColumnBig,
-    ChartLine,
-    ChartPie,
-    ChartScatter,
-    ChartSpline,
-    CheckCheck,
     ChevronDown,
-    Circle,
     Columns3,
-    Donut,
     FolderCog,
-    Frame,
-    Gauge,
-    Grid3x3,
-    Hexagon,
     Image,
     Layers,
-    LayoutGrid,
     Link2,
-    List,
-    ListFilter,
-    Map,
-    MapPin,
-    SquareMousePointer,
-    Table2,
-    TextCursorInput,
-    Ticket,
-    ToggleLeft,
-    TrendingUp,
-    Type,
     MousePointerClick,
     Palette,
+    Shapes as ShapesIcon,
+    SquareMousePointer,
+    Type,
 } from 'lucide-react';
 import { useState } from 'react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SHAPE_KINDS, SHAPES, ShapeGlyph } from '@/lib/pbi/shapes';
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
 const TABS = [
     'Insert',
-    'Modeling',
     'View',
 ] as const;
 
@@ -60,6 +34,8 @@ type Action = {
 type Group = {
     title: string;
     actions: Action[];
+    /** when present, renders a single custom control instead of actions */
+    menu?: React.ReactNode;
 };
 
 function Group({
@@ -94,6 +70,50 @@ function RibbonButton({ label, icon: Icon, onClick, active }: Action) {
     );
 }
 
+/** A single "Shapes" button that opens a grid of shape glyphs on click. */
+function ShapesMenu() {
+    const { addShape } = usePbi();
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <button
+                    className="flex h-[62px] w-[74px] flex-col items-center justify-center gap-1 rounded px-1 text-[10px] leading-tight text-foreground transition-colors hover:bg-accent"
+                    aria-label="Insert shapes"
+                >
+                    <ShapesIcon className="size-5 text-foreground" strokeWidth={1.6} />
+                    <span className="flex items-center gap-0.5">
+                        Shapes
+                        <ChevronDown className="size-2.5 text-muted-foreground" />
+                    </span>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="start"
+                sideOffset={8}
+                className="w-auto p-2"
+            >
+                <div className="grid grid-cols-3 gap-1">
+                    {SHAPE_KINDS.map((kind) => (
+                        <button
+                            key={kind}
+                            title={SHAPES[kind].label}
+                            onClick={() => addShape(kind)}
+                            className="flex h-8 w-8 items-center justify-center rounded border border-transparent p-1.5 text-foreground transition-colors hover:border-brand hover:bg-accent"
+                        >
+                            <ShapeGlyph
+                                kind={kind}
+                                stroke="#000000"
+                                strokeWidth={2.5}
+                                className="h-full w-full"
+                            />
+                        </button>
+                    ))}
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 export function Ribbon({
     onOpenDax,
     onOpenManage,
@@ -117,60 +137,9 @@ export function Ribbon({
     const groups: Record<string, Group[]> = {
         Insert: [
             {
-                title: 'Comparison',
-                actions: [
-                    { label: 'Clustered column', icon: ChartColumnBig, onClick: () => addVisual('column') },
-                    { label: 'Stacked column', icon: ChartColumn, onClick: () => addVisual('stackedColumn') },
-                    { label: '100% stacked column', icon: ChartColumn, onClick: () => addVisual('stacked100Column') },
-                    { label: 'Clustered bar', icon: ChartBarBig, onClick: () => addVisual('bar') },
-                    { label: 'Stacked bar', icon: ChartBar, onClick: () => addVisual('stackedBar') },
-                    { label: '100% stacked bar', icon: ChartBar, onClick: () => addVisual('stacked100Bar') },
-                    { label: 'Line', icon: ChartLine, onClick: () => addVisual('line') },
-                    { label: 'Area', icon: ChartArea, onClick: () => addVisual('area') },
-                    { label: 'Stacked area', icon: ChartArea, onClick: () => addVisual('stackedArea') },
-                    { label: 'Combo', icon: ChartSpline, onClick: () => addVisual('combo') },
-                ],
-            },
-            {
-                title: 'Part to whole',
-                actions: [
-                    { label: 'Pie', icon: ChartPie, onClick: () => addVisual('pie') },
-                    { label: 'Donut', icon: Donut, onClick: () => addVisual('donut') },
-                    { label: 'Treemap', icon: LayoutGrid, onClick: () => addVisual('treemap') },
-                    { label: 'Funnel', icon: ListFilter, onClick: () => addVisual('funnel') },
-                    { label: 'Ribbon', icon: Ticket, onClick: () => addVisual('ribbon') },
-                    { label: 'Waterfall', icon: ChartCandlestick, onClick: () => addVisual('waterfall') },
-                    { label: 'Scatter', icon: ChartScatter, onClick: () => addVisual('scatter') },
-                    { label: 'Bubble', icon: Circle, onClick: () => addVisual('bubble') },
-                ],
-            },
-            {
-                title: 'Single value',
-                actions: [
-                    { label: 'Card', icon: Frame, onClick: () => addVisual('card') },
-                    { label: 'KPI', icon: TrendingUp, onClick: () => addVisual('kpi') },
-                    { label: 'Gauge', icon: Gauge, onClick: () => addVisual('gauge') },
-                    { label: 'Table', icon: Table2, onClick: () => addVisual('table') },
-                    { label: 'Matrix', icon: Grid3x3, onClick: () => addVisual('matrix') },
-                ],
-            },
-            {
-                title: 'Maps',
-                actions: [
-                    { label: 'Map', icon: MapPin, onClick: () => addVisual('map') },
-                    { label: 'Filled map', icon: Map, onClick: () => addVisual('filledMap') },
-                    { label: 'Shape map', icon: Hexagon, onClick: () => addVisual('shapeMap') },
-                ],
-            },
-            {
-                title: 'Slicers',
-                actions: [
-                    { label: 'Slicer (checkbox)', icon: CheckCheck, onClick: () => addVisual('slicer') },
-                    { label: 'Button slicer', icon: ToggleLeft, onClick: () => addVisual('buttonSlicer') },
-                    { label: 'List slicer', icon: List, onClick: () => addVisual('listSlicer') },
-                    { label: 'Input slicer', icon: TextCursorInput, onClick: () => addVisual('inputSlicer') },
-                    { label: 'Date slicer', icon: Calendar, onClick: () => addVisual('dateSlicer') },
-                ],
+                title: 'Shapes',
+                actions: [],
+                menu: <ShapesMenu />,
             },
             {
                 title: 'Elements',
@@ -181,8 +150,6 @@ export function Ribbon({
                     { label: 'Bookmark', icon: Bookmark, onClick: () => addBookmark('') },
                 ],
             },
-        ],
-        Modeling: [
             {
                 title: 'Calculations',
                 actions: [
@@ -285,9 +252,11 @@ export function Ribbon({
                 <div className="flex h-[100px] items-stretch overflow-x-auto border-t border-border bg-ribbon">
                     {active.map((g) => (
                         <Group key={g.title} title={g.title}>
-                            {g.actions.map((a) => (
-                                <RibbonButton key={a.label} {...a} />
-                            ))}
+                            {g.menu ?? (
+                                g.actions.map((a) => (
+                                    <RibbonButton key={a.label} {...a} />
+                                ))
+                            )}
                         </Group>
                     ))}
                 </div>

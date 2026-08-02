@@ -9,12 +9,14 @@
 import type { WorkBook } from 'xlsx';
 import { crossFilterRows, enrichRows, type JoinRegistry } from './joins';
 import {
-    aggregate,
     buildChartData,
     distinctValues,
     fieldLabel,
+    fieldType,
     formatWellValue,
     measureLabel,
+    singleValue,
+    singleValueLabel,
     visualTable,
     type CrossFilter,
     type Interaction,
@@ -69,7 +71,7 @@ const SINGLE_VALUE: VisualType[] = ['card', 'kpi', 'gauge'];
 
 const SLICERS: VisualType[] = [
     'slicer',
-    'listSlicer',
+    'dropdownSlicer',
     'buttonSlicer',
     'inputSlicer',
     'dateSlicer',
@@ -130,10 +132,16 @@ export function visualExportData(
         return {
             title: visual.name || 'Card',
             columns: ['Measure', 'Value'],
-            rows: visual.values.map((v) => [
-                measureLabel(v),
-                formatWellValue(aggregate(view, v), v, visual.numberFormat),
-            ]),
+            rows: visual.values.map((v) => {
+                const type = fieldType(v.name, v.table);
+                const raw = singleValue(view, v);
+                return [
+                    singleValueLabel(v, type),
+                    typeof raw === 'number'
+                        ? formatWellValue(raw, v, visual.numberFormat)
+                        : String(raw ?? ''),
+                ];
+            }),
         };
     }
 

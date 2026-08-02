@@ -7,6 +7,7 @@ use App\Models\BuilderActivityLogV5;
 use App\Models\BuilderPageV5;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class BuilderPageV5Controller extends Controller
@@ -75,6 +76,7 @@ class BuilderPageV5Controller extends Controller
             'name' => 'nullable|string|max:255',
             'slug' => 'nullable|string|max:255',
             'layout' => 'nullable|array',
+            'layout_draft' => 'nullable|array',
             'group_id' => 'nullable|integer|exists:builder_page_groups_v5,id',
         ]);
 
@@ -105,11 +107,23 @@ class BuilderPageV5Controller extends Controller
         if (array_key_exists('layout', $validated)) {
             $oldLayout = $page->getOriginal('layout');
             $page->layout = $validated['layout'];
+            $page->layout_draft = null;
+            $page->layout_draft_updated_at = null;
             $this->logActivity('layout.save', [
                 'page_id' => $page->id,
                 'page_slug' => $page->slug,
                 'page_name' => $page->name,
                 'detail' => $this->diffLayouts($oldLayout, $page->layout),
+            ]);
+        }
+
+        if (array_key_exists('layout_draft', $validated)) {
+            $page->layout_draft = $validated['layout_draft'];
+            $page->layout_draft_updated_at = now();
+            $this->logActivity('layout.checkpoint', [
+                'page_id' => $page->id,
+                'page_slug' => $page->slug,
+                'page_name' => $page->name,
             ]);
         }
 
@@ -180,6 +194,54 @@ class BuilderPageV5Controller extends Controller
             'message' => 'Page duplicated.',
             'page' => $page,
         ], 201);
+    }
+
+    public function uploadImage(Request $request, string $id): JsonResponse
+    {
+        $page = BuilderPageV5::find($id);
+
+        if (! $page) {
+            return response()->json(['message' => 'Page not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'image' => 'required|file|image|mimes:jpg,jpeg,png,gif,webp|max:10240',
+        ]);
+
+        $path = $request->file('image')->store(
+            'v5-images/'.$page->id,
+            'public'
+        );
+
+        $url = route('v5.page.image', [
+            'id' => $page->id,
+            'filename' => basename($path),
+        ]);
+
+        return response()->json(['url' => $url]);
+    }
+
+    public function showImage(string $id, string $filename)
+    {
+        $page = BuilderPageV5::find($id);
+
+        if (! $page) {
+            abort(404);
+        }
+
+        if (! preg_match('/^[a-z0-9_-]+\.(jpg|jpeg|png|gif|webp)$/i', $filename)) {
+            abort(404);
+        }
+
+        $path = 'v5-images/'.$page->id.'/'.$filename;
+
+        if (! Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        return Storage::disk('public')->response($path, null, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
     }
 
     private function uniqueSlug(string $base, $exceptId = null): string

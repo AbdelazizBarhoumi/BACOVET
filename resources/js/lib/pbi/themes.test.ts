@@ -49,35 +49,39 @@ describe('formatWellValue', () => {
 });
 
 describe('normalizeConditionalFormat', () => {
-    it('migrates a legacy boolean true to databars', () => {
+    it('migrates a legacy boolean true to data bars', () => {
         const cfg = normalizeConditionalFormat(true);
-        expect(cfg.mode).toBe('databars');
-        expect(cfg.minColor).toMatch(/^oklch/);
+        expect(cfg.showDataBars).toBe(true);
+        expect(cfg.style).toBe('none');
     });
 
     it('migrates a legacy boolean false to none', () => {
-        expect(normalizeConditionalFormat(false).mode).toBe('none');
+        expect(normalizeConditionalFormat(false).style).toBe('none');
     });
 
-    it('accepts a full object config', () => {
+    it('migrates a legacy { mode: databars } to data bars', () => {
+        expect(normalizeConditionalFormat({ mode: 'databars' }).showDataBars).toBe(
+            true,
+        );
+    });
+
+    it('migrates a legacy { mode: colorScale } to a gradient', () => {
         const cfg = normalizeConditionalFormat({
             mode: 'colorScale',
-            minColor: '#111',
-            midColor: '#222',
-            maxColor: '#333',
+            minColor: '#111111',
+            midColor: '#222222',
+            maxColor: '#333333',
         });
-        expect(cfg).toEqual({
-            mode: 'colorScale',
-            minColor: '#111',
-            midColor: '#222',
-            maxColor: '#333',
-        });
+        expect(cfg.style).toBe('gradient');
+        expect(cfg.min.color).toBe('#111111');
+        expect(cfg.max.color).toBe('#333333');
     });
 
-    it('falls back to none for unknown modes and fills missing colors', () => {
+    it('falls back to none for unknown modes and fills default colors', () => {
         const cfg = normalizeConditionalFormat({ mode: 'weird' });
-        expect(cfg.mode).toBe('none');
-        expect(cfg.minColor).toMatch(/^oklch/);
+        expect(cfg.style).toBe('none');
+        expect(cfg.min.color).toBe('#e11d48');
+        expect(cfg.max.color).toBe('#16a34a');
     });
 });
 

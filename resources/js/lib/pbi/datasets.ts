@@ -1,3 +1,4 @@
+import { handleV5Error } from '@/lib/v5-session';
 import {
     inferFieldType,
     type Field,
@@ -30,7 +31,10 @@ export async function fetchEndpointDatasets(
         headers: { Accept: 'application/json' },
         signal,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+        handleV5Error(res.status);
+        throw new Error(`HTTP ${res.status}`);
+    }
     const body: unknown = await res.json();
     if (
         body &&

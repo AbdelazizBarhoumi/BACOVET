@@ -10,6 +10,27 @@ use Illuminate\Http\JsonResponse;
 class EndpointDatasetV5Controller extends Controller
 {
     /**
+     * Schema analysis (primary keys, shared join columns, FK candidates) for
+     * the V5 builder. Lives under the v5.auth guard so the report editor can
+     * build its cross-table join registry without the main IT/web session.
+     */
+    public function schema(): JsonResponse
+    {
+        $result = (new NovacityEndpointsController)->schemaData();
+
+        if ($result === null) {
+            return response()->json([
+                'entries' => [],
+                'columns' => [],
+                'foreign_keys' => [],
+                'generated_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
      * Merge the tabular structure from data.json with the rows stored by
      * sync:endpoint-datasets (fetched live from NOVACITY_BASE_URL).
      */

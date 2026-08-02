@@ -473,10 +473,29 @@ class NovacityEndpointsController extends Controller
      */
     public function schema(Request $request): JsonResponse
     {
+        $result = $this->schemaData((string) $request->query('column', ''));
+
+        if ($result === null) {
+            return response()->json(['error' => 'data.json not found or invalid'], 404);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Run the schema analysis over the endpoint registry.
+     *
+     * Shared with the V5 builder (via the v5.auth-protected /api/v5/schema
+     * route) so cross-table joins work without the main IT/web guard.
+     *
+     * @return array{entries: array<int, array<string, mixed>>, columns: array<int, array<string, mixed>>, foreign_keys: array<int, array<string, mixed>>, generated_at: string}|null
+     */
+    public function schemaData(?string $column = null): ?array
+    {
         $items = $this->loadItems();
 
         if ($items === null) {
-            return response()->json(['error' => 'data.json not found or invalid'], 404);
+            return null;
         }
 
         if (self::$cachedSchema === null) {
@@ -485,16 +504,14 @@ class NovacityEndpointsController extends Controller
 
         $result = self::$cachedSchema;
 
-        $column = (string) $request->query('column', '');
-
-        if ($column !== '') {
+        if ($column !== null && $column !== '') {
             $result['columns'] = array_values(array_filter(
                 $result['columns'],
                 fn ($shared) => strcasecmp((string) $shared['name'], $column) === 0
             ));
         }
 
-        return response()->json($result);
+        return $result;
     }
 
     /**

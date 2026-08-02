@@ -84,6 +84,43 @@ class BuilderPageV5Test extends TestCase
         $this->assertDatabaseHas('builder_activity_logs_v5', ['action' => 'layout.save']);
     }
 
+    public function test_update_saves_layout_draft_without_committing_layout(): void
+    {
+        $page = BuilderPageV5::factory()->create(['name' => 'Draft', 'layout' => null]);
+
+        $response = $this->putJson("/api/v5/builder-pages/{$page->id}", [
+            'layout_draft' => ['version' => 2, 'pbi' => ['pages' => []]],
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertNull($response['page']['layout']);
+        $this->assertSame(['version' => 2, 'pbi' => ['pages' => []]], $response['page']['layout_draft']);
+        $this->assertNotNull($response['page']['layout_draft_updated_at']);
+        $this->assertDatabaseHas('builder_activity_logs_v5', [
+            'page_id' => $page->id,
+            'action' => 'layout.checkpoint',
+        ]);
+    }
+
+    public function test_update_committing_layout_clears_draft(): void
+    {
+        $page = BuilderPageV5::factory()->create([
+            'name' => 'Commit',
+            'layout_draft' => ['version' => 2, 'pbi' => ['pages' => []]],
+            'layout_draft_updated_at' => now(),
+        ]);
+
+        $response = $this->putJson("/api/v5/builder-pages/{$page->id}", [
+            'layout' => ['version' => 2, 'pbi' => ['pages' => [['id' => 'p1']]]],
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertNotNull($response['page']['layout']);
+        $this->assertNull($response['page']['layout_draft']);
+        $this->assertNull($response['page']['layout_draft_updated_at']);
+        $this->assertDatabaseHas('builder_activity_logs_v5', ['action' => 'layout.save']);
+    }
+
     public function test_destroy_deletes_page(): void
     {
         $page = BuilderPageV5::factory()->create();

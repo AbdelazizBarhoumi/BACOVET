@@ -7,7 +7,7 @@ import {
     visualExportData,
     type ExportDeps,
 } from './exportData';
-import { setTables, type Row, type TableDef, type Visual, type WellField } from './model';
+import { setTables, type TableDef, type Visual, type WellField } from './model';
 
 const sales: TableDef = {
     name: 'Sales',
@@ -132,7 +132,7 @@ describe('visualExportData', () => {
 
     it('exports a slicer as its distinct axis values', () => {
         const v = visual({
-            type: 'listSlicer',
+            type: 'dropdownSlicer',
             axis: [well('Category')],
         });
         const ds = visualExportData(v, sales.rows, deps)!;

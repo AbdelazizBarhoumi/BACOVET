@@ -45,13 +45,20 @@ import {
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
-import { fetchSchema } from '@/services/endpointManagerApi';
+import {
+    getV5CsrfToken,
+    handleV5Error,
+    statusOfError,
+} from '@/lib/v5-session';
+import { fetchV5Schema } from '@/services/endpointManagerApi';
 
 type PageProps = {
     pageId: number;
     slug: string;
     pageName: string;
     layout: { version?: number; pbi?: State } | null;
+    layoutDraft?: { version?: number; pbi?: State } | null;
+    layoutDraftUpdatedAt?: string | null;
 };
 
 function parseInitialState(layout: PageProps['layout']): State | undefined {
@@ -61,13 +68,56 @@ function parseInitialState(layout: PageProps['layout']): State | undefined {
     return { ...pbi, ribbonTab: 'Insert' };
 }
 
+function formatDraftTime(value: string): string {
+    const match = /(\d{2}):(\d{2})/.exec(value);
+    if (match) return `${match[1]}:${match[2]}`;
+    return value;
+}
+
 export default function V5PageView() {
     const { props } = usePage();
-    const { pageId, slug, pageName, layout } = props as unknown as PageProps;
+    const { pageId, slug, pageName, layout, layoutDraft, layoutDraftUpdatedAt } =
+        props as unknown as PageProps;
 
     const initialState = useMemo(() => parseInitialState(layout), [layout]);
     const [dirty, setDirty] = useState(false);
-    const onStoreChange = useCallback(() => setDirty(true), []);
+
+    // Only mark the report dirty for persistence-relevant changes. Transient
+    // UI state (hover, selection, cross-filter highlight, drillthrough) must
+    // not trigger checkpoints or dirty the layout.
+    const lastPersistedStateRef = useRef<State | undefined>(undefined);
+    const onStoreChange = useCallback((next: State) => {
+        const prev = lastPersistedStateRef.current;
+        lastPersistedStateRef.current = next;
+        // onChange only fires for real user actions (never on mount or
+        // internal syncs), so the first notification is always a change.
+        if (!prev) {
+            setDirty(true);
+            return;
+        }
+        const persistent = (s: State) => ({
+            pages: s.pages,
+            activePageId: s.activePageId,
+            filters: s.filters,
+            slicerSelections: s.slicerSelections,
+            slicerDateRanges: s.slicerDateRanges,
+            slicerSync: s.slicerSync,
+            interactions: s.interactions,
+            bookmarks: s.bookmarks,
+            theme: s.theme,
+            customThemes: s.customThemes,
+            showGridlines: s.showGridlines,
+            snapToGrid: s.snapToGrid,
+            zoom: s.zoom,
+            mobileView: s.mobileView,
+            ribbonTab: s.ribbonTab,
+            openPanes: s.openPanes,
+            editInteractions: s.editInteractions,
+        });
+        if (JSON.stringify(persistent(next)) !== JSON.stringify(persistent(prev))) {
+            setDirty(true);
+        }
+    }, []);
 
     const [tables, setTables] = useState<TableDef[]>([]);
     const [joins, setJoins] = useState<JoinRegistry>({});
@@ -85,7 +135,7 @@ export default function V5PageView() {
                 setTables(built);
                 setFailed(false);
                 try {
-                    const schema = await fetchSchema();
+                    const schema = await fetchV5Schema();
                     if (!stop) setJoins(buildJoinRegistry(schema, built));
                 } catch {
                     // shared join registry is best-effort; cross-table
@@ -175,6 +225,8 @@ export default function V5PageView() {
                     pageName={pageName}
                     dirty={dirty}
                     setDirty={setDirty}
+                    layoutDraft={layoutDraft}
+                    layoutDraftUpdatedAt={layoutDraftUpdatedAt}
                 />
             </PbiProvider>
             <Toaster />
@@ -188,33 +240,140 @@ function Shell({
     pageName,
     dirty,
     setDirty,
+    layoutDraft,
+    layoutDraftUpdatedAt,
 }: {
     pageId: number;
     slug: string;
     pageName: string;
     dirty: boolean;
     setDirty: (v: boolean) => void;
+    layoutDraft?: PageProps['layoutDraft'];
+    layoutDraftUpdatedAt?: string | null;
 }) {
-    const { state } = usePbi();
+    const { state, setState } = usePbi();
     const [mode, setMode] = useState<'view' | 'edit'>('view');
     const savingRef = useRef(false);
+    const draftSavingRef = useRef(false);
+    const [checkpointAt, setCheckpointAt] = useState<string | null>(null);
+    const [showDraftBanner, setShowDraftBanner] = useState(
+        () => !!layoutDraft?.pbi?.pages?.length,
+    );
+
+    // Always-available latest snapshot for the interval + unload flush.
+    const stateRef = useRef(state);
+    stateRef.current = state;
+    const lastSavedRef = useRef<string | null>(null);
+    const dirtyRef = useRef(dirty);
+    dirtyRef.current = dirty;
+
+    const flushDraft = useCallback(() => {
+        const { measures: _measures, ...pbi } = stateRef.current;
+        fetch(`/api/v5/builder-pages/${pageId}`, {
+            method: 'PUT',
+            keepalive: true,
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-XSRF-TOKEN': getV5CsrfToken(),
+            },
+            body: JSON.stringify({ layout_draft: { version: 2, pbi } }),
+        }).catch(() => {
+            // best-effort flush; the committed layout is untouched.
+        });
+    }, [pageId]);
 
     const save = async () => {
         if (savingRef.current) return;
         savingRef.current = true;
         try {
             // Measures live in the shared library, not the per-page layout.
-            const { measures: _measures, ...pbi } = state;
+            const { measures: _measures, ...pbi } = stateRef.current;
             await axios.put(`/api/v5/builder-pages/${pageId}`, {
                 layout: { version: 2, pbi },
             });
             toast.success('Layout enregistré');
             setDirty(false);
-        } catch {
+            setCheckpointAt(null);
+            setShowDraftBanner(false);
+        } catch (err) {
+            if (handleV5Error(statusOfError(err))) return;
             toast.error("Échec de l'enregistrement du layout");
         } finally {
             savingRef.current = false;
         }
+    };
+
+    const checkpoint = useCallback(async () => {
+        if (draftSavingRef.current) return;
+        const { measures: _measures, ...pbi } = stateRef.current;
+        const serialized = JSON.stringify(pbi);
+        if (serialized === lastSavedRef.current) return;
+        draftSavingRef.current = true;
+        try {
+            await axios.put(`/api/v5/builder-pages/${pageId}`, {
+                layout_draft: { version: 2, pbi },
+            });
+            lastSavedRef.current = serialized;
+            setCheckpointAt(
+                new Date().toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                }),
+            );
+            setShowDraftBanner(true);
+        } catch (err) {
+            if (!handleV5Error(statusOfError(err))) {
+                toast.error('Impossible de sauvegarder le brouillon');
+            }
+        } finally {
+            draftSavingRef.current = false;
+        }
+    }, [pageId]);
+
+    // Checkpoint autosave: every few seconds while dirty, persist the current
+    // work to the layout_draft column, which never overwrites the committed
+    // layout. Fixed interval (not a resetting debounce) so transient hover /
+    // selection activity cannot starve it.
+    useEffect(() => {
+        if (!dirty) return;
+        const timer = setInterval(() => {
+            void checkpoint();
+        }, 5000);
+        return () => clearInterval(timer);
+    }, [dirty, checkpoint]);
+
+    // Flush the latest draft when the page unloads (reload/navigation) so
+    // edits made right before leaving are not lost. keepalive lets the request
+    // complete during unload.
+    useEffect(() => {
+        if (!dirty) return;
+        const handler = () => flushDraft();
+        window.addEventListener('pagehide', handler);
+        return () => window.removeEventListener('pagehide', handler);
+    }, [dirty, flushDraft]);
+
+    // Also flush on unmount, which covers in-app (Inertia) navigation away
+    // from the editor where pagehide does not fire.
+    useEffect(() => {
+        return () => {
+            if (dirtyRef.current) flushDraft();
+        };
+    }, [flushDraft]);
+
+    const restoreDraft = () => {
+        const draft = layoutDraft?.pbi;
+        if (draft && Array.isArray(draft.pages) && draft.pages.length) {
+            setState({
+                ...JSON.parse(JSON.stringify(draft)),
+                ribbonTab: 'Insert',
+            });
+        }
+        setShowDraftBanner(false);
+        setCheckpointAt(
+            layoutDraftUpdatedAt ? formatDraftTime(layoutDraftUpdatedAt) : null,
+        );
     };
 
     return (
@@ -250,6 +409,11 @@ function Shell({
                                 <Save className="mr-1 h-3.5 w-3.5" />
                                 Enregistrer{dirty ? ' *' : ''}
                             </Button>
+                            {checkpointAt && (
+                                <span className="text-[10px] text-muted-foreground">
+                                    Brouillon {checkpointAt}
+                                </span>
+                            )}
                             <Button
                                 size="sm"
                                 variant="outline"
@@ -274,6 +438,30 @@ function Shell({
                     )}
                 </div>
             </header>
+
+            {showDraftBanner && (
+                <div className="flex items-center justify-between gap-3 border-b border-border bg-brand/15 px-3 py-1.5 text-[11px] text-foreground">
+                    <span>
+                        {checkpointAt
+                            ? `Un brouillon sauvegardé à ${checkpointAt} est disponible pour cette page.`
+                            : 'Un brouillon est disponible pour cette page.'}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-3">
+                        <button
+                            onClick={restoreDraft}
+                            className="font-medium underline hover:text-brand"
+                        >
+                            Restaurer le brouillon
+                        </button>
+                        <button
+                            onClick={() => setShowDraftBanner(false)}
+                            className="text-muted-foreground underline hover:text-foreground"
+                        >
+                            Ignorer
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {mode === 'view' ? <ViewBody /> : <EditBody /> }
         </div>

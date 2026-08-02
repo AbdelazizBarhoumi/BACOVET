@@ -1,21 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import {
     aggregate,
+    applyFx,
     buildChartData,
     compileMeasure,
     evaluateMeasure,
     fieldLabel,
+    formatCallout,
     inferFieldType,
     isMeasure,
     measureError,
     measureLabel,
+    normalizeCalloutStyle,
+    normalizeCategoryLabelStyle,
+    normalizeTitleStyle,
     normalizeWellField,
     parseDaxRef,
     parseFieldReference,
     registerMeasure,
     setTables,
+    singleValue,
+    singleValueLabel,
     unregisterMeasure,
     validateMeasureExpression,
+    type FxOp,
+    type FxRule,
     type TableDef,
 } from './model';
 import { slicerKey } from './store';
@@ -300,5 +309,184 @@ describe('measure error registry + unregistration', () => {
         unregisterMeasure('Temp');
         expect(isMeasure('Temp')).toBe(false);
         expect(measureError('Temp')).toBeUndefined();
+    });
+});
+
+describe('callout formatting', () => {
+    it('scales by display unit', () => {
+        const style = { displayUnits: 'thousands', decimals: 1 } as const;
+        expect(formatCallout(12_345, style)).toBe('12.3K');
+        expect(formatCallout(12_345, { displayUnits: 'millions', decimals: 1 })).toBe('0.0M');
+        expect(formatCallout(1_200_000, { displayUnits: 'millions', decimals: 1 })).toBe('1.2M');
+        expect(formatCallout(2_000_000_000, { displayUnits: 'billions', decimals: 1 })).toBe('2.0B');
+        expect(formatCallout(4_200, { displayUnits: 'none', decimals: 2 })).toBe('4,200.00');
+        expect(formatCallout(0.5, { displayUnits: 'percent', decimals: 1 })).toBe('50.0%');
+        expect(formatCallout(2500, { displayUnits: 'currency', decimals: 0 })).toBe('$2,500');
+    });
+
+    it('honors a per-field format over the callout unit', () => {
+        expect(
+            formatCallout(2500, { displayUnits: 'thousands', decimals: 1 }, { format: 'currency' }),
+        ).toBe('$2,500');
+    });
+
+    it('backfills missing numbers with an em dash', () => {
+        expect(formatCallout(NaN, { displayUnits: 'auto', decimals: 1 })).toBe('—');
+    });
+
+    it('formats text/date/boolean callout values through formatValue', () => {
+        const style = { displayUnits: 'thousands', decimals: 1 } as const;
+        expect(formatCallout('Hello', style, undefined, 'text')).toBe('Hello');
+        expect(formatCallout('2026-08-02', style, undefined, 'date')).toContain('Aug');
+        expect(formatCallout('2026-08-02', style, undefined, 'date')).toContain('2026');
+        expect(formatCallout(true, style, undefined, 'boolean')).toBe('Yes');
+        expect(formatCallout(false, style, undefined, 'boolean')).toBe('No');
+        expect(formatCallout(null, style, undefined, 'text')).toBe('—');
+        expect(formatCallout(12_345, style, undefined, 'number')).toBe('12.3K');
+    });
+});
+
+describe('singleValue — string/date support for single-value visuals', () => {
+    const rows = [
+        { Status: 'Open', LoggedAt: '2026-07-01', Amount: 1 },
+        { Status: null, LoggedAt: '2026-07-02', Amount: 2 },
+        { Status: 'Closed', LoggedAt: '2026-07-03', Amount: 3 },
+    ];
+
+    it('returns the first/latest/count for text fields', () => {
+        setTables([
+            {
+                name: 'log',
+                fields: [
+                    { table: 'log', name: 'Status', type: 'text' },
+                    { table: 'log', name: 'LoggedAt', type: 'date' },
+                    { table: 'log', name: 'Amount', type: 'number' },
+                ],
+                rows: [],
+            },
+        ]);
+        const text = { table: 'log', name: 'Status', agg: 'count' as const };
+        expect(singleValue(rows, text, 'first')).toBe('Open');
+        expect(singleValue(rows, text, 'latest')).toBe('Closed');
+        expect(singleValue(rows, text, 'count')).toBe(2);
+        expect(singleValueLabel(text, 'text', 'first')).toBe('Status');
+        expect(singleValueLabel(text, 'text', 'count')).toBe('Count of Status');
+        expect(
+            singleValue(
+                rows,
+                { table: 'log', name: 'LoggedAt', agg: 'count' as const },
+                'latest',
+            ),
+        ).toBe('2026-07-03');
+        expect(
+            singleValue(
+                rows,
+                { table: 'log', name: 'Amount', agg: 'sum' as const },
+                'first',
+            ),
+        ).toBe(6);
+        expect(singleValue([], text, 'first')).toBeNull();
+    });
+
+    it('honors the field-level valueAggregation', () => {
+        const text = {
+            table: 'log',
+            name: 'Status',
+            agg: 'count' as const,
+            valueAggregation: 'latest' as const,
+        };
+        expect(singleValue(rows, text)).toBe('Closed');
+        expect(singleValueLabel(text, 'text')).toBe('Status');
+        expect(
+            singleValue(rows, { ...text, valueAggregation: 'count' as const }),
+        ).toBe(2);
+        expect(singleValueLabel({ ...text, valueAggregation: 'count' as const }, 'text')).toBe(
+            'Count of Status',
+        );
+    });
+
+    it('normalizes valueAggregation on well fields', () => {
+        expect(
+            normalizeWellField({
+                table: 'log',
+                name: 'Status',
+                agg: 'count',
+                valueAggregation: 'latest',
+            })?.valueAggregation,
+        ).toBe('latest');
+        expect(
+            normalizeWellField({
+                table: 'log',
+                name: 'Status',
+                agg: 'count',
+                valueAggregation: 'nope',
+            })?.valueAggregation,
+        ).toBeUndefined();
+        expect(
+            normalizeWellField({ table: 'log', name: 'Status' })
+                ?.valueAggregation,
+        ).toBeUndefined();
+    });
+});
+
+describe('conditional formatting fx rules', () => {
+    it('returns the first matching rule color', () => {
+        const rules: FxRule[] = [
+            { op: '>', value: 100, color: '#111111' },
+            { op: '>', value: 50, color: '#222222' },
+        ];
+        expect(applyFx(rules, 200)).toBe('#111111');
+        expect(applyFx(rules, 75)).toBe('#222222');
+        expect(applyFx(rules, 10)).toBeUndefined();
+    });
+
+    it('supports all operators', () => {
+        const color = '#ff0000';
+        const one = (op: FxOp, value: number): FxRule => ({ op, value, color });
+        expect(applyFx([one('>=', 5)], 5)).toBe(color);
+        expect(applyFx([one('<', 5)], 4)).toBe(color);
+        expect(applyFx([one('<=', 5)], 5)).toBe(color);
+        expect(applyFx([one('=', 5)], 5)).toBe(color);
+        expect(applyFx([one('!=', 5)], 4)).toBe(color);
+    });
+});
+
+describe('single-value style normalizers', () => {
+    it('applies defaults for missing config', () => {
+        expect(normalizeCalloutStyle(undefined).displayUnits).toBe('auto');
+        expect(normalizeCalloutStyle({}).decimals).toBe(1);
+        expect(normalizeCalloutStyle({}).fx).toEqual({ enabled: false, rules: [] });
+        expect(normalizeCategoryLabelStyle(undefined).show).toBe(true);
+        expect(normalizeTitleStyle(undefined).heading).toBe('none');
+    });
+
+    it('preserves explicit values and sanitizes bad ones', () => {
+        const callout = normalizeCalloutStyle({
+            displayUnits: 'millions',
+            decimals: 2,
+            bold: true,
+            fx: {
+                enabled: true,
+                rules: [{ op: '>', value: 10, color: '#123456' }],
+            },
+        });
+        expect(callout).toMatchObject({
+            displayUnits: 'millions',
+            decimals: 2,
+            bold: true,
+        });
+        expect(callout.fx).toEqual({
+            enabled: true,
+            rules: [{ op: '>', value: 10, color: '#123456' }],
+        });
+        expect(
+            normalizeCalloutStyle({ displayUnits: 'nope', decimals: 'x' }),
+        ).toMatchObject({ displayUnits: 'auto', decimals: 1 });
+        expect(
+            normalizeCategoryLabelStyle({ show: false, fontSize: 14 }),
+        ).toMatchObject({ show: false, fontSize: 14 });
+        expect(
+            normalizeTitleStyle({ heading: 'h2', align: 'right', color: '#00ff00' }),
+        ).toMatchObject({ heading: 'h2', align: 'right', color: '#00ff00' });
     });
 });

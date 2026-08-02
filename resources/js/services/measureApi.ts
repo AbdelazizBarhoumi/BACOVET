@@ -1,6 +1,8 @@
 // Typed client for the shared measure library API (V5 builder).
 // Endpoints: GET/POST /api/v5/measures, PUT/DELETE /api/v5/measures/{id}.
 
+import { handleV5Error } from '@/lib/v5-session';
+
 export type MeasureRecord = {
     id: number;
     name: string;
@@ -38,6 +40,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
         },
     });
     if (!res.ok) {
+        handleV5Error(res.status);
         let message = `HTTP ${res.status}`;
         try {
             const body: unknown = await res.json();

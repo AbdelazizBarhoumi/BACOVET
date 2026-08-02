@@ -1,4 +1,5 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
+import page1ac1a6 from './page'
 /**
  * @see routes/web.php:157
  * @route '/v5/login'
@@ -161,7 +162,7 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
     
     page.form = pageForm
 const v5 = {
-    page: Object.assign(page, page),
+    page: Object.assign(page, page1ac1a6),
 }
 
 export default v5

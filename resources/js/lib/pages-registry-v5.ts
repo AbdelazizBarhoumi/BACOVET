@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { handleV5Error } from '@/lib/v5-session';
 
 export type BuilderPageV5 = {
     id: number;
@@ -44,7 +45,11 @@ async function fetchPages(): Promise<BuilderPageV5[]> {
             credentials: 'include',
             headers: apiHeaders(),
         });
-        if (!res.ok) return [];
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return [];
+        }
         return await res.json();
     } catch {
         return [];
@@ -62,7 +67,11 @@ async function apiCreatePage(
             headers: apiHeaders(),
             body: JSON.stringify({ name, group_id: groupId ?? null }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return null;
+        }
         const data = await res.json();
         return data.page;
     } catch {
@@ -81,7 +90,11 @@ async function apiUpdatePage(
             headers: apiHeaders(),
             body: JSON.stringify(data),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return null;
+        }
         const json = await res.json();
         return json.page;
     } catch {
@@ -96,7 +109,11 @@ async function apiDuplicatePage(id: number): Promise<BuilderPageV5 | null> {
             credentials: 'include',
             headers: apiHeaders(),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return null;
+        }
         const data = await res.json();
         return data.page;
     } catch {
@@ -111,6 +128,8 @@ async function apiDeletePage(id: number): Promise<boolean> {
             credentials: 'include',
             headers: apiHeaders(),
         });
+        if (!res.ok) handleV5Error(res.status);
+
         return res.ok;
     } catch {
         return false;
@@ -125,7 +144,11 @@ export async function getPageBySlug(
             credentials: 'include',
             headers: apiHeaders(),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return null;
+        }
         return await res.json();
     } catch {
         return null;

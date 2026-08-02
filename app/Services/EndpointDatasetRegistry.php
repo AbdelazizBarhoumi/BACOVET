@@ -81,7 +81,10 @@ class EndpointDatasetRegistry
         return $endpoints;
     }
 
-    private function buildEntry(array $item): ?array
+    /**
+     * Build a dataset entry for a raw data.json item, or null when not eligible.
+     */
+    public function buildEntry(array $item): ?array
     {
         $method = strtoupper((string) ($item['method'] ?? 'GET'));
         $url = (string) ($item['endpoint'] ?? '');

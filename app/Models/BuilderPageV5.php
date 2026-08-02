@@ -12,10 +12,12 @@ class BuilderPageV5 extends Model
 
     protected $table = 'builder_pages_v5';
 
-    protected $fillable = ['slug', 'name', 'layout', 'group_id', 'sort_order'];
+    protected $fillable = ['slug', 'name', 'layout', 'layout_draft', 'group_id', 'sort_order'];
 
     protected $casts = [
         'layout' => 'array',
+        'layout_draft' => 'array',
+        'layout_draft_updated_at' => 'datetime',
     ];
 
     public function group(): BelongsTo

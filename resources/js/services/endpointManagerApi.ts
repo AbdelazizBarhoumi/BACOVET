@@ -13,6 +13,7 @@ import {
     inferStructure,
     type EntryStructure,
 } from '@/lib/endpoint-structure';
+import { handleV5Error, statusOfError } from '@/lib/v5-session';
 
 const BASE_URL = '';
 
@@ -134,7 +135,9 @@ async function fetchWithToken<T>(
             body.error ||
             body.message ||
             `HTTP ${response.status} ${response.statusText}`;
-        throw new Error(message);
+        const err = new Error(message) as Error & { status?: number };
+        err.status = response.status;
+        throw err;
     }
 
     return json as T;
@@ -283,6 +286,30 @@ async function fetchSchemaColumn(column: string): Promise<SchemaAnalysis> {
         `${BASE_URL}/novacity-endpoints/schema${query ? `?${query}` : ''}`,
     );
 }
+
+// ── V5 schema (cross-table joins) ──────────────────────────────────────────
+// The V5 builder runs under the standalone v5_users guard, so it calls the
+// dedicated /api/v5/schema endpoint instead of the IT-only
+// /novacity-endpoints/schema route used by the main endpoints manager.
+
+let v5SchemaCache: SchemaAnalysis | null = null;
+
+export const fetchV5Schema = async (
+    force = false,
+): Promise<SchemaAnalysis> => {
+    if (v5SchemaCache && !force) {
+        return v5SchemaCache;
+    }
+    try {
+        v5SchemaCache = await fetchWithToken<SchemaAnalysis>(
+            `${BASE_URL}/api/v5/schema`,
+        );
+        return v5SchemaCache;
+    } catch (err) {
+        handleV5Error(statusOfError(err));
+        throw err;
+    }
+};
 
 // ── Refresh health (last-run metadata + manual trigger) ─────────────────
 

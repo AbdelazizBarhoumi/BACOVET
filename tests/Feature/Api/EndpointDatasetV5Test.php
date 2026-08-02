@@ -47,6 +47,60 @@ class EndpointDatasetV5Test extends TestCase
         $this->getJson('/api/v5/endpoint-datasets')->assertStatus(401);
     }
 
+    public function test_schema_unauthenticated_returns_401(): void
+    {
+        $this->app['auth']->guard('v5_users')->logout();
+
+        $this->getJson('/api/v5/schema')->assertStatus(401);
+    }
+
+    public function test_schema_returns_shared_join_analysis_for_v5_users(): void
+    {
+        $this->writeFixture([
+            [
+                'name' => 'Sales',
+                'method' => 'GET',
+                'endpoint' => 'http://novacity/api/data/sales',
+                'response' => [
+                    'columns' => ['Category', 'Amount', 'ProductId'],
+                    'data' => [
+                        ['Category' => 'A', 'Amount' => 10, 'ProductId' => 'P1'],
+                        ['Category' => 'B', 'Amount' => 20, 'ProductId' => 'P2'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'Products',
+                'method' => 'GET',
+                'endpoint' => 'http://novacity/api/data/products',
+                'response' => [
+                    'columns' => ['ProductId', 'Label'],
+                    'data' => [
+                        ['ProductId' => 'P1', 'Label' => 'One'],
+                        ['ProductId' => 'P2', 'Label' => 'Two'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->getJson('/api/v5/schema');
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'entries',
+            'columns',
+            'foreign_keys',
+            'generated_at',
+        ]);
+        $this->assertNotEmpty($response->json('entries'));
+
+        // ProductId appears in both tables -> shared join column.
+        $shared = collect($response->json('columns'))
+            ->first(fn ($col) => strtolower($col['name']) === 'productid');
+        $this->assertNotNull($shared);
+        $this->assertGreaterThanOrEqual(2, $shared['endpoint_count']);
+    }
+
     public function test_index_merges_structure_from_data_json_with_db_rows(): void
     {
         $this->writeFixture([

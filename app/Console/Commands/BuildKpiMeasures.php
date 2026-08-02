@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\DataMapping;
 use App\Models\MeasureLibraryV6;
+use App\Models\MeasureV5;
+use App\Services\EndpointDatasetRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -11,12 +13,13 @@ use Illuminate\Support\Facades\Schema;
 class BuildKpiMeasures extends Command
 {
     protected $signature = 'kpi:build-measures
+        {--target=v6 : Library to fill: v6 (measures_library_v6) or v5 (measures_v5)}
         {--dry-run : Preview generated measures without writing to the DB}
         {--kpi=* : Only process the given KPI codes (repeatable)}
         {--category= : Override the category for every generated measure}
         {--no-wipe : Keep existing library rows that are not regenerated}';
 
-    protected $description = 'Generate V6 shared measures from the V3 data_mappings KPIs and store them in measures_library_v6';
+    protected $description = 'Generate shared measures from the data_mappings KPIs into the V5 or V6 measure library';
 
     private const AGG_FUNCTIONS = [
         'Sum' => 'SUM',
@@ -30,8 +33,12 @@ class BuildKpiMeasures extends Command
 
     public function handle(): int
     {
-        if (! Schema::hasTable('measures_library_v6')) {
-            $this->error('Table measures_library_v6 does not exist. Run `php artisan migrate` first.');
+        $target = $this->option('target') === 'v5' ? 'v5' : 'v6';
+        $model = $target === 'v5' ? MeasureV5::class : MeasureLibraryV6::class;
+        $table = (new $model)->getTable();
+
+        if (! Schema::hasTable($table)) {
+            $this->error("Table {$table} does not exist. Run `php artisan migrate` first.");
 
             return self::FAILURE;
         }
@@ -55,9 +62,10 @@ class BuildKpiMeasures extends Command
         $dryRun = (bool) $this->option('dry-run');
         $category = $this->option('category');
         $noWipe = (bool) $this->option('no-wipe');
+        $tableNames = $target === 'v5' ? $this->resolveTableNames() : null;
 
         if (! $dryRun && ! $noWipe) {
-            $deleted = MeasureLibraryV6::query()->delete();
+            $deleted = $model::query()->delete();
             $this->info("Wiped {$deleted} existing measure(s).");
         }
 
@@ -66,7 +74,7 @@ class BuildKpiMeasures extends Command
         $warnings = [];
 
         foreach ($groups as $kpi => $rows) {
-            $measure = $this->buildMeasure($kpi, $rows, $category);
+            $measure = $this->buildMeasure($kpi, $rows, $category, $tableNames);
 
             if ($measure['warning'] !== null) {
                 $warnings[] = "{$kpi}: {$measure['warning']}";
@@ -86,7 +94,7 @@ class BuildKpiMeasures extends Command
                 continue;
             }
 
-            MeasureLibraryV6::updateOrCreate(
+            $model::updateOrCreate(
                 ['name' => $measure['name']],
                 [
                     'expression' => $measure['expression'],
@@ -98,7 +106,13 @@ class BuildKpiMeasures extends Command
             $created++;
         }
 
-        $this->info(sprintf('%s %d measure(s) (%d skipped).', $dryRun ? 'Would generate' : 'Generated', $created, $skipped));
+        $this->info(sprintf(
+            '%s %d measure(s) into %s (%d skipped).',
+            $dryRun ? 'Would generate' : 'Generated',
+            $created,
+            $table,
+            $skipped
+        ));
 
         if (! empty($warnings)) {
             $this->newLine();
@@ -120,7 +134,7 @@ class BuildKpiMeasures extends Command
      * @param  Collection<int, DataMapping>  $rows
      * @return array{name: string, expression: string, description: ?string, category: ?string, warning: ?string, placeholder: bool}
      */
-    private function buildMeasure(string $kpi, Collection $rows, ?string $category): array
+    private function buildMeasure(string $kpi, Collection $rows, ?string $category, ?array $tableNames): array
     {
         $first = $rows->first();
         $name = (string) ($first->name ?? $kpi);
@@ -130,8 +144,8 @@ class BuildKpiMeasures extends Command
         $hasVariable = collect($items)->contains(fn ($item) => ($item['type'] ?? null) === 'variable');
 
         [$expression, $warning] = $hasVariable
-            ? $this->expressionFromFormula($kpi, $rows, $items)
-            : $this->expressionFromSingleVariable($kpi, $rows);
+            ? $this->expressionFromFormula($kpi, $rows, $items, $tableNames)
+            : $this->expressionFromSingleVariable($kpi, $rows, $tableNames);
 
         $description = $kpi;
         if (($target = $this->formatTarget($first)) !== null) {
@@ -155,7 +169,7 @@ class BuildKpiMeasures extends Command
      * @param  list<array<string, mixed>>  $items
      * @return array{0: string, 1: ?string}
      */
-    private function expressionFromFormula(string $kpi, Collection $rows, array $items): array
+    private function expressionFromFormula(string $kpi, Collection $rows, array $items, ?array $tableNames): array
     {
         $cursor = 0;
         $parts = [];
@@ -173,7 +187,7 @@ class BuildKpiMeasures extends Command
                         continue 2;
                     }
 
-                    [$part, $varWarning] = $this->variableExpression($variable);
+                    [$part, $varWarning] = $this->variableExpression($variable, $tableNames);
                     $parts[] = $part;
                     if ($varWarning !== null) {
                         $warnings[] = $varWarning;
@@ -199,7 +213,7 @@ class BuildKpiMeasures extends Command
         }
 
         if ($cursor === 0) {
-            return $this->expressionFromSingleVariable($kpi, $rows);
+            return $this->expressionFromSingleVariable($kpi, $rows, $tableNames);
         }
 
         $expression = $this->cleanExpression(implode('', $parts));
@@ -229,7 +243,7 @@ class BuildKpiMeasures extends Command
      * @param  Collection<int, DataMapping>  $rows
      * @return array{0: string, 1: ?string}
      */
-    private function expressionFromSingleVariable(string $kpi, Collection $rows): array
+    private function expressionFromSingleVariable(string $kpi, Collection $rows, ?array $tableNames): array
     {
         $variable = $rows->first();
 
@@ -237,10 +251,10 @@ class BuildKpiMeasures extends Command
             return ['0', "no variables defined ({$kpi})"];
         }
 
-        return $this->variableExpression($variable);
+        return $this->variableExpression($variable, $tableNames);
     }
 
-    private function variableExpression(DataMapping $variable): array
+    private function variableExpression(DataMapping $variable, ?array $tableNames): array
     {
         $key = $variable->variable_key;
         $fn = $variable->has_function ? ($variable->fn ?? 'Latest') : 'Latest';
@@ -253,7 +267,71 @@ class BuildKpiMeasures extends Command
             return ["{$agg}({$placeholder})", "variable « {$label} » has no variable_key — placeholder column used, fix manually"];
         }
 
-        return ["{$agg}({$key})", null];
+        $expression = "{$agg}({$key})";
+
+        if ($tableNames !== null) {
+            $slug = $this->endpointSlug((string) $variable->endpoint);
+            $table = $slug !== '' ? ($tableNames[$slug] ?? null) : null;
+
+            if (is_string($table) && $table !== '' && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
+                return ["{$agg}({$table}[{$key}])", null];
+            }
+
+            if ($slug === '') {
+                return [$expression, "variable « {$key} » has no endpoint mapping — column left unqualified"];
+            }
+
+            return [$expression, "endpoint « {$slug} » not resolvable to a V5 table — column left unqualified"];
+        }
+
+        return [$expression, null];
+    }
+
+    /**
+     * Resolve every registered datapoint slug to the table name the V5
+     * builder assigns it (label, else object, else the last slug segment),
+     * mirroring buildTables() in resources/js/lib/pbi/datasets.ts.
+     *
+     * @return array<string, string>
+     */
+    private function resolveTableNames(): array
+    {
+        $names = [];
+
+        foreach (app(EndpointDatasetRegistry::class)->endpoints() as $entry) {
+            $slug = (string) ($entry['slug'] ?? '');
+            $name = $entry['label'] ?? $entry['object'] ?? null;
+
+            if (! is_string($name) || $name === '') {
+                $parts = explode('/', $slug);
+                $name = (string) end($parts);
+            }
+
+            if ($name === '') {
+                $name = $slug;
+            }
+
+            $names[$slug] = $name;
+        }
+
+        return $names;
+    }
+
+    private function endpointSlug(string $endpoint): string
+    {
+        $endpoint = trim($endpoint);
+
+        if ($endpoint === '') {
+            return '';
+        }
+
+        $path = parse_url($endpoint, PHP_URL_PATH);
+
+        if (! is_string($path) || $path === '') {
+            return '';
+        }
+
+        return ltrim($path, '/');
     }
 
     /**

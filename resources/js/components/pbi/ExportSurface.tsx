@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { visualTable, type Page } from '@/lib/pbi/model';
+import { visualTable, isSlicerVisual, type Page } from '@/lib/pbi/model';
 import { usePbi, visualTypeLabel } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,7 @@ export function ExportSurface({
     pages: Page[];
     ref?: React.Ref<HTMLDivElement>;
 }) {
-    const { rows, tableRows, theme, customThemes } = usePbi();
+    const { rows, tableRows, tables, theme, customThemes } = usePbi();
     const activeTheme =
         customThemes.find((t) => t.id === theme) ?? themeById(theme);
     const style = useMemo(
@@ -52,14 +52,16 @@ export function ExportSurface({
                         .sort((a, b) => a.z - b.z)
                         .map((v) => {
                             if (v.hidden) return null;
-                            const vRows = tableRows[visualTable(v)] ?? rows;
+                            const vRows = isSlicerVisual(v)
+                                ? tables.find((t) => t.name === visualTable(v))?.rows ?? rows
+                                : tableRows[visualTable(v)] ?? rows;
                             return (
                                 <div
                                     key={v.id}
                                     data-export-visual={v.name || v.id}
                                     className={cn(
                                         'absolute flex flex-col rounded p-2',
-                                        v.border && 'border',
+                                        v.border && v.type !== 'shape' && 'border',
                                         v.shadow && 'shadow-md',
                                     )}
                                     style={{
@@ -68,15 +70,21 @@ export function ExportSurface({
                                         width: v.w,
                                         height: v.h,
                                         zIndex: v.z,
-                                        backgroundColor: v.background,
-                                        ...(v.border && v.borderColor
+                                        backgroundColor:
+                                            v.type === 'shape'
+                                                ? 'transparent'
+                                                : v.background,
+                                        ...(v.border &&
+                                        v.borderColor &&
+                                        v.type !== 'shape'
                                             ? { borderColor: v.borderColor }
                                             : {}),
-                                        ...(v.borderWidth
+                                        ...(v.borderWidth && v.type !== 'shape'
                                             ? { borderWidth: v.borderWidth }
                                             : {}),
                                         ...(v.radius !== undefined &&
-                                        v.radius !== null
+                                        v.radius !== null &&
+                                        v.type !== 'shape'
                                             ? { borderRadius: v.radius }
                                             : {}),
                                         ...(v.fontFamily

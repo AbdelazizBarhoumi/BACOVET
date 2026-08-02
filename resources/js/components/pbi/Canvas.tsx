@@ -11,14 +11,43 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
-import type { Interaction } from '@/lib/pbi/model';
-import { visualTable } from '@/lib/pbi/model';
+import {
+    isSlicerVisual,
+    normalizeTitleStyle,
+    visualTable,
+    type Interaction,
+    type Visual,
+} from '@/lib/pbi/model';
 import { defaultDropWell, usePbi, visualTypeLabel } from '@/lib/pbi/store';
+import { isSingleValueType } from '@/lib/pbi/visualConfig';
 import { cn } from '@/lib/utils';
 import { VisualExportButton } from './VisualExportButton';
 import { VisualView } from './VisualView';
 
 const GRID = 8;
+
+const HEADING_SIZES: Record<string, number | undefined> = {
+    h1: 28,
+    h2: 22,
+    h3: 18,
+    h4: 14,
+};
+
+/** Power BI-style title styling for single-value visuals. */
+function titleStyleFor(v: Visual) {
+    const t = normalizeTitleStyle(v.titleStyle);
+    return {
+        fontFamily: v.fontFamily || undefined,
+        fontSize: HEADING_SIZES[t.heading] ?? v.fontSize,
+        color: t.color ?? v.fontColor,
+        fontWeight: t.bold ? 700 : 600,
+        fontStyle: t.italic ? 'italic' : undefined,
+        textDecoration: t.underline ? 'underline' : undefined,
+        backgroundColor: t.background || undefined,
+        textAlign: t.align,
+        whiteSpace: t.textWrap ? 'normal' : 'nowrap',
+    } as const;
+}
 
 type DragState = {
     id: string;
@@ -199,15 +228,29 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         return () => window.removeEventListener('click', close);
     }, []);
 
-    const width = mobileView ? 360 : page.format.width;
-    const height = mobileView ? 740 : page.format.height;
+    const width = mobileView
+        ? 360
+        : Math.ceil(
+              page.visuals.reduce(
+                  (m, v) => (v.hidden ? m : Math.max(m, v.x + v.w)),
+                  page.format.width,
+              ),
+          );
+    const height = mobileView
+        ? 740
+        : Math.ceil(
+              page.visuals.reduce(
+                  (m, v) => (v.hidden ? m : Math.max(m, v.y + v.h)),
+                  page.format.height,
+              ),
+          );
 
     const ordered = [...page.visuals].sort((a, b) => a.z - b.z);
     const menuVisual = page.visuals.find((v) => v.id === menu?.id) ?? null;
 
     return (
-        <div className="flex min-h-full w-full justify-center p-6">
-            <div style={{ width: width * scale, height: height * scale }}>
+        <div className="flex min-h-full w-full p-6">
+            <div className="mx-auto" style={{ width: width * scale, height: height * scale }}>
                 <div
                     ref={ref}
                     onMouseMove={readOnly ? undefined : onMouseMove}
@@ -249,7 +292,9 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
 
                     {ordered.map((v) => {
                         if (v.hidden) return null;
-                        const vRows = tableRows[visualTable(v)] ?? rows;
+                        const vRows = isSlicerVisual(v)
+                            ? tables.find((t) => t.name === visualTable(v))?.rows ?? rows
+                            : tableRows[visualTable(v)] ?? rows;
                         const isSel = selected?.id === v.id;
                         const interactionTarget =
                             !readOnly &&
@@ -299,7 +344,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                 }}
                                 className={cn(
                                     'group absolute flex flex-col rounded p-2',
-                                    v.border && 'border',
+                                    v.border && v.type !== 'shape' && 'border',
                                     v.shadow && 'shadow-md',
                                     isSel &&
                                         !readOnly &&
@@ -311,14 +356,19 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     width: v.w,
                                     height: v.h,
                                     zIndex: v.z,
-                                    backgroundColor: v.background,
-                                    ...(v.border && v.borderColor
+                                    backgroundColor:
+                                        v.type === 'shape'
+                                            ? 'transparent'
+                                            : v.background,
+                                    ...(v.border && v.borderColor && v.type !== 'shape'
                                         ? { borderColor: v.borderColor }
                                         : {}),
-                                    ...(v.borderWidth
+                                    ...(v.borderWidth && v.type !== 'shape'
                                         ? { borderWidth: v.borderWidth }
                                         : {}),
-                                    ...(v.radius !== undefined && v.radius !== null
+                                    ...(v.radius !== undefined &&
+                                    v.radius !== null &&
+                                    v.type !== 'shape'
                                         ? { borderRadius: v.radius }
                                         : {}),
                                     ...(v.fontFamily
@@ -349,15 +399,12 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     )}
                                 >
                                     <span
-                                        className="truncate text-[11px] font-semibold text-foreground"
-                                        style={{
-                                            ...(v.fontColor
-                                                ? { color: v.fontColor }
-                                                : {}),
-                                            ...(v.fontSize
-                                                ? { fontSize: v.fontSize }
-                                                : {}),
-                                        }}
+                                        className={cn(
+                                            'text-[11px] font-semibold text-foreground',
+                                            !isSingleValueType(v.type) &&
+                                                'truncate',
+                                        )}
+                                        style={titleStyleFor(v)}
                                     >
                                         {v.showTitle
                                             ? v.title || visualTypeLabel(v.type)

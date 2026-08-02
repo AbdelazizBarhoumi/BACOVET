@@ -175,11 +175,16 @@ Route::middleware('v5.auth')->group(function () {
             'slug' => $page->slug,
             'pageName' => $page->name,
             'layout' => $page->layout,
+            'layoutDraft' => $page->layout_draft,
+            'layoutDraftUpdatedAt' => $page->layout_draft_updated_at?->toISOString(),
         ]);
     })->name('v5.page');
 
     // V5 builder endpoint datasets (from endpoint_datasets table, refreshed by sync commands)
     Route::get('/api/v5/endpoint-datasets', [App\Http\Controllers\Api\EndpointDatasetV5Controller::class, 'index']);
+
+    // V5 builder schema analysis (cross-table join registry), v5.auth only
+    Route::get('/api/v5/schema', [App\Http\Controllers\Api\EndpointDatasetV5Controller::class, 'schema']);
 
     Route::prefix('api/v5/builder-pages')->group(function () {
         Route::get('/', [BuilderPageV5Controller::class, 'index']);
@@ -188,6 +193,8 @@ Route::middleware('v5.auth')->group(function () {
         Route::put('/{id}', [BuilderPageV5Controller::class, 'update']);
         Route::delete('/{id}', [BuilderPageV5Controller::class, 'destroy']);
         Route::post('/{id}/duplicate', [BuilderPageV5Controller::class, 'duplicate']);
+        Route::post('/{id}/images', [BuilderPageV5Controller::class, 'uploadImage'])->name('v5.page.image.upload');
+        Route::get('/{id}/images/{filename}', [BuilderPageV5Controller::class, 'showImage'])->name('v5.page.image');
     });
 
     Route::prefix('api/v5/builder-page-groups')->group(function () {

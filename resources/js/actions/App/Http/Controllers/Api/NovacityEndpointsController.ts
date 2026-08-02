@@ -254,7 +254,7 @@ sample.head = (args: { slug: string | number } | [slug: string | number ] | stri
     sample.form = sampleForm
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::testAndSave
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:591
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:608
  * @route '/novacity-endpoints/test-and-save'
  */
 export const testAndSave = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -269,7 +269,7 @@ testAndSave.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::testAndSave
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:591
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:608
  * @route '/novacity-endpoints/test-and-save'
  */
 testAndSave.url = (options?: RouteQueryOptions) => {
@@ -278,7 +278,7 @@ testAndSave.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::testAndSave
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:591
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:608
  * @route '/novacity-endpoints/test-and-save'
  */
 testAndSave.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -288,7 +288,7 @@ testAndSave.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::testAndSave
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:591
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:608
  * @route '/novacity-endpoints/test-and-save'
  */
     const testAndSaveForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -298,7 +298,7 @@ testAndSave.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::testAndSave
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:591
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:608
  * @route '/novacity-endpoints/test-and-save'
  */
         testAndSaveForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -309,7 +309,7 @@ testAndSave.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     testAndSave.form = testAndSaveForm
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::config
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:503
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:520
  * @route '/novacity-config'
  */
 export const config = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -324,7 +324,7 @@ config.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::config
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:503
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:520
  * @route '/novacity-config'
  */
 config.url = (options?: RouteQueryOptions) => {
@@ -333,7 +333,7 @@ config.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::config
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:503
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:520
  * @route '/novacity-config'
  */
 config.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -342,7 +342,7 @@ config.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::config
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:503
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:520
  * @route '/novacity-config'
  */
 config.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -352,7 +352,7 @@ config.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::config
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:503
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:520
  * @route '/novacity-config'
  */
     const configForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -362,7 +362,7 @@ config.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::config
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:503
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:520
  * @route '/novacity-config'
  */
         configForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -371,7 +371,7 @@ config.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::config
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:503
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:520
  * @route '/novacity-config'
  */
         configForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -754,7 +754,7 @@ refresh.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     refresh.form = refreshForm
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::test
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:518
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:535
  * @route '/novacity-endpoints/test'
  */
 export const test = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -769,7 +769,7 @@ test.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::test
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:518
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:535
  * @route '/novacity-endpoints/test'
  */
 test.url = (options?: RouteQueryOptions) => {
@@ -778,7 +778,7 @@ test.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::test
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:518
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:535
  * @route '/novacity-endpoints/test'
  */
 test.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -788,7 +788,7 @@ test.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::test
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:518
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:535
  * @route '/novacity-endpoints/test'
  */
     const testForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -798,7 +798,7 @@ test.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\NovacityEndpointsController::test
- * @see app/Http/Controllers/Api/NovacityEndpointsController.php:518
+ * @see app/Http/Controllers/Api/NovacityEndpointsController.php:535
  * @route '/novacity-endpoints/test'
  */
         testForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

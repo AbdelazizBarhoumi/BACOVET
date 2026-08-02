@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { handleV5Error } from '@/lib/v5-session';
 import type { BuilderPageV5 } from './pages-registry-v5';
 
 export type BuilderPageGroupV5 = {
@@ -38,7 +39,11 @@ async function fetchSidebar(): Promise<SidebarStructureV5> {
             credentials: 'include',
             headers: apiHeaders(),
         });
-        if (!res.ok) return { groups: [], ungrouped: [] };
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return { groups: [], ungrouped: [] };
+        }
         return await res.json();
     } catch {
         return { groups: [], ungrouped: [] };
@@ -55,7 +60,11 @@ async function apiCreateGroup(
             headers: apiHeaders(),
             body: JSON.stringify({ name }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return null;
+        }
         const data = await res.json();
         return data.group;
     } catch {
@@ -71,6 +80,8 @@ async function apiRenameGroup(id: number, name: string): Promise<boolean> {
             headers: apiHeaders(),
             body: JSON.stringify({ name }),
         });
+        if (!res.ok) handleV5Error(res.status);
+
         return res.ok;
     } catch {
         return false;
@@ -84,6 +95,8 @@ async function apiDeleteGroup(id: number): Promise<boolean> {
             credentials: 'include',
             headers: apiHeaders(),
         });
+        if (!res.ok) handleV5Error(res.status);
+
         return res.ok;
     } catch {
         return false;
@@ -101,6 +114,8 @@ async function apiAssignPage(
             headers: apiHeaders(),
             body: JSON.stringify({ page_id: pageId, group_id: groupId }),
         });
+        if (!res.ok) handleV5Error(res.status);
+
         return res.ok;
     } catch {
         return false;
@@ -117,6 +132,8 @@ async function apiReorderPages(
             headers: apiHeaders(),
             body: JSON.stringify({ pages: items }),
         });
+        if (!res.ok) handleV5Error(res.status);
+
         return res.ok;
     } catch {
         return false;
@@ -133,6 +150,8 @@ async function apiReorderGroups(
             headers: apiHeaders(),
             body: JSON.stringify({ groups: items }),
         });
+        if (!res.ok) handleV5Error(res.status);
+
         return res.ok;
     } catch {
         return false;

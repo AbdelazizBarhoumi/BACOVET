@@ -1,5 +1,7 @@
 // Data model, dataset tables and aggregation engine for the report canvas.
 
+import type { ShapeKind } from './shapes';
+
 export type FieldType = 'number' | 'text' | 'date' | 'boolean';
 
 export type Field = {
@@ -20,6 +22,24 @@ export type Row = Record<string, string | number | boolean | null>;
 
 export type Agg = 'sum' | 'avg' | 'count' | 'min' | 'max' | 'distinct';
 
+/** How a card/kpi/gauge shows a non-numeric field across multiple rows. */
+export type ValueAggregationMode = 'first' | 'latest' | 'count';
+
+export const VALUE_AGGREGATION_MODES: ValueAggregationMode[] = [
+    'first',
+    'latest',
+    'count',
+];
+
+export function isValueAggregationMode(
+    value: unknown,
+): value is ValueAggregationMode {
+    return (
+        typeof value === 'string' &&
+        VALUE_AGGREGATION_MODES.includes(value as ValueAggregationMode)
+    );
+}
+
 /** Value presentation formats for numbers (per-field or per-visual). */
 export type NumberFormat =
     | 'auto'
@@ -38,6 +58,12 @@ export type WellField = {
     label?: string;
     /** Number presentation format; `auto` falls back to the visual default. */
     format?: NumberFormat;
+    /**
+     * How a non-numeric (text/date/boolean) field is collapsed to one value:
+     * `first` shows the first non-null cell, `latest` the last, `count` the
+     * number of non-null cells. Numeric fields always use `agg`.
+     */
+    valueAggregation?: ValueAggregationMode;
 };
 
 export type FieldReference = {
@@ -100,56 +126,21 @@ export function normalizeWellField(input: unknown, fallbackTable?: string): Well
     const agg = AGGREGATIONS.includes(value.agg as Agg) ? (value.agg as Agg) : 'sum';
     const label = typeof value.label === 'string' && value.label.trim() ? value.label.trim() : undefined;
     const format = isNumberFormat(value.format) ? value.format : undefined;
+    const valueAggregation = isValueAggregationMode(value.valueAggregation)
+        ? value.valueAggregation
+        : undefined;
     return {
         table: reference.table ?? '',
         name: reference.name,
         agg,
         ...(label ? { label } : {}),
         ...(format ? { format } : {}),
+        ...(valueAggregation ? { valueAggregation } : {}),
     };
 }
 
 export function fieldLabel(wf: Pick<WellField, 'name' | 'label'>): string {
     return wf.label?.trim() || wf.name;
-}
-
-const DEFAULT_CONDITIONAL: ConditionalFormat = {
-    mode: 'databars',
-    minColor: 'oklch(0.65 0.15 230)',
-    midColor: 'oklch(0.72 0.12 85)',
-    maxColor: 'oklch(0.58 0.17 25)',
-};
-
-/** Accepts a legacy boolean or a full config; returns a normalized config. */
-export function normalizeConditionalFormat(
-    input: unknown,
-): ConditionalFormat {
-    if (input && typeof input === 'object') {
-        const value = input as Record<string, unknown>;
-        const mode =
-            value.mode === 'colorScale' || value.mode === 'databars'
-                ? value.mode
-                : 'none';
-        return {
-            mode,
-            minColor:
-                typeof value.minColor === 'string'
-                    ? value.minColor
-                    : DEFAULT_CONDITIONAL.minColor,
-            midColor:
-                typeof value.midColor === 'string'
-                    ? value.midColor
-                    : DEFAULT_CONDITIONAL.midColor,
-            maxColor:
-                typeof value.maxColor === 'string'
-                    ? value.maxColor
-                    : DEFAULT_CONDITIONAL.maxColor,
-        };
-    }
-    // Legacy boolean: `true` meant "data bars".
-    return input
-        ? { ...DEFAULT_CONDITIONAL, mode: 'databars' }
-        : { ...DEFAULT_CONDITIONAL, mode: 'none' };
 }
 
 export type VisualType =
@@ -178,7 +169,7 @@ export type VisualType =
     | 'matrix'
     | 'slicer'
     | 'buttonSlicer'
-    | 'listSlicer'
+    | 'dropdownSlicer'
     | 'inputSlicer'
     | 'dateSlicer'
     | 'map'
@@ -192,21 +183,475 @@ export type VisualType =
     | 'pythonVisual'
     | 'text'
     | 'image'
-    | 'button';
+    | 'button'
+    | 'shape';
+
+export type AnalyticsKind =
+    | 'constant'
+    | 'average'
+    | 'min'
+    | 'max'
+    | 'median'
+    | 'trend'
+    | 'forecast';
+
+export const ANALYTICS_KINDS: AnalyticsKind[] = [
+    'constant',
+    'average',
+    'min',
+    'max',
+    'median',
+    'trend',
+    'forecast',
+];
 
 export type AnalyticsLine = {
-    kind: 'constant' | 'average' | 'trend' | 'forecast';
+    kind: AnalyticsKind;
     value?: number;
     enabled: boolean;
 };
 
-/** Conditional formatting configuration for tables/matrices. */
+/** Format style for a visual's conditional formatting (Power BI-style). */
+export type CfStyle = 'none' | 'gradient' | 'rules' | 'fieldValue';
+
+/** How the based-on field is summarized into a number per category. */
+export type CfAgg = 'none' | 'sum' | 'average' | 'min' | 'max' | 'count' | 'first';
+
+/** Lower/upper bound of a gradient or a rule threshold. */
+export type CfBoundType =
+    | 'none'
+    | 'lowest'
+    | 'highest'
+    | 'number'
+    | 'percent'
+    | 'percentile';
+
+export type CfValueType = 'number' | 'percent' | 'percentile';
+
+export type CfComparator =
+    | 'between'
+    | 'greaterThan'
+    | 'lessThan'
+    | 'greaterThanOrEqual'
+    | 'lessThanOrEqual';
+
+export type CfRuleCondition = 'is' | 'isBlank' | 'isNotBlank';
+
+export type CfBound = {
+    type: CfBoundType;
+    /** For `number`/`percent`/`percentile` bounds. */
+    value?: number;
+    color: string;
+};
+
+export type CfRule = {
+    condition: CfRuleCondition;
+    comparator: CfComparator;
+    value: number;
+    /** Required when `comparator` is `between`. */
+    value2?: number;
+    valueType: CfValueType;
+    color: string;
+};
+
+/**
+ * Conditional formatting for any visual (charts, tables, single-value).
+ * `style: 'none'` disables it. Gradient interpolates colors by value,
+ * rules match top-to-bottom (first match wins), and field-value maps a
+ * literal color column onto the visual.
+ */
 export type ConditionalFormat = {
-    /** `none` disables; `databars` sizes cells relative to the column max; `colorScale` tints min/mid/max. */
-    mode: 'none' | 'databars' | 'colorScale';
-    minColor: string;
-    midColor: string;
-    maxColor: string;
+    style: CfStyle;
+    /** Column the formatting is based on; `''` means the first values field. */
+    basedOn: string;
+    basedOnTable?: string;
+    agg: CfAgg;
+    diverging: boolean;
+    min: CfBound;
+    max: CfBound;
+    center: CfBound;
+    rules: CfRule[];
+    /** Color column used when `style === 'fieldValue'`. */
+    fieldValue: string;
+    fieldValueTable?: string;
+    /** Table/matrix only: render data bars behind cells. */
+    showDataBars: boolean;
+};
+
+export const CF_STYLES: CfStyle[] = [
+    'none',
+    'gradient',
+    'rules',
+    'fieldValue',
+];
+
+export const CF_AGGS: CfAgg[] = [
+    'none',
+    'sum',
+    'average',
+    'min',
+    'max',
+    'count',
+    'first',
+];
+
+export const CF_BOUND_TYPES: CfBoundType[] = [
+    'none',
+    'lowest',
+    'highest',
+    'number',
+    'percent',
+    'percentile',
+];
+
+export const CF_VALUE_TYPES: CfValueType[] = ['number', 'percent', 'percentile'];
+
+export const CF_COMPARATORS: CfComparator[] = [
+    'between',
+    'greaterThan',
+    'lessThan',
+    'greaterThanOrEqual',
+    'lessThanOrEqual',
+];
+
+export const CF_RULE_CONDITIONS: CfRuleCondition[] = [
+    'is',
+    'isBlank',
+    'isNotBlank',
+];
+
+/** The fully-default (disabled) conditional format. */
+export function defaultConditionalFormat(): ConditionalFormat {
+    return {
+        style: 'none',
+        basedOn: '',
+        agg: 'none',
+        diverging: false,
+        min: { type: 'lowest', color: '#e11d48' },
+        max: { type: 'highest', color: '#16a34a' },
+        center: { type: 'none', color: '#f59e0b' },
+        rules: [],
+        fieldValue: '',
+        showDataBars: false,
+    };
+}
+
+function normalizeCfBound(
+    input: unknown,
+    fallback: CfBound,
+    allowNone: boolean,
+): CfBound {
+    if (!input || typeof input !== 'object') return { ...fallback };
+    const value = input as Record<string, unknown>;
+    const types: CfBoundType[] = allowNone
+        ? CF_BOUND_TYPES
+        : CF_BOUND_TYPES.filter((t) => t !== 'none');
+    return {
+        type: types.includes(value.type as CfBoundType)
+            ? (value.type as CfBoundType)
+            : fallback.type,
+        ...(typeof value.value === 'number' && isFinite(value.value)
+            ? { value: value.value }
+            : {}),
+        color:
+            typeof value.color === 'string' && value.color.trim()
+                ? value.color.trim()
+                : fallback.color,
+    };
+}
+
+/**
+ * Accepts a legacy boolean, the old `{mode, minColor, midColor, maxColor}`
+ * table config, or a full `ConditionalFormat`; returns a normalized config.
+ */
+export function normalizeConditionalFormat(input: unknown): ConditionalFormat {
+    const out = defaultConditionalFormat();
+    if (input === true) {
+        out.showDataBars = true;
+        return out;
+    }
+    if (!input || typeof input !== 'object') return out;
+    const value = input as Record<string, unknown>;
+    if (value.mode === 'databars') out.showDataBars = true;
+    if (value.mode === 'colorScale') {
+        out.style = 'gradient';
+        out.min.color =
+            typeof value.minColor === 'string'
+                ? value.minColor
+                : out.min.color;
+        out.max.color =
+            typeof value.maxColor === 'string'
+                ? value.maxColor
+                : out.max.color;
+    }
+    if (CF_STYLES.includes(value.style as CfStyle))
+        out.style = value.style as CfStyle;
+    if (typeof value.basedOn === 'string') out.basedOn = value.basedOn;
+    if (typeof value.basedOnTable === 'string')
+        out.basedOnTable = value.basedOnTable;
+    if (CF_AGGS.includes(value.agg as CfAgg)) out.agg = value.agg as CfAgg;
+    if (typeof value.diverging === 'boolean') out.diverging = value.diverging;
+    if (value.min) out.min = normalizeCfBound(value.min, out.min, false);
+    if (value.max) out.max = normalizeCfBound(value.max, out.max, false);
+    if (value.center) out.center = normalizeCfBound(value.center, out.center, true);
+    if (Array.isArray(value.rules)) {
+        out.rules = value.rules
+            .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+            .map((r): CfRule | null => {
+                const c = r as Record<string, unknown>;
+                if (!CF_RULE_CONDITIONS.includes(c.condition as CfRuleCondition))
+                    return null;
+                const comparator = CF_COMPARATORS.includes(
+                    c.comparator as CfComparator,
+                )
+                    ? (c.comparator as CfComparator)
+                    : 'greaterThan';
+                return {
+                    condition: c.condition as CfRuleCondition,
+                    comparator,
+                    value:
+                        typeof c.value === 'number' && isFinite(c.value)
+                            ? c.value
+                            : 0,
+                    ...(typeof c.value2 === 'number' && isFinite(c.value2)
+                        ? { value2: c.value2 }
+                        : {}),
+                    valueType: CF_VALUE_TYPES.includes(c.valueType as CfValueType)
+                        ? (c.valueType as CfValueType)
+                        : 'number',
+                    color:
+                        typeof c.color === 'string' && c.color.trim()
+                            ? c.color.trim()
+                            : '#4c78d0',
+                };
+            })
+            .filter((r): r is CfRule => r !== null);
+    }
+    if (typeof value.fieldValue === 'string') out.fieldValue = value.fieldValue;
+    if (typeof value.fieldValueTable === 'string')
+        out.fieldValueTable = value.fieldValueTable;
+    if (typeof value.showDataBars === 'boolean')
+        out.showDataBars = value.showDataBars;
+    return out;
+}
+
+/**
+ * Migrates a legacy single-value `callout.fx` rule set into a `rules`
+ * conditional format, or `null` when there is nothing to migrate.
+ */
+export function conditionalFormatFromFx(
+    fx: FxFormat | undefined,
+): ConditionalFormat | null {
+    if (!fx?.enabled || !Array.isArray(fx.rules) || !fx.rules.length) return null;
+    const cmp = (op: FxOp): CfComparator =>
+        op === '>'
+            ? 'greaterThan'
+            : op === '>='
+              ? 'greaterThanOrEqual'
+              : op === '<'
+                ? 'lessThan'
+                : op === '<='
+                  ? 'lessThanOrEqual'
+                  : 'between';
+    const out = defaultConditionalFormat();
+    out.style = 'rules';
+    out.rules = fx.rules
+        .filter((r) => r.op !== '!=')
+        .map((r) => ({
+            condition: 'is' as const,
+            comparator: cmp(r.op),
+            value: r.value,
+            ...(r.op === '=' ? { value2: r.value } : {}),
+            valueType: 'number' as const,
+            color: r.color,
+        }));
+    return out;
+}
+
+/** Builds a `WellField` (usable by `aggregate`) from a field reference. */
+export function wellForReference(
+    ref: { name: string; table?: string } | null | undefined,
+    agg: Agg = 'sum',
+): WellField | null {
+    if (!ref || !ref.name) return null;
+    const table = ref.table || findTableForField(ref.name);
+    return { table, name: ref.name, agg };
+}
+
+/** Display-unit scaling for a single-value callout, mirroring Power BI's Card. */
+export type DisplayUnit =
+    | 'auto'
+    | 'none'
+    | 'thousands'
+    | 'millions'
+    | 'billions'
+    | 'percent'
+    | 'currency';
+
+export const DISPLAY_UNITS: DisplayUnit[] = [
+    'auto',
+    'none',
+    'thousands',
+    'millions',
+    'billions',
+    'percent',
+    'currency',
+];
+
+export function isDisplayUnit(value: unknown): value is DisplayUnit {
+    return (
+        typeof value === 'string' &&
+        DISPLAY_UNITS.includes(value as DisplayUnit)
+    );
+}
+
+export type FxOp = '>' | '>=' | '<' | '<=' | '=' | '!=';
+
+/** One conditional-formatting rule for a callout value. */
+export type FxRule = {
+    op: FxOp;
+    value: number;
+    color: string;
+};
+
+export type FxFormat = {
+    enabled: boolean;
+    rules: FxRule[];
+};
+
+/** The big number of a card/kpi/gauge. */
+export type CalloutStyle = {
+    fontFamily?: string;
+    fontSize?: number;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    /** Overrides the default text color; `undefined` keeps the visual default. */
+    color?: string;
+    displayUnits: DisplayUnit;
+    /** Decimal places; `undefined` follows the unit's default. */
+    decimals?: number;
+    textWrap?: boolean;
+    /** Extra spacing between the callout and its category label. */
+    sourceSpacing?: boolean;
+    fx?: FxFormat;
+};
+
+/** The small label under a callout value (e.g. "Profit"). */
+export type CategoryLabelStyle = {
+    show: boolean;
+    fontFamily?: string;
+    fontSize?: number;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    color?: string;
+};
+
+/** Power BI-style title formatting for single-value visuals. */
+export type TitleStyle = {
+    heading: 'none' | 'h1' | 'h2' | 'h3' | 'h4';
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    color?: string;
+    background?: string;
+    align?: 'left' | 'center' | 'right';
+    textWrap?: boolean;
+};
+
+/** Font style block shared by axis labels, titles, data labels and legends. */
+export type FontStyle = {
+    fontFamily?: string;
+    fontSize?: number;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    color?: string;
+};
+
+/** One cartesian axis (X or Y). `displayUnits`/`decimals`/range only apply to
+ * the value (numeric) axis; on the category axis they are ignored. */
+export type AxisStyle = {
+    show: boolean;
+    /** Axis title text; '' hides the title. */
+    title?: string;
+    titleFont?: FontStyle;
+    labelsFont?: FontStyle;
+    /** Numeric axis only: display-unit scaling for tick labels. */
+    displayUnits: DisplayUnit;
+    decimals?: number;
+    /** Numeric axis only: hard min/max range. */
+    min?: number;
+    max?: number;
+};
+
+export type GridlineStyle = 'solid' | 'dashed' | 'dotted';
+
+/** Cartesian gridlines behind the bars. */
+export type GridlinesStyle = {
+    horizontal: boolean;
+    vertical: boolean;
+    color: string;
+    style: GridlineStyle;
+};
+
+/** How a bar's fill color is chosen. */
+export type BarsApplyMode = 'all' | 'perCategory';
+
+/** Bars section: color + conditional formatting + transparency. */
+export type BarStyle = {
+    applyTo: BarsApplyMode;
+    /** Fill when `applyTo === 'all'` and no conditional format is active. */
+    color?: string;
+    /** Per-category fill override keyed by category label ('' = palette). */
+    categoryColors: Record<string, string>;
+    /** 0 (opaque) .. 100 (invisible). */
+    transparency: number;
+    /** Corner radius in px. */
+    radius?: number;
+};
+
+export type DataLabelPosition =
+    | 'auto'
+    | 'insideEnd'
+    | 'outsideEnd'
+    | 'insideCenter'
+    | 'insideBase';
+
+/** Per-series label override when `applyTo === 'perSeries'`. */
+export type DataLabelSeriesOverride = {
+    color?: string;
+    font?: FontStyle;
+};
+
+/** Data labels for bars/columns. */
+export type DataLabelStyle = {
+    show: boolean;
+    applyTo: 'all' | 'perSeries';
+    position: DataLabelPosition;
+    displayUnits: DisplayUnit;
+    decimals?: number;
+    font?: FontStyle;
+    /** Per-series overrides keyed by series name (legend value or measure label). */
+    seriesStyles?: Record<string, DataLabelSeriesOverride>;
+};
+
+export type LegendPosition = 'top' | 'bottom' | 'left' | 'right';
+
+/** Legend section styling. */
+export type LegendStyle = {
+    show: boolean;
+    position: LegendPosition;
+    font?: FontStyle;
+};
+
+/** Plot area / background of the cartesian chart. */
+export type PlotAreaStyle = {
+    background?: string;
+    border: boolean;
+    borderColor?: string;
+    borderWidth?: number;
 };
 
 export type Visual = {
@@ -230,6 +675,10 @@ export type Visual = {
     drillFields: WellField[];
     text?: string | undefined;
     imageUrl?: string | undefined;
+    /** shape kind when `type === 'shape'` */
+    shape?: ShapeKind;
+    /** rotation in degrees applied to shapes (and usable elsewhere) */
+    rotation?: number;
     showTitle: boolean;
     showLegend: boolean;
     showLabels: boolean;
@@ -262,6 +711,26 @@ export type Visual = {
     tooltipPageId?: string | undefined;
     /** drillthrough target page */
     drillthroughPageId?: string | undefined;
+    /** single-value (card/kpi/gauge) callout styling */
+    callout?: CalloutStyle;
+    /** single-value (card/kpi/gauge) category label styling */
+    categoryLabel?: CategoryLabelStyle;
+    /** single-value (card/kpi/gauge) title styling */
+    titleStyle?: TitleStyle;
+    /** cartesian (bar/column) X-axis styling */
+    xAxis?: AxisStyle;
+    /** cartesian (bar/column) Y-axis styling */
+    yAxis?: AxisStyle;
+    /** cartesian gridlines */
+    gridlines?: GridlinesStyle;
+    /** cartesian bars/columns styling */
+    bars?: BarStyle;
+    /** cartesian data labels */
+    dataLabels?: DataLabelStyle;
+    /** cartesian legend styling */
+    legendStyle?: LegendStyle;
+    /** cartesian plot area */
+    plotArea?: PlotAreaStyle;
 };
 
 export type PageFormat = {
@@ -921,6 +1390,46 @@ export function aggregate(rows: Row[], wf: WellField): number {
     }
 }
 
+/**
+ * Collapses a single-value visual's rows into one displayed value.
+ * Measures and numeric columns aggregate via `wf.agg`; non-numeric fields
+ * (text/date/boolean) use the field's `valueAggregation` mode: `first`
+ * (first non-null cell), `latest` (last non-null cell) or `count` (number
+ * of non-null cells). Returns `null` when no value can be shown.
+ */
+export function singleValue(
+    rows: Row[],
+    wf: WellField,
+    mode?: ValueAggregationMode,
+): string | number | boolean | null {
+    if (isMeasure(wf.name)) return aggregate(rows, wf);
+    if (fieldType(wf.name, wf.table) === 'number') return aggregate(rows, wf);
+    const aggregation = mode ?? wf.valueAggregation ?? 'first';
+    if (aggregation === 'count') {
+        return rows.filter(
+            (row) => row[wf.name] !== null && row[wf.name] !== undefined,
+        ).length;
+    }
+    const cells = rows
+        .map((row) => row[wf.name])
+        .filter((v) => v !== null && v !== undefined && v !== '');
+    const value =
+        aggregation === 'latest' ? cells[cells.length - 1] : cells[0];
+    return value === undefined ? null : value;
+}
+
+/** Label shown under a single-value callout. */
+export function singleValueLabel(
+    wf: WellField,
+    type: FieldType,
+    mode?: ValueAggregationMode,
+): string {
+    if (isMeasure(wf.name)) return wf.name;
+    if (type === 'number' || (mode ?? wf.valueAggregation) === 'count')
+        return measureLabel(wf);
+    return fieldLabel(wf);
+}
+
 export function measureLabel(wf: WellField) {
     if (isMeasure(wf.name)) return wf.name;
     if (wf.label?.trim()) return wf.label.trim();
@@ -949,14 +1458,30 @@ export function buildChartData(
     values: WellField[],
     tooltips: WellField[] = [],
     maxCategories?: number,
+    extra?: WellField,
+    extraColor?: string,
 ) {
     const axisCol = axis[0]?.name;
     const legendCol = legend[0]?.name;
+
+    /** First non-null/non-empty cell of a column across a group. */
+    const firstNonNull = (groupRows: Row[], col: string): unknown => {
+        for (const r of groupRows) {
+            const v = r[col];
+            if (v !== null && v !== undefined && v !== '') return v;
+        }
+        return null;
+    };
 
     const withTooltips = (item: Record<string, string | number>, groupRows: Row[]) => {
         for (const t of tooltips) {
             item[`tt:${t.name}`] = aggregate(groupRows, t);
         }
+        if (extra) item['_cf'] = aggregate(groupRows, extra);
+        if (extraColor)
+            item['_cfx'] = firstNonNull(groupRows, extraColor) as
+                | string
+                | number;
         return item;
     };
 
@@ -1116,6 +1641,19 @@ export function distinctValues(col: string, rows: Row[]) {
     return [...s].sort();
 }
 
+const SLICER_TYPES = new Set<VisualType>([
+    'slicer',
+    'buttonSlicer',
+    'dropdownSlicer',
+    'inputSlicer',
+    'dateSlicer',
+]);
+
+/** True for any slicer family visual (checkbox, buttons, dropdown, input, date). */
+export function isSlicerVisual(v: Pick<Visual, 'type'>): boolean {
+    return SLICER_TYPES.has(v.type);
+}
+
 /** Table backing a visual — resolved from its first populated well. */
 export function visualTable(
     v: Pick<
@@ -1206,6 +1744,450 @@ export function formatWellValue(
 ): string {
     const code = wf?.format && wf.format !== 'auto' ? wf.format : visualDefault;
     return formatNumberWith(n, code);
+}
+
+/* ------------------------- Single-value callout ------------------------- */
+
+/** First matching rule's color wins; `undefined` when none match. */
+export function applyFx(rules: FxRule[], value: number): string | undefined {
+    for (const rule of rules) {
+        const match =
+            rule.op === '>'
+                ? value > rule.value
+                : rule.op === '>='
+                  ? value >= rule.value
+                  : rule.op === '<'
+                    ? value < rule.value
+                    : rule.op === '<='
+                      ? value <= rule.value
+                      : rule.op === '='
+                        ? value === rule.value
+                        : value !== rule.value;
+        if (match) return rule.color;
+    }
+    return undefined;
+}
+
+export const DEFAULT_CALLOUT: CalloutStyle = {
+    displayUnits: 'auto',
+    decimals: 1,
+    textWrap: false,
+    sourceSpacing: false,
+    fx: { enabled: false, rules: [] },
+};
+
+export const DEFAULT_CATEGORY_LABEL: CategoryLabelStyle = {
+    show: true,
+    fontSize: 11,
+};
+
+export const DEFAULT_TITLE_STYLE: TitleStyle = {
+    heading: 'none',
+    align: 'center',
+};
+
+export const DEFAULT_AXIS_STYLE: AxisStyle = {
+    show: true,
+    title: '',
+    displayUnits: 'auto',
+};
+
+export const DEFAULT_GRIDLINES: GridlinesStyle = {
+    horizontal: true,
+    vertical: false,
+    color: 'var(--border)',
+    style: 'solid',
+};
+
+export const DEFAULT_BAR_STYLE: BarStyle = {
+    applyTo: 'all',
+    categoryColors: {},
+    transparency: 0,
+};
+
+export const DEFAULT_DATA_LABELS: DataLabelStyle = {
+    show: false,
+    applyTo: 'all',
+    position: 'auto',
+    displayUnits: 'auto',
+    decimals: 1,
+};
+
+export const DEFAULT_LEGEND: LegendStyle = {
+    show: true,
+    position: 'top',
+    font: { fontSize: 10 },
+};
+
+export const DEFAULT_PLOT_AREA: PlotAreaStyle = {
+    border: false,
+    borderWidth: 1,
+};
+
+/** Applies display-unit scaling and decimal places to a number. */
+export function formatDisplayUnitValue(
+    n: number,
+    displayUnits: DisplayUnit = 'auto',
+    decimals?: number,
+): string {
+    if (!isFinite(n)) return '—';
+    const unit = isDisplayUnit(displayUnits) ? displayUnits : 'auto';
+    const d =
+        typeof decimals === 'number' && isFinite(decimals) ? decimals : undefined;
+    const fixed = (value: number, dp: number | undefined) =>
+        value.toLocaleString('en-US', {
+            minimumFractionDigits: dp ?? 0,
+            maximumFractionDigits: dp ?? 0,
+        });
+    switch (unit) {
+        case 'none':
+            return fixed(n, d ?? 2);
+        case 'thousands':
+            return `${fixed(n / 1_000, d ?? 1)}K`;
+        case 'millions':
+            return `${fixed(n / 1_000_000, d ?? 1)}M`;
+        case 'billions':
+            return `${fixed(n / 1_000_000_000, d ?? 1)}B`;
+        case 'percent':
+            return `${(n * 100).toFixed(d ?? 1)}%`;
+        case 'currency':
+            return `$${fixed(n, d ?? 0)}`;
+        default:
+            return formatNumber(n);
+    }
+}
+
+/**
+ * Formats a callout value. Numbers honor the display unit and decimal places,
+ * a per-field format wins over the callout unit; non-numeric values (text,
+ * dates, booleans) are formatted through `formatValue`.
+ */
+export function formatCallout(
+    value: string | number | boolean | null,
+    style: Pick<CalloutStyle, 'displayUnits' | 'decimals'>,
+    wf?: Pick<WellField, 'format'>,
+    type: FieldType = 'number',
+): string {
+    if (value === null || value === undefined) return '—';
+    if (type !== 'number' || typeof value !== 'number')
+        return formatValue(value, type);
+    const n = value;
+    if (!isFinite(n)) return '—';
+    if (wf?.format && wf.format !== 'auto') return formatNumberWith(n, wf.format);
+    const unit = isDisplayUnit(style.displayUnits)
+        ? style.displayUnits
+        : 'auto';
+    const decimals =
+        typeof style.decimals === 'number' && isFinite(style.decimals)
+            ? style.decimals
+            : undefined;
+    const fixed = (value: number, d: number | undefined) =>
+        value.toLocaleString('en-US', {
+            minimumFractionDigits: d ?? 0,
+            maximumFractionDigits: d ?? 0,
+        });
+    switch (unit) {
+        case 'none':
+            return fixed(n, decimals ?? 2);
+        case 'thousands':
+            return `${fixed(n / 1_000, decimals ?? 1)}K`;
+        case 'millions':
+            return `${fixed(n / 1_000_000, decimals ?? 1)}M`;
+        case 'billions':
+            return `${fixed(n / 1_000_000_000, decimals ?? 1)}B`;
+        case 'percent':
+            return `${(n * 100).toFixed(decimals ?? 1)}%`;
+        case 'currency':
+            return `$${fixed(n, decimals ?? 0)}`;
+        default:
+            return formatNumber(n);
+    }
+}
+
+export function normalizeFxFormat(input: unknown): FxFormat {
+    if (!input || typeof input !== 'object') {
+        return { enabled: false, rules: [] };
+    }
+    const value = input as Record<string, unknown>;
+    const ops: FxOp[] = ['>', '>=', '<', '<=', '=', '!='];
+    const rules = Array.isArray(value.rules)
+        ? value.rules
+              .map((r): FxRule | null => {
+                  if (!r || typeof r !== 'object') return null;
+                  const rule = r as Record<string, unknown>;
+                  if (!ops.includes(rule.op as FxOp)) return null;
+                  return {
+                      op: rule.op as FxOp,
+                      value:
+                          typeof rule.value === 'number' && isFinite(rule.value)
+                              ? rule.value
+                              : 0,
+                      color:
+                          typeof rule.color === 'string' && rule.color.trim()
+                              ? rule.color.trim()
+                              : '#4c78d0',
+                  };
+              })
+              .filter((r): r is FxRule => r !== null)
+        : [];
+    return { enabled: value.enabled === true, rules };
+}
+
+export function normalizeCalloutStyle(input: unknown): CalloutStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_CALLOUT };
+    const value = input as Record<string, unknown>;
+    const style: CalloutStyle = {
+        displayUnits: isDisplayUnit(value.displayUnits)
+            ? value.displayUnits
+            : DEFAULT_CALLOUT.displayUnits,
+        decimals:
+            typeof value.decimals === 'number' && isFinite(value.decimals)
+                ? value.decimals
+                : DEFAULT_CALLOUT.decimals,
+        textWrap:
+            typeof value.textWrap === 'boolean'
+                ? value.textWrap
+                : DEFAULT_CALLOUT.textWrap,
+        sourceSpacing:
+            typeof value.sourceSpacing === 'boolean'
+                ? value.sourceSpacing
+                : DEFAULT_CALLOUT.sourceSpacing,
+        fx: normalizeFxFormat(value.fx),
+    };
+    if (typeof value.fontFamily === 'string' && value.fontFamily.trim())
+        style.fontFamily = value.fontFamily.trim();
+    if (typeof value.fontSize === 'number' && isFinite(value.fontSize))
+        style.fontSize = value.fontSize;
+    if (typeof value.bold === 'boolean') style.bold = value.bold;
+    if (typeof value.italic === 'boolean') style.italic = value.italic;
+    if (typeof value.underline === 'boolean') style.underline = value.underline;
+    if (typeof value.color === 'string' && value.color.trim())
+        style.color = value.color.trim();
+    return style;
+}
+
+export function normalizeCategoryLabelStyle(
+    input: unknown,
+): CategoryLabelStyle {
+    if (!input || typeof input !== 'object')
+        return { ...DEFAULT_CATEGORY_LABEL };
+    const value = input as Record<string, unknown>;
+    const style: CategoryLabelStyle = {
+        show: typeof value.show === 'boolean' ? value.show : true,
+    };
+    if (typeof value.fontFamily === 'string' && value.fontFamily.trim())
+        style.fontFamily = value.fontFamily.trim();
+    if (typeof value.fontSize === 'number' && isFinite(value.fontSize))
+        style.fontSize = value.fontSize;
+    if (typeof value.bold === 'boolean') style.bold = value.bold;
+    if (typeof value.italic === 'boolean') style.italic = value.italic;
+    if (typeof value.underline === 'boolean') style.underline = value.underline;
+    if (typeof value.color === 'string' && value.color.trim())
+        style.color = value.color.trim();
+    return style;
+}
+
+export function normalizeTitleStyle(input: unknown): TitleStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_TITLE_STYLE };
+    const value = input as Record<string, unknown>;
+    const headings: TitleStyle['heading'][] = ['none', 'h1', 'h2', 'h3', 'h4'];
+    const style: TitleStyle = {
+        heading: headings.includes(value.heading as TitleStyle['heading'])
+            ? (value.heading as TitleStyle['heading'])
+            : DEFAULT_TITLE_STYLE.heading,
+        align:
+            value.align === 'left' ||
+            value.align === 'right' ||
+            value.align === 'center'
+                ? value.align
+                : DEFAULT_TITLE_STYLE.align,
+    };
+    if (typeof value.bold === 'boolean') style.bold = value.bold;
+    if (typeof value.italic === 'boolean') style.italic = value.italic;
+    if (typeof value.underline === 'boolean') style.underline = value.underline;
+    if (typeof value.color === 'string' && value.color.trim())
+        style.color = value.color.trim();
+    if (typeof value.background === 'string' && value.background.trim())
+        style.background = value.background.trim();
+    if (typeof value.textWrap === 'boolean') style.textWrap = value.textWrap;
+    return style;
+}
+
+export function normalizeFontStyle(input: unknown): FontStyle | undefined {
+    if (!input || typeof input !== 'object') return undefined;
+    const value = input as Record<string, unknown>;
+    const style: FontStyle = {};
+    if (typeof value.fontFamily === 'string' && value.fontFamily.trim())
+        style.fontFamily = value.fontFamily.trim();
+    if (typeof value.fontSize === 'number' && isFinite(value.fontSize))
+        style.fontSize = value.fontSize;
+    if (typeof value.bold === 'boolean') style.bold = value.bold;
+    if (typeof value.italic === 'boolean') style.italic = value.italic;
+    if (typeof value.underline === 'boolean') style.underline = value.underline;
+    if (typeof value.color === 'string' && value.color.trim())
+        style.color = value.color.trim();
+    return Object.keys(style).length ? style : undefined;
+}
+
+export function normalizeAxisStyle(input: unknown): AxisStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_AXIS_STYLE };
+    const value = input as Record<string, unknown>;
+    const style: AxisStyle = {
+        show: typeof value.show === 'boolean' ? value.show : true,
+        displayUnits: isDisplayUnit(value.displayUnits)
+            ? value.displayUnits
+            : DEFAULT_AXIS_STYLE.displayUnits,
+    };
+    if (typeof value.title === 'string') style.title = value.title;
+    const titleFont = normalizeFontStyle(value.titleFont);
+    if (titleFont) style.titleFont = titleFont;
+    const labelsFont = normalizeFontStyle(value.labelsFont);
+    if (labelsFont) style.labelsFont = labelsFont;
+    if (typeof value.decimals === 'number' && isFinite(value.decimals))
+        style.decimals = value.decimals;
+    if (typeof value.min === 'number' && isFinite(value.min))
+        style.min = value.min;
+    if (typeof value.max === 'number' && isFinite(value.max))
+        style.max = value.max;
+    return style;
+}
+
+const GRIDLINE_STYLES: GridlineStyle[] = ['solid', 'dashed', 'dotted'];
+
+export function normalizeGridlinesStyle(input: unknown): GridlinesStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_GRIDLINES };
+    const value = input as Record<string, unknown>;
+    return {
+        horizontal:
+            typeof value.horizontal === 'boolean'
+                ? value.horizontal
+                : DEFAULT_GRIDLINES.horizontal,
+        vertical:
+            typeof value.vertical === 'boolean'
+                ? value.vertical
+                : DEFAULT_GRIDLINES.vertical,
+        color:
+            typeof value.color === 'string' && value.color.trim()
+                ? value.color.trim()
+                : DEFAULT_GRIDLINES.color,
+        style: GRIDLINE_STYLES.includes(value.style as GridlineStyle)
+            ? (value.style as GridlineStyle)
+            : DEFAULT_GRIDLINES.style,
+    };
+}
+
+export function normalizeBarStyle(input: unknown): BarStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_BAR_STYLE };
+    const value = input as Record<string, unknown>;
+    const style: BarStyle = {
+        applyTo:
+            value.applyTo === 'perCategory' ? 'perCategory' : 'all',
+        categoryColors: {},
+        transparency:
+            typeof value.transparency === 'number' && isFinite(value.transparency)
+                ? Math.max(0, Math.min(100, value.transparency))
+                : DEFAULT_BAR_STYLE.transparency,
+    };
+    if (typeof value.color === 'string' && value.color.trim())
+        style.color = value.color.trim();
+    if (value.categoryColors && typeof value.categoryColors === 'object') {
+        for (const [key, color] of Object.entries(
+            value.categoryColors as Record<string, unknown>,
+        )) {
+            if (typeof color === 'string' && color.trim())
+                style.categoryColors[key] = color.trim();
+        }
+    }
+    if (typeof value.radius === 'number' && isFinite(value.radius))
+        style.radius = value.radius;
+    return style;
+}
+
+const DATA_LABEL_POSITIONS: DataLabelPosition[] = [
+    'auto',
+    'insideEnd',
+    'outsideEnd',
+    'insideCenter',
+    'insideBase',
+];
+
+export function normalizeDataLabelStyle(input: unknown): DataLabelStyle {
+    if (!input || typeof input !== 'object')
+        return { ...DEFAULT_DATA_LABELS };
+    const value = input as Record<string, unknown>;
+    const style: DataLabelStyle = {
+        show: typeof value.show === 'boolean' ? value.show : false,
+        applyTo: value.applyTo === 'perSeries' ? 'perSeries' : 'all',
+        position: DATA_LABEL_POSITIONS.includes(
+            value.position as DataLabelPosition,
+        )
+            ? (value.position as DataLabelPosition)
+            : DEFAULT_DATA_LABELS.position,
+        displayUnits: isDisplayUnit(value.displayUnits)
+            ? value.displayUnits
+            : DEFAULT_DATA_LABELS.displayUnits,
+        decimals:
+            typeof value.decimals === 'number' && isFinite(value.decimals)
+                ? value.decimals
+                : DEFAULT_DATA_LABELS.decimals,
+    };
+    const font = normalizeFontStyle(value.font);
+    if (font) style.font = font;
+    if (value.seriesStyles && typeof value.seriesStyles === 'object') {
+        const out: Record<string, DataLabelSeriesOverride> = {};
+        for (const [key, raw] of Object.entries(
+            value.seriesStyles as Record<string, unknown>,
+        )) {
+            if (!raw || typeof raw !== 'object') continue;
+            const o = raw as Record<string, unknown>;
+            const override: DataLabelSeriesOverride = {};
+            if (typeof o.color === 'string' && o.color.trim())
+                override.color = o.color.trim();
+            const overrideFont = normalizeFontStyle(o.font);
+            if (overrideFont) override.font = overrideFont;
+            if (Object.keys(override).length) out[key] = override;
+        }
+        if (Object.keys(out).length) style.seriesStyles = out;
+    }
+    return style;
+}
+
+const LEGEND_POSITIONS: LegendPosition[] = [
+    'top',
+    'bottom',
+    'left',
+    'right',
+];
+
+export function normalizeLegendStyle(input: unknown): LegendStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_LEGEND };
+    const value = input as Record<string, unknown>;
+    const style: LegendStyle = {
+        show: typeof value.show === 'boolean' ? value.show : true,
+        position: LEGEND_POSITIONS.includes(value.position as LegendPosition)
+            ? (value.position as LegendPosition)
+            : DEFAULT_LEGEND.position,
+    };
+    const font = normalizeFontStyle(value.font);
+    if (font) style.font = font;
+    else if (typeof value.fontSize === 'number' && isFinite(value.fontSize))
+        style.font = { fontSize: value.fontSize };
+    return style;
+}
+
+export function normalizePlotAreaStyle(input: unknown): PlotAreaStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_PLOT_AREA };
+    const value = input as Record<string, unknown>;
+    const style: PlotAreaStyle = {
+        border: typeof value.border === 'boolean' ? value.border : false,
+    };
+    if (typeof value.background === 'string' && value.background.trim())
+        style.background = value.background.trim();
+    if (typeof value.borderColor === 'string' && value.borderColor.trim())
+        style.borderColor = value.borderColor.trim();
+    if (typeof value.borderWidth === 'number' && isFinite(value.borderWidth))
+        style.borderWidth = value.borderWidth;
+    return style;
 }
 
 export function formatValue(

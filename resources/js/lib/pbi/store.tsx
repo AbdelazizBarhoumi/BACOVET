@@ -17,6 +17,7 @@ import {
 } from '@/services/measureApi';
 import {
     applyFilter,
+    relativeDateRange,
     type FilterType,
     type RelativePreset,
     type ReportFilter,
@@ -24,6 +25,7 @@ import {
 import type { JoinRegistry } from './joins';
 import {
     PAGE_PRESETS,
+    conditionalFormatFromFx,
     fieldType,
     findTableForField,
     hasColumn,
@@ -43,10 +45,12 @@ import {
     type PageFormat,
     type Row,
     type TableDef,
+    type ValueAggregationMode,
     type Visual,
     type VisualType,
     type WellField,
 } from './model';
+import { DEFAULT_SHAPE_FILL, SHAPES, type ShapeKind } from './shapes';
 import { type ReportTheme } from './themes';
 
 export type WellName =
@@ -58,13 +62,13 @@ export type WellName =
     | 'drillFields';
 
 export function defaultDropWell(type: VisualType): WellName {
-    return ['slicer', 'buttonSlicer', 'listSlicer', 'inputSlicer', 'dateSlicer'].includes(type)
+    return ['slicer', 'buttonSlicer', 'dropdownSlicer', 'inputSlicer', 'dateSlicer'].includes(type)
         ? 'axis'
         : 'values';
 }
 
 function isSlicerType(type: VisualType): boolean {
-    return ['slicer', 'buttonSlicer', 'listSlicer', 'inputSlicer', 'dateSlicer'].includes(type);
+    return ['slicer', 'buttonSlicer', 'dropdownSlicer', 'inputSlicer', 'dateSlicer'].includes(type);
 }
 
 /** Converts a server-side measure record into a `Field` usable by the canvas. */
@@ -100,7 +104,14 @@ export type TooltipHover = {
     value: string;
 };
 
-export type SlicerDateRange = { from?: string; to?: string };
+export type SlicerDateMode = 'between' | 'before' | 'after' | 'relative';
+
+export type SlicerDateRange = {
+    mode?: SlicerDateMode;
+    from?: string;
+    to?: string;
+    relative?: RelativePreset;
+};
 
 export function slicerKey(table: string | undefined, column: string, value: string) {
     return JSON.stringify([table ?? '', column, value]);
@@ -223,13 +234,28 @@ function normalizeState(state: State): State {
             ...page,
             visuals: page.visuals.map((visual) => {
                 const next = { ...visual };
+                if ((next as { type: string }).type === 'listSlicer') next.type = 'slicer';
                 if (next.maxCategories === undefined || next.maxCategories === null)
                     next.maxCategories = 200;
                 if (next.fontSize === undefined || next.fontSize === null)
                     next.fontSize = 10;
-                next.conditionalFormat = normalizeConditionalFormat(
+                next.title = next.title ?? '';
+                next.altText = next.altText ?? '';
+                if (
+                    next.colorIndex === undefined ||
+                    next.colorIndex === null ||
+                    !Number.isFinite(next.colorIndex)
+                )
+                    next.colorIndex = 0;
+                const normalizedCf = normalizeConditionalFormat(
                     visual.conditionalFormat,
                 );
+                if (normalizedCf.style === 'none') {
+                    const migrated = conditionalFormatFromFx(next.callout?.fx);
+                    next.conditionalFormat = migrated ?? normalizedCf;
+                } else {
+                    next.conditionalFormat = normalizedCf;
+                }
                 for (const well of wells) {
                     next[well] = (visual[well] ?? [])
                         .map((field) => normalizeWellField(field))
@@ -283,7 +309,61 @@ export function mkVisual(
         subtotals: true,
         drillLevel: 0,
         maxCategories: 200,
+        rotation: 0,
+        ...(CARTESIAN_TYPES.includes(type) ? cartesianStyleDefaults() : {}),
         ...init,
+    };
+}
+
+const CARTESIAN_TYPES: VisualType[] = [
+    'column',
+    'stackedColumn',
+    'stacked100Column',
+    'bar',
+    'stackedBar',
+    'stacked100Bar',
+];
+
+/** Default cartesian style blocks for new bar/column visuals. */
+function cartesianStyleDefaults(): Partial<Visual> {
+    return {
+        xAxis: {
+            show: true,
+            title: '',
+            displayUnits: 'auto',
+        },
+        yAxis: {
+            show: true,
+            title: '',
+            displayUnits: 'auto',
+        },
+        gridlines: {
+            horizontal: true,
+            vertical: false,
+            color: 'var(--border)',
+            style: 'solid',
+        },
+        bars: {
+            applyTo: 'all',
+            categoryColors: {},
+            transparency: 0,
+        },
+        dataLabels: {
+            show: false,
+            applyTo: 'all',
+            position: 'auto',
+            displayUnits: 'auto',
+            decimals: 1,
+        },
+        legendStyle: {
+            show: true,
+            position: 'top',
+            font: { fontSize: 10 },
+        },
+        plotArea: {
+            border: false,
+            borderWidth: 1,
+        },
     };
 }
 
@@ -338,16 +418,6 @@ const defaultVisuals = (tables: TableDef[]): Visual[] => {
                 title: by,
                 name: `Slicer — ${by}`,
                 z: 4,
-            }),
-        );
-        out.push(
-            mkVisual('table', 540, 148, 722, 556, {
-                axis: [wf(by, primary.name)],
-                values: [wf(val, primary.name)],
-                title: `${by} detail`,
-                name: `Table — ${by} detail`,
-                conditionalFormat: true,
-                z: 5,
             }),
         );
     }
@@ -412,6 +482,7 @@ type Ctx = State & {
     setState: React.Dispatch<React.SetStateAction<State>>;
     select: (id: string | null) => void;
     addVisual: (type: VisualType) => void;
+    addShape: (kind: ShapeKind) => void;
     updateVisual: (id: string, patch: Partial<Visual>) => void;
     removeVisual: (id: string) => void;
     duplicateVisual: (id: string) => void;
@@ -432,11 +503,23 @@ type Ctx = State & {
         table?: string,
     ) => void;
     removeWellField: (visualId: string, well: WellName, index: number) => void;
+    moveWellField: (
+        visualId: string,
+        fromWell: WellName,
+        fromIndex: number,
+        toWell: WellName,
+    ) => void;
     setWellAgg: (
         visualId: string,
         well: WellName,
         index: number,
         agg: Agg,
+    ) => void;
+    setWellValueAgg: (
+        visualId: string,
+        well: WellName,
+        index: number,
+        mode: ValueAggregationMode,
     ) => void;
     toggleAnalytics: (visualId: string, kind: AnalyticsLine['kind']) => void;
     drill: (visualId: string, dir: -1 | 1) => void;
@@ -448,6 +531,7 @@ type Ctx = State & {
     setPageFormat: (id: string, patch: Partial<PageFormat>) => void;
     setActivePage: (id: string) => void;
     toggleSlicer: (visualId: string, column: string, value: string) => void;
+    setSlicerSelection: (visualId: string, column: string, value: string | null) => void;
     setSlicerDateRange: (visualId: string, range: SlicerDateRange) => void;
     clearSlicer: (visualId: string) => void;
     setSlicerSync: (visualId: string, pageId: string) => void;
@@ -518,6 +602,7 @@ type Ctx = State & {
         visualId: string,
         cfg: Partial<ConditionalFormat>,
     ) => void;
+    resetConditionalFormat: (visualId: string) => void;
     setRibbonTab: (t: string) => void;
     togglePane: (p: PaneName) => void;
     setZoom: (z: number) => void;
@@ -555,6 +640,16 @@ export function PbiProvider({
             ? normalizeState(JSON.parse(JSON.stringify(initialState)))
             : defaultState(tables),
     );
+
+    // Latest committed state, kept synchronised so setState can compute the
+    // next value at the call site. onChange is deliberately invoked OUTSIDE
+    // the setRawState updater: React may execute updaters during the render
+    // phase, and notifying a parent there causes an update of another
+    // component during rendering (which loops).
+    const rawStateRef = useRef<State>(rawState);
+    useEffect(() => {
+        rawStateRef.current = rawState;
+    }, [rawState]);
 
     // Re-wire persisted DAX measures into the aggregation engine after a
     // page reload (MEASURE_IMPL lives in module scope, not the layout).
@@ -613,12 +708,12 @@ export function PbiProvider({
 
     const setState = useCallback<React.Dispatch<React.SetStateAction<State>>>(
         (updater) => {
-            setRawState((prev) => {
-                const next =
-                    typeof updater === 'function' ? updater(prev) : updater;
-                onChange?.(next);
-                return next;
-            });
+            const prev = rawStateRef.current;
+            const next =
+                typeof updater === 'function' ? updater(prev) : updater;
+            rawStateRef.current = next;
+            setRawState(next);
+            onChange?.(next);
         },
         [onChange],
     );
@@ -695,6 +790,22 @@ export function PbiProvider({
                         : type === 'button'
                           ? 'Button'
                           : undefined,
+            });
+            mapVisuals((vs) => [...vs, v]);
+            setState((s) => ({ ...s, selectedId: v.id }));
+        },
+        [mapVisuals, setState],
+    );
+
+    const addShape = useCallback(
+        (kind: ShapeKind) => {
+            const def = SHAPES[kind];
+            const v = mkVisual('shape', 40, 40, def.defaultW, def.defaultH, {
+                shape: kind,
+                title: '',
+                showTitle: false,
+                background: DEFAULT_SHAPE_FILL,
+                shadow: false,
             });
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id }));
@@ -781,7 +892,10 @@ export function PbiProvider({
                 });
             }
             for (const [visualId, range] of Object.entries(state.slicerDateRanges)) {
-                if (!range.from && !range.to) continue;
+                const mode = range.mode ?? 'between';
+                if (mode === 'relative') {
+                    if (!range.relative) continue;
+                } else if (!range.from && !range.to) continue;
                 const onPage = page.visuals.some((v) => v.id === visualId);
                 const synced = (state.slicerSync[visualId] ?? []).includes(state.activePageId);
                 if (!onPage && !synced) continue;
@@ -790,10 +904,28 @@ export function PbiProvider({
                     .find((v) => v.id === visualId);
                 const field = slicer?.axis[0];
                 if (!field || (field.table && field.table !== t.name) || !hasColumn(t, field.name)) continue;
-                out = out.filter((r) => {
-                    const day = String(r[field.name] ?? '').slice(0, 10);
-                    return !!day && (!range.from || day >= range.from) && (!range.to || day <= range.to);
-                });
+                if (mode === 'relative') {
+                    const rr = relativeDateRange(range.relative ?? 'last30days');
+                    out = out.filter((r) => {
+                        const day = String(r[field.name] ?? '').slice(0, 10);
+                        return !!day && day >= rr.from && day <= rr.to;
+                    });
+                } else if (mode === 'before') {
+                    out = out.filter((r) => {
+                        const day = String(r[field.name] ?? '').slice(0, 10);
+                        return !!day && (!range.to || day <= range.to);
+                    });
+                } else if (mode === 'after') {
+                    out = out.filter((r) => {
+                        const day = String(r[field.name] ?? '').slice(0, 10);
+                        return !!day && (!range.from || day >= range.from);
+                    });
+                } else {
+                    out = out.filter((r) => {
+                        const day = String(r[field.name] ?? '').slice(0, 10);
+                        return !!day && (!range.from || day >= range.from) && (!range.to || day <= range.to);
+                    });
+                }
             }
             for (const [visualId, sel] of Object.entries(
                 state.slicerSelections,
@@ -859,6 +991,7 @@ export function PbiProvider({
         setState,
         select: (id) => setState((s) => ({ ...s, selectedId: id })),
         addVisual,
+        addShape,
         updateVisual,
         removeVisual: (id) =>
             setState((s) => ({
@@ -933,6 +1066,28 @@ export function PbiProvider({
                         : v,
                 ),
             ),
+        moveWellField: (visualId, fromWell, fromIndex, toWell) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const field = v[fromWell][fromIndex];
+                    if (!field) return v;
+                    const source = v[fromWell].filter(
+                        (_, i) => i !== fromIndex,
+                    );
+                    const single = toWell === 'axis' || toWell === 'legend';
+                    const already = v[toWell].some(
+                        (f) =>
+                            f.name === field.name && f.table === field.table,
+                    );
+                    const target = single
+                        ? [field]
+                        : already
+                          ? v[toWell]
+                          : [...v[toWell], field];
+                    return { ...v, [fromWell]: source, [toWell]: target };
+                }),
+            ),
         setWellAgg: (visualId, well, index, agg) =>
             mapVisuals((vs) =>
                 vs.map((v) =>
@@ -941,6 +1096,21 @@ export function PbiProvider({
                               ...v,
                               [well]: v[well].map((f, i) =>
                                   i === index ? { ...f, agg } : f,
+                              ),
+                          }
+                        : v,
+                ),
+            ),
+        setWellValueAgg: (visualId, well, index, mode) =>
+            mapVisuals((vs) =>
+                vs.map((v) =>
+                    v.id === visualId
+                        ? {
+                              ...v,
+                              [well]: v[well].map((f, i) =>
+                                  i === index
+                                      ? { ...f, valueAggregation: mode }
+                                      : f,
                               ),
                           }
                         : v,
@@ -1071,6 +1241,22 @@ export function PbiProvider({
                     },
                 };
             }),
+        setSlicerSelection: (visualId, column, value) =>
+            setState((s) => {
+                const visual = s.pages
+                    .flatMap((p) => p.visuals)
+                    .find((v) => v.id === visualId);
+                const next = value === null
+                    ? []
+                    : [slicerKey(visual?.axis[0]?.table, column, value)];
+                return {
+                    ...s,
+                    slicerSelections: {
+                        ...s.slicerSelections,
+                        [visualId]: next,
+                    },
+                };
+            }),
         setSlicerDateRange: (visualId, range) =>
             setState((s) => ({
                 ...s,
@@ -1113,7 +1299,17 @@ export function PbiProvider({
             }),
         clearCrossFilter: () => setState((s) => ({ ...s, crossFilter: null })),
         setTooltipHover: (hover) =>
-            setState((s) => ({ ...s, tooltipHover: hover })),
+            setState((s) => {
+                const cur = s.tooltipHover;
+                const same =
+                    (cur == null && hover == null) ||
+                    (cur != null &&
+                        hover != null &&
+                        cur.sourceId === hover.sourceId &&
+                        cur.column === hover.column &&
+                        cur.value === hover.value);
+                return same ? s : { ...s, tooltipHover: hover };
+            }),
         setInteraction: (sourceId, targetId, mode) =>
             setState((s) => ({
                 ...s,
@@ -1407,6 +1603,14 @@ export function PbiProvider({
                                   ...cfg,
                               },
                           }
+                        : v,
+                ),
+            ),
+        resetConditionalFormat: (visualId) =>
+            mapVisuals((vs) =>
+                vs.map((v) =>
+                    v.id === visualId
+                        ? { ...v, conditionalFormat: false }
                         : v,
                 ),
             ),

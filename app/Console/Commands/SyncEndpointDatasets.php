@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
+use App\Support\DatasetRows;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
@@ -73,7 +74,7 @@ class SyncEndpointDatasets extends Command
 
         foreach ($endpoints as $i => $endpoint) {
             $result = $this->fetchResult($responses[(string) $i] ?? null);
-            $rows = $result['ok'] ? $this->extractRows($result['data']) : [];
+            $rows = $result['ok'] ? DatasetRows::extractRows($result['data']) : [];
 
             $payload = [
                 'name' => (string) $endpoint['name'],
@@ -90,7 +91,7 @@ class SyncEndpointDatasets extends Command
             // Keep the last-known-good snapshot (columns/rows) when a fetch
             // fails so registered endpoints stay usable in the V5/V6 builder.
             if ($result['ok']) {
-                $payload['columns'] = $this->buildColumns((array) $endpoint['columns'], $rows);
+                $payload['columns'] = DatasetRows::buildColumns((array) $endpoint['columns'], $rows);
                 $payload['sample_data'] = $rows;
                 $payload['row_count'] = count($rows);
             }
@@ -187,82 +188,5 @@ class SyncEndpointDatasets extends Command
         } catch (\Throwable $e) {
             return ['ok' => false, 'data' => null, 'error' => $e->getMessage()];
         }
-    }
-
-    /**
-     * Extract tabular rows from a decoded response payload.
-     */
-    private function extractRows(mixed $decoded): array
-    {
-        if (! is_array($decoded)) {
-            return [];
-        }
-
-        $data = isset($decoded['data']) && is_array($decoded['data'])
-            ? $decoded['data']
-            : $decoded;
-
-        return array_values(array_filter($data, 'is_array'));
-    }
-
-    /**
-     * Build columns (name + type) for the given rows.
-     *
-     * @param  list<string>  $names
-     * @return list<array{name: string, type: string}>
-     */
-    private function buildColumns(array $names, array $rows): array
-    {
-        return array_map(
-            fn (string $name): array => [
-                'name' => $name,
-                'type' => $this->inferColumnType($rows, $name),
-            ],
-            $names
-        );
-    }
-
-    private function inferColumnType(array $rows, string $column): string
-    {
-        $types = [];
-
-        foreach (array_slice($rows, 0, 50) as $row) {
-            if (! array_key_exists($column, $row)) {
-                continue;
-            }
-            $value = $row[$column];
-            if ($value === null) {
-                continue;
-            }
-
-            if (is_bool($value)) {
-                $types['boolean'] = true;
-            } elseif (is_int($value) || is_float($value)) {
-                $types['number'] = true;
-            } elseif (is_string($value)) {
-                $types[$this->isDateString($value) ? 'date' : 'text'] = true;
-            } else {
-                $types['text'] = true;
-            }
-        }
-
-        if (count($types) === 0) {
-            return 'text';
-        }
-
-        // Mixed -> most useful for the builder is text.
-        if (count($types) > 1) {
-            return 'text';
-        }
-
-        return (string) array_key_first($types);
-    }
-
-    private function isDateString(string $value): bool
-    {
-        $trimmed = trim($value);
-
-        return (bool) preg_match('/^\d{4}-\d{2}-\d{2}([T ].*)?$/', $trimmed)
-            && strtotime(substr($trimmed, 0, 10)) !== false;
     }
 }
