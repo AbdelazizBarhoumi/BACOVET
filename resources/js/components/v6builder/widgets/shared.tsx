@@ -1,18 +1,26 @@
 import { useBuilder } from "../store";
 import type { WidgetConfig } from "../types";
-import { useDatasetData } from "./use-dataset";
+import { DATASET_COLORS, useDatasetData } from "./use-dataset";
 
 export function hasWidgetBinding(c: WidgetConfig | undefined): boolean {
-  return !!(c?.datasetSlug && c?.dataValue);
+  return !!(c?.datasetSlug && (c.dataValue || c.dataValues?.length));
 }
+
+export type MultiSeries = {
+  name: string;
+  label: string;
+  color: string;
+  data: { x: string; v: number }[];
+};
 
 /**
  * Unified widget data source. Returns dataset-aggregated series/scalar for a
- * widget bound to an endpoint dataset (datasetSlug + dataValue). Enables
- * dragging columns onto any chart widget.
+ * widget bound to an endpoint dataset (datasetSlug + dataValue(s)). Enables
+ * dragging columns onto any chart widget, and multiple values → multiple series.
  */
 export function useWidgetData(c: WidgetConfig, widgetId?: string): {
   series: { x: string; v: number }[];
+  multiSeries: MultiSeries[];
   hasSeries: boolean;
   scalar: number;
   hasScalar: boolean;
@@ -20,14 +28,22 @@ export function useWidgetData(c: WidgetConfig, widgetId?: string): {
   loading: boolean;
 } {
   const ds = useDatasetData(c, widgetId);
-  const hasData = !!c.datasetSlug && !!c.dataValue && ds.hasData;
+  const hasData = !!c.datasetSlug && (!!c.dataValue || !!c.dataValues?.length) && ds.hasData;
 
   const series = hasData ? ds.data.map((d) => ({ x: d.name, v: d.value })) : [];
+  const multiSeries: MultiSeries[] = hasData
+    ? ds.valueFields.map((vf, i) => ({
+        name: vf.key,
+        label: vf.label,
+        color: DATASET_COLORS[i % DATASET_COLORS.length],
+        data: ds.multi.map((d) => ({ x: d.name, v: d.values[vf.key] ?? 0 })),
+      }))
+    : [];
   const hasSeries = hasData;
   const scalar = hasData ? ds.data.reduce((sum, d) => sum + d.value, 0) : 0;
   const hasScalar = hasData;
 
-  return { series, hasSeries, scalar, hasScalar, rows: hasData ? ds.rows : [], loading: false };
+  return { series, multiSeries, hasSeries, scalar, hasScalar, rows: hasData ? ds.rows : [], loading: false };
 }
 
 /** Extract a category label from an ECharts click event (no `any`). */
@@ -169,6 +185,84 @@ export function statusColor(value: number, target?: number): string {
   if (value >= target) return "#22c55e";
   if (value >= target * 0.9) return "#f59e0b";
   return "#ef4444";
+}
+
+// ─── Gradient / continuous target-scale helpers ───
+// A single red → amber → green scale used everywhere a value is judged
+// against a target (or, absent a target, against the rest of its series).
+// This replaces flat 3-bucket coloring with a continuous hue so every bar,
+// line point, or cell reads as "how close to target" at a glance.
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex([r, g, b]: [number, number, number]): string {
+  const c = (v: number) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0");
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+
+function mixHex(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  return rgbToHex([ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t]);
+}
+
+export function lighten(hex: string, amt: number): string {
+  return mixHex(hex, "#ffffff", amt);
+}
+
+export function darken(hex: string, amt: number): string {
+  return mixHex(hex, "#000000", amt);
+}
+
+const SCALE_RED = "#ef4444";
+const SCALE_AMBER = "#f59e0b";
+const SCALE_GREEN = "#22c55e";
+
+/** Continuous red → amber → green color for t in [0,1]. */
+export function colorAt(t: number): string {
+  const tt = Math.min(1, Math.max(0, t));
+  return tt <= 0.5 ? mixHex(SCALE_RED, SCALE_AMBER, tt / 0.5) : mixHex(SCALE_AMBER, SCALE_GREEN, (tt - 0.5) / 0.5);
+}
+
+/**
+ * Where a value sits on the red→green scale: anchored to `target` (value
+ * reaches full green a little past target) when one is set, otherwise
+ * anchored to the tallest value in the series so the scale is still
+ * meaningful without an explicit target.
+ */
+export function scalePosition(value: number, target: number | undefined, seriesMax: number): number {
+  const max = target ? target * 1.15 : seriesMax || 1;
+  return max > 0 ? value / max : 0;
+}
+
+/** Solid status color for a value, continuous rather than 3-bucket. */
+export function targetColor(value: number, target: number | undefined, seriesMax: number): string {
+  return colorAt(scalePosition(value, target, seriesMax));
+}
+
+/** ECharts itemStyle.color: vertical gradient (light top → saturated bottom), hue from targetColor. */
+export function echartsBarGradient(value: number, target: number | undefined, seriesMax: number) {
+  const base = targetColor(value, target, seriesMax);
+  return {
+    type: "linear" as const, x: 0, y: 0, x2: 0, y2: 1,
+    colorStops: [{ offset: 0, color: lighten(base, 0.35) }, { offset: 1, color: base }],
+  };
+}
+
+/** Per-value {from, to, solid} triples for building <linearGradient> SVG defs in recharts. */
+export function barGradientStops(values: number[], target?: number): { from: string; to: string; solid: string }[] {
+  const seriesMax = Math.max(...values.map((v) => Math.abs(v)), 1);
+  return values.map((v) => {
+    const base = targetColor(v, target, seriesMax);
+    return { from: lighten(base, 0.35), to: base, solid: base };
+  });
+}
+
+export function sortDesc<T extends { v: number }>(series: T[]): T[] {
+  return [...series].sort((a, b) => b.v - a.v);
 }
 
 // ─── Scaler helpers ───

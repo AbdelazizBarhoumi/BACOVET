@@ -1,16 +1,17 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, resolveKpiSeries, noSeriesData, noKpiSelected, ScalerHeader, type KpiDataMap } from "./shared";
+import { boxStyle, wrap, resolveKpiSeries, lighten, noSeriesData, noKpiSelected, ScalerHeader, type KpiDataMap } from "./shared";
 
 export function RadarChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
   const { series, hasData } = resolveKpiSeries(c, kpiData);
 
   const option = useMemo(() => {
     const maxVal = Math.max(...series.map((s) => s.v), 1) * 1.2;
+    const accent = c.accent ?? "#3b82f6";
 
     return {
-      color: [c.accent ?? "#3b82f6"],
+      color: [accent],
       tooltip: {
         trigger: "item",
         backgroundColor: "rgba(255,255,255,0.95)",
@@ -19,12 +20,12 @@ export function RadarChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: Kp
       },
       radar: {
         indicator: series.map((s) => ({ name: s.x, max: maxVal })),
-        radius: "60%",
+        radius: "62%",
         axisName: { color: "#6b7280", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#e5e7eb" } },
+        axisLine: { lineStyle: { color: "#e5e7eb" } },
         splitArea: {
-          areaStyle: {
-            color: ["#f9fafb", "#f3f4f6", "#e5e7eb", "#d1d5db"].map((_, i) => (i % 2 === 0 ? "#f9fafb" : "#f3f4f6")),
-          },
+          areaStyle: { color: ["#fafbfc", "#f3f4f6"] },
         },
       },
       series: [{
@@ -32,7 +33,16 @@ export function RadarChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: Kp
         data: [{
           value: series.map((s) => s.v),
           name: c.label ?? "Value",
-          areaStyle: { opacity: 0.2 },
+          symbol: "circle",
+          symbolSize: 5,
+          areaStyle: {
+            color: {
+              type: "radial", x: 0.5, y: 0.5, r: 0.8,
+              colorStops: [{ offset: 0, color: `${lighten(accent, 0.3)}66` }, { offset: 1, color: `${accent}22` }],
+            },
+          },
+          lineStyle: { width: 2, color: accent },
+          itemStyle: { color: accent },
         }],
       }],
     };

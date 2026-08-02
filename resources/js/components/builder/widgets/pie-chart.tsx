@@ -18,16 +18,21 @@ export function PieChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiD
               nameKey="name"
               cx="50%"
               cy="50%"
-              outerRadius="80%"
+              innerRadius="2%"
+              outerRadius="78%"
+              paddingAngle={1.5}
+              cornerRadius={4}
+              stroke="var(--card, #fff)"
+              strokeWidth={2}
               label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-              labelLine={false}
+              labelLine={{ stroke: "#cbd5e1", strokeWidth: 1 }}
               fontSize={10}
             >
               {series.map((_, i) => (
-                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} className="transition-opacity duration-150" />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "#e5e7eb" }} />
           </PieChart>
         </ResponsiveContainer>
       </div>

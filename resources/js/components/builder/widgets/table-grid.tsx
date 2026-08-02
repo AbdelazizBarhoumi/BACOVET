@@ -35,7 +35,7 @@ export function TableGridWidget({ c, editing, onCellSelect, onCellKpiClick, sele
       ))}
       {editing && (
         <div className="absolute top-1 right-1 z-20 opacity-0 group-hover/tg:opacity-100 transition-opacity">
-          <div className="h-6 w-6 rounded bg-secondary hover:bg-secondary/80 flex items-center justify-center shadow border border-border cursor-grab active:cursor-grabbing" title="Glisser pour déplacer">
+          <div className="h-6 w-6 rounded-md bg-secondary hover:bg-secondary/80 flex items-center justify-center shadow border border-border cursor-grab active:cursor-grabbing transition-colors" title="Glisser pour déplacer">
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
         </div>
@@ -192,11 +192,12 @@ function TableGridRenderer({ t, editing, onCellSelect, onCellKpiClick, selectedC
 
       const selected = isSel(r, c);
       const active = isCursor(r, c);
+      const clickableKpi = !editing && !!cell.kpiCode && !!onCellKpiClick;
 
       cells.push(
         <div
           key={`${r},${c}`}
-          className={`no-drag overflow-hidden text-xs px-2 py-1 flex items-center border border-border ${selected ? "outline outline-2 outline-primary z-10" : ""} ${active ? "ring-2 ring-blue-500" : ""}`}
+          className={`no-drag overflow-hidden text-xs px-2 py-1 flex items-center border border-border transition-colors ${selected ? "outline outline-2 outline-primary z-10" : ""} ${active ? "ring-2 ring-blue-500" : ""} ${editing ? "hover:bg-accent/40" : ""} ${clickableKpi ? "hover:bg-accent/30" : ""}`}
           style={{
             gridColumn: `${c + 1} / span ${cell.colSpan ?? 1}`,
             gridRow: `${r + 1} / span ${cell.rowSpan ?? 1}`,
@@ -277,7 +278,7 @@ const ContextMenu = ({ ref, x, y, items, onClose }: {
 
   return createPortal(
     <div ref={ref} style={style}
-      className="bg-popover border border-border rounded-md shadow-lg py-1 min-w-[200px] text-xs"
+      className="bg-popover border border-border rounded-lg shadow-xl py-1 min-w-[200px] text-xs"
       onClick={(e) => e.stopPropagation()}
     >
       {items.map((item, i) => {
@@ -287,7 +288,7 @@ const ContextMenu = ({ ref, x, y, items, onClose }: {
         const mi = item as { label: string; shortcut?: string; action: () => void; destructive?: boolean };
         return (
           <button key={i}
-            className={`w-full text-left px-3 py-1.5 hover:bg-secondary flex items-center justify-between gap-4 ${mi.destructive ? "text-destructive" : ""}`}
+            className={`w-full text-left px-3 py-1.5 hover:bg-secondary transition-colors flex items-center justify-between gap-4 ${mi.destructive ? "text-destructive" : ""}`}
             onClick={mi.action}
           >
             <span>{mi.label}</span>

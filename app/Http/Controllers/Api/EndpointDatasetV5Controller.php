@@ -20,7 +20,6 @@ class EndpointDatasetV5Controller extends Controller
 
         $records = EndpointDataset::query()
             ->where('method', 'GET')
-            ->where('last_status', 'ok')
             ->whereIn('slug', $structureBySlug->keys())
             ->orderBy('slug')
             ->get()
@@ -43,6 +42,8 @@ class EndpointDatasetV5Controller extends Controller
                 ),
                 'sample_data' => $record->sample_data,
                 'row_count' => $record->row_count,
+                'status' => $record->last_status,
+                'last_error' => $record->last_error,
                 'last_synced_at' => $record->last_synced_at?->toISOString(),
             ];
         })->values();

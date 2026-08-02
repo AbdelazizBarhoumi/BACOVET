@@ -9,7 +9,7 @@ import { logActivity } from "./activity";
 import { useBuilder, DEFAULT_CONFIG_FOR, DEFAULT_SIZE } from "./store";
 import {
   addCol, addRow, cellAt, mergeRegion, moveCol, moveRow, removeCol, removeRow, unmergeAt, withCell,
-  type TableGrid, type WidgetType, type WidgetConfig,
+  type Agg, type TableGrid, type WidgetType, type WidgetConfig,
 } from "./types";
 
 const PALETTES = ["#22c55e","#3b82f6","#ec4899","#f59e0b","#ef4444","#a855f7","#06b6d4","#14b8a6","#f97316","#64748b","#0ea5e9","#84cc16"];
@@ -87,6 +87,14 @@ const DATA_BINDABLE: WidgetType[] = [
   "column", "stackedColumn", "stacked100Column", "stacked100Bar", "ribbon", "matrix",
   "map", "filledMap", "shapeMap",
   "slicer", "buttonSlicer", "listSlicer", "inputSlicer", "dateSlicer",
+  "decompositionTree", "keyInfluencers", "smartNarrative", "qna", "rVisual", "pythonVisual",
+  "table",
+];
+
+/** Widgets that render a single value (read dataValue/scalar directly) — endpoint change clears their binding. */
+const SINGLE_VALUE_WIDGETS: WidgetType[] = [
+  "kpi", "gauge", "sparkline", "pareto",
+  "map", "filledMap", "shapeMap", "matrix",
   "decompositionTree", "keyInfluencers", "smartNarrative", "qna", "rVisual", "pythonVisual",
 ];
 
@@ -489,7 +497,7 @@ export function Inspector() {
         {/* ─── TAB: DONNÉES ─── */}
         {hasDataTab && (
           <TabsContent value="data" className="space-y-3 pt-3">
-            <DataBindingInspector c={c} set={set} isMatrix={t === "matrix"} />
+            <DataBindingInspector c={c} set={set} singleValue={SINGLE_VALUE_WIDGETS.includes(t)} isMatrix={t === "matrix"} />
           </TabsContent>
         )}
 
@@ -735,20 +743,42 @@ function TableGridInspector({ widgetId, t, onChange }: {
   );
 }
 
-function DataBindingInspector({ c, set, isMatrix }: {
+function DataBindingInspector({ c, set, singleValue, isMatrix }: {
   c: WidgetConfig;
   set: (patch: Partial<WidgetConfig>) => void;
+  singleValue: boolean;
   isMatrix: boolean;
 }) {
   const { datasets, measures } = useBuilder();
   const ds = datasets.find((d) => d.slug === c.datasetSlug);
   const dsColumns = ds?.columns ?? [];
   const axisFields = dsColumns.filter((col) => normFieldType(col.type) !== "number");
-  const valueFields = [
-    ...dsColumns.filter((col) => normFieldType(col.type) === "number"),
-    ...measures.map((m) => ({ name: m.name, type: "number" as const })),
-  ];
-  const unset = () => set({ datasetSlug: undefined, dataAxis: undefined, dataValue: undefined, dataGroup: undefined });
+
+  const dsLabel = (d: (typeof datasets)[number]) => d.label || d.object || d.slug;
+  // Number fields from every endpoint (grouped, labeled Dataset.Field) + global measures.
+  const allValueOptions = datasets.flatMap((d) =>
+    (d.columns ?? [])
+      .filter((col) => normFieldType(col.type) === "number")
+      .map((col) => ({ key: `${d.slug}::${col.name}`, slug: d.slug, name: col.name, label: `${dsLabel(d)}.${col.name}` })),
+  );
+  const measureOptions = measures.map((m) => ({ key: `::${m.name}`, slug: undefined, name: m.name, label: `${m.name} (mesure)` }));
+
+  const boundValues = c.dataValues?.length ? c.dataValues : c.dataValue ? [c.dataValue] : [];
+  const addValue = (v: string) => {
+    const idx = v.indexOf("::");
+    const slug = idx > 0 ? v.slice(0, idx) : undefined;
+    const name = v.slice(idx + 2);
+    if (boundValues.includes(name)) return;
+    const next = [...boundValues, name];
+    set({ dataValues: next, dataValue: next[0], dataValueSources: { ...c.dataValueSources, [name]: slug ?? c.datasetSlug ?? "" } });
+  };
+  const removeValue = (v: string) => {
+    const next = boundValues.filter((n) => n !== v);
+    const sources = { ...c.dataValueSources };
+    delete sources[v];
+    set({ dataValues: next, dataValue: next[0], dataValueSources: sources });
+  };
+  const unset = () => set({ datasetSlug: undefined, dataAxis: undefined, dataValue: undefined, dataValues: undefined, dataValueSources: undefined, dataGroup: undefined });
 
   return (
     <>
@@ -756,14 +786,20 @@ function DataBindingInspector({ c, set, isMatrix }: {
       <Field label="Endpoint / Dataset">
         <Select value={c.datasetSlug ?? "__none"} onValueChange={(v) => {
           const slug = v === "__none" ? undefined : v;
-          set({ datasetSlug: slug, dataAxis: undefined, dataValue: undefined, dataGroup: undefined });
+          // Multi-value widgets keep their value bindings (each value has its own source);
+          // single-value widgets read dataValue directly, so their binding must reset.
+          if (singleValue) {
+            set({ datasetSlug: slug, dataAxis: undefined, dataValue: undefined, dataValues: undefined, dataValueSources: undefined, dataGroup: undefined });
+          } else {
+            set({ datasetSlug: slug, dataAxis: undefined, dataGroup: undefined });
+          }
         }}>
           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Sélectionner un dataset…" /></SelectTrigger>
           <SelectContent className="max-h-64">
             <SelectItem value="__none" className="text-xs">— aucun —</SelectItem>
             {datasets.map((d) => (
               <SelectItem key={d.slug} value={d.slug} className="text-xs">
-                {d.label || d.object || d.slug}
+                {dsLabel(d)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -784,14 +820,20 @@ function DataBindingInspector({ c, set, isMatrix }: {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Valeur">
-              <Select value={c.dataValue ?? "__none"} onValueChange={(v) => set({ dataValue: v === "__none" ? undefined : v })}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+            <Field label="Ajouter une valeur">
+              <Select value="__none" onValueChange={(v) => { if (v !== "__none") addValue(v); }}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="+ Valeur…" /></SelectTrigger>
                 <SelectContent className="max-h-64">
-                  <SelectItem value="__none" className="text-xs">— aucun —</SelectItem>
-                  {valueFields.map((f) => (
-                    <SelectItem key={f.name} value={f.name} className="text-xs">
-                      {f.name}{f.type === "number" ? "" : " (mesure)"}
+                  <SelectItem value="__none" className="text-xs">— choisir —</SelectItem>
+                  {measureOptions.map((o) => (
+                    <SelectItem key={o.key} value={o.key} className="text-xs" disabled={boundValues.includes(o.name)}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                  {allValueOptions.length > 0 && <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Datasets</div>}
+                  {allValueOptions.map((o) => (
+                    <SelectItem key={o.key} value={o.key} className="text-xs" disabled={boundValues.includes(o.name)}>
+                      {o.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -799,8 +841,41 @@ function DataBindingInspector({ c, set, isMatrix }: {
             </Field>
           </div>
 
-          <Field label="Agrégation">
-            <Select value={c.dataAggregation ?? "sum"} onValueChange={(v) => set({ dataAggregation: v as WidgetConfig["dataAggregation"] })}>
+          <Field label="Valeurs">
+            {boundValues.length === 0 ? (
+              <div className="rounded border border-dashed border-border px-2 py-1.5 text-[11px] text-muted-foreground">Aucune valeur liée</div>
+            ) : (
+              <div className="space-y-1.5">
+                {boundValues.map((v) => {
+                  const source = c.dataValueSources?.[v] ?? c.datasetSlug;
+                  const srcDs = datasets.find((d) => d.slug === source);
+                  const foreign = !!source && source !== c.datasetSlug;
+                  const chipLabel = foreign && srcDs ? `${dsLabel(srcDs)}.${v}` : v;
+                  return (
+                    <div key={v} className="flex items-center gap-1.5">
+                      <span className="flex min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px]">
+                        <span className={`truncate ${foreign ? "text-foreground" : ""}`}>{chipLabel}</span>
+                        <button onClick={() => removeValue(v)} className="ml-auto shrink-0 text-muted-foreground hover:text-destructive" title="Retirer">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </span>
+                      <Select value={c.dataAggregations?.[v] ?? c.dataAggregation ?? "sum"} onValueChange={(a) => set({ dataAggregations: { ...c.dataAggregations, [v]: a as Agg } })}>
+                        <SelectTrigger className="h-6 w-[6.5rem] text-[10px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {["sum", "avg", "count", "min", "max", "distinct"].map((a) => (
+                            <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Field>
+
+          <Field label="Agrégation par défaut">
+            <Select value={c.dataAggregation ?? "sum"} onValueChange={(v) => set({ dataAggregation: v as Agg })}>
               <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {["sum", "avg", "count", "min", "max", "distinct"].map((a) => (

@@ -1,17 +1,28 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, noSeriesData, noDataBound, ScalerHeader } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, lighten, noSeriesData, noDataBound, ScalerHeader } from "./shared";
 
 export function RadarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { series, hasSeries } = useWidgetData(c, id);
+  const { series, multiSeries, hasSeries } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
 
   const option = useMemo(() => {
     const maxVal = Math.max(...series.map((s) => s.v), 1) * 1.2;
+    const accent = c.accent ?? "#3b82f6";
+    const dimmed = series.some((s) => isDimmed(s.x));
 
     return {
-      color: [c.accent ?? "#3b82f6"],
+      color: [accent, ...multiSeries.slice(1).map((ms) => ms.color)],
+      ...(multiSeries.length > 1 ? {
+        legend: {
+          show: true,
+          top: 0,
+          textStyle: { fontSize: 11, color: "#6b7280" },
+          itemWidth: 16,
+          itemHeight: 8,
+        },
+      } : {}),
       tooltip: {
         trigger: "item",
         backgroundColor: "rgba(255,255,255,0.95)",
@@ -20,26 +31,36 @@ export function RadarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
       },
       radar: {
         indicator: series.map((s) => ({ name: s.x, max: maxVal })),
-        radius: "60%",
+        radius: "62%",
         axisName: { color: "#6b7280", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#e5e7eb" } },
+        axisLine: { lineStyle: { color: "#e5e7eb" } },
         splitArea: {
-          areaStyle: {
-            color: ["#f9fafb", "#f3f4f6", "#e5e7eb", "#d1d5db"].map((_, i) => (i % 2 === 0 ? "#f9fafb" : "#f3f4f6")),
-          },
+          areaStyle: { color: ["#fafbfc", "#f3f4f6"] },
         },
       },
       series: [{
         type: "radar",
-        data: [{
-          value: series.map((s) => s.v),
-          name: c.label ?? "Value",
-          areaStyle: { opacity: 0.2 },
-          itemStyle: { opacity: series.some((s) => isDimmed(s.x)) ? 0.25 : 1 },
-          lineStyle: { opacity: series.some((s) => isDimmed(s.x)) ? 0.25 : 1 },
-        }],
+        data: multiSeries.map((ms, i) => {
+          const color = i === 0 ? accent : ms.color;
+          return {
+            value: ms.data.map((s) => s.v),
+            name: ms.label,
+            symbol: "circle",
+            symbolSize: 5,
+            areaStyle: multiSeries.length > 1 ? undefined : {
+              color: {
+                type: "radial" as const, x: 0.5, y: 0.5, r: 0.8,
+                colorStops: [{ offset: 0, color: `${lighten(color, 0.3)}66` }, { offset: 1, color: `${color}22` }],
+              },
+            },
+            lineStyle: { width: 2, color },
+            itemStyle: { color, opacity: dimmed ? 0.25 : 1 },
+          };
+        }),
       }],
     };
-  }, [series, c.accent, c.label, isDimmed]);
+  }, [series, multiSeries, c.accent, isDimmed]);
 
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
   if (!hasSeries) return wrap(c, boxStyle(c), noSeriesData());

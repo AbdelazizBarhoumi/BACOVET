@@ -75,22 +75,29 @@ class SyncEndpointDatasets extends Command
             $result = $this->fetchResult($responses[(string) $i] ?? null);
             $rows = $result['ok'] ? $this->extractRows($result['data']) : [];
 
+            $payload = [
+                'name' => (string) $endpoint['name'],
+                'label' => $endpoint['label'],
+                'object' => $endpoint['object'],
+                'object_type' => $endpoint['object_type'],
+                'source' => (string) $endpoint['source'],
+                'method' => 'GET',
+                'last_status' => $result['ok'] ? 'ok' : 'error',
+                'last_error' => $result['ok'] ? null : mb_substr((string) $result['error'], 0, 2000),
+                'last_synced_at' => $syncedAt,
+            ];
+
+            // Keep the last-known-good snapshot (columns/rows) when a fetch
+            // fails so registered endpoints stay usable in the V5/V6 builder.
+            if ($result['ok']) {
+                $payload['columns'] = $this->buildColumns((array) $endpoint['columns'], $rows);
+                $payload['sample_data'] = $rows;
+                $payload['row_count'] = count($rows);
+            }
+
             EndpointDataset::updateOrCreate(
                 ['slug' => (string) $endpoint['slug']],
-                [
-                    'name' => (string) $endpoint['name'],
-                    'label' => $endpoint['label'],
-                    'object' => $endpoint['object'],
-                    'object_type' => $endpoint['object_type'],
-                    'source' => (string) $endpoint['source'],
-                    'method' => 'GET',
-                    'columns' => $this->buildColumns((array) $endpoint['columns'], $rows),
-                    'sample_data' => $rows,
-                    'row_count' => count($rows),
-                    'last_status' => $result['ok'] ? 'ok' : 'error',
-                    'last_error' => $result['ok'] ? null : mb_substr((string) $result['error'], 0, 2000),
-                    'last_synced_at' => $syncedAt,
-                ],
+                $payload,
             );
 
             if ($result['ok']) {

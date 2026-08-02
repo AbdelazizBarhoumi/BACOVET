@@ -210,6 +210,46 @@ class EndpointDatasetV5Test extends TestCase
         $this->assertSame([], $datasets['api/data/empty_table']['sample_data']);
     }
 
+    public function test_index_includes_datasets_with_error_status_and_their_last_good_data(): void
+    {
+        $this->writeFixture([
+            [
+                'name' => 'ItemTrxEnq',
+                'method' => 'GET',
+                'endpoint' => 'http://novacity/api/data/itemtrxenq',
+                'response' => [
+                    'label' => 'Item Trx Enq',
+                    'columns' => ['code', 'qty'],
+                    'data' => [['code' => 'stale']],
+                ],
+            ],
+        ]);
+
+        EndpointDataset::create([
+            'slug' => 'api/data/itemtrxenq',
+            'name' => 'ItemTrxEnq',
+            'method' => 'GET',
+            'columns' => [['name' => 'code', 'type' => 'text']],
+            'sample_data' => [['code' => 'A']],
+            'row_count' => 1,
+            'last_status' => 'error',
+            'last_error' => 'HTTP 500',
+        ]);
+
+        $response = $this->getJson('/api/v5/endpoint-datasets');
+
+        $response->assertStatus(200);
+        $this->assertEquals(
+            ['api/data/itemtrxenq'],
+            array_column($response->json('datasets'), 'slug'),
+        );
+        $this->assertEquals('error', $response->json('datasets.0.status'));
+        $this->assertEquals('HTTP 500', $response->json('datasets.0.last_error'));
+        $this->assertEquals(1, $response->json('datasets.0.row_count'));
+        $this->assertEquals('A', $response->json('datasets.0.sample_data.0.code'));
+        $this->assertEquals('text', $response->json('datasets.0.columns.0.type'));
+    }
+
     private function writeFixture(array $data): void
     {
         $path = storage_path(self::FIXTURE);

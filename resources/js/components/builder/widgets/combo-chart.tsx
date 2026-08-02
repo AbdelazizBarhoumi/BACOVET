@@ -1,7 +1,7 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, resolveKpiSeries, statusColor, noSeriesData, noKpiSelected, ScalerHeader, type KpiDataMap } from "./shared";
+import { boxStyle, wrap, resolveKpiSeries, echartsBarGradient, noSeriesData, noKpiSelected, ScalerHeader, type KpiDataMap } from "./shared";
 
 export function ComboChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: KpiDataMap }) {
   const { series, hasData } = resolveKpiSeries(c, kpiData);
@@ -9,6 +9,7 @@ export function ComboChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: Kp
   const option = useMemo(() => {
     const xData = series.map((s) => s.x);
     const defaultColor = c.accent ?? "#3b82f6";
+    const seriesMax = Math.max(...series.map((s) => Math.abs(s.v)), 1);
 
     return {
       color: [defaultColor, "#ef4444"],
@@ -43,10 +44,10 @@ export function ComboChartWidget({ c, kpiData }: { c: WidgetConfig; kpiData?: Kp
           name: "Valeur",
           type: "bar",
           barMaxWidth: 32,
-          itemStyle: { borderRadius: [4, 4, 0, 0] },
+          itemStyle: { borderRadius: [5, 5, 0, 0] },
           data: series.map((s) => ({
             value: s.v,
-            itemStyle: { color: c.target ? statusColor(s.v, c.target) : defaultColor },
+            itemStyle: { color: echartsBarGradient(s.v, c.target, seriesMax) },
           })),
         },
         ...(c.showTarget && c.target != null ? [{

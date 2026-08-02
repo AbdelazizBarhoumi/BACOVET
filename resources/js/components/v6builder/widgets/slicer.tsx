@@ -41,16 +41,22 @@ export function SlicerWidget({ type, c, id }: { type: SlicerType; c: WidgetConfi
     setSlicerDateRanges((prev) => ({ ...prev, [id]: r }));
   };
 
+  const CountBadge = selected.size > 0 ? (
+    <span className="rounded-full bg-[var(--brand)] text-[var(--brand-foreground)] text-[9px] font-semibold px-1.5 py-0.5 leading-none">
+      {selected.size}
+    </span>
+  ) : null;
+
   let body: React.ReactNode;
   switch (type) {
     case "buttonSlicer":
       body = (
-        <div className="flex h-full flex-wrap content-start gap-1 overflow-auto p-1">
+        <div className="flex h-full flex-wrap content-start gap-1.5 overflow-auto p-1.5">
           {values.map((v) => (
             <button
               key={v}
               onClick={() => toggle(v)}
-              className="rounded border px-2 py-1 text-[10px] transition-colors"
+              className="rounded-full border px-2.5 py-1 text-[10px] font-medium transition-all duration-150 hover:shadow-sm active:scale-95"
               style={selected.has(v)
                 ? { borderColor: "var(--brand)", background: "var(--brand)", color: "var(--brand-foreground)" }
                 : { borderColor: "var(--border)" }}
@@ -63,20 +69,23 @@ export function SlicerWidget({ type, c, id }: { type: SlicerType; c: WidgetConfi
       break;
     case "inputSlicer":
       body = (
-        <div className="flex h-full flex-col gap-2 p-1">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={`Type to filter ${field}…`}
-            className="rounded border border-border bg-background px-2 py-1 text-[11px]"
-          />
+        <div className="flex h-full flex-col gap-2 p-1.5">
+          <div className="flex items-center gap-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={`Filtrer ${field}…`}
+              className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] transition-colors focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            />
+            {CountBadge}
+          </div>
           <div className="flex-1 overflow-auto">
             {values.map((v) => (
               <button
                 key={v}
                 onClick={() => toggle(v)}
-                className="block w-full truncate rounded px-2 py-0.5 text-left text-[11px]"
-                style={selected.has(v) ? { background: "color-mix(in oklch, var(--brand) 15%, transparent)" } : {}}
+                className="block w-full truncate rounded-md px-2 py-1 text-left text-[11px] transition-colors hover:bg-accent"
+                style={selected.has(v) ? { background: "color-mix(in oklch, var(--brand) 15%, transparent)", fontWeight: 600 } : {}}
               >
                 {v}
               </button>
@@ -88,14 +97,14 @@ export function SlicerWidget({ type, c, id }: { type: SlicerType; c: WidgetConfi
     case "dateSlicer":
       body = (
         <div className="flex h-full flex-col justify-center gap-2 p-2 text-[11px]">
-          <button onClick={() => setRange({ from: "", to: "" })} className="self-end text-[10px] text-muted-foreground hover:text-foreground">Clear</button>
+          <button onClick={() => setRange({ from: "", to: "" })} className="self-end text-[10px] text-muted-foreground transition-colors hover:text-foreground">Effacer</button>
           <label className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">From</span>
-            <input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className="rounded border border-border bg-background px-2 py-1" />
+            <span className="text-muted-foreground">Du</span>
+            <input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className="rounded-md border border-border bg-background px-2 py-1 transition-colors focus:outline-none focus:ring-1 focus:ring-[var(--brand)]" />
           </label>
           <label className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">To</span>
-            <input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} className="rounded border border-border bg-background px-2 py-1" />
+            <span className="text-muted-foreground">Au</span>
+            <input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} className="rounded-md border border-border bg-background px-2 py-1 transition-colors focus:outline-none focus:ring-1 focus:ring-[var(--brand)]" />
           </label>
         </div>
       );
@@ -104,10 +113,13 @@ export function SlicerWidget({ type, c, id }: { type: SlicerType; c: WidgetConfi
     default:
       body = (
         <div className="flex h-full flex-col">
-          <button onClick={clear} className="self-end text-[10px] text-muted-foreground hover:text-foreground">Clear</button>
+          <div className="flex items-center justify-between px-1 pt-1">
+            {CountBadge}
+            <button onClick={clear} className="ml-auto text-[10px] text-muted-foreground transition-colors hover:text-foreground">Effacer</button>
+          </div>
           <div className="mt-1 flex-1 overflow-auto pr-1">
             {values.map((v) => (
-              <label key={v} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-accent">
+              <label key={v} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[11px] transition-colors hover:bg-accent">
                 <input type="checkbox" checked={selected.has(v)} onChange={() => toggle(v)} className="size-3 accent-[var(--brand)]" />
                 <span className="truncate">{v}</span>
               </label>

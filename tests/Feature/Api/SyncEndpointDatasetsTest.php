@@ -151,6 +151,16 @@ class SyncEndpointDatasetsTest extends TestCase
             ],
         ]);
 
+        EndpointDataset::create([
+            'slug' => 'api/data/itemtrxenq',
+            'name' => 'ItemTrxEnq',
+            'method' => 'GET',
+            'columns' => [['name' => 'code', 'type' => 'text']],
+            'sample_data' => [['code' => 'A']],
+            'row_count' => 1,
+            'last_status' => 'ok',
+        ]);
+
         Http::fake([
             'novacity/api/data/itemtrxenq*' => Http::failedConnection('Connection refused'),
         ]);
@@ -160,8 +170,10 @@ class SyncEndpointDatasetsTest extends TestCase
         $row = EndpointDataset::where('slug', 'api/data/itemtrxenq')->firstOrFail();
         $this->assertSame('error', $row->last_status);
         $this->assertStringContainsString('Connection refused', $row->last_error);
-        $this->assertSame(0, $row->row_count);
-        $this->assertSame([], $row->sample_data);
+        // Last-known-good snapshot is preserved for the V5/V6 builder.
+        $this->assertSame(1, $row->row_count);
+        $this->assertSame([['code' => 'A']], $row->sample_data);
+        $this->assertSame([['name' => 'code', 'type' => 'text']], $row->columns);
     }
 
     public function test_fails_when_file_missing(): void

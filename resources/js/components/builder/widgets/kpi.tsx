@@ -1,6 +1,6 @@
+import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { useId } from "react";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
-import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import type { WidgetConfig } from "../types";
 import { boxStyle, resolveKpiSeries, type KpiDataMap } from "./shared";
 

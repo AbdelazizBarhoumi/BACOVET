@@ -74,13 +74,20 @@ export type TableGrid = {
   zebra?: boolean;
 };
 
+export type Agg = "sum" | "avg" | "count" | "distinct" | "min" | "max";
+
 export type WidgetConfig = {
   // data
   datasetSlug?: string;
   dataAxis?: string;
   dataValue?: string;
+  dataValues?: string[];
+  /** Per-value source dataset, keyed by field name; falls back to datasetSlug. */
+  dataValueSources?: Record<string, string>;
   dataGroup?: string;
-  dataAggregation?: "sum" | "avg" | "count" | "distinct" | "min" | "max";
+  dataAggregation?: Agg;
+  /** Per-field aggregation override, keyed by field name; falls back to dataAggregation. */
+  dataAggregations?: Record<string, Agg>;
   analyticsConstant?: number;
   analyticsAverage?: boolean;
   tableGrid?: TableGrid;
