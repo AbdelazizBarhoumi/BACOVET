@@ -471,10 +471,18 @@ export function VisualView({
     visual: Visual;
     rows: Row[];
 }) {
-    const { tables, joins } = usePbi();
+    const { tables, joins, measures } = usePbi();
+    const measureExpressions = useMemo(
+        () =>
+            measures.reduce<Record<string, string>>((acc, m) => {
+                if (m.expression) acc[m.name] = m.expression;
+                return acc;
+            }, {}),
+        [measures],
+    );
     const enrichedRows = useMemo(
-        () => enrichRows(visual, allRows, tables, joins),
-        [visual, allRows, tables, joins],
+        () => enrichRows(visual, allRows, tables, joins, measureExpressions),
+        [visual, allRows, tables, joins, measureExpressions],
     );
     const { rows, match } = useInteractiveRows(visual, enrichedRows);
     const sm = visual.smallMultiples[0]?.name;

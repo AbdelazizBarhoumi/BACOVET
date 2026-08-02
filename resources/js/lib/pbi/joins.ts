@@ -10,6 +10,9 @@ import {
     type TableDef,
     type Visual,
     type WellField,
+    findTableForField,
+    isMeasure,
+    measureColumnRefs,
     visualTable,
 } from './model';
 
@@ -101,6 +104,7 @@ export function enrichRows(
     rows: Row[],
     tables: TableDef[],
     joins: JoinRegistry,
+    measureExpressions?: Record<string, string>,
 ): Row[] {
     if (!rows.length || !Object.keys(joins).length) return rows;
     const primary = visualTable(visual);
@@ -115,21 +119,53 @@ export function enrichRows(
         visual.smallMultiples,
     ];
 
+    /** {table, column} pairs to join onto the primary rows, deduped. */
+    const wanted: { table: string; column: string }[] = [];
+    const seen = new Set<string>();
+
+    const addWanted = (table: string | undefined, column: string) => {
+        const t = table || findTableForField(column);
+        if (!t || t === primary) return;
+        const key = `${t}\u0000${column}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        wanted.push({ table: t, column });
+    };
+
+    for (const well of wells) {
+        for (const field of well) {
+            if (field.name === '') continue;
+            if (rows[0] && field.name in rows[0]) continue;
+            if (field.table === 'Measures' || isMeasure(field.name)) {
+                // Bound measure: enrich every column its expression references
+                // so grouped cross-table measures see all their columns.
+                const expr = measureExpressions?.[field.name];
+                if (expr) {
+                    for (const ref of measureColumnRefs(expr)) {
+                        addWanted(ref.table, ref.column);
+                    }
+                }
+                continue;
+            }
+            addWanted(field.table, field.name);
+        }
+    }
+
     const targets: {
         field: WellField;
         table: TableDef;
         join: JoinColumn;
     }[] = [];
-    for (const well of wells) {
-        for (const field of well) {
-            if (!field.table || field.table === primary) continue;
-            if (rows[0] && field.name in rows[0]) continue;
-            const table = tables.find((t) => t.name === field.table);
-            if (!table) continue;
-            const join = findJoin(joins, primary, field.table);
-            if (!join) continue;
-            targets.push({ field, table, join });
-        }
+    for (const { table, column } of wanted) {
+        const t = tables.find((td) => td.name === table);
+        if (!t) continue;
+        const join = findJoin(joins, primary, table);
+        if (!join) continue;
+        targets.push({
+            field: { table, name: column, agg: 'sum' },
+            table: t,
+            join,
+        });
     }
     if (!targets.length) return rows;
 

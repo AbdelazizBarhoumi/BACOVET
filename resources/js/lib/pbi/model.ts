@@ -859,7 +859,11 @@ export const MEASURES: Field[] = [
     },
 ];
 
-export const MEASURE_IMPL: Record<string, (rows: Row[]) => number> = {
+/** A compiled measure: aggregates rows, optionally carrying eval context so
+ *  `[Other Measure]` refs resolve through nested measure calls. */
+export type MeasureImpl = (rows: Row[], ctx?: EvalCtx) => number;
+
+export const MEASURE_IMPL: Record<string, MeasureImpl> = {
     'Row Count': (rows) => rows.length,
 };
 
@@ -915,7 +919,9 @@ class MeasureSyntaxError extends Error {}
 type EvalCtx = {
     errors?: string[];
     /** Other page measures, resolved by `[Name]` refs. */
-    measures?: Record<string, ((rows: Row[]) => number) | null>;
+    measures?: Record<string, MeasureImpl | null>;
+    /** Recursion depth guard for measures that reference other measures. */
+    depth?: number;
 };
 
 type MeasureNode =
@@ -1111,14 +1117,36 @@ function tryCompile(
     }
 }
 
-/** Column values from rows, flagging references to columns that no longer exist. */
+/** Column values from rows, flagging references to columns that no longer exist.
+ *
+ *  When the passed rows (a visual's primary-table rows) do not contain a
+ *  column the measure references, the column is resolved from the table the
+ *  expression names (or the first table exposing the column). This lets
+ *  measures compute against their own tables even in measure-only visuals or
+ *  measures that span multiple tables. */
 function resolveColumn(
     column: string,
     rows: Row[],
     ctx: EvalCtx,
+    table?: string,
 ): (string | number | boolean | null)[] {
     const sample = rows[0];
-    if (sample && !(column in sample)) {
+    const present = !!sample && column in sample;
+    if (!present) {
+        const candidates: string[] =
+            table && table !== '' ? [table] : [];
+        if (!candidates.length) {
+            const found = findTableForField(column);
+            if (found) candidates.push(found);
+        }
+        for (const name of candidates) {
+            const source = TABLES.find((t) => t.name === name);
+            if (source && source.rows.length && column in source.rows[0]) {
+                return source.rows.map((r) => r[column] ?? null);
+            }
+        }
+    }
+    if (sample && !present) {
         const message = `Colonne « ${column} » introuvable.`;
         ctx.errors?.push(message);
         throw new MeasureSyntaxError(message);
@@ -1152,7 +1180,8 @@ function evalFunction(node: Extract<MeasureNode, { kind: 'func' }>, rows: Row[],
     if (!arg) throw new MeasureSyntaxError(`${name}() attend une colonne.`);
 
     const column = columnNameOf(arg);
-    const values = resolveColumn(column, rows, ctx);
+    const table = arg.kind === 'col' ? arg.table : undefined;
+    const values = resolveColumn(column, rows, ctx, table);
 
     switch (name) {
         case 'SUM':
@@ -1195,17 +1224,24 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
         case 'num':
             return node.value;
         case 'col':
-            return numericOf(resolveColumn(node.column, rows, ctx)).reduce(
+            return numericOf(resolveColumn(node.column, rows, ctx, node.table)).reduce(
                 (total, value) => total + value,
                 0,
             );
         case 'ref': {
-            const fn = ctx.measures?.[node.name];
-            if (fn) return fn(rows) ?? 0;
-            return numericOf(resolveColumn(node.name, rows, ctx)).reduce(
-                (total, value) => total + value,
-                0,
-            );
+            const known = ctx.measures;
+            const fn =
+                known && node.name in known
+                    ? known[node.name]
+                    : (MEASURE_IMPL[node.name] ?? null);
+            if (fn) {
+                const depth = ctx.depth ?? 0;
+                if (depth > 8) return 0;
+                return fn(rows, { ...ctx, depth: depth + 1 }) ?? 0;
+            }
+            return numericOf(
+                resolveColumn(node.name, rows, ctx, findTableForField(node.name) || undefined),
+            ).reduce((total, value) => total + value, 0);
         }
         case 'table':
             return 0;
@@ -1229,18 +1265,37 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
  * existing callers keep working; use `validateMeasureExpression` /
  * `evaluateMeasure` to surface errors.
  */
-export function compileMeasure(expression: string): (rows: Row[]) => number {
+export function compileMeasure(expression: string): MeasureImpl {
     const compiled = tryCompile(expression);
     if (!compiled.ok) return () => 0;
     const node = compiled.node;
-    return (rows) => {
-        const ctx: EvalCtx = {};
+    return (rows, ctx = {}) => {
         try {
             return evalNode(node, rows, ctx);
         } catch {
             return 0;
         }
     };
+}
+
+/**
+ * Returns the `Table[Column]` / `[Column]` references a measure expression
+ * depends on, so callers can resolve the rows the measure should be evaluated
+ * against (enrichment, measure-only visuals). Table names are kept as written
+ * in the expression; bare column refs have no table and are resolved at
+ * runtime via `findTableForField`.
+ */
+export function measureColumnRefs(
+    expression: string,
+): { table?: string; column: string }[] {
+    const compiled = tryCompile(expression);
+    if (!compiled.ok) return [];
+    const refs: { table?: string; column: string }[] = [];
+    walkNode(compiled.node, (node) => {
+        if (node.kind === 'col') refs.push({ table: node.table, column: node.column });
+        else if (node.kind === 'ref') refs.push({ column: node.name });
+    });
+    return refs;
 }
 
 export type MeasureValidation = { ok: true } | { ok: false; error: string };
@@ -1291,7 +1346,7 @@ export function validateMeasureExpression(
 export function evaluateMeasure(
     expression: string,
     rows: Row[],
-    measures?: Record<string, ((rows: Row[]) => number) | null>,
+    measures?: Record<string, MeasureImpl | null>,
 ): { value: number; error?: string } {
     const compiled = tryCompile(expression);
     if (!compiled.ok) return { value: 0, error: compiled.error };
@@ -1336,7 +1391,7 @@ function knownMeasureNames(): string[] {
 export function registerMeasure(
     name: string,
     expression: string,
-    impl?: (rows: Row[]) => number,
+    impl?: MeasureImpl,
 ): void {
     MEASURE_IMPL[name] = impl ?? compileMeasure(expression);
     const validation = validateMeasureExpression(

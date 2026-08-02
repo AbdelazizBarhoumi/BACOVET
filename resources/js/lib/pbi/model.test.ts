@@ -11,6 +11,7 @@ import {
     gaugeBoundValue,
     inferFieldType,
     isMeasure,
+    measureColumnRefs,
     measureError,
     measureLabel,
     normalizeCalloutStyle,
@@ -285,6 +286,65 @@ describe('Phase 3 measure engine (simplified forms)', () => {
         const ref = evaluateMeasure('[Total Sales]', rows, { 'Total Sales': total });
         expect(ref).toEqual({ value: 175 });
         expect(evaluateMeasure('[Margin]-10', rows, { Margin: margin })).toEqual({ value: 110 });
+    });
+});
+
+describe('table-aware measure resolution', () => {
+    const other: TableDef = {
+        name: 'diva',
+        fields: [
+            { table: 'diva', name: 'Qte', type: 'number' },
+            { table: 'diva', name: 'DivaKey', type: 'text' },
+        ],
+        rows: [
+            { Qte: 4, DivaKey: 'A' },
+            { Qte: 6, DivaKey: 'B' },
+            { Qte: 8, DivaKey: 'C' },
+        ],
+    };
+
+    it('computes against its own table even when the visual rows lack the column (measure-only card)', () => {
+        setTables([table, other]);
+        // Card rows come from a table that does not expose `Qte`.
+        const cardRows = [{ ProdGroup: 'CH01' }];
+        const fn = compileMeasure('Total = SUM(diva[Qte])');
+        expect(fn(cardRows)).toBe(18);
+    });
+
+    it('resolves bare column refs to the first table exposing the column', () => {
+        setTables([table, other]);
+        expect(compileMeasure('SUM(Qte)')([{ ProdGroup: 'CH01' }])).toBe(18);
+    });
+
+    it('keeps visual rows when they already contain the column', () => {
+        setTables([table, other]);
+        expect(compileMeasure('SUM(Qte)')([{ Qte: 1 }, { Qte: 2 }])).toBe(3);
+    });
+
+    it('aggregates a cross-table measure to the referenced table total when no join enriches the rows', () => {
+        setTables([table, other]);
+        // Grouped chart rows reference `diva` but are not enriched with `Qte`.
+        const grouped = [{ ProdGroup: 'CH01' }, { ProdGroup: 'CH02' }];
+        const fn = compileMeasure('Total = SUM(diva[Qte])');
+        expect(fn(grouped)).toBe(18);
+    });
+
+    it('supports [Other Measure] refs at eval time with a recursion guard', () => {
+        setTables([table]);
+        registerMeasure('Base Total', 'Base Total = SUM(wip_chaine[WIP_Chaine])');
+        registerMeasure('Base Times 2', 'Base Times 2 = [Base Total] * 2');
+        expect(compileMeasure('[Base Times 2]')(table.rows)).toBe(44);
+        unregisterMeasure('Base Total');
+        unregisterMeasure('Base Times 2');
+    });
+
+    it('lists the tables and columns a measure expression depends on', () => {
+        setTables([table, other]);
+        expect(measureColumnRefs('Total = SUM(diva[Qte]) + [Other]')).toEqual([
+            { table: 'diva', column: 'Qte' },
+            { column: 'Other' },
+        ]);
+        expect(measureColumnRefs('Total = SUM(Gone')).toEqual([]);
     });
 });
 

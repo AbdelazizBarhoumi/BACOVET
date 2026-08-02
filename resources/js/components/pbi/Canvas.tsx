@@ -18,7 +18,7 @@ import {
     type Interaction,
     type Visual,
 } from '@/lib/pbi/model';
-import { defaultDropWell, usePbi, visualTypeLabel } from '@/lib/pbi/store';
+import { defaultDropWell, usePbi, visualDataTable, visualTypeLabel } from '@/lib/pbi/store';
 import { isSingleValueType } from '@/lib/pbi/visualConfig';
 import { cn } from '@/lib/utils';
 import { VisualExportButton } from './VisualExportButton';
@@ -174,6 +174,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         openDrillthrough,
         clearCrossFilter,
         crossFilter,
+        measures,
     } = usePbi();
 
     const [drag, setDrag] = useState<DragState | null>(null);
@@ -267,8 +268,22 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                     }}
                     onDrop={(e) => {
                         if (readOnly) return;
-                        if (e.dataTransfer.getData('text/plain'))
-                            addVisual('column');
+                        e.preventDefault();
+                        const raw = e.dataTransfer.getData('text/plain');
+                        if (!raw) return;
+                        let name: unknown = raw;
+                        let table: string | undefined;
+                        try {
+                            const payload = JSON.parse(raw);
+                            if (payload?.name) {
+                                name = payload.name;
+                                table = payload.table;
+                            }
+                        } catch {
+                            // plain field name
+                        }
+                        const id = addVisual('column');
+                        dropField(id, defaultDropWell('column'), name, table);
                     }}
                     className={cn(
                         'relative origin-top-left overflow-hidden shadow-lg ring-1 ring-border',
@@ -292,9 +307,10 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
 
                     {ordered.map((v) => {
                         if (v.hidden) return null;
+                        const dataTable = visualDataTable(v, measures);
                         const vRows = isSlicerVisual(v)
-                            ? tables.find((t) => t.name === visualTable(v))?.rows ?? rows
-                            : tableRows[visualTable(v)] ?? rows;
+                            ? tables.find((t) => t.name === dataTable)?.rows ?? rows
+                            : tableRows[dataTable] ?? rows;
                         const isSel = selected?.id === v.id;
                         const interactionTarget =
                             !readOnly &&
@@ -605,11 +621,18 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                             const base =
                                 tableRows[visualTable(recordsVisual)] ?? rows;
                             const vt = visualTable(recordsVisual);
+                            const measureExpressions = measures.reduce<
+                                Record<string, string>
+                            >((acc, m) => {
+                                if (m.expression) acc[m.name] = m.expression;
+                                return acc;
+                            }, {});
                             const enriched = enrichRows(
                                 recordsVisual,
                                 base,
                                 tables,
                                 joins,
+                                measureExpressions,
                             );
                             const recordsRows = crossFilterRows(
                                 enriched,

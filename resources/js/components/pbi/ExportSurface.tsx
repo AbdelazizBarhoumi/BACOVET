@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { visualTable, isSlicerVisual, type Page } from '@/lib/pbi/model';
-import { usePbi, visualTypeLabel } from '@/lib/pbi/store';
+import { isSlicerVisual, type Page } from '@/lib/pbi/model';
+import { usePbi, visualDataTable, visualTypeLabel } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
 import { cn } from '@/lib/utils';
 import { VisualView } from './VisualView';
@@ -16,7 +16,8 @@ export function ExportSurface({
     pages: Page[];
     ref?: React.Ref<HTMLDivElement>;
 }) {
-    const { rows, tableRows, tables, theme, customThemes } = usePbi();
+    const { rows, tableRows, tables, theme, customThemes, measures } =
+        usePbi();
     const activeTheme =
         customThemes.find((t) => t.id === theme) ?? themeById(theme);
     const style = useMemo(
@@ -52,9 +53,10 @@ export function ExportSurface({
                         .sort((a, b) => a.z - b.z)
                         .map((v) => {
                             if (v.hidden) return null;
+                            const dataTable = visualDataTable(v, measures);
                             const vRows = isSlicerVisual(v)
-                                ? tables.find((t) => t.name === visualTable(v))?.rows ?? rows
-                                : tableRows[visualTable(v)] ?? rows;
+                                ? tables.find((t) => t.name === dataTable)?.rows ?? rows
+                                : tableRows[dataTable] ?? rows;
                             return (
                                 <div
                                     key={v.id}

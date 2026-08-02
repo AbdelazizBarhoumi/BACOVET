@@ -31,6 +31,8 @@ export type ExportDeps = {
     joins: JoinRegistry;
     crossFilter: CrossFilter;
     interactionFor: (sourceId: string, targetId: string) => Interaction;
+    /** measure name -> expression, used to enrich measure-referenced columns. */
+    measureExpressions?: Record<string, string>;
 };
 
 export type ExportDataset = {
@@ -86,7 +88,13 @@ export function currentViewRows(
     rows: Row[],
     deps: ExportDeps,
 ): Row[] {
-    const enriched = enrichRows(visual, rows, deps.tables, deps.joins);
+    const enriched = enrichRows(
+        visual,
+        rows,
+        deps.tables,
+        deps.joins,
+        deps.measureExpressions,
+    );
     const mode = deps.interactionFor(
         deps.crossFilter?.sourceId ?? '',
         visual.id,

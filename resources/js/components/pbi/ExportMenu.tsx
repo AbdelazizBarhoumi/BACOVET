@@ -6,7 +6,7 @@ import {
     Presentation,
     Table2,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,7 +38,7 @@ import { ExportSurface } from './ExportSurface';
 type ExportKind = 'pdf' | 'pdf-current' | 'png' | 'xlsx' | 'pptx';
 
 export function ExportMenu() {
-    const { state, tables, joins, crossFilter, interactionFor, tableRows } =
+    const { state, tables, joins, crossFilter, interactionFor, tableRows, measures } =
         usePbi();
     const surfaceRef = useRef<HTMLDivElement | null>(null);
     const [busy, setBusy] = useState<ExportKind | null>(null);
@@ -47,7 +47,22 @@ export function ExportMenu() {
         total: 0,
     });
 
-    const deps: ExportDeps = { tables, joins, crossFilter, interactionFor };
+    const measureExpressions = useMemo(
+        () =>
+            measures.reduce<Record<string, string>>((acc, m) => {
+                if (m.expression) acc[m.name] = m.expression;
+                return acc;
+            }, {}),
+        [measures],
+    );
+
+    const deps: ExportDeps = {
+        tables,
+        joins,
+        crossFilter,
+        interactionFor,
+        measureExpressions,
+    };
 
     const run = async (kind: ExportKind) => {
         if (busy) return;

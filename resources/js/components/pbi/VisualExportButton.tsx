@@ -1,5 +1,5 @@
 import { FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
     DropdownMenu,
@@ -14,19 +14,35 @@ import {
     type ExportDeps,
 } from '@/lib/pbi/exportData';
 import { exportFilename } from '@/lib/pbi/exportRender';
-import { visualTable, isSlicerVisual, type Visual } from '@/lib/pbi/model';
-import { usePbi } from '@/lib/pbi/store';
+import { isSlicerVisual, type Visual } from '@/lib/pbi/model';
+import { usePbi, visualDataTable } from '@/lib/pbi/store';
 
 /** Hover action on a visual (view mode) to download its data as CSV or Excel. */
 export function VisualExportButton({ visual }: { visual: Visual }) {
-    const { rows, tableRows, tables, joins, crossFilter, interactionFor } =
+    const { rows, tableRows, tables, joins, crossFilter, interactionFor, measures } =
         usePbi();
     const [busy, setBusy] = useState(false);
 
-    const deps: ExportDeps = { tables, joins, crossFilter, interactionFor };
+    const measureExpressions = useMemo(
+        () =>
+            measures.reduce<Record<string, string>>((acc, m) => {
+                if (m.expression) acc[m.name] = m.expression;
+                return acc;
+            }, {}),
+        [measures],
+    );
+
+    const deps: ExportDeps = {
+        tables,
+        joins,
+        crossFilter,
+        interactionFor,
+        measureExpressions,
+    };
+    const dataTable = visualDataTable(visual, measures);
     const base = isSlicerVisual(visual)
-        ? tables.find((t) => t.name === visualTable(visual))?.rows ?? rows
-        : tableRows[visualTable(visual)] ?? rows;
+        ? tables.find((t) => t.name === dataTable)?.rows ?? rows
+        : tableRows[dataTable] ?? rows;
 
     const run = async (kind: 'csv' | 'xlsx') => {
         if (busy) return;

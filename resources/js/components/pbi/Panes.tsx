@@ -855,8 +855,8 @@ const VALUE_AGGREGATION_LABELS: Record<ValueAggregationMode, string> = {
     count: 'Count',
 };
 
-/** Number entry used by the gauge Min/Max/Target wells when no field is
- * dropped; commits a finite number or `undefined` on blur/Enter. */
+/** Number entry used by bound wells (gauge Min/Max/Target, card Target) when
+ * no field is dropped; commits a finite number or `undefined` on blur/Enter. */
 function BoundValueInput({
     value,
     placeholder,
@@ -942,11 +942,12 @@ export function VisualizationsPane({
                 {label}
             </div>
             {(() => {
-                const gaugeBound =
-                    selected?.type === 'gauge' &&
-                    (name === 'minimum' ||
-                        name === 'maximum' ||
-                        name === 'target')
+                const boundInput =
+                    ((selected?.type === 'gauge' &&
+                        (name === 'minimum' ||
+                            name === 'maximum' ||
+                            name === 'target')) ||
+                        (selected?.type === 'card' && name === 'target'))
                         ? ({
                               minimum: {
                                   key: 'minimumValue',
@@ -1122,14 +1123,14 @@ export function VisualizationsPane({
                             </div>
                         );
                     })
-                ) : gaugeBound ? (
+                ) : boundInput ? (
                     <BoundValueInput
-                        value={gaugeBound.value}
+                        value={boundInput.value}
                         placeholder="Enter a value"
                         onCommit={(v) => {
                             if (selected)
                                 updateVisual(selected.id, {
-                                    [gaugeBound.key]: v,
+                                    [boundInput.key]: v,
                                 });
                         }}
                     />

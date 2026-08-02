@@ -8,7 +8,7 @@ import {
     findJoin,
     resolveJoinField,
 } from './joins';
-import { aggregate, type TableDef, type Visual } from './model';
+import { aggregate, setTables, type TableDef, type Visual } from './model';
 
 const sales: TableDef = {
     name: 'Sales',
@@ -195,6 +195,45 @@ describe('joins', () => {
             expect(enrichRows(visual, sales.rows, [sales, targets], reg)).toBe(
                 sales.rows,
             );
+        });
+
+        it('joins columns referenced by a bound measure expression', () => {
+            const visual = makeVisual({
+                axis: [{ table: 'Sales', name: 'ProdGroup', agg: 'sum' }],
+                values: [{ table: 'Measures', name: 'Target Sum', agg: 'sum' }],
+            });
+            const out = enrichRows(visual, sales.rows, [sales, targets], reg, {
+                'Target Sum': 'SUM(Targets[Target])',
+            });
+
+            expect(out[0]).toEqual({ ProdGroup: 'A', Amount: 10, Target: 100 });
+            expect(out[2]).toEqual({ ProdGroup: 'B', Amount: 30, Target: 200 });
+            expect(out[3]).toEqual({ ProdGroup: 'X', Amount: 40, Target: null });
+        });
+
+        it('resolves bare measure refs to the first table exposing the column', () => {
+            setTables([sales, targets]);
+            const visual = makeVisual({
+                axis: [{ table: 'Sales', name: 'ProdGroup', agg: 'sum' }],
+                values: [{ table: 'Measures', name: 'Target Sum', agg: 'sum' }],
+            });
+            const out = enrichRows(visual, sales.rows, [sales, targets], reg, {
+                'Target Sum': 'SUM(Target)',
+            });
+
+            expect(out[0]).toEqual({ ProdGroup: 'A', Amount: 10, Target: 100 });
+        });
+
+        it('leaves rows unchanged when the measure references an unrelated table', () => {
+            const visual = makeVisual({
+                axis: [{ table: 'Sales', name: 'ProdGroup', agg: 'sum' }],
+                values: [{ table: 'Measures', name: 'Unrelated Sum', agg: 'sum' }],
+            });
+            const out = enrichRows(visual, sales.rows, [sales, targets], reg, {
+                'Unrelated Sum': 'SUM(Unrelated[Label])',
+            });
+
+            expect(out).toBe(sales.rows);
         });
     });
 

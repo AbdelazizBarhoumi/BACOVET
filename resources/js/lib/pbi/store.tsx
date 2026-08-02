@@ -31,11 +31,13 @@ import {
     findTableForField,
     hasColumn,
     isMeasure,
+    measureColumnRefs,
     normalizeConditionalFormat,
     normalizeWellField,
     registerMeasure,
     setTables,
     unregisterMeasure,
+    visualTable,
     type Agg,
     type AnalyticsLine,
     type ConditionalFormat,
@@ -203,6 +205,53 @@ export function wf(name: unknown, table?: string, agg: Agg = 'sum', label?: stri
         agg: fieldType(resolvedName, resolved) === 'number' ? agg : 'count',
         ...(reference.label ? { label: reference.label } : {}),
     };
+}
+
+const WELL_KEYS = [
+    'axis',
+    'legend',
+    'values',
+    'tooltips',
+    'smallMultiples',
+    'drillFields',
+    'minimum',
+    'maximum',
+    'target',
+] as const;
+
+/** Field keys of a visual that can carry measure fields. */
+function visualMeasureFields(visual: Visual): WellField[] {
+    return WELL_KEYS.flatMap((key) => {
+        const value = (visual as Record<string, unknown>)[key];
+        return Array.isArray(value) ? (value as WellField[]) : [];
+    });
+}
+
+/**
+ * The dataset a visual should read its rows from. For visuals whose wells
+ * reference only measures, falls back to the first table referenced by the
+ * bound measure expressions instead of the first endpoint dataset.
+ */
+export function visualDataTable(
+    visual: Visual,
+    measures: { name: string; expression?: string }[],
+): string {
+    const primary = visualTable(visual);
+    if (primary && primary !== 'Measures') return primary;
+
+    const bound = new Set(
+        visualMeasureFields(visual)
+            .filter((f) => f.table === 'Measures' || isMeasure(f.name))
+            .map((f) => f.name),
+    );
+    for (const m of measures) {
+        if (!bound.has(m.name) || !m.expression) continue;
+        for (const ref of measureColumnRefs(m.expression)) {
+            const table = ref.table || findTableForField(ref.column);
+            if (table && table !== 'Measures') return table;
+        }
+    }
+    return primary;
 }
 
 function normalizeState(state: State): State {
@@ -507,7 +556,7 @@ type Ctx = State & {
     state: State;
     setState: React.Dispatch<React.SetStateAction<State>>;
     select: (id: string | null) => void;
-    addVisual: (type: VisualType) => void;
+    addVisual: (type: VisualType) => string;
     addShape: (kind: ShapeKind) => void;
     updateVisual: (id: string, patch: Partial<Visual>) => void;
     removeVisual: (id: string) => void;
@@ -802,7 +851,7 @@ export function PbiProvider({
     );
 
     const addVisual = useCallback(
-        (type: VisualType) => {
+        (type: VisualType): string => {
             const big =
                 type === 'card' ||
                 type === 'text' ||
@@ -825,6 +874,7 @@ export function PbiProvider({
             );
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id }));
+            return v.id;
         },
         [mapVisuals, setState],
     );
@@ -1032,6 +1082,7 @@ export function PbiProvider({
 
     const value: Ctx = {
         ...state,
+        measures: state.measures ?? [],
         page,
         selected,
         rows,
@@ -1568,12 +1619,12 @@ export function PbiProvider({
             });
             registerMeasure(record.name, record.expression);
             setState((s) =>
-                s.measures.some((m) => m.name === record.name)
+                (s.measures ?? []).some((m) => m.name === record.name)
                     ? s
                     : {
                           ...s,
                           measures: [
-                              ...s.measures,
+                              ...(s.measures ?? []),
                               toMeasureField(record),
                           ],
                       },
@@ -1595,7 +1646,7 @@ export function PbiProvider({
             registerMeasure(record.name, record.expression);
             setState((s) => ({
                 ...s,
-                measures: s.measures.map((m) =>
+                measures: (s.measures ?? []).map((m) =>
                     String(m.id) === String(record.id)
                         ? toMeasureField(record)
                         : m,
@@ -1603,14 +1654,14 @@ export function PbiProvider({
             }));
         },
         removeMeasure: async (id) => {
-            const target = state.measures.find(
+            const target = (state.measures ?? []).find(
                 (m) => String(m.id) === String(id),
             );
             await apiDeleteMeasure(id);
             if (target) unregisterMeasure(target.name);
             setState((s) => ({
                 ...s,
-                measures: s.measures.filter(
+                measures: (s.measures ?? []).filter(
                     (m) => String(m.id) !== String(id),
                 ),
             }));
