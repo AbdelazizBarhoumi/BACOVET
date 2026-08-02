@@ -68,7 +68,7 @@ describe('buildChartData — correct data per chart family', () => {
         expect(north['B']).toBe(50);
     });
 
-    it('totals multiple value fields on a single point (card/kpi/pie via Total)', () => {
+    it('totals multiple value fields on a single point (card/pie via Total)', () => {
         const { data, series } = buildChartData(
             sales.rows,
             [],

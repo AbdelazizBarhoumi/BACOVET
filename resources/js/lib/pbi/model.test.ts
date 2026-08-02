@@ -7,12 +7,15 @@ import {
     evaluateMeasure,
     fieldLabel,
     formatCallout,
+    formatNumberPattern,
+    gaugeBoundValue,
     inferFieldType,
     isMeasure,
     measureError,
     measureLabel,
     normalizeCalloutStyle,
     normalizeCategoryLabelStyle,
+    normalizeGaugeStyle,
     normalizeTitleStyle,
     normalizeWellField,
     parseDaxRef,
@@ -488,5 +491,61 @@ describe('single-value style normalizers', () => {
         expect(
             normalizeTitleStyle({ heading: 'h2', align: 'right', color: '#00ff00' }),
         ).toMatchObject({ heading: 'h2', align: 'right', color: '#00ff00' });
+    });
+});
+
+describe('gauge style normalizer', () => {
+    it('applies defaults for missing config', () => {
+        const style = normalizeGaugeStyle(undefined);
+        expect(style.axis.min.auto).toBe(true);
+        expect(style.axis.max.auto).toBe(true);
+        expect(style.axis.target.auto).toBe(true);
+        expect(style.dataLabels.values.show).toBe(true);
+        expect(style.dataLabels.callout.show).toBe(true);
+        expect(style.fillColor).toBeUndefined();
+    });
+
+    it('preserves explicit values and sanitizes bad ones', () => {
+        const style = normalizeGaugeStyle({
+            fillColor: '#ff0000',
+            targetColor: '#00ff00',
+            axis: {
+                min: { auto: false, format: '0.0%' },
+                max: { auto: false },
+            },
+            dataLabels: {
+                show: false,
+                targetLabel: { show: true, fontSize: 12 },
+            },
+        });
+        expect(style.fillColor).toBe('#ff0000');
+        expect(style.targetColor).toBe('#00ff00');
+        expect(style.axis.min).toMatchObject({ auto: false, format: '0.0%' });
+        expect(style.axis.max).toMatchObject({ auto: false });
+        expect(style.dataLabels.show).toBe(false);
+        expect(style.dataLabels.targetLabel.show).toBe(true);
+        expect(style.dataLabels.targetLabel.fontSize).toBe(12);
+        expect(style.axis.min).not.toHaveProperty('fx');
+    });
+
+    it('gaugeBoundValue prefers a dropped field over a typed constant', () => {
+        setTables([table]);
+        const wf = { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'sum' as const };
+        expect(gaugeBoundValue(table.rows, wf, 5)).toBe(22);
+        expect(gaugeBoundValue(table.rows, wf, undefined)).toBe(22);
+        expect(gaugeBoundValue(table.rows, undefined, 7.5)).toBe(7.5);
+        expect(gaugeBoundValue(table.rows, undefined, undefined)).toBeUndefined();
+        expect(gaugeBoundValue(table.rows, undefined, Number.NaN)).toBeUndefined();
+        expect(gaugeBoundValue(table.rows, undefined, Infinity)).toBeUndefined();
+    });
+});
+
+describe('Power BI-style format strings', () => {
+    it('formats plain numbers and custom patterns', () => {
+        expect(formatNumberPattern(1270, '$#,##0')).toBe('$1,270');
+        expect(formatNumberPattern(0.125, '0.0%')).toBe('12.5%');
+        expect(formatNumberPattern(1.27, '0.00')).toBe('1.27');
+        expect(formatNumberPattern(7, '0000')).toBe('0007');
+        expect(formatNumberPattern(1234567, '#,##0')).toBe('1,234,567');
     });
 });

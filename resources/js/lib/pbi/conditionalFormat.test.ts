@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     cfAggToAgg,
     conditionalColor,
+    gaugeFxColor,
     gradientColor,
     hexToRgb,
     isColor,
@@ -256,6 +257,42 @@ describe('conditionalColor', () => {
         });
         expect(conditionalColor(cf, 200, [200])).toBe('#ff0000');
         expect(conditionalColor(cf, 50, [50])).toBeNull();
+    });
+});
+
+describe('gaugeFxColor', () => {
+    it('evaluates the default lowest/highest gradient against the gauge scale', () => {
+        const cf = gradient('#e11d48', '#16a34a');
+        expect(gaugeFxColor(cf, 0, 0, 100)).toBe('#e11d48');
+        expect(gaugeFxColor(cf, 100, 0, 100)).toBe('#16a34a');
+        expect(gaugeFxColor(cf, 50, 0, 100)).toBe(
+            mixColor('#e11d48', '#16a34a', 0.5),
+        );
+    });
+
+    it('resolves percent bounds against the gauge scale', () => {
+        const cf = normalizeConditionalFormat({
+            style: 'gradient',
+            min: { type: 'percent', value: 25, color: '#000000' },
+            max: { type: 'percent', value: 75, color: '#ffffff' },
+        });
+        expect(gaugeFxColor(cf, 50, 0, 100)).toBe(mixColor('#000000', '#ffffff', 0.5));
+    });
+
+    it('applies number rules to the value', () => {
+        const cf = normalizeConditionalFormat({
+            style: 'rules',
+            rules: [rule({ comparator: 'greaterThan', value: 100 })],
+        });
+        expect(gaugeFxColor(cf, 200, 0, 100)).toBe('#ff0000');
+        expect(gaugeFxColor(cf, 50, 0, 100)).toBeNull();
+    });
+
+    it('is inert for none and fieldValue styles', () => {
+        expect(gaugeFxColor(normalizeConditionalFormat({}), 50, 0, 100)).toBeNull();
+        const fv = normalizeConditionalFormat({ style: 'fieldValue' });
+        expect(gaugeFxColor(fv, 50, 0, 100)).toBeNull();
+        expect(gaugeFxColor(fv, Number.NaN, 0, 100)).toBeNull();
     });
 });
 

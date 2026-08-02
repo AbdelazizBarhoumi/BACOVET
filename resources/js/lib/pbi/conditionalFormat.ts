@@ -222,6 +222,24 @@ export function isConditionalActive(cf: Pick<ConditionalFormat, 'style'>): boole
     return cf.style !== 'none';
 }
 
+/**
+ * Conditional color for a gauge fx target. Evaluated against the gauge's
+ * min..max scale (so `lowest`/`highest`/`percent` gradient and rule bounds
+ * resolve sensibly) instead of a single-point value set. `fieldValue` is
+ * inert for a single-value gauge (no per-cell color), so it returns null.
+ */
+export function gaugeFxColor(
+    cf: ConditionalFormat,
+    value: number,
+    min: number,
+    max: number,
+): string | null {
+    if (cf.style === 'none' || cf.style === 'fieldValue') return null;
+    if (!Number.isFinite(value)) return null;
+    const scale = [min, max, value];
+    return conditionalColor(cf, value, scale, value);
+}
+
 /** Maps a dialog aggregation onto an `Agg` usable by `aggregate`. */
 export function cfAggToAgg(agg: CfAgg): Agg {
     switch (agg) {

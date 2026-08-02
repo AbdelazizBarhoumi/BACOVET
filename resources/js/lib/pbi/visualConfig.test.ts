@@ -3,16 +3,40 @@ import { normalizeDataLabelStyle } from './model';
 import { isCartesianType, isSingleValueType, visualConfig } from './visualConfig';
 
 describe('visualConfig', () => {
-    it('gives single-value visuals one Fields well and no analytics', () => {
-        for (const type of ['card', 'kpi', 'gauge'] as const) {
+    it('gives single-value visuals their Fields and Target wells, and no analytics', () => {
+        for (const type of ['card'] as const) {
             const config = visualConfig(type);
             expect(config.build).toEqual([
                 { well: 'values', label: 'Fields' },
+                { well: 'target', label: 'Target (goal)' },
             ]);
             expect(config.showAnalytics).toBe(false);
             expect(config.format).toBe('singleValue');
             expect(isSingleValueType(type)).toBe(true);
         }
+    });
+
+    it('gives the gauge its own five wells, gauge format, and no analytics', () => {
+        const config = visualConfig('gauge');
+        expect(config.build).toEqual([
+            { well: 'values', label: 'Value' },
+            { well: 'minimum', label: 'Minimum value' },
+            { well: 'maximum', label: 'Maximum value' },
+            { well: 'target', label: 'Target value' },
+            { well: 'tooltips', label: 'Tooltips' },
+        ]);
+        expect(config.showAnalytics).toBe(false);
+        expect(config.analyticsKinds).toEqual([]);
+        expect(config.format).toBe('gauge');
+        expect(config.sections).toEqual([
+            'title',
+            'gaugeAxis',
+            'colors',
+            'dataLabels',
+            'general',
+        ]);
+        expect(isSingleValueType('gauge')).toBe(true);
+        expect(isCartesianType('gauge')).toBe(false);
     });
 
     it('keeps the full chart layout for cartesian and tabular visuals', () => {

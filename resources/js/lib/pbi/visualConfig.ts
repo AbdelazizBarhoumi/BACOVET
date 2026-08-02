@@ -1,5 +1,5 @@
 // Per-visual-type configuration: which field wells, tabs, format sections and
-// analytics lines a visual exposes. Single-value visuals (card / kpi / gauge)
+// analytics lines a visual exposes. Single-value visuals (card / gauge)
 // share one very small build pane and have no analytics; cartesian visuals
 // (bar/column families) get their own Format sections and analytics line set;
 // everything else falls back to the shared chart layout + generic format.
@@ -19,6 +19,8 @@ export type FormatSection =
     | 'dataLabels'
     | 'legend'
     | 'plotArea'
+    | 'gaugeAxis'
+    | 'colors'
     | 'general';
 
 export type VisualConfig = {
@@ -29,12 +31,12 @@ export type VisualConfig = {
     /** Analytics line kinds offered in the Analytics tab. */
     analyticsKinds: AnalyticsKind[];
     /** Which Format-tab renderer to use. */
-    format: 'generic' | 'singleValue' | 'cartesian';
+    format: 'generic' | 'singleValue' | 'cartesian' | 'gauge';
     /** Format sections rendered by the section-based renderers. */
     sections: FormatSection[];
 };
 
-export const SINGLE_VALUE_TYPES: VisualType[] = ['card', 'kpi', 'gauge'];
+export const SINGLE_VALUE_TYPES: VisualType[] = ['card', 'gauge'];
 
 /** Column + bar families (vertical & horizontal bars). */
 export const CARTESIAN_TYPES: VisualType[] = [
@@ -47,11 +49,35 @@ export const CARTESIAN_TYPES: VisualType[] = [
 ];
 
 export const SINGLE_VALUE_CONFIG: VisualConfig = {
-    build: [{ well: 'values', label: 'Fields' }],
+    build: [
+        { well: 'values', label: 'Fields' },
+        { well: 'target', label: 'Target (goal)' },
+    ],
     showAnalytics: false,
     analyticsKinds: [],
     format: 'singleValue',
     sections: [],
+};
+
+/** Gauge: a single-value arc visual with min/max/target bound fields. */
+export const GAUGE_CONFIG: VisualConfig = {
+    build: [
+        { well: 'values', label: 'Value' },
+        { well: 'minimum', label: 'Minimum value' },
+        { well: 'maximum', label: 'Maximum value' },
+        { well: 'target', label: 'Target value' },
+        { well: 'tooltips', label: 'Tooltips' },
+    ],
+    showAnalytics: false,
+    analyticsKinds: [],
+    format: 'gauge',
+    sections: [
+        'title',
+        'gaugeAxis',
+        'colors',
+        'dataLabels',
+        'general',
+    ],
 };
 
 /** Bar/column charts: axes, gridlines, bars, data labels, legend, plot area.
@@ -106,6 +132,7 @@ export function isCartesianType(type: VisualType): boolean {
 }
 
 export function visualConfig(type: VisualType): VisualConfig {
+    if (type === 'gauge') return GAUGE_CONFIG;
     if (isSingleValueType(type)) return SINGLE_VALUE_CONFIG;
     if (isCartesianType(type)) return CARTESIAN_CONFIG;
     return GENERIC_CONFIG;

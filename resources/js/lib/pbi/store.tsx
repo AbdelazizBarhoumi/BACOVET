@@ -23,6 +23,7 @@ import {
     type ReportFilter,
 } from './filters';
 import type { JoinRegistry } from './joins';
+import { defaultGaugeStyle } from './model';
 import {
     PAGE_PRESETS,
     conditionalFormatFromFx,
@@ -59,7 +60,10 @@ export type WellName =
     | 'values'
     | 'tooltips'
     | 'smallMultiples'
-    | 'drillFields';
+    | 'drillFields'
+    | 'minimum'
+    | 'maximum'
+    | 'target';
 
 export function defaultDropWell(type: VisualType): WellName {
     return ['slicer', 'buttonSlicer', 'dropdownSlicer', 'inputSlicer', 'dateSlicer'].includes(type)
@@ -202,7 +206,17 @@ export function wf(name: unknown, table?: string, agg: Agg = 'sum', label?: stri
 }
 
 function normalizeState(state: State): State {
-    const wells = ['axis', 'legend', 'values', 'tooltips', 'smallMultiples', 'drillFields'] as const;
+    const wells = [
+        'axis',
+        'legend',
+        'values',
+        'tooltips',
+        'smallMultiples',
+        'drillFields',
+        'minimum',
+        'maximum',
+        'target',
+    ] as const;
     const visuals = state.pages.flatMap((page) => page.visuals);
     const slicerSelections = Object.fromEntries(
         Object.entries(state.slicerSelections ?? {}).map(([visualId, selections]) => {
@@ -235,6 +249,7 @@ function normalizeState(state: State): State {
             visuals: page.visuals.map((visual) => {
                 const next = { ...visual };
                 if ((next as { type: string }).type === 'listSlicer') next.type = 'slicer';
+                if ((next as { type: string }).type === 'kpi') next.type = 'card';
                 if (next.maxCategories === undefined || next.maxCategories === null)
                     next.maxCategories = 200;
                 if (next.fontSize === undefined || next.fontSize === null)
@@ -296,6 +311,9 @@ export function mkVisual(
         tooltips: [],
         smallMultiples: [],
         drillFields: [],
+        minimum: [],
+        maximum: [],
+        target: [],
         showTitle: true,
         showLegend: true,
         showLabels: false,
@@ -311,6 +329,7 @@ export function mkVisual(
         maxCategories: 200,
         rotation: 0,
         ...(CARTESIAN_TYPES.includes(type) ? cartesianStyleDefaults() : {}),
+        ...(type === 'gauge' ? gaugeStyleDefaults() : {}),
         ...init,
     };
 }
@@ -364,6 +383,13 @@ function cartesianStyleDefaults(): Partial<Visual> {
             border: false,
             borderWidth: 1,
         },
+    };
+}
+
+/** Default gauge style block for new gauge visuals. */
+function gaugeStyleDefaults(): Partial<Visual> {
+    return {
+        gauge: defaultGaugeStyle(),
     };
 }
 
@@ -779,18 +805,24 @@ export function PbiProvider({
         (type: VisualType) => {
             const big =
                 type === 'card' ||
-                type === 'kpi' ||
                 type === 'text' ||
                 type === 'button';
-            const v = mkVisual(type, 40, 40, big ? 260 : 420, big ? 130 : 260, {
-                title: type === 'text' ? 'Text box' : '',
-                text:
-                    type === 'text'
-                        ? 'Double-click to edit text'
-                        : type === 'button'
-                          ? 'Button'
-                          : undefined,
-            });
+            const v = mkVisual(
+                type,
+                40,
+                40,
+                type === 'gauge' ? 280 : big ? 260 : 420,
+                type === 'gauge' ? 180 : big ? 130 : 260,
+                {
+                    title: type === 'text' ? 'Text box' : '',
+                    text:
+                        type === 'text'
+                            ? 'Double-click to edit text'
+                            : type === 'button'
+                              ? 'Button'
+                              : undefined,
+                },
+            );
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id }));
         },
@@ -823,7 +855,12 @@ export function PbiProvider({
                     const normalized = wf(field.name, field.table, field.agg, field.label);
                     if (v[well].some((f) => f.name === normalized.name && f.table === normalized.table)) return v;
                     const next = [...v[well], normalized];
-                    const single = well === 'axis' || well === 'legend';
+                    const single =
+                        well === 'axis' ||
+                        well === 'legend' ||
+                        well === 'minimum' ||
+                        well === 'maximum' ||
+                        well === 'target';
                     return { ...v, [well]: single ? next.slice(-1) : next };
                 }),
             ),
@@ -848,6 +885,9 @@ export function PbiProvider({
                             'tooltips',
                             'smallMultiples',
                             'drillFields',
+                            'minimum',
+                            'maximum',
+                            'target',
                         ] as WellName[]
                     ).some((wellName) => v[wellName].some(matches));
                     if (present) {
@@ -863,6 +903,13 @@ export function PbiProvider({
                             drillFields: v.drillFields.filter(
                                 (x) => !matches(x),
                             ),
+                            minimum: (v.minimum ?? []).filter(
+                                (x) => !matches(x),
+                            ),
+                            maximum: (v.maximum ?? []).filter(
+                                (x) => !matches(x),
+                            ),
+                            target: (v.target ?? []).filter((x) => !matches(x)),
                         };
                     }
                     const normalized = wf(
@@ -873,7 +920,12 @@ export function PbiProvider({
                     );
                     if (v[well].some(matches)) return v;
                     const next = [...v[well], normalized];
-                    const single = well === 'axis' || well === 'legend';
+                    const single =
+                        well === 'axis' ||
+                        well === 'legend' ||
+                        well === 'minimum' ||
+                        well === 'maximum' ||
+                        well === 'target';
                     return { ...v, [well]: single ? next.slice(-1) : next };
                 }),
             ),

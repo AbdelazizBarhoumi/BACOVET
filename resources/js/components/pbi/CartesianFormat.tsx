@@ -406,23 +406,16 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                 <span className="min-w-0 flex-1 truncate">
                                     {cat}
                                 </span>
-                                <input
-                                    type="color"
-                                    value={
-                                        bars.categoryColors[cat]?.startsWith(
-                                            '#',
-                                        )
-                                            ? bars.categoryColors[cat]!
-                                            : '#4c78d0'
-                                    }
-                                    onChange={(e) => {
+                                <ColorInput
+                                    value={bars.categoryColors[cat]}
+                                    onChange={(v) => {
                                         const next = {
                                             ...bars.categoryColors,
                                         };
-                                        next[cat] = e.target.value;
+                                        next[cat] = v;
                                         patchBars({ categoryColors: next });
                                     }}
-                                    className="h-6 w-9 cursor-pointer rounded border border-border bg-background"
+                                    className="h-6 w-9"
                                 />
                             </div>
                         ))}
@@ -519,24 +512,16 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                                 <span className="min-w-0 flex-1 truncate text-muted-foreground">
                                                     {name}
                                                 </span>
-                                                <input
-                                                    type="color"
+                                                <ColorInput
                                                     value={
-                                                        ov.color?.startsWith(
-                                                            '#',
-                                                        )
-                                                            ? ov.color
-                                                            : (dataLabels.font
-                                                                  ?.color ??
-                                                              '#4c78d0')
+                                                        ov.color ??
+                                                        dataLabels.font
+                                                            ?.color
                                                     }
-                                                    onChange={(e) =>
-                                                        patch({
-                                                            color: e.target
-                                                                .value,
-                                                        })
+                                                    onChange={(v) =>
+                                                        patch({ color: v })
                                                     }
-                                                    className="h-5 w-8 cursor-pointer rounded border border-border bg-background"
+                                                    className="h-5 w-8"
                                                 />
                                             </div>
                                             <div className="flex items-end gap-2">

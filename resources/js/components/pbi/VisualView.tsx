@@ -16,8 +16,6 @@ import {
     LineChart,
     Pie,
     PieChart,
-    RadialBar,
-    RadialBarChart,
     ReferenceLine,
     ResponsiveContainer,
     Scatter,
@@ -49,6 +47,7 @@ import {
     formatNumberWith,
     formatValue,
     formatWellValue,
+    gaugeBoundValue,
     isMeasure,
     measureLabel,
     normalizeAxisStyle,
@@ -74,6 +73,7 @@ import {
 import { ShapeGlyph } from '@/lib/pbi/shapes';
 import { slicerKey, usePbi, type SlicerDateMode } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
+import { GaugeVisual } from './GaugeVisual';
 
 const PALETTE = [
     'var(--chart-1)',
@@ -858,10 +858,16 @@ function ChartBody({
     switch (visual.type) {
         case 'card': {
             const callout = normalizeCalloutStyle(visual.callout);
+            const goal = gaugeBoundValue(rows, visual.target[0], visual.targetValue);
+            const hasGoal = goal !== undefined;
             return wrap(
                 <div className="flex h-full flex-wrap items-center justify-around gap-2">
                     {visual.values.map((v, i) => {
                         const type = fieldType(v.name, v.table);
+                        const raw = singleValue(rows, v);
+                        const numeric = typeof raw === 'number' && isFinite(raw);
+                        const val = numeric ? raw : 0;
+                        const good = hasGoal && val >= goal;
                         return (
                             <div
                                 key={i}
@@ -872,10 +878,16 @@ function ChartBody({
                             >
                                 <CalloutValue
                                     visual={visual}
-                                    value={singleValue(rows, v)}
+                                    value={raw}
                                     type={type}
                                     wf={v}
-                                    defaultColor="var(--foreground)"
+                                    defaultColor={
+                                        numeric && hasGoal
+                                            ? good
+                                                ? 'var(--success)'
+                                                : 'var(--destructive)'
+                                            : 'var(--foreground)'
+                                    }
                                 />
                                 <CategoryLabel
                                     visual={visual}
@@ -886,108 +898,19 @@ function ChartBody({
                                         by {fieldLabel(visual.axis[0])}
                                     </div>
                                 )}
+                                {numeric && hasGoal && (
+                                    <div className="text-[10px] text-muted-foreground">
+                                        Goal {visualFmt(goal, visual, v)}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
                 </div>,
             );
         }
-        case 'kpi': {
-            const v = visual.values[0]!;
-            const type = fieldType(v.name, v.table);
-            const raw = singleValue(rows, v);
-            const numeric = typeof raw === 'number' && isFinite(raw);
-            const val = numeric ? raw : 0;
-            const goal = val * 0.95;
-            const good = val >= goal;
-            return wrap(
-                <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <CalloutValue
-                        visual={visual}
-                        value={raw}
-                        type={type}
-                        wf={v}
-                        defaultColor={
-                            numeric
-                                ? good
-                                    ? 'var(--success)'
-                                    : 'var(--destructive)'
-                                : 'var(--foreground)'
-                        }
-                    />
-                    <CategoryLabel
-                        visual={visual}
-                        label={singleValueLabel(v, type)}
-                    />
-                    {numeric && (
-                        <div className="text-[10px] text-muted-foreground">
-                            Goal {visualFmt(goal, visual, v)}
-                        </div>
-                    )}
-                </div>,
-            );
-        }
-        case 'gauge': {
-            const v = visual.values[0]!;
-            const type = fieldType(v.name, v.table);
-            const raw = singleValue(rows, v);
-            const numeric = typeof raw === 'number' && isFinite(raw);
-            const val = numeric ? raw : 0;
-            const max = val * 1.4 || 1;
-            if (!numeric)
-                return wrap(
-                    <div className="flex h-full flex-col items-center justify-center gap-1">
-                        <CalloutValue
-                            visual={visual}
-                            value={raw}
-                            type={type}
-                            wf={v}
-                            defaultColor="var(--foreground)"
-                        />
-                        <CategoryLabel
-                            visual={visual}
-                            label={singleValueLabel(v, type)}
-                        />
-                    </div>,
-                );
-            return wrap(
-                <div className="relative h-full w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <RadialBarChart
-                            innerRadius="65%"
-                            outerRadius="100%"
-                            startAngle={180}
-                            endAngle={0}
-                            data={[
-                                {
-                                    name: 'v',
-                                    value: val,
-                                    fill: 'var(--chart-1)',
-                                },
-                            ]}
-                        >
-                            <RadialBar
-                                background
-                                dataKey="value"
-                                cornerRadius={4}
-                            />
-                        </RadialBarChart>
-                    </ResponsiveContainer>
-                    <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center">
-                        <CalloutValue
-                            visual={visual}
-                            value={val}
-                            type={type}
-                            wf={v}
-                            defaultColor="var(--foreground)"
-                        />
-                        <div className="text-[10px] text-muted-foreground">
-                            of {visualFmt(max, visual, v)}
-                        </div>
-                    </div>
-                </div>,
-            );
-        }
+        case 'gauge':
+            return wrap(<GaugeVisual visual={visual} rows={rows} />);
         case 'pie':
         case 'donut': {
             const key = series[0] ?? 'value';

@@ -14,7 +14,6 @@ import {
     DataPieRegular,
     DataScatterRegular,
     DataTreemapRegular,
-    DataTrendingRegular,
     DataWaterfallRegular,
     GaugeRegular,
     GridRegular,
@@ -95,6 +94,8 @@ import { cn } from '@/lib/utils';
 import { CartesianFormat } from './CartesianFormat';
 import { ConditionalFormatControl } from './ConditionalFormatDialog';
 import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
+import { ColorInput, resolveColor } from './formatControls';
+import { GaugeFormat } from './GaugeFormat';
 import { SingleValueFormat } from './SingleValueFormat';
 
 /** Visual types that expose the conditional-formatting (fx) dialog. */
@@ -792,8 +793,7 @@ const VISUAL_GROUPS: {
     {
         group: 'Single value & tabular',
         items: [
-            { type: 'card', label: 'Card (new)', Icon: CardUiRegular },
-            { type: 'kpi', label: 'KPI', Icon: DataTrendingRegular },
+            { type: 'card', label: 'Card', Icon: CardUiRegular },
             { type: 'gauge', label: 'Gauge', Icon: GaugeRegular },
             { type: 'table', label: 'Table', Icon: TableRegular },
             { type: 'matrix', label: 'Matrix', Icon: GridRegular },
@@ -855,6 +855,54 @@ const VALUE_AGGREGATION_LABELS: Record<ValueAggregationMode, string> = {
     count: 'Count',
 };
 
+/** Number entry used by the gauge Min/Max/Target wells when no field is
+ * dropped; commits a finite number or `undefined` on blur/Enter. */
+function BoundValueInput({
+    value,
+    placeholder,
+    onCommit,
+}: {
+    value?: number;
+    placeholder?: string;
+    onCommit: (value: number | undefined) => void;
+}) {
+    const [text, setText] = useState(
+        value === undefined ? '' : String(value),
+    );
+    const [prevValue, setPrevValue] = useState(value);
+    if (value !== prevValue) {
+        setPrevValue(value);
+        setText(value === undefined ? '' : String(value));
+    }
+
+    const commit = () => {
+        const trimmed = text.trim();
+        if (trimmed === '') {
+            onCommit(undefined);
+            return;
+        }
+        const n = Number(trimmed);
+        if (Number.isFinite(n)) onCommit(n);
+        else setText(value === undefined ? '' : String(value));
+    };
+
+    return (
+        <input
+            type="number"
+            step="any"
+            value={text}
+            placeholder={placeholder}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter')
+                    (e.target as HTMLInputElement).blur();
+            }}
+            className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] outline-none focus:border-brand"
+        />
+    );
+}
+
 export function VisualizationsPane({
     onCollapse,
 }: {
@@ -893,6 +941,28 @@ export function VisualizationsPane({
             <div className="mb-1 text-[11px] font-medium text-muted-foreground">
                 {label}
             </div>
+            {(() => {
+                const gaugeBound =
+                    selected?.type === 'gauge' &&
+                    (name === 'minimum' ||
+                        name === 'maximum' ||
+                        name === 'target')
+                        ? ({
+                              minimum: {
+                                  key: 'minimumValue',
+                                  value: selected.minimumValue,
+                              },
+                              maximum: {
+                                  key: 'maximumValue',
+                                  value: selected.maximumValue,
+                              },
+                              target: {
+                                  key: 'targetValue',
+                                  value: selected.targetValue,
+                              },
+                          } as const)[name]
+                        : null;
+                return (
             <div
                 onDragOver={(e) => {
                     e.preventDefault();
@@ -948,7 +1018,9 @@ export function VisualizationsPane({
                                 ? fieldNumericIssue(f) ?? fieldIssue(f)
                                 : fieldIssue(f);
                         const numericField =
-                            name === 'values' &&
+                            ['values', 'minimum', 'maximum', 'target'].includes(
+                                name,
+                            ) &&
                             fieldType(f.name, f.table) === 'number' &&
                             !isMeasure(f.name);
                         return (
@@ -1050,12 +1122,25 @@ export function VisualizationsPane({
                             </div>
                         );
                     })
+                ) : gaugeBound ? (
+                    <BoundValueInput
+                        value={gaugeBound.value}
+                        placeholder="Enter a value"
+                        onCommit={(v) => {
+                            if (selected)
+                                updateVisual(selected.id, {
+                                    [gaugeBound.key]: v,
+                                });
+                        }}
+                    />
                 ) : (
                     <div className="px-1 py-1 text-[11px] text-muted-foreground">
                         Add data fields here
                     </div>
                 )}
-            </div>
+                </div>
+                );
+            })()}
         </div>
     );
 
@@ -1171,20 +1256,15 @@ export function VisualizationsPane({
                             />
                         </label>
                     </div>
-                    <label className="mb-2 block">
-                        <span className="mb-1 block text-muted-foreground">
-                            Page background
-                        </span>
-                        <input
-                            type="color"
-                            onChange={(e) =>
-                                setPageFormat(page.id, {
-                                    background: e.target.value,
-                                })
-                            }
-                            className="h-7 w-full rounded border border-border bg-background"
-                        />
-                    </label>
+                    <ColorInput
+                        label="Page background"
+                        value={page.format.background}
+                        onChange={(v) =>
+                            setPageFormat(page.id, {
+                                background: v,
+                            })
+                        }
+                    />
                     <label className="mb-2 flex items-center justify-between">
                         <span>Use as tooltip page</span>
                         <input
@@ -1294,6 +1374,8 @@ export function VisualizationsPane({
                                 <SingleValueFormat visual={selected} />
                             ) : config?.format === 'cartesian' ? (
                                 <CartesianFormat visual={selected} />
+                            ) : config?.format === 'gauge' ? (
+                                <GaugeFormat visual={selected} />
                             ) : (
                                 <GenericFormat visual={selected} />
                             )
@@ -1466,28 +1548,15 @@ function GenericFormat({ visual }: { visual: Visual }) {
                                                 ))}
                                             </select>
                                         </label>
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Outline color
-                                            </span>
-                                            <input
-                                                type="color"
-                                                value={
-                                                    selected.background.startsWith(
-                                                        '#',
-                                                    )
-                                                        ? selected.background
-                                                        : '#ffffff'
-                                                }
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        background:
-                                                            e.target.value,
-                                                    })
-                                                }
-                                                className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-                                            />
-                                        </label>
+                                        <ColorInput
+                                            label="Outline color"
+                                            value={selected.background}
+                                            onChange={(v) =>
+                                                updateVisual(selected.id, {
+                                                    background: v,
+                                                })
+                                            }
+                                        />
                                         <label className="block">
                                             <span className="mb-1 block text-muted-foreground">
                                                 Rotation (deg)
@@ -1571,28 +1640,15 @@ function GenericFormat({ visual }: { visual: Visual }) {
                                         </label>
                                     ))}
                                 {selected.type !== 'shape' && (
-                                    <label className="block">
-                                        <span className="mb-1 block text-muted-foreground">
-                                            Background
-                                        </span>
-                                        <input
-                                            type="color"
-                                            value={
-                                                selected.background.startsWith(
-                                                    '#',
-                                                )
-                                                    ? selected.background
-                                                    : '#ffffff'
-                                            }
-                                            onChange={(e) =>
-                                                updateVisual(selected.id, {
-                                                    background:
-                                                        e.target.value,
-                                                })
-                                            }
-                                            className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-                                        />
-                                    </label>
+                                    <ColorInput
+                                        label="Background"
+                                        value={selected.background}
+                                        onChange={(v) =>
+                                            updateVisual(selected.id, {
+                                                background: v,
+                                            })
+                                        }
+                                    />
                                 )}
                                 {selected.type !== 'shape' && (
                                     <>
@@ -1649,32 +1705,18 @@ function GenericFormat({ visual }: { visual: Visual }) {
                                                         className="w-full rounded border border-border bg-background px-2 py-1"
                                                     />
                                                 </label>
-                                                <label className="block">
-                                                    <span className="mb-1 block text-muted-foreground">
-                                                        Color
-                                                    </span>
-                                                    <input
-                                                        type="color"
-                                                        value={
-                                                            selected.fontColor?.startsWith(
-                                                                '#',
-                                                            )
-                                                                ? selected.fontColor
-                                                                : '#000000'
-                                                        }
-                                                        onChange={(e) =>
-                                                            updateVisual(
-                                                                selected.id,
-                                                                {
-                                                                    fontColor:
-                                                                        e.target
-                                                                            .value,
-                                                                },
-                                                            )
-                                                        }
-                                                        className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-                                                    />
-                                                </label>
+                                                <ColorInput
+                                                    label="Color"
+                                                    value={selected.fontColor}
+                                                    onChange={(v) =>
+                                                        updateVisual(
+                                                            selected.id,
+                                                            {
+                                                                fontColor: v,
+                                                            },
+                                                        )
+                                                    }
+                                                />
                                             </div>
                                         </label>
                                         <label className="block">
@@ -1706,28 +1748,15 @@ function GenericFormat({ visual }: { visual: Visual }) {
                                 )}
                                 {selected.border && (
                                     <div className="grid grid-cols-3 gap-2">
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Border
-                                            </span>
-                                            <input
-                                                type="color"
-                                                value={
-                                                    selected.borderColor?.startsWith(
-                                                        '#',
-                                                    )
-                                                        ? selected.borderColor
-                                                        : '#000000'
-                                                }
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        borderColor:
-                                                            e.target.value,
-                                                    })
-                                                }
-                                                className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-                                            />
-                                        </label>
+                                        <ColorInput
+                                            label="Border"
+                                            value={selected.borderColor}
+                                            onChange={(v) =>
+                                                updateVisual(selected.id, {
+                                                    borderColor: v,
+                                                })
+                                            }
+                                        />
                                         <label className="block">
                                             <span className="mb-1 block text-muted-foreground">
                                                 Width
@@ -1803,7 +1832,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                                         className="w-full rounded border border-border bg-background px-2 py-1"
                                     />
                                 </label>
-                                {!['card', 'kpi', 'table', 'matrix', 'scatter', 'bubble', 'text', 'image', 'button', 'shape'].includes(selected.type) && (
+                                {!['card', 'table', 'matrix', 'scatter', 'bubble', 'text', 'image', 'button', 'shape'].includes(selected.type) && (
                                     <label className="block">
                                         <span className="mb-1 block text-muted-foreground">
                                             Max categories (extra rolled into "Other")
@@ -1882,17 +1911,16 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
     const paletteEditor = (t: ReportTheme, onChange: (p: string[]) => void) => (
         <div className="grid grid-cols-8 gap-1">
             {t.palette.slice(0, THEME_COLOR_COUNT).map((c, i) => (
-                <input
+                <ColorInput
                     key={i}
-                    type="color"
-                    value={c.startsWith('#') ? c : '#4c78d0'}
-                    onChange={(e) => {
+                    value={c}
+                    onChange={(v) => {
                         const next = [...t.palette];
-                        next[i] = e.target.value;
+                        next[i] = v;
                         onChange(next);
                     }}
-                    className="h-5 w-full cursor-pointer rounded border border-border"
-                    aria-label={`${t.name} color ${i + 1}`}
+                    className="h-5 w-full"
+                    ariaLabel={`${t.name} color ${i + 1}`}
                 />
             ))}
         </div>
@@ -1904,7 +1932,7 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
                 <span
                     key={i}
                     className="h-5 rounded border border-border"
-                    style={{ backgroundColor: c.startsWith('#') ? c : '#4c78d0' }}
+                    style={{ backgroundColor: resolveColor(c) }}
                 />
             ))}
         </div>
@@ -2013,7 +2041,6 @@ export function FiltersPane({
         setFilterRange,
         setFilterRelative,
         setFilterTopN,
-        selected,
         tables,
         tableRows,
         measures,
@@ -2121,11 +2148,6 @@ export function FiltersPane({
                     }
                 }}
             >
-                {selected && (
-                    <p className="text-[10px] tracking-wide text-muted-foreground uppercase">
-                        Filters on this visual: {selected.name}
-                    </p>
-                )}
                 {!filters.length && (
                     <p className="text-[11px] text-muted-foreground">
                         Filters on all pages. Drag a field here or

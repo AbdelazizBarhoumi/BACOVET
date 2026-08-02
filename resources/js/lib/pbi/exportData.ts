@@ -67,7 +67,7 @@ const TABULAR: VisualType[] = [
 ];
 
 /** Single-value visuals export one aggregate row per measure. */
-const SINGLE_VALUE: VisualType[] = ['card', 'kpi', 'gauge'];
+const SINGLE_VALUE: VisualType[] = ['card', 'gauge'];
 
 const SLICERS: VisualType[] = [
     'slicer',

@@ -128,6 +128,20 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                 <ConditionalFormatControl visual={visual} />
             </Section>
 
+            <Section title="Target">
+                <NumberInput
+                    label="Goal value"
+                    value={visual.targetValue ?? 0}
+                    onChange={(v) =>
+                        updateVisual(visual.id, { targetValue: v })
+                    }
+                />
+                <p className="text-[10px] text-muted-foreground">
+                    Values at or above the goal render green; a field dropped in
+                    the "Target (goal)" well overrides this constant.
+                </p>
+            </Section>
+
             <Section title="Category label" defaultOpen>
                 <Toggle
                     label="Show label"

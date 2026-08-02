@@ -21,6 +21,7 @@ import {
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
+import { ColorInput } from './formatControls';
 
 const STYLE_OPTIONS: { value: ConditionalFormat['style']; label: string }[] = [
     { value: 'none', label: 'None' },
@@ -123,30 +124,6 @@ function NumberInput({
     );
 }
 
-function ColorInput({
-    label,
-    value,
-    onChange,
-}: {
-    label?: string;
-    value: string;
-    onChange: (v: string) => void;
-}) {
-    return (
-        <label className="block">
-            {label && (
-                <span className="mb-1 block text-muted-foreground">{label}</span>
-            )}
-            <input
-                type="color"
-                value={value.startsWith('#') ? value : '#4c78d0'}
-                onChange={(e) => onChange(e.target.value)}
-                className="h-7 w-full cursor-pointer rounded border border-border bg-background"
-            />
-        </label>
-    );
-}
-
 function Toggle({
     label,
     checked,
@@ -215,20 +192,35 @@ export function ConditionalFormatDialog({
     open,
     visual,
     onClose,
+    value,
+    onCommit,
+    hideFieldValue,
 }: {
     open: boolean;
     visual: Visual;
     onClose: () => void;
+    /** Override the source value (for per-target fx, e.g. gauge). */
+    value?: ConditionalFormat;
+    /** Commit override (for per-target fx). Defaults to the store writer. */
+    onCommit?: (cf: ConditionalFormat | undefined) => void;
+    /** Hide the "Field value" style (inert for single-value targets). */
+    hideFieldValue?: boolean;
 }) {
     const { tables, setConditionalFormat, resetConditionalFormat } = usePbi();
-    const [draft, setDraft] = useState<ConditionalFormat>(() =>
-        normalizeConditionalFormat(visual.conditionalFormat),
-    );
+    const draftInit = () => {
+        const base = normalizeConditionalFormat(
+            value ?? visual.conditionalFormat,
+        );
+        return hideFieldValue && base.style === 'fieldValue'
+            ? { ...base, style: 'none' as const }
+            : base;
+    };
+    const [draft, setDraft] = useState<ConditionalFormat>(draftInit);
     const [prevOpen, setPrevOpen] = useState(open);
 
     if (prevOpen !== open) {
         setPrevOpen(open);
-        if (open) setDraft(normalizeConditionalFormat(visual.conditionalFormat));
+        if (open) setDraft(draftInit());
     }
 
     if (!open) return null;
@@ -348,11 +340,13 @@ export function ConditionalFormatDialog({
         : aggOptions[0]!.value;
 
     const apply = () => {
-        setConditionalFormat(visual.id, draft);
+        if (onCommit) onCommit(draft);
+        else setConditionalFormat(visual.id, draft);
         onClose();
     };
     const reset = () => {
-        resetConditionalFormat(visual.id);
+        if (onCommit) onCommit(undefined);
+        else resetConditionalFormat(visual.id);
         onClose();
     };
 
@@ -375,7 +369,13 @@ export function ConditionalFormatDialog({
                     <Select
                         label="Format style"
                         value={draft.style}
-                        options={STYLE_OPTIONS}
+                        options={
+                            hideFieldValue
+                                ? STYLE_OPTIONS.filter(
+                                      (o) => o.value !== 'fieldValue',
+                                  )
+                                : STYLE_OPTIONS
+                        }
                         onChange={(v) =>
                             patch({
                                 style: v as ConditionalFormat['style'],
@@ -674,12 +674,23 @@ const STYLE_LABELS: Record<ConditionalFormat['style'], string> = {
 export function ConditionalFormatControl({
     visual,
     label = 'Conditional formatting (fx)',
+    value,
+    onCommit,
+    hideFieldValue,
 }: {
     visual: Visual;
     label?: string;
+    /** Per-target source value (e.g. a gauge fx target). */
+    value?: ConditionalFormat;
+    /** Per-target commit (e.g. write to a gauge fx target). */
+    onCommit?: (cf: ConditionalFormat | undefined) => void;
+    /** Hide the "Field value" style (inert for single-value targets). */
+    hideFieldValue?: boolean;
 }) {
     const [open, setOpen] = useState(false);
-    const cf = normalizeConditionalFormat(visual.conditionalFormat);
+    let cf = normalizeConditionalFormat(value ?? visual.conditionalFormat);
+    if (hideFieldValue && cf.style === 'fieldValue')
+        cf = { ...cf, style: 'none' };
     const active = cf.style !== 'none';
     return (
         <>
@@ -702,7 +713,10 @@ export function ConditionalFormatControl({
             <ConditionalFormatDialog
                 open={open}
                 visual={visual}
+                value={value}
+                onCommit={onCommit}
                 onClose={() => setOpen(false)}
+                hideFieldValue={hideFieldValue}
             />
         </>
     );

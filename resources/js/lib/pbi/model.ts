@@ -22,7 +22,7 @@ export type Row = Record<string, string | number | boolean | null>;
 
 export type Agg = 'sum' | 'avg' | 'count' | 'min' | 'max' | 'distinct';
 
-/** How a card/kpi/gauge shows a non-numeric field across multiple rows. */
+/** How a card/gauge shows a non-numeric field across multiple rows. */
 export type ValueAggregationMode = 'first' | 'latest' | 'count';
 
 export const VALUE_AGGREGATION_MODES: ValueAggregationMode[] = [
@@ -163,7 +163,6 @@ export type VisualType =
     | 'scatter'
     | 'bubble'
     | 'card'
-    | 'kpi'
     | 'gauge'
     | 'table'
     | 'matrix'
@@ -519,7 +518,7 @@ export type FxFormat = {
     rules: FxRule[];
 };
 
-/** The big number of a card/kpi/gauge. */
+/** The big number of a card/gauge. */
 export type CalloutStyle = {
     fontFamily?: string;
     fontSize?: number;
@@ -654,6 +653,57 @@ export type PlotAreaStyle = {
     borderWidth?: number;
 };
 
+/* ------------------------- Gauge ------------------------- */
+
+/** One gauge bound (min/max/target): how its value is read and formatted. */
+export type GaugeBoundStyle = {
+    /** Auto: display format derives from the source field (e.g. currency). */
+    auto: boolean;
+    /** Power BI-style custom format string when `auto` is off (e.g. "$#,##0"). */
+    format?: string;
+};
+
+/** One gauge label group (value labels / target label / callout). */
+export type GaugeLabelStyle = {
+    show: boolean;
+    fontFamily?: string;
+    fontSize?: number;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    color?: string;
+    displayUnits: DisplayUnit;
+    decimals?: number;
+    fx?: ConditionalFormat | boolean;
+};
+
+/** Gauge data labels: parent switch + three independently-toggleable groups. */
+export type GaugeDataLabelsStyle = {
+    show: boolean;
+    /** Min/max value labels at the ends of the arc. */
+    values: GaugeLabelStyle;
+    /** Label near the target marker. */
+    targetLabel: GaugeLabelStyle;
+    /** Big central number. */
+    callout: GaugeLabelStyle;
+};
+
+/** Full gauge formatting block. */
+export type GaugeStyle = {
+    /** Arc fill color ('' keeps the palette color). */
+    fillColor?: string;
+    fillFx?: ConditionalFormat | boolean;
+    /** Target marker color. */
+    targetColor?: string;
+    targetFx?: ConditionalFormat | boolean;
+    axis: {
+        min: GaugeBoundStyle;
+        max: GaugeBoundStyle;
+        target: GaugeBoundStyle;
+    };
+    dataLabels: GaugeDataLabelsStyle;
+};
+
 export type Visual = {
     id: string;
     type: VisualType;
@@ -673,6 +723,14 @@ export type Visual = {
     tooltips: WellField[];
     smallMultiples: WellField[];
     drillFields: WellField[];
+    /** gauge: min/max/target bound fields (single field each) */
+    minimum: WellField[];
+    maximum: WellField[];
+    target: WellField[];
+    /** gauge: typed constant bounds; a dropped field wins while present */
+    minimumValue?: number;
+    maximumValue?: number;
+    targetValue?: number;
     text?: string | undefined;
     imageUrl?: string | undefined;
     /** shape kind when `type === 'shape'` */
@@ -711,11 +769,11 @@ export type Visual = {
     tooltipPageId?: string | undefined;
     /** drillthrough target page */
     drillthroughPageId?: string | undefined;
-    /** single-value (card/kpi/gauge) callout styling */
+    /** single-value (card/gauge) callout styling */
     callout?: CalloutStyle;
-    /** single-value (card/kpi/gauge) category label styling */
+    /** single-value (card/gauge) category label styling */
     categoryLabel?: CategoryLabelStyle;
-    /** single-value (card/kpi/gauge) title styling */
+    /** single-value (card/gauge) title styling */
     titleStyle?: TitleStyle;
     /** cartesian (bar/column) X-axis styling */
     xAxis?: AxisStyle;
@@ -731,6 +789,8 @@ export type Visual = {
     legendStyle?: LegendStyle;
     /** cartesian plot area */
     plotArea?: PlotAreaStyle;
+    /** gauge (single-value arc) styling */
+    gauge?: GaugeStyle;
 };
 
 export type PageFormat = {
@@ -1418,6 +1478,24 @@ export function singleValue(
     return value === undefined ? null : value;
 }
 
+/**
+ * Resolves a gauge bound (min/max/target) value. A dropped field wins over a
+ * typed constant; returns `undefined` when neither yields a finite number.
+ */
+export function gaugeBoundValue(
+    rows: Row[],
+    wf: WellField | undefined,
+    constant: number | undefined,
+): number | undefined {
+    if (wf) {
+        const n = Number(singleValue(rows, wf) ?? 0);
+        return Number.isFinite(n) ? n : undefined;
+    }
+    return typeof constant === 'number' && Number.isFinite(constant)
+        ? constant
+        : undefined;
+}
+
 /** Label shown under a single-value callout. */
 export function singleValueLabel(
     wf: WellField,
@@ -1664,6 +1742,9 @@ export function visualTable(
         | 'drillFields'
         | 'smallMultiples'
         | 'tooltips'
+        | 'minimum'
+        | 'maximum'
+        | 'target'
     >,
 ): string {
     const wells = [
@@ -1673,6 +1754,9 @@ export function visualTable(
         v.drillFields,
         v.smallMultiples,
         v.tooltips,
+        v.minimum ?? [],
+        v.maximum ?? [],
+        v.target ?? [],
     ];
     for (const well of wells) {
         if (well[0]?.table) return well[0].table;
@@ -1731,6 +1815,98 @@ export function formatNumberWith(n: number, code: NumberFormat): string {
         default:
             return formatNumber(n);
     }
+}
+
+/**
+ * Formats a number with a Power BI-style custom format string (a pragmatic
+ * subset of Excel syntax). Supports `0`/`#` digit placeholders, thousands
+ * separators, decimal places, `%` scaling, literal prefix/suffix (quoted or
+ * plain) and `;` positive/negative sections. Examples: `"$#,##0"`, `"0.0%"`,
+ * `"#,##0.00"`, `"0.0 K"`.
+ */
+export function formatNumberPattern(n: number, pattern: string): string {
+    if (!isFinite(n)) return '—';
+    const sections = pattern.split(';');
+    const neg = sections[1] !== undefined ? sections[1]! : null;
+    const section = n < 0 && neg !== null ? neg : (sections[0] ?? '');
+    const negative = n < 0 && neg !== null;
+    const abs = Math.abs(n);
+
+    let percent = false;
+    let thousands = false;
+    let decimals = 0;
+    let scaling = 0;
+    let intBlock = '';
+    let fracBlock = '';
+    let prefix = '';
+    let suffix = '';
+    let readingFrac = false;
+
+    for (let i = 0; i < section.length; i++) {
+        const ch = section[i]!;
+        if (ch === '"') {
+            const end = section.indexOf('"', i + 1);
+            const lit = end === -1 ? section.slice(i + 1) : section.slice(i + 1, end);
+            if (intBlock || readingFrac) suffix += lit;
+            else prefix += lit;
+            if (end === -1) break;
+            i = end;
+            continue;
+        }
+        if (ch === '\\') {
+            const lit = section[i + 1] ?? '';
+            if (intBlock || readingFrac) suffix += lit;
+            else prefix += lit;
+            i += 1;
+            continue;
+        }
+        if (ch === '0' || ch === '#' || ch === '?') {
+            if (readingFrac) {
+                fracBlock += ch;
+                decimals += 1;
+            } else {
+                intBlock += ch;
+            }
+            continue;
+        }
+        if (ch === '.') {
+            readingFrac = true;
+            continue;
+        }
+        if (ch === ',') {
+            if (!readingFrac && intBlock) thousands = true;
+            else if (!intBlock && !fracBlock) prefix += ch;
+            else scaling += 1;
+            continue;
+        }
+        if (ch === '%') {
+            percent = true;
+            continue;
+        }
+        if (intBlock || readingFrac) suffix += ch;
+        else prefix += ch;
+    }
+
+    if (!intBlock && !fracBlock) return `${prefix}${negative ? '-' : ''}${suffix}`;
+
+    let v = abs;
+    if (percent) v *= 100;
+    while (scaling > 0) {
+        v /= 1000;
+        scaling -= 1;
+    }
+
+    const factor = 10 ** decimals;
+    const rounded = Math.round(v * factor) / factor;
+    const [intRaw, fracRaw = ''] = rounded.toFixed(decimals).split('.');
+    let intPart = intRaw;
+    const minInt = (intBlock.match(/0/g) ?? []).length;
+    if (intPart.length < minInt) intPart = intPart.padStart(minInt, '0');
+    if (thousands) intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const fracOut = decimals > 0 ? `.${fracRaw}` : '';
+    return `${prefix}${negative ? '-' : ''}${intPart}${fracOut}${
+        percent ? '%' : ''
+    }${suffix}`;
 }
 
 /**
@@ -2188,6 +2364,137 @@ export function normalizePlotAreaStyle(input: unknown): PlotAreaStyle {
     if (typeof value.borderWidth === 'number' && isFinite(value.borderWidth))
         style.borderWidth = value.borderWidth;
     return style;
+}
+
+/* ------------------------- Gauge normalizers ------------------------- */
+
+export const DEFAULT_GAUGE_BOUND: GaugeBoundStyle = { auto: true };
+
+export const DEFAULT_GAUGE_LABEL: GaugeLabelStyle = {
+    show: true,
+    displayUnits: 'auto',
+    decimals: 1,
+};
+
+export const DEFAULT_GAUGE_DATA_LABELS: GaugeDataLabelsStyle = {
+    show: false,
+    values: { ...DEFAULT_GAUGE_LABEL, show: true },
+    targetLabel: { ...DEFAULT_GAUGE_LABEL, show: true },
+    callout: { ...DEFAULT_GAUGE_LABEL, show: true },
+};
+
+export const DEFAULT_GAUGE: GaugeStyle = {
+    axis: {
+        min: { ...DEFAULT_GAUGE_BOUND },
+        max: { ...DEFAULT_GAUGE_BOUND },
+        target: { ...DEFAULT_GAUGE_BOUND },
+    },
+    dataLabels: {
+        show: false,
+        values: { ...DEFAULT_GAUGE_LABEL, show: true },
+        targetLabel: { ...DEFAULT_GAUGE_LABEL, show: true },
+        callout: { ...DEFAULT_GAUGE_LABEL, show: true },
+    },
+};
+
+/** Fresh deep copy of the default gauge style (never shared across visuals). */
+export function defaultGaugeStyle(): GaugeStyle {
+    return {
+        axis: {
+            min: { ...DEFAULT_GAUGE_BOUND },
+            max: { ...DEFAULT_GAUGE_BOUND },
+            target: { ...DEFAULT_GAUGE_BOUND },
+        },
+        dataLabels: {
+            show: false,
+            values: { ...DEFAULT_GAUGE_LABEL, show: true },
+            targetLabel: { ...DEFAULT_GAUGE_LABEL, show: true },
+            callout: { ...DEFAULT_GAUGE_LABEL, show: true },
+        },
+    };
+}
+
+function normalizeGaugeBound(
+    input: unknown,
+    fallback: GaugeBoundStyle,
+): GaugeBoundStyle {
+    if (!input || typeof input !== 'object') return { ...fallback };
+    const value = input as Record<string, unknown>;
+    const out: GaugeBoundStyle = {
+        auto: typeof value.auto === 'boolean' ? value.auto : fallback.auto,
+    };
+    if (typeof value.format === 'string' && value.format.trim())
+        out.format = value.format.trim();
+    return out;
+}
+
+function normalizeGaugeLabel(
+    input: unknown,
+    fallback: GaugeLabelStyle,
+): GaugeLabelStyle {
+    if (!input || typeof input !== 'object') return { ...fallback };
+    const value = input as Record<string, unknown>;
+    const out: GaugeLabelStyle = {
+        show: typeof value.show === 'boolean' ? value.show : fallback.show,
+        displayUnits: isDisplayUnit(value.displayUnits)
+            ? (value.displayUnits as DisplayUnit)
+            : fallback.displayUnits,
+    };
+    if (typeof value.fontFamily === 'string' && value.fontFamily)
+        out.fontFamily = value.fontFamily;
+    if (typeof value.fontSize === 'number' && isFinite(value.fontSize))
+        out.fontSize = value.fontSize;
+    if (typeof value.bold === 'boolean') out.bold = value.bold;
+    if (typeof value.italic === 'boolean') out.italic = value.italic;
+    if (typeof value.underline === 'boolean') out.underline = value.underline;
+    if (typeof value.color === 'string' && value.color.trim())
+        out.color = value.color.trim();
+    if (typeof value.decimals === 'number' && isFinite(value.decimals))
+        out.decimals = value.decimals;
+    if (value.fx !== undefined) out.fx = value.fx as ConditionalFormat | boolean;
+    return out;
+}
+
+export function normalizeGaugeStyle(input: unknown): GaugeStyle {
+    const d = defaultGaugeStyle();
+    if (!input || typeof input !== 'object') return d;
+    const value = input as Record<string, unknown>;
+    const axis = value.axis as Record<string, unknown> | undefined;
+    const dataLabels = value.dataLabels as Record<string, unknown> | undefined;
+    const out: GaugeStyle = {
+        axis: {
+            min: normalizeGaugeBound(axis?.min, d.axis.min),
+            max: normalizeGaugeBound(axis?.max, d.axis.max),
+            target: normalizeGaugeBound(axis?.target, d.axis.target),
+        },
+        dataLabels: {
+            show:
+                typeof dataLabels?.show === 'boolean'
+                    ? dataLabels.show
+                    : d.dataLabels.show,
+            values: normalizeGaugeLabel(
+                dataLabels?.values,
+                d.dataLabels.values,
+            ),
+            targetLabel: normalizeGaugeLabel(
+                dataLabels?.targetLabel,
+                d.dataLabels.targetLabel,
+            ),
+            callout: normalizeGaugeLabel(
+                dataLabels?.callout,
+                d.dataLabels.callout,
+            ),
+        },
+    };
+    if (typeof value.fillColor === 'string' && value.fillColor.trim())
+        out.fillColor = value.fillColor.trim();
+    if (value.fillFx !== undefined)
+        out.fillFx = value.fillFx as ConditionalFormat | boolean;
+    if (typeof value.targetColor === 'string' && value.targetColor.trim())
+        out.targetColor = value.targetColor.trim();
+    if (value.targetFx !== undefined)
+        out.targetFx = value.targetFx as ConditionalFormat | boolean;
+    return out;
 }
 
 export function formatValue(
