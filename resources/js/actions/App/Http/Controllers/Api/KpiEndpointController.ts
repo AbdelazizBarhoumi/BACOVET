@@ -231,7 +231,7 @@ fire.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     fire.form = fireForm
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:155
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:157
  * @route '/admin/kpi-endpoints/fire-all'
  */
 export const fireAll = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -246,7 +246,7 @@ fireAll.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:155
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:157
  * @route '/admin/kpi-endpoints/fire-all'
  */
 fireAll.url = (options?: RouteQueryOptions) => {
@@ -255,7 +255,7 @@ fireAll.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:155
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:157
  * @route '/admin/kpi-endpoints/fire-all'
  */
 fireAll.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -265,7 +265,7 @@ fireAll.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:155
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:157
  * @route '/admin/kpi-endpoints/fire-all'
  */
     const fireAllForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -275,7 +275,7 @@ fireAll.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\KpiEndpointController::fireAll
- * @see app/Http/Controllers/Api/KpiEndpointController.php:155
+ * @see app/Http/Controllers/Api/KpiEndpointController.php:157
  * @route '/admin/kpi-endpoints/fire-all'
  */
         fireAllForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

@@ -21,12 +21,12 @@ class NovacityProxyController extends Controller
 
         $token = config('novacity.admin_token');
         if ($token) {
-            $headers['Authorization'] = 'Bearer ' . $token;
+            $headers['Authorization'] = 'Bearer '.$token;
         }
 
         $response = Http::withHeaders($headers)
             ->timeout((int) config('novacity.timeout', 30))
-            ->get($baseUrl . '/' . ltrim($path, '/'), $query);
+            ->get($baseUrl.'/'.ltrim($path, '/'), $query);
 
         if ($response->failed()) {
             return response()->json([

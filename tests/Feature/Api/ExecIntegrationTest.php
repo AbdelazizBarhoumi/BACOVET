@@ -471,6 +471,7 @@ class ExecIntegrationTest extends TestCase
             foreach ($parts as $part) {
                 $current = $current[$part] ?? null;
             }
+
             return $current;
         }, $records);
 

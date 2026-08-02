@@ -16,21 +16,24 @@ class ExtractPageData extends Command
 
         if (empty($pages)) {
             $this->error('No data mappings found in config/data-mappings.php.');
+
             return 1;
         }
 
         $dataJsonPath = storage_path('app/public/data.json');
 
-        if (!file_exists($dataJsonPath)) {
+        if (! file_exists($dataJsonPath)) {
             $this->error("data.json not found at {$dataJsonPath}");
+
             return 1;
         }
 
         $rawJson = file_get_contents($dataJsonPath);
         $dataJson = json_decode($rawJson, true);
 
-        if (!is_array($dataJson)) {
+        if (! is_array($dataJson)) {
             $this->error('data.json is not a valid JSON array.');
+
             return 1;
         }
 
@@ -90,7 +93,7 @@ class ExtractPageData extends Command
         $outputPath = base_path($this->option('output'));
         $dir = dirname($outputPath);
 
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
@@ -98,16 +101,17 @@ class ExtractPageData extends Command
 
         if ($json === false) {
             $this->error('Failed to encode JSON.');
+
             return 1;
         }
 
         file_put_contents($outputPath, $json);
 
         $this->info("Exported page data to {$outputPath}");
-        $this->info("  Pages: " . count($output));
+        $this->info('  Pages: '.count($output));
         $this->info("  Total variables: {$totalExtracted}");
         $this->info("  Matched endpoints: {$totalMatched}");
-        $this->info("  Unmatched: " . ($totalExtracted - $totalMatched));
+        $this->info('  Unmatched: '.($totalExtracted - $totalMatched));
 
         return 0;
     }
@@ -135,14 +139,14 @@ class ExtractPageData extends Command
     {
         $parsed = parse_url($url);
 
-        if (!$parsed || !isset($parsed['path'])) {
+        if (! $parsed || ! isset($parsed['path'])) {
             return '';
         }
 
         $path = $parsed['path'];
         $path = ltrim($path, '/');
 
-        if (!str_starts_with($path, 'api/')) {
+        if (! str_starts_with($path, 'api/')) {
             return '';
         }
 

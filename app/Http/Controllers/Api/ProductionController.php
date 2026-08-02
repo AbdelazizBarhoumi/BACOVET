@@ -1551,7 +1551,7 @@ class ProductionController extends Controller
                 $endpoint = $varDef['endpoint'] ?? null;
 
                 // Track sync times
-                if (!empty($varKey)) {
+                if (! empty($varKey)) {
                     $dataRow = $kpiDataIndex[$kpiCode][$varKey] ?? null;
                     if ($dataRow) {
                         if ($latestSyncedAt === null || $dataRow->last_synced_at?->greaterThan($latestSyncedAt)) {
@@ -1568,7 +1568,7 @@ class ProductionController extends Controller
                 $rawData = null;
                 if ($endpoint && isset($endpointRawCache[$endpoint])) {
                     $rawData = $endpointRawCache[$endpoint];
-                } elseif (!empty($varKey)) {
+                } elseif (! empty($varKey)) {
                     $dataRow = $kpiDataIndex[$kpiCode][$varKey] ?? null;
                     if ($dataRow) {
                         $raw = $dataRow->response_data['raw'] ?? null;
@@ -1580,12 +1580,12 @@ class ProductionController extends Controller
                 }
 
                 // Collect filter options from ORIGINAL raw data
-                if (!empty($varDef['is_filtered']) && !empty($varDef['filter_key']) && empty($varDef['filter_value']) && !empty($rawData)) {
+                if (! empty($varDef['is_filtered']) && ! empty($varDef['filter_key']) && empty($varDef['filter_value']) && ! empty($rawData)) {
                     $fk = $varDef['filter_key'];
                     $sampleKeys = array_keys($rawData[0] ?? []);
                     if (in_array($fk, $sampleKeys)) {
-                        $opts = array_values(array_unique(array_filter(array_map(fn($v) => trim((string)$v), array_column($rawData, $fk)))));
-                        if (!empty($opts)) {
+                        $opts = array_values(array_unique(array_filter(array_map(fn ($v) => trim((string) $v), array_column($rawData, $fk)))));
+                        if (! empty($opts)) {
                             // Merge options if filter_key already exists
                             $found = false;
                             foreach ($allFilterConfigs as &$fc) {
@@ -1596,7 +1596,7 @@ class ProductionController extends Controller
                                 }
                             }
                             unset($fc);
-                            if (!$found) {
+                            if (! $found) {
                                 $allFilterConfigs[] = ['key' => $fk, 'options' => $opts];
                             }
                         }
@@ -1606,10 +1606,10 @@ class ProductionController extends Controller
                 $variableOutputs[] = [
                     'variable_key' => $varKey,
                     'variable_type' => $varDef['variable_type'] ?? 'Direct',
-                    'has_function' => !empty($varDef['has_function']),
+                    'has_function' => ! empty($varDef['has_function']),
                     'fn' => $varDef['fn'] ?? 'Latest',
                     'endpoint' => $endpoint,
-                    'is_filtered' => !empty($varDef['is_filtered']),
+                    'is_filtered' => ! empty($varDef['is_filtered']),
                     'filter_key' => $varDef['filter_key'] ?? null,
                     'raw_data' => $rawData,
                 ];
@@ -1623,7 +1623,7 @@ class ProductionController extends Controller
             $computedResult = null;
             $leaderVarKey = $variables[0]['variable_key'] ?? null;
             $leaderRow = $kpiDataIndex[$kpiCode][$leaderVarKey] ?? null;
-            if ($leaderRow && !empty($leaderRow->computed_result)) {
+            if ($leaderRow && ! empty($leaderRow->computed_result)) {
                 $computedResult = $leaderRow->computed_result;
             }
 
@@ -1642,7 +1642,7 @@ class ProductionController extends Controller
                 'chart_config' => $kpiDef['chart_config'] ?? null,
                 'extra_filters' => $this->buildExtraFilters($kpiDef, $variableOutputs),
                 'filter_configs' => $allFilterConfigs,
-                'raw_data' => !empty($mergedRaw) ? $mergedRaw : null,
+                'raw_data' => ! empty($mergedRaw) ? $mergedRaw : null,
                 'computed_result' => $computedResult,
                 'last_valid_synced_at' => $latestValidSyncedAt?->toISOString(),
                 'last_synced_at' => $latestSyncedAt?->toISOString(),
@@ -1662,10 +1662,14 @@ class ProductionController extends Controller
         foreach ($raw as $row) {
             if (is_array($row) && array_key_exists($varKey, $row)) {
                 $v = $row[$varKey];
-                if (is_numeric($v)) $values[] = (float) $v;
+                if (is_numeric($v)) {
+                    $values[] = (float) $v;
+                }
             }
         }
-        if (empty($values)) return null;
+        if (empty($values)) {
+            return null;
+        }
 
         return match ($fn) {
             'Sum' => array_sum($values),
@@ -1693,15 +1697,21 @@ class ProductionController extends Controller
         $result = [];
         foreach ($extraFilters as $extra) {
             $filterKey = $extra['filter_key'] ?? null;
-            if (!$filterKey) continue;
+            if (! $filterKey) {
+                continue;
+            }
 
             $sourceIndex = $extra['source_variable_index'] ?? 0;
             $rawData = $variableOutputs[$sourceIndex]['raw_data'] ?? null;
 
-            if (!is_array($rawData) || empty($rawData)) continue;
+            if (! is_array($rawData) || empty($rawData)) {
+                continue;
+            }
 
             $opts = array_values(array_unique(array_filter(array_column($rawData, $filterKey))));
-            if (empty($opts)) continue;
+            if (empty($opts)) {
+                continue;
+            }
 
             sort($opts);
             $result[] = [
@@ -1734,13 +1744,17 @@ class ProductionController extends Controller
                 $val = $varIndex < count($orderedValues) ? $orderedValues[$varIndex] : null;
                 $varIndex++;
 
-                if ($val === null) return null;
+                if ($val === null) {
+                    return null;
+                }
                 // If value is an array (has_function=false), use first element for formula
                 if (is_array($val)) {
                     $val = reset($val);
                 }
                 $numVal = is_numeric($val) ? (float) $val : null;
-                if ($numVal === null) return null;
+                if ($numVal === null) {
+                    return null;
+                }
 
                 if ($result === null) {
                     $result = $numVal;
@@ -1783,16 +1797,20 @@ class ProductionController extends Controller
     private function computeFormulaRowByRow(array $items, array $variableRawArrays)
     {
         $varKeys = array_keys($variableRawArrays);
-        if (count($varKeys) < 2) return null;
+        if (count($varKeys) < 2) {
+            return null;
+        }
 
         // Find common fields across all raw arrays for joining
         $allKeys = array_keys($variableRawArrays);
         $firstRaw = reset($variableRawArrays);
-        if (!is_array($firstRaw) || empty($firstRaw)) return null;
+        if (! is_array($firstRaw) || empty($firstRaw)) {
+            return null;
+        }
 
         $commonFields = array_keys($firstRaw[0]);
         foreach ($variableRawArrays as $raw) {
-            if (!empty($raw) && is_array($raw[0])) {
+            if (! empty($raw) && is_array($raw[0])) {
                 $commonFields = array_intersect($commonFields, array_keys($raw[0]));
             }
         }
@@ -1805,10 +1823,12 @@ class ProductionController extends Controller
                 break;
             }
         }
-        if (!$joinKey && !empty($commonFields)) {
+        if (! $joinKey && ! empty($commonFields)) {
             $joinKey = reset($commonFields);
         }
-        if (!$joinKey) return null;
+        if (! $joinKey) {
+            return null;
+        }
 
         // Build index for each variable's raw_data by join key
         $indexed = [];
@@ -1840,9 +1860,14 @@ class ProductionController extends Controller
             // Check if all values are present
             $allPresent = true;
             foreach ($rowValues as $rv) {
-                if ($rv === null) { $allPresent = false; break; }
+                if ($rv === null) {
+                    $allPresent = false;
+                    break;
+                }
             }
-            if (!$allPresent) continue;
+            if (! $allPresent) {
+                continue;
+            }
 
             // Compute formula for this row
             $computed = $this->computeFormula($items, $rowValues);
@@ -1859,7 +1884,7 @@ class ProductionController extends Controller
 
     private function getKpiValue(array $kpiMap, string $kpiCode): ?array
     {
-        if (!isset($kpiMap[$kpiCode])) {
+        if (! isset($kpiMap[$kpiCode])) {
             return null;
         }
 

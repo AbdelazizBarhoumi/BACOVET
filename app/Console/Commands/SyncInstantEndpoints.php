@@ -4,9 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\KpiData;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Http;
 
 class SyncInstantEndpoints extends Command
 {
@@ -45,6 +44,7 @@ class SyncInstantEndpoints extends Command
 
         if (empty($grouped)) {
             $this->warn('No instant tasks found.');
+
             return self::SUCCESS;
         }
 
@@ -90,14 +90,14 @@ class SyncInstantEndpoints extends Command
                         $body = $response->body();
                     }
                     $body = mb_substr($body, 0, 500);
-                    $endpointError = "HTTP {$status}" . ($body ? ": {$body}" : '');
+                    $endpointError = "HTTP {$status}".($body ? ": {$body}" : '');
                 } else {
                     $body = $response->json();
                     if (isset($body['success']) && ! $body['success']) {
                         $detail = is_array($body['error'] ?? null)
                             ? json_encode($body['error'])
                             : ($body['error'] ?? $body['message'] ?? 'unknown');
-                        $endpointError = "API success:false" . ($detail ? ": {$detail}" : '');
+                        $endpointError = 'API success:false'.($detail ? ": {$detail}" : '');
                     } else {
                         $data = $body['data'] ?? [];
                     }
@@ -112,6 +112,7 @@ class SyncInstantEndpoints extends Command
                     $this->recordError($task, $endpointError, $syncedAt);
                     $errors++;
                 }
+
                 continue;
             }
 
@@ -121,6 +122,7 @@ class SyncInstantEndpoints extends Command
                     if (empty($data) && $task['variable_key'] !== null) {
                         $this->recordError($task, "Empty response data for {$task['endpoint']} (expected key: {$task['variable_key']})", $syncedAt);
                         $errors++;
+
                         continue;
                     }
 
@@ -133,6 +135,7 @@ class SyncInstantEndpoints extends Command
                     ) {
                         $this->recordError($task, "Key '{$task['variable_key']}' not found in response from {$task['endpoint']}", $syncedAt);
                         $errors++;
+
                         continue;
                     }
 
@@ -143,6 +146,7 @@ class SyncInstantEndpoints extends Command
                     ) {
                         $this->recordError($task, "Key '{$task['variable_key']}' not found in response from {$task['endpoint']}", $syncedAt);
                         $errors++;
+
                         continue;
                     }
 
@@ -160,16 +164,16 @@ class SyncInstantEndpoints extends Command
         $this->info("Done: {$ok} ok, {$errors} errors | {$elapsed}s ({$uniqueEndpoints} HTTP calls instead of {$totalTasks})");
 
         // Pre-compute KPI results (formula, row-by-row, status) for all production modules
-        $this->info("Computing KPI results...");
-        $computer = new \App\Services\KpiResultComputer();
+        $this->info('Computing KPI results...');
+        $computer = new \App\Services\KpiResultComputer;
         $allModules = array_keys(config('data-mappings', []));
         foreach ($allModules as $module) {
             $computer->computeModule($module);
         }
-        $this->info("KPI results computed.");
+        $this->info('KPI results computed.');
 
         // Refresh the endpoint_datasets snapshot used by the V5 builder.
-        $this->info("Refreshing endpoint datasets...");
+        $this->info('Refreshing endpoint datasets...');
         $this->call('sync:endpoint-datasets');
 
         return self::SUCCESS;
@@ -258,6 +262,7 @@ class SyncInstantEndpoints extends Command
                     return ['raw' => $data, 'extracted' => $row[$variableKey]];
                 }
             }
+
             return ['raw' => $data, 'extracted' => null];
         }
 

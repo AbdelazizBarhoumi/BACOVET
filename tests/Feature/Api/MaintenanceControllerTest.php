@@ -144,7 +144,8 @@ class MaintenanceControllerTest extends TestCase
         $this->assertSame(0, $exitCode);
     }
 
-    public function test_run_reports_non_zero_exit_code(): void    {
+    public function test_run_reports_non_zero_exit_code(): void
+    {
         $this->seedRoles();
         $this->actingAsRole('it');
 

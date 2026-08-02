@@ -12,6 +12,7 @@ class SettingController extends Controller
     public function show(string $key): JsonResponse
     {
         $setting = Setting::find($key);
+
         return response()->json(['key' => $key, 'value' => $setting?->value ?? null]);
     }
 

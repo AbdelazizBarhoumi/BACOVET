@@ -17,6 +17,7 @@ class ExportDataMappings extends Command
 
         if ($rows->isEmpty()) {
             $this->error('No data mappings found. Run php artisan db:seed --class=DataMappingSeeder first.');
+
             return 1;
         }
 
@@ -76,7 +77,7 @@ class ExportDataMappings extends Command
         $outputPath = base_path($this->option('output'));
         $dir = dirname($outputPath);
 
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
@@ -86,7 +87,7 @@ class ExportDataMappings extends Command
         $totalKpis = collect($pages)->sum(fn ($p) => count($p['kpis']));
 
         $this->info("Exported data mappings config to {$outputPath}");
-        $this->info("  Pages: " . count($pages));
+        $this->info('  Pages: '.count($pages));
         $this->info("  Total KPIs: {$totalKpis}");
 
         return 0;
@@ -101,40 +102,40 @@ class ExportDataMappings extends Command
             $lines[] = "        'kpis' => [";
 
             foreach ($pageData['kpis'] as $kpi) {
-                $lines[] = "            [";
+                $lines[] = '            [';
                 $lines[] = "                'kpi' => '{$kpi['kpi']}',";
-                $lines[] = "                'name' => " . $this->exportStr($kpi['name'] ?? null) . ",";
+                $lines[] = "                'name' => ".$this->exportStr($kpi['name'] ?? null).',';
 
                 // Variables
                 $lines[] = "                'variables' => [";
                 foreach ($kpi['variables'] as $var) {
-                    $lines[] = "                    [";
-                    $lines[] = "                        'variable' => " . $this->exportStr($var['variable'] ?? null) . ",";
-                    $lines[] = "                        'endpoint' => " . $this->exportNullableStr($var['endpoint'] ?? null) . ",";
-                    $lines[] = "                        'variable_type' => " . $this->exportStr($var['variable_type'] ?? null) . ",";
-                    $lines[] = "                        'variable_key' => " . $this->exportNullableStr($var['variable_key'] ?? null) . ",";
-                    $lines[] = "                        'is_filtered' => " . $this->exportBool($var['is_filtered'] ?? false) . ",";
-                    $lines[] = "                        'filter_key' => " . $this->exportNullableStr($var['filter_key'] ?? null) . ",";
-                    $lines[] = "                        'filter_value' => " . $this->exportNullableStr($var['filter_value'] ?? null) . ",";
-                    $lines[] = "                        'has_function' => " . $this->exportBool($var['has_function'] ?? false) . ",";
-                    $lines[] = "                        'fn' => " . $this->exportStr($var['fn'] ?? null) . ",";
-                    $lines[] = "                    ],";
+                    $lines[] = '                    [';
+                    $lines[] = "                        'variable' => ".$this->exportStr($var['variable'] ?? null).',';
+                    $lines[] = "                        'endpoint' => ".$this->exportNullableStr($var['endpoint'] ?? null).',';
+                    $lines[] = "                        'variable_type' => ".$this->exportStr($var['variable_type'] ?? null).',';
+                    $lines[] = "                        'variable_key' => ".$this->exportNullableStr($var['variable_key'] ?? null).',';
+                    $lines[] = "                        'is_filtered' => ".$this->exportBool($var['is_filtered'] ?? false).',';
+                    $lines[] = "                        'filter_key' => ".$this->exportNullableStr($var['filter_key'] ?? null).',';
+                    $lines[] = "                        'filter_value' => ".$this->exportNullableStr($var['filter_value'] ?? null).',';
+                    $lines[] = "                        'has_function' => ".$this->exportBool($var['has_function'] ?? false).',';
+                    $lines[] = "                        'fn' => ".$this->exportStr($var['fn'] ?? null).',';
+                    $lines[] = '                    ],';
                 }
-                $lines[] = "                ],";
+                $lines[] = '                ],';
 
                 // Formula
-                $lines[] = "                'formula' => " . $this->exportFormula($kpi['formula'] ?? null) . ",";
-                $lines[] = "                'formula_readable' => " . $this->buildReadableFormula($kpi['formula'] ?? null) . ",";
+                $lines[] = "                'formula' => ".$this->exportFormula($kpi['formula'] ?? null).',';
+                $lines[] = "                'formula_readable' => ".$this->buildReadableFormula($kpi['formula'] ?? null).',';
 
                 // Highlight color
-                $lines[] = "                'highlight_color' => " . $this->exportNullableStr($kpi['highlight_color'] ?? null) . ",";
+                $lines[] = "                'highlight_color' => ".$this->exportNullableStr($kpi['highlight_color'] ?? null).',';
 
                 // Graph types
                 $graphTypes = $kpi['graph_types'] ?? null;
                 if ($graphTypes && is_array($graphTypes)) {
-                    $escaped = array_map(fn($v) => addslashes($v), $graphTypes);
-                    $quoted = array_map(fn($v) => "'{$v}'", $escaped);
-                    $lines[] = "                'graph_types' => [" . implode(', ', $quoted) . "],";
+                    $escaped = array_map(fn ($v) => addslashes($v), $graphTypes);
+                    $quoted = array_map(fn ($v) => "'{$v}'", $escaped);
+                    $lines[] = "                'graph_types' => [".implode(', ', $quoted).'],';
                 } else {
                     $lines[] = "                'graph_types' => null,";
                 }
@@ -142,7 +143,7 @@ class ExportDataMappings extends Command
                 // Chart config overrides
                 $chartConfig = $kpi['chart_config'] ?? null;
                 if ($chartConfig && is_array($chartConfig)) {
-                    $lines[] = "                'chart_config' => " . $this->exportNestedArray($chartConfig) . ",";
+                    $lines[] = "                'chart_config' => ".$this->exportNestedArray($chartConfig).',';
                 } else {
                     $lines[] = "                'chart_config' => null,";
                 }
@@ -150,7 +151,7 @@ class ExportDataMappings extends Command
                 // Extra filters
                 $extraFilters = $kpi['extra_filters'] ?? null;
                 if ($extraFilters && is_array($extraFilters)) {
-                    $lines[] = "                'extra_filters' => " . $this->exportNestedArray($extraFilters) . ",";
+                    $lines[] = "                'extra_filters' => ".$this->exportNestedArray($extraFilters).',';
                 } else {
                     $lines[] = "                'extra_filters' => null,";
                 }
@@ -158,18 +159,18 @@ class ExportDataMappings extends Command
                 // Target
                 $target = $kpi['target'] ?? [];
                 $lines[] = "                'target' => [";
-                $lines[] = "                    'operator' => " . $this->exportStr($target['operator'] ?? null) . ",";
-                $lines[] = "                    'value' => " . $this->exportNumber($target['value'] ?? null) . ",";
-                $lines[] = "                    'is_percentage' => " . $this->exportBool($target['is_percentage'] ?? false) . ",";
-                $lines[] = "                ],";
-                $lines[] = "                'target_readable' => " . $this->buildReadableTarget($target) . ",";
+                $lines[] = "                    'operator' => ".$this->exportStr($target['operator'] ?? null).',';
+                $lines[] = "                    'value' => ".$this->exportNumber($target['value'] ?? null).',';
+                $lines[] = "                    'is_percentage' => ".$this->exportBool($target['is_percentage'] ?? false).',';
+                $lines[] = '                ],';
+                $lines[] = "                'target_readable' => ".$this->buildReadableTarget($target).',';
 
-                $lines[] = "                'refresh_frequency' => " . $this->exportStr($kpi['refresh_frequency'] ?? null) . ",";
-                $lines[] = "            ],";
+                $lines[] = "                'refresh_frequency' => ".$this->exportStr($kpi['refresh_frequency'] ?? null).',';
+                $lines[] = '            ],';
             }
 
-            $lines[] = "        ],";
-            $lines[] = "    ],";
+            $lines[] = '        ],';
+            $lines[] = '    ],';
         }
 
         $lines[] = '];';
@@ -184,6 +185,7 @@ class ExportDataMappings extends Command
             return "''";
         }
         $escaped = addslashes((string) $value);
+
         return "'{$escaped}'";
     }
 
@@ -193,6 +195,7 @@ class ExportDataMappings extends Command
             return 'null';
         }
         $escaped = addslashes((string) $value);
+
         return "'{$escaped}'";
     }
 
@@ -206,12 +209,13 @@ class ExportDataMappings extends Command
         if ($value === null) {
             return 'null';
         }
+
         return (string) $value;
     }
 
     private function exportFormula($formula): string
     {
-        if ($formula === null || !isset($formula['items'])) {
+        if ($formula === null || ! isset($formula['items'])) {
             return 'null';
         }
 
@@ -219,11 +223,11 @@ class ExportDataMappings extends Command
         $lines[] = "            'items' => [";
 
         foreach ($formula['items'] as $item) {
-            $lines[] = "                [";
+            $lines[] = '                [';
             $lines[] = "                    'type' => '{$item['type']}',";
 
             if ($item['type'] === 'variable') {
-                $lines[] = "                    'ref' => " . ($item['ref'] ?? 'null') . ",";
+                $lines[] = "                    'ref' => ".($item['ref'] ?? 'null').',';
                 if (isset($item['label'])) {
                     $escaped = addslashes($item['label']);
                     $lines[] = "                    'label' => '{$escaped}',";
@@ -234,18 +238,18 @@ class ExportDataMappings extends Command
                 $lines[] = "                    'value' => {$item['value']},";
             }
 
-            $lines[] = "                ],";
+            $lines[] = '                ],';
         }
 
-        $lines[] = "            ],";
-        $lines[] = "        ]";
+        $lines[] = '            ],';
+        $lines[] = '        ]';
 
         return implode("\n", $lines);
     }
 
     private function buildReadableFormula($formula): string
     {
-        if ($formula === null || !isset($formula['items'])) {
+        if ($formula === null || ! isset($formula['items'])) {
             return 'null';
         }
 
@@ -287,7 +291,7 @@ class ExportDataMappings extends Command
 
     private function exportNestedArray($data, int $depth = 4): string
     {
-        if (!is_array($data)) {
+        if (! is_array($data)) {
             return 'null';
         }
 
@@ -297,35 +301,38 @@ class ExportDataMappings extends Command
         // Check if it's an associative array or a sequential array of associative arrays
         $isSequential = array_is_list($data);
 
-        if ($isSequential && !empty($data) && is_array($data[0])) {
+        if ($isSequential && ! empty($data) && is_array($data[0])) {
             // Array of associative arrays (like extra_filters)
             $lines = ['['];
             foreach ($data as $item) {
-                $lines[] = $innerIndent . '[';
+                $lines[] = $innerIndent.'[';
                 foreach ($item as $key => $value) {
-                    $lines[] = $innerIndent . "    '" . addslashes((string) $key) . "' => " . $this->exportScalarOrArray($value) . ",";
+                    $lines[] = $innerIndent."    '".addslashes((string) $key)."' => ".$this->exportScalarOrArray($value).',';
                 }
-                $lines[] = $innerIndent . '],';
+                $lines[] = $innerIndent.'],';
             }
-            $lines[] = $indent . ']';
+            $lines[] = $indent.']';
+
             return implode("\n", $lines);
         }
 
-        if (!$isSequential && !empty($data)) {
+        if (! $isSequential && ! empty($data)) {
             // Associative array (like chart_config)
             $lines = ['['];
             foreach ($data as $key => $value) {
-                $lines[] = $innerIndent . "'" . addslashes((string) $key) . "' => " . $this->exportScalarOrArray($value) . ",";
+                $lines[] = $innerIndent."'".addslashes((string) $key)."' => ".$this->exportScalarOrArray($value).',';
             }
-            $lines[] = $indent . ']';
+            $lines[] = $indent.']';
+
             return implode("\n", $lines);
         }
 
         // Empty or simple list
         if ($isSequential) {
-            $escaped = array_map(fn($v) => addslashes((string) $v), $data);
-            $quoted = array_map(fn($v) => "'{$v}'", $escaped);
-            return '[' . implode(', ', $quoted) . ']';
+            $escaped = array_map(fn ($v) => addslashes((string) $v), $data);
+            $quoted = array_map(fn ($v) => "'{$v}'", $escaped);
+
+            return '['.implode(', ', $quoted).']';
         }
 
         return '[]';
@@ -345,6 +352,7 @@ class ExportDataMappings extends Command
         if ($value === null) {
             return 'null';
         }
+
         return $this->exportStr($value);
     }
 }

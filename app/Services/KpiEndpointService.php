@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Log;
 class KpiEndpointService
 {
     private string $baseUrl;
+
     private string $apiKey;
+
     private int $timeout;
 
     public function __construct()
@@ -33,6 +35,7 @@ class KpiEndpointService
 
             if ($frequency !== null && $endpointFreq !== $frequency) {
                 $results['skipped']++;
+
                 continue;
             }
 
@@ -40,6 +43,7 @@ class KpiEndpointService
                 $keyFreq = $keyConfig['refresh_frequency'] ?? $endpointFreq;
                 if ($frequency !== null && $keyFreq !== $frequency) {
                     $results['skipped']++;
+
                     continue;
                 }
 
@@ -62,7 +66,7 @@ class KpiEndpointService
         }
 
         // Pre-compute KPI results after sync
-        $computer = new KpiResultComputer();
+        $computer = new KpiResultComputer;
         $modules = array_keys(config('data-mappings', []));
         foreach ($modules as $module) {
             $computer->computeModule($module);
@@ -85,6 +89,7 @@ class KpiEndpointService
 
             if ($frequency !== null && $endpointFreq !== $frequency) {
                 $skipped++;
+
                 continue;
             }
 
@@ -92,6 +97,7 @@ class KpiEndpointService
                 $keyFreq = $keyConfig['refresh_frequency'] ?? $endpointFreq;
                 if ($frequency !== null && $keyFreq !== $frequency) {
                     $skipped++;
+
                     continue;
                 }
 
@@ -192,8 +198,8 @@ class KpiEndpointService
     private function fetchEndpointData(string $endpointPath): array
     {
         $response = Http::withHeaders([
-                'x-api-key' => $this->apiKey,
-            ])
+            'x-api-key' => $this->apiKey,
+        ])
             ->timeout($this->timeout)
             ->get("{$this->baseUrl}/{$endpointPath}");
 
@@ -207,14 +213,14 @@ class KpiEndpointService
                 $body = $response->body();
             }
             $body = mb_substr($body, 0, 500);
-            throw new \RuntimeException("HTTP {$status} from {$endpointPath}" . ($body ? ": {$body}" : ''));
+            throw new \RuntimeException("HTTP {$status} from {$endpointPath}".($body ? ": {$body}" : ''));
         }
 
         $body = $response->json();
 
         if (isset($body['success']) && ! $body['success']) {
             $detail = is_array($body['error'] ?? null) ? json_encode($body['error']) : ($body['error'] ?? $body['message'] ?? 'unknown');
-            throw new \RuntimeException("API returned success:false for {$endpointPath}" . ($detail ? ": {$detail}" : ''));
+            throw new \RuntimeException("API returned success:false for {$endpointPath}".($detail ? ": {$detail}" : ''));
         }
 
         return $body['data'] ?? [];

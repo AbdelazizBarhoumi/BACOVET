@@ -56,7 +56,7 @@ check.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     check.form = checkForm
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::setPassword
- * @see app/Http/Controllers/Api/V6AuthController.php:21
+ * @see app/Http/Controllers/Api/V6AuthController.php:24
  * @route '/api/v6-auth/set-password'
  */
 export const setPassword = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -71,7 +71,7 @@ setPassword.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::setPassword
- * @see app/Http/Controllers/Api/V6AuthController.php:21
+ * @see app/Http/Controllers/Api/V6AuthController.php:24
  * @route '/api/v6-auth/set-password'
  */
 setPassword.url = (options?: RouteQueryOptions) => {
@@ -80,7 +80,7 @@ setPassword.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::setPassword
- * @see app/Http/Controllers/Api/V6AuthController.php:21
+ * @see app/Http/Controllers/Api/V6AuthController.php:24
  * @route '/api/v6-auth/set-password'
  */
 setPassword.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -90,7 +90,7 @@ setPassword.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\V6AuthController::setPassword
- * @see app/Http/Controllers/Api/V6AuthController.php:21
+ * @see app/Http/Controllers/Api/V6AuthController.php:24
  * @route '/api/v6-auth/set-password'
  */
     const setPasswordForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -100,7 +100,7 @@ setPassword.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\V6AuthController::setPassword
- * @see app/Http/Controllers/Api/V6AuthController.php:21
+ * @see app/Http/Controllers/Api/V6AuthController.php:24
  * @route '/api/v6-auth/set-password'
  */
         setPasswordForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -111,7 +111,7 @@ setPassword.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     setPassword.form = setPasswordForm
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::login
- * @see app/Http/Controllers/Api/V6AuthController.php:31
+ * @see app/Http/Controllers/Api/V6AuthController.php:37
  * @route '/api/v6-auth/login'
  */
 export const login = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -126,7 +126,7 @@ login.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::login
- * @see app/Http/Controllers/Api/V6AuthController.php:31
+ * @see app/Http/Controllers/Api/V6AuthController.php:37
  * @route '/api/v6-auth/login'
  */
 login.url = (options?: RouteQueryOptions) => {
@@ -135,7 +135,7 @@ login.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::login
- * @see app/Http/Controllers/Api/V6AuthController.php:31
+ * @see app/Http/Controllers/Api/V6AuthController.php:37
  * @route '/api/v6-auth/login'
  */
 login.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -145,7 +145,7 @@ login.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\V6AuthController::login
- * @see app/Http/Controllers/Api/V6AuthController.php:31
+ * @see app/Http/Controllers/Api/V6AuthController.php:37
  * @route '/api/v6-auth/login'
  */
     const loginForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -155,7 +155,7 @@ login.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\V6AuthController::login
- * @see app/Http/Controllers/Api/V6AuthController.php:31
+ * @see app/Http/Controllers/Api/V6AuthController.php:37
  * @route '/api/v6-auth/login'
  */
         loginForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -166,7 +166,7 @@ login.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     login.form = loginForm
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::logout
- * @see app/Http/Controllers/Api/V6AuthController.php:42
+ * @see app/Http/Controllers/Api/V6AuthController.php:49
  * @route '/api/v6-auth/logout'
  */
 export const logout = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -181,7 +181,7 @@ logout.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::logout
- * @see app/Http/Controllers/Api/V6AuthController.php:42
+ * @see app/Http/Controllers/Api/V6AuthController.php:49
  * @route '/api/v6-auth/logout'
  */
 logout.url = (options?: RouteQueryOptions) => {
@@ -190,7 +190,7 @@ logout.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::logout
- * @see app/Http/Controllers/Api/V6AuthController.php:42
+ * @see app/Http/Controllers/Api/V6AuthController.php:49
  * @route '/api/v6-auth/logout'
  */
 logout.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -200,7 +200,7 @@ logout.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\V6AuthController::logout
- * @see app/Http/Controllers/Api/V6AuthController.php:42
+ * @see app/Http/Controllers/Api/V6AuthController.php:49
  * @route '/api/v6-auth/logout'
  */
     const logoutForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -210,7 +210,7 @@ logout.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\V6AuthController::logout
- * @see app/Http/Controllers/Api/V6AuthController.php:42
+ * @see app/Http/Controllers/Api/V6AuthController.php:49
  * @route '/api/v6-auth/logout'
  */
         logoutForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -221,7 +221,7 @@ logout.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     logout.form = logoutForm
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::me
- * @see app/Http/Controllers/Api/V6AuthController.php:48
+ * @see app/Http/Controllers/Api/V6AuthController.php:56
  * @route '/api/v6-auth/me'
  */
 export const me = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -236,7 +236,7 @@ me.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::me
- * @see app/Http/Controllers/Api/V6AuthController.php:48
+ * @see app/Http/Controllers/Api/V6AuthController.php:56
  * @route '/api/v6-auth/me'
  */
 me.url = (options?: RouteQueryOptions) => {
@@ -245,7 +245,7 @@ me.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::me
- * @see app/Http/Controllers/Api/V6AuthController.php:48
+ * @see app/Http/Controllers/Api/V6AuthController.php:56
  * @route '/api/v6-auth/me'
  */
 me.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -254,7 +254,7 @@ me.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\V6AuthController::me
- * @see app/Http/Controllers/Api/V6AuthController.php:48
+ * @see app/Http/Controllers/Api/V6AuthController.php:56
  * @route '/api/v6-auth/me'
  */
 me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -264,7 +264,7 @@ me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\V6AuthController::me
- * @see app/Http/Controllers/Api/V6AuthController.php:48
+ * @see app/Http/Controllers/Api/V6AuthController.php:56
  * @route '/api/v6-auth/me'
  */
     const meForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -274,7 +274,7 @@ me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\V6AuthController::me
- * @see app/Http/Controllers/Api/V6AuthController.php:48
+ * @see app/Http/Controllers/Api/V6AuthController.php:56
  * @route '/api/v6-auth/me'
  */
         meForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -283,7 +283,7 @@ me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\V6AuthController::me
- * @see app/Http/Controllers/Api/V6AuthController.php:48
+ * @see app/Http/Controllers/Api/V6AuthController.php:56
  * @route '/api/v6-auth/me'
  */
         meForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

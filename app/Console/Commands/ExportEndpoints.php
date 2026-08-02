@@ -23,6 +23,7 @@ class ExportEndpoints extends Command
 
         if ($rows->isEmpty()) {
             $this->error('No endpoints found in data mappings.');
+
             return 1;
         }
 
@@ -62,7 +63,7 @@ class ExportEndpoints extends Command
         $outputPath = base_path($this->option('output'));
         $dir = dirname($outputPath);
 
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
@@ -72,7 +73,7 @@ class ExportEndpoints extends Command
         $totalKeys = collect($endpoints)->sum(fn ($ep) => count($ep['keys']));
 
         $this->info("Exported endpoints config to {$outputPath}");
-        $this->info("  Endpoints: " . count($endpoints));
+        $this->info('  Endpoints: '.count($endpoints));
         $this->info("  Total keys: {$totalKeys}");
 
         return 0;
@@ -85,25 +86,25 @@ class ExportEndpoints extends Command
         foreach ($endpoints as $endpoint => $data) {
             $lines[] = "    '{$endpoint}' => [";
             $lines[] = "        'refresh_frequency' => '{$data['refresh_frequency']}',";
-            $lines[] = "        'all_frequencies' => [" . $this->exportValues($data['all_frequencies']) . "],";
+            $lines[] = "        'all_frequencies' => [".$this->exportValues($data['all_frequencies']).'],';
             $lines[] = "        'keys' => [";
 
             foreach ($data['keys'] as $key) {
-                $lines[] = "            [";
-                $lines[] = "                'variable_key' => " . $this->exportScalar($key['variable_key'] ?? null) . ",";
-                $lines[] = "                'variable_type' => " . $this->exportScalar($key['variable_type'] ?? null) . ",";
-                $lines[] = "                'is_filtered' => " . (!empty($key['is_filtered']) ? 'true' : 'false') . ",";
-                $lines[] = "                'filter_key' => " . $this->exportNullable($key['filter_key'] ?? null) . ",";
-                $lines[] = "                'filter_value' => " . $this->exportNullable($key['filter_value'] ?? null) . ",";
-                $lines[] = "                'has_function' => " . (!empty($key['has_function']) ? 'true' : 'false') . ",";
-                $lines[] = "                'fn' => " . $this->exportScalar($key['fn'] ?? null) . ",";
-                $lines[] = "                'refresh_frequency' => " . $this->exportScalar($key['refresh_frequency'] ?? null) . ",";
-                $lines[] = "                'kpis' => [" . $this->exportValues($key['kpis'] ?? []) . "],";
-                $lines[] = "            ],";
+                $lines[] = '            [';
+                $lines[] = "                'variable_key' => ".$this->exportScalar($key['variable_key'] ?? null).',';
+                $lines[] = "                'variable_type' => ".$this->exportScalar($key['variable_type'] ?? null).',';
+                $lines[] = "                'is_filtered' => ".(! empty($key['is_filtered']) ? 'true' : 'false').',';
+                $lines[] = "                'filter_key' => ".$this->exportNullable($key['filter_key'] ?? null).',';
+                $lines[] = "                'filter_value' => ".$this->exportNullable($key['filter_value'] ?? null).',';
+                $lines[] = "                'has_function' => ".(! empty($key['has_function']) ? 'true' : 'false').',';
+                $lines[] = "                'fn' => ".$this->exportScalar($key['fn'] ?? null).',';
+                $lines[] = "                'refresh_frequency' => ".$this->exportScalar($key['refresh_frequency'] ?? null).',';
+                $lines[] = "                'kpis' => [".$this->exportValues($key['kpis'] ?? []).'],';
+                $lines[] = '            ],';
             }
 
-            $lines[] = "        ],";
-            $lines[] = "    ],";
+            $lines[] = '        ],';
+            $lines[] = '    ],';
         }
 
         $lines[] = '];';
@@ -122,6 +123,7 @@ class ExportEndpoints extends Command
         if ($value === null) {
             return 'null';
         }
+
         return is_string($value) ? "'{$value}'" : (string) $value;
     }
 

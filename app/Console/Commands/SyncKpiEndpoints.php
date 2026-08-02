@@ -16,7 +16,7 @@ class SyncKpiEndpoints extends Command
         $frequency = $this->option('frequency');
 
         if ($this->option('queue')) {
-            $this->info("Dispatching KPI endpoint jobs to queue" . ($frequency ? " (frequency: {$frequency})" : "") . "...");
+            $this->info('Dispatching KPI endpoint jobs to queue'.($frequency ? " (frequency: {$frequency})" : '').'...');
 
             $results = $service->dispatchByFrequency($frequency);
 
@@ -25,11 +25,11 @@ class SyncKpiEndpoints extends Command
             return self::SUCCESS;
         }
 
-        $this->info("Starting KPI endpoint sync" . ($frequency ? " (frequency: {$frequency})" : "") . "...");
+        $this->info('Starting KPI endpoint sync'.($frequency ? " (frequency: {$frequency})" : '').'...');
 
         $results = $service->syncByFrequency($frequency);
 
-        $this->info("KPI endpoint sync completed:");
+        $this->info('KPI endpoint sync completed:');
         $this->line("  OK: {$results['ok']}");
         $this->line("  Errors: {$results['error']}");
         $this->line("  Skipped: {$results['skipped']}");

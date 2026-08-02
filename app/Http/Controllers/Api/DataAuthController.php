@@ -84,6 +84,7 @@ class DataAuthController extends Controller
     public function logout(): JsonResponse
     {
         Auth::guard('data_users')->logout();
+
         return response()->json(['message' => 'Déconnecté.']);
     }
 

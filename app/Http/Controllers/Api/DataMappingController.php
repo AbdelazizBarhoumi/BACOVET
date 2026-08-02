@@ -274,6 +274,7 @@ class DataMappingController extends Controller
 
         $logs->getCollection()->transform(function ($log) use ($userMap) {
             $log->user = $log->user_id ? ($userMap[$log->user_id] ?? null) : null;
+
             return $log;
         });
 
@@ -294,7 +295,7 @@ class DataMappingController extends Controller
     public function syncFromSql(Request $request): JsonResponse
     {
         $user = $request->user();
-        if (!$user || $user->role !== 'it') {
+        if (! $user || $user->role !== 'it') {
             return response()->json(['message' => 'Unauthorized. Superadmin access required.'], 403);
         }
 
@@ -306,7 +307,7 @@ class DataMappingController extends Controller
         try {
             $response = Http::timeout(60)->get($url);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 return response()->json([
                     'message' => 'Failed to fetch SQL from external API',
                     'status' => $response->status(),
@@ -323,8 +324,8 @@ class DataMappingController extends Controller
 
             // Drop unique constraint if it exists so bulk INSERT won't fail on duplicates
             $indexes = DB::select("SHOW INDEX FROM `data_mappings` WHERE Key_name = 'data_mappings_kpi_variable_unique'");
-            if (!empty($indexes)) {
-                DB::statement("ALTER TABLE `data_mappings` DROP INDEX `data_mappings_kpi_variable_unique`");
+            if (! empty($indexes)) {
+                DB::statement('ALTER TABLE `data_mappings` DROP INDEX `data_mappings_kpi_variable_unique`');
             }
 
             DB::unprepared($sql);
@@ -349,8 +350,9 @@ class DataMappingController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('SQL sync failed', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'message' => 'SQL sync failed: ' . $e->getMessage(),
+                'message' => 'SQL sync failed: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -359,8 +361,8 @@ class DataMappingController extends Controller
     {
         $lines = [];
         $lines[] = '-- BACOVET data_mappings SQL export';
-        $lines[] = '-- Generated: ' . now()->toIso8601String();
-        $lines[] = '-- Rows: ' . $mappings->count();
+        $lines[] = '-- Generated: '.now()->toIso8601String();
+        $lines[] = '-- Rows: '.$mappings->count();
         $lines[] = '';
         $lines[] = 'SET NAMES utf8mb4;';
         $lines[] = '';
@@ -370,17 +372,18 @@ class DataMappingController extends Controller
 
         foreach ($mappings as $row) {
             $values = [];
-            $values[] = "'" . $this->escapeSqlString($row->kpi) . "'";
-            $values[] = "'" . $this->escapeSqlString($row->variable) . "'";
+            $values[] = "'".$this->escapeSqlString($row->kpi)."'";
+            $values[] = "'".$this->escapeSqlString($row->variable)."'";
             foreach (self::EXPORT_COLUMNS as $col) {
                 $value = $row->getAttributes()[$col] ?? null;
                 $values[] = $this->sqlValue($col, $value);
             }
 
-            $lines[] = "INSERT INTO `data_mappings` ({$colList}) VALUES (" . implode(', ', $values) . ');';
+            $lines[] = "INSERT INTO `data_mappings` ({$colList}) VALUES (".implode(', ', $values).');';
         }
 
         $lines[] = '';
+
         return implode("\n", $lines);
     }
 
@@ -392,7 +395,8 @@ class DataMappingController extends Controller
 
         if (in_array($column, ['modules', 'formula', 'graph_types', 'chart_config', 'extra_filters'])) {
             $json = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE);
-            return "'" . $this->escapeSqlString($json) . "'";
+
+            return "'".$this->escapeSqlString($json)."'";
         }
 
         if (in_array($column, ['is_filtered', 'has_function', 'cible_is_percentage'])) {
@@ -403,7 +407,7 @@ class DataMappingController extends Controller
             return (string) $value;
         }
 
-        return "'" . $this->escapeSqlString((string) $value) . "'";
+        return "'".$this->escapeSqlString((string) $value)."'";
     }
 
     private function escapeSqlString(string $value): string

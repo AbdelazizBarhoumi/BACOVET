@@ -166,7 +166,7 @@ setPassword.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     setPassword.form = setPasswordForm
 /**
 * @see \App\Http\Controllers\Api\DataAuthController::me
- * @see app/Http/Controllers/Api/DataAuthController.php:90
+ * @see app/Http/Controllers/Api/DataAuthController.php:91
  * @route '/api/data-auth/me'
  */
 export const me = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -181,7 +181,7 @@ me.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataAuthController::me
- * @see app/Http/Controllers/Api/DataAuthController.php:90
+ * @see app/Http/Controllers/Api/DataAuthController.php:91
  * @route '/api/data-auth/me'
  */
 me.url = (options?: RouteQueryOptions) => {
@@ -190,7 +190,7 @@ me.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataAuthController::me
- * @see app/Http/Controllers/Api/DataAuthController.php:90
+ * @see app/Http/Controllers/Api/DataAuthController.php:91
  * @route '/api/data-auth/me'
  */
 me.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -199,7 +199,7 @@ me.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\DataAuthController::me
- * @see app/Http/Controllers/Api/DataAuthController.php:90
+ * @see app/Http/Controllers/Api/DataAuthController.php:91
  * @route '/api/data-auth/me'
  */
 me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -209,7 +209,7 @@ me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataAuthController::me
- * @see app/Http/Controllers/Api/DataAuthController.php:90
+ * @see app/Http/Controllers/Api/DataAuthController.php:91
  * @route '/api/data-auth/me'
  */
     const meForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -219,7 +219,7 @@ me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataAuthController::me
- * @see app/Http/Controllers/Api/DataAuthController.php:90
+ * @see app/Http/Controllers/Api/DataAuthController.php:91
  * @route '/api/data-auth/me'
  */
         meForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -228,7 +228,7 @@ me.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\DataAuthController::me
- * @see app/Http/Controllers/Api/DataAuthController.php:90
+ * @see app/Http/Controllers/Api/DataAuthController.php:91
  * @route '/api/data-auth/me'
  */
         meForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

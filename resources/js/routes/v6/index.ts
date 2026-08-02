@@ -71,7 +71,7 @@ login.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     login.form = loginForm
 /**
- * @see routes/web.php:233
+ * @see routes/web.php:236
  * @route '/v6/p/{slug}'
  */
 export const page = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -85,7 +85,7 @@ page.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:233
+ * @see routes/web.php:236
  * @route '/v6/p/{slug}'
  */
 page.url = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -112,7 +112,7 @@ page.url = (args: { slug: string | number } | [slug: string | number ] | string 
 }
 
 /**
- * @see routes/web.php:233
+ * @see routes/web.php:236
  * @route '/v6/p/{slug}'
  */
 page.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -120,7 +120,7 @@ page.get = (args: { slug: string | number } | [slug: string | number ] | string 
     method: 'get',
 })
 /**
- * @see routes/web.php:233
+ * @see routes/web.php:236
  * @route '/v6/p/{slug}'
  */
 page.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -129,7 +129,7 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
 })
 
     /**
- * @see routes/web.php:233
+ * @see routes/web.php:236
  * @route '/v6/p/{slug}'
  */
     const pageForm = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -138,7 +138,7 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
     })
 
             /**
- * @see routes/web.php:233
+ * @see routes/web.php:236
  * @route '/v6/p/{slug}'
  */
         pageForm.get = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -146,7 +146,7 @@ page.head = (args: { slug: string | number } | [slug: string | number ] | string
             method: 'get',
         })
             /**
- * @see routes/web.php:233
+ * @see routes/web.php:236
  * @route '/v6/p/{slug}'
  */
         pageForm.head = (args: { slug: string | number } | [slug: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

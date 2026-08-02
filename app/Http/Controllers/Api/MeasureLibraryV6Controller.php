@@ -12,6 +12,7 @@ class MeasureLibraryV6Controller extends Controller
     public function index(): JsonResponse
     {
         $measures = MeasureLibraryV6::orderByRaw('category IS NULL')->orderBy('category')->orderBy('name')->get();
+
         return response()->json(['measures' => $measures]);
     }
 
@@ -32,7 +33,9 @@ class MeasureLibraryV6Controller extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $measure = MeasureLibraryV6::find($id);
-        if (! $measure) return response()->json(['message' => 'Mesure partagée introuvable.'], 404);
+        if (! $measure) {
+            return response()->json(['message' => 'Mesure partagée introuvable.'], 404);
+        }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:measures_library_v6,name,'.$measure->id,
@@ -49,7 +52,9 @@ class MeasureLibraryV6Controller extends Controller
     public function destroy(string $id): JsonResponse
     {
         $measure = MeasureLibraryV6::find($id);
-        if (! $measure) return response()->json(['message' => 'Mesure partagée introuvable.'], 404);
+        if (! $measure) {
+            return response()->json(['message' => 'Mesure partagée introuvable.'], 404);
+        }
 
         $measure->delete();
 

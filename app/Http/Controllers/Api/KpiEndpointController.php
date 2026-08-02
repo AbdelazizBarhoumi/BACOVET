@@ -58,14 +58,14 @@ class KpiEndpointController extends Controller
                         };
                         if ($age > $maxAge) {
                             $ageStr = $age >= 60 ? gmdate('i\m', min($age, 3600)) : "{$age}s";
-                            $diagnostic = 'stale (' . $ageStr . ')';
+                            $diagnostic = 'stale ('.$ageStr.')';
                             $rowClass = 'bg-warning/5';
                         }
                     }
 
                     $extractedValue = $dbRow?->response_data['extracted'] ?? null;
                     if (is_array($extractedValue)) {
-                        $extractedValue = count($extractedValue) . ' rows';
+                        $extractedValue = count($extractedValue).' rows';
                     }
 
                     $rows[] = [
@@ -140,6 +140,7 @@ class KpiEndpointController extends Controller
                 $keyConfig,
                 $request->input('kpi_code')
             );
+
             return response()->json(['message' => 'Synced successfully']);
         } catch (\Throwable $e) {
             $this->service->recordError(
@@ -148,6 +149,7 @@ class KpiEndpointController extends Controller
                 $request->input('kpi_code'),
                 $e->getMessage()
             );
+
             return response()->json(['message' => 'Sync failed', 'error' => $e->getMessage()], 500);
         }
     }
@@ -158,18 +160,20 @@ class KpiEndpointController extends Controller
 
         // For instant: run the concurrent command directly (updates DB immediately)
         if ($frequency === 'instant' || $frequency === null) {
-            $output = new \Symfony\Component\Console\Output\BufferedOutput();
+            $output = new \Symfony\Component\Console\Output\BufferedOutput;
             \Artisan::call('sync:instant-endpoints', [], $output);
             $line = $output->fetch();
             // Parse "Done: X ok, Y errors | Zs"
             if (preg_match('/Done:\s+(\d+)\s+ok,\s+(\d+)\s+errors/', $line, $m)) {
                 return response()->json(['data' => ['dispatched' => (int) $m[1], 'skipped' => 0, 'errors' => (int) $m[2]]]);
             }
+
             return response()->json(['data' => ['dispatched' => 0, 'skipped' => 0]]);
         }
 
         // For other frequencies: dispatch to queue as before
         $results = $this->service->dispatchByFrequency($frequency);
+
         return response()->json(['data' => $results]);
     }
 }

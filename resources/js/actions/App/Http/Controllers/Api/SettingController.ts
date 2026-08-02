@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\SettingController::store
- * @see app/Http/Controllers/Api/SettingController.php:18
+ * @see app/Http/Controllers/Api/SettingController.php:19
  * @route '/api/settings'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\SettingController::store
- * @see app/Http/Controllers/Api/SettingController.php:18
+ * @see app/Http/Controllers/Api/SettingController.php:19
  * @route '/api/settings'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\SettingController::store
- * @see app/Http/Controllers/Api/SettingController.php:18
+ * @see app/Http/Controllers/Api/SettingController.php:19
  * @route '/api/settings'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -35,7 +35,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\SettingController::store
- * @see app/Http/Controllers/Api/SettingController.php:18
+ * @see app/Http/Controllers/Api/SettingController.php:19
  * @route '/api/settings'
  */
     const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -45,7 +45,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\SettingController::store
- * @see app/Http/Controllers/Api/SettingController.php:18
+ * @see app/Http/Controllers/Api/SettingController.php:19
  * @route '/api/settings'
  */
         storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

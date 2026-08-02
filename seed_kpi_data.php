@@ -1,4 +1,5 @@
 <?php
+
 require __DIR__.'/vendor/autoload.php';
 $app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
@@ -17,14 +18,16 @@ foreach ($modules as $module) {
         foreach ($variables as $var) {
             $varKey = $var['variable_key'] ?? null;
             $endpoint = $var['endpoint'] ?? null;
-            if (!$endpoint) continue; // skip variables with no endpoint
+            if (! $endpoint) {
+                continue;
+            } // skip variables with no endpoint
             $varType = $var['variable_type'] ?? 'Direct';
             $rawData = $var['raw_data'] ?? [];
             $extracted = $var['value'] ?? null;
 
             // Compute value for Complex (first matching row)
             $computedValue = $extracted;
-            if ($varType === 'Complex' && is_array($rawData) && !empty($rawData) && $varKey) {
+            if ($varType === 'Complex' && is_array($rawData) && ! empty($rawData) && $varKey) {
                 foreach ($rawData as $row) {
                     if (is_array($row) && array_key_exists($varKey, $row)) {
                         $computedValue = $row[$varKey];
@@ -34,7 +37,7 @@ foreach ($modules as $module) {
             }
 
             $existing = \App\Models\KpiData::where('kpi_code', $kpiCode)
-                ->when($varKey === null, fn($q) => $q->whereNull('variable_key'), fn($q) => $q->where('variable_key', $varKey))
+                ->when($varKey === null, fn ($q) => $q->whereNull('variable_key'), fn ($q) => $q->where('variable_key', $varKey))
                 ->first();
 
             $payload = [
@@ -63,6 +66,6 @@ foreach ($modules as $module) {
     }
 }
 
-echo "Done: {$updated} updated, {$created} created" . PHP_EOL;
-echo "Total kpi_data rows: " . \App\Models\KpiData::count() . PHP_EOL;
-echo "Rows with status=ok: " . \App\Models\KpiData::where('last_status', 'ok')->count() . PHP_EOL;
+echo "Done: {$updated} updated, {$created} created".PHP_EOL;
+echo 'Total kpi_data rows: '.\App\Models\KpiData::count().PHP_EOL;
+echo 'Rows with status=ok: '.\App\Models\KpiData::where('last_status', 'ok')->count().PHP_EOL;

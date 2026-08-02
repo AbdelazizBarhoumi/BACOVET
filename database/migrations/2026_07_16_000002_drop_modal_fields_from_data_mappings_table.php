@@ -12,7 +12,7 @@ return new class extends Migration
             $columns = ['description', 'thresholds', 'source_system', 'source_status',
                 'breakdown_type', 'mini_viz_type', 'export_fields'];
             $existing = array_filter($columns, fn ($col) => Schema::hasColumn('data_mappings', $col));
-            if (!empty($existing)) {
+            if (! empty($existing)) {
                 $table->dropColumn($existing);
             }
         });

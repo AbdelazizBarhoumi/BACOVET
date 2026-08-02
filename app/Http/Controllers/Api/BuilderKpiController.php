@@ -52,7 +52,7 @@ class BuilderKpiController extends Controller
         if (is_string($codes)) {
             $codes = array_map('trim', explode(',', $codes));
         }
-        if (empty($codes) || !is_array($codes)) {
+        if (empty($codes) || ! is_array($codes)) {
             return response()->json([]);
         }
 
@@ -65,7 +65,7 @@ class BuilderKpiController extends Controller
 
         foreach ($rows as $row) {
             $cr = $row->computed_result;
-            if (!isset($results[$row->kpi_code])) {
+            if (! isset($results[$row->kpi_code])) {
                 $results[$row->kpi_code] = [
                     'scalar_value' => $cr['scalar_value'] ?? null,
                     'status' => $cr['status'] ?? 'grey',
@@ -77,7 +77,7 @@ class BuilderKpiController extends Controller
         }
 
         foreach ($codes as $code) {
-            if (!isset($results[$code])) {
+            if (! isset($results[$code])) {
                 $results[$code] = [
                     'scalar_value' => null,
                     'status' => 'grey',
@@ -92,6 +92,7 @@ class BuilderKpiController extends Controller
         $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         $response->headers->set('Pragma', 'no-cache');
         $response->headers->set('Expires', '0');
+
         return $response;
     }
 }

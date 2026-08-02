@@ -490,7 +490,7 @@ auditLogs.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     auditLogs.form = auditLogsForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:294
+ * @see app/Http/Controllers/Api/DataMappingController.php:295
  * @route '/data-mappings/sync-sql'
  */
 export const syncFromSql = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -505,7 +505,7 @@ syncFromSql.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:294
+ * @see app/Http/Controllers/Api/DataMappingController.php:295
  * @route '/data-mappings/sync-sql'
  */
 syncFromSql.url = (options?: RouteQueryOptions) => {
@@ -514,7 +514,7 @@ syncFromSql.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:294
+ * @see app/Http/Controllers/Api/DataMappingController.php:295
  * @route '/data-mappings/sync-sql'
  */
 syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -524,7 +524,7 @@ syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:294
+ * @see app/Http/Controllers/Api/DataMappingController.php:295
  * @route '/data-mappings/sync-sql'
  */
     const syncFromSqlForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -534,7 +534,7 @@ syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::syncFromSql
- * @see app/Http/Controllers/Api/DataMappingController.php:294
+ * @see app/Http/Controllers/Api/DataMappingController.php:295
  * @route '/data-mappings/sync-sql'
  */
         syncFromSqlForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -545,7 +545,7 @@ syncFromSql.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     syncFromSql.form = syncFromSqlForm
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:283
+ * @see app/Http/Controllers/Api/DataMappingController.php:284
  * @route '/data-mappings/export-sql'
  */
 export const exportSql = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -560,7 +560,7 @@ exportSql.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:283
+ * @see app/Http/Controllers/Api/DataMappingController.php:284
  * @route '/data-mappings/export-sql'
  */
 exportSql.url = (options?: RouteQueryOptions) => {
@@ -569,7 +569,7 @@ exportSql.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:283
+ * @see app/Http/Controllers/Api/DataMappingController.php:284
  * @route '/data-mappings/export-sql'
  */
 exportSql.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -578,7 +578,7 @@ exportSql.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:283
+ * @see app/Http/Controllers/Api/DataMappingController.php:284
  * @route '/data-mappings/export-sql'
  */
 exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -588,7 +588,7 @@ exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:283
+ * @see app/Http/Controllers/Api/DataMappingController.php:284
  * @route '/data-mappings/export-sql'
  */
     const exportSqlForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -598,7 +598,7 @@ exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:283
+ * @see app/Http/Controllers/Api/DataMappingController.php:284
  * @route '/data-mappings/export-sql'
  */
         exportSqlForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -607,7 +607,7 @@ exportSql.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\DataMappingController::exportSql
- * @see app/Http/Controllers/Api/DataMappingController.php:283
+ * @see app/Http/Controllers/Api/DataMappingController.php:284
  * @route '/data-mappings/export-sql'
  */
         exportSqlForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

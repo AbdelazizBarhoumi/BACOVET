@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV6Controller::update
- * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:27
+ * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:31
  * @route '/api/v6/builder-pages/{id}'
  */
 export const update = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -16,7 +16,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV6Controller::update
- * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:27
+ * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:31
  * @route '/api/v6/builder-pages/{id}'
  */
 update.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -44,7 +44,7 @@ update.url = (args: { id: string | number } | [id: string | number ] | string | 
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV6Controller::update
- * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:27
+ * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:31
  * @route '/api/v6/builder-pages/{id}'
  */
 update.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -54,7 +54,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageV6Controller::update
- * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:27
+ * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:31
  * @route '/api/v6/builder-pages/{id}'
  */
     const updateForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -69,7 +69,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV6Controller::update
- * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:27
+ * @see app/Http/Controllers/Api/BuilderPageV6Controller.php:31
  * @route '/api/v6/builder-pages/{id}'
  */
         updateForm.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

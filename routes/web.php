@@ -226,13 +226,19 @@ Route::get('/api/v6-auth/me', [V6AuthController::class, 'me']);
 Route::middleware('v6.auth')->group(function () {
     Route::get('/v6', function () {
         $page = \App\Models\BuilderPageV6::orderBy('id')->first();
-        if (! $page) abort(404);
+        if (! $page) {
+            abort(404);
+        }
+
         return redirect()->route('v6.page', ['slug' => $page->slug]);
     })->name('v6');
 
     Route::get('/v6/p/{slug}', function ($slug) {
         $page = \App\Models\BuilderPageV6::where('slug', $slug)->first();
-        if (! $page) abort(404);
+        if (! $page) {
+            abort(404);
+        }
+
         return Inertia::render('v6/p/[slug]', [
             'pageId' => $page->id,
             'slug' => $page->slug,

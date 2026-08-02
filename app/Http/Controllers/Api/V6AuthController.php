@@ -14,7 +14,10 @@ class V6AuthController extends Controller
     {
         $validated = $request->validate(['email' => 'required|email']);
         $user = V6User::where('email', $validated['email'])->first();
-        if (! $user) return response()->json(['message' => 'Email inconnu.'], 404);
+        if (! $user) {
+            return response()->json(['message' => 'Email inconnu.'], 404);
+        }
+
         return response()->json(['email' => $user->email, 'name' => $user->name, 'has_password' => $user->has_password]);
     }
 
@@ -22,9 +25,12 @@ class V6AuthController extends Controller
     {
         $validated = $request->validate(['email' => 'required|email', 'password' => 'required|string|min:4|max:100']);
         $user = V6User::where('email', $validated['email'])->first();
-        if (! $user) return response()->json(['message' => 'Email inconnu.'], 404);
+        if (! $user) {
+            return response()->json(['message' => 'Email inconnu.'], 404);
+        }
         $user->update(['password' => bcrypt($validated['password']), 'has_password' => true]);
         Auth::guard('v6_users')->login($user);
+
         return response()->json(['user' => $this->userData($user)]);
     }
 
@@ -36,19 +42,24 @@ class V6AuthController extends Controller
             return response()->json(['message' => 'Identifiants incorrects.'], 401);
         }
         Auth::guard('v6_users')->login($user);
+
         return response()->json(['user' => $this->userData($user)]);
     }
 
     public function logout(): JsonResponse
     {
         Auth::guard('v6_users')->logout();
+
         return response()->json(['message' => 'Déconnecté.']);
     }
 
     public function me(): JsonResponse
     {
         $user = Auth::guard('v6_users')->user();
-        if (! $user) return response()->json(['message' => 'Non authentifié.'], 401);
+        if (! $user) {
+            return response()->json(['message' => 'Non authentifié.'], 401);
+        }
+
         return response()->json($this->userData($user));
     }
 

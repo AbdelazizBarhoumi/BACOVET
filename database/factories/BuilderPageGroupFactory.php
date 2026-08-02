@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\BuilderPageGroup;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class BuilderPageGroupFactory extends Factory

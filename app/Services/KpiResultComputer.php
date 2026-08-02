@@ -78,10 +78,10 @@ class KpiResultComputer
                 // Row-by-row: JOIN on shared keys, compute formula per row
                 $mappedRows = $this->computeRowByRow($formula['items'], $variableRaws, $variables);
                 // Scalar = average of all row values
-                if (!empty($mappedRows)) {
+                if (! empty($mappedRows)) {
                     $values = array_column($mappedRows, 'value');
-                    $numericValues = array_filter($values, fn($v) => is_numeric($v));
-                    $scalarValue = !empty($numericValues) ? array_sum($numericValues) / count($numericValues) : null;
+                    $numericValues = array_filter($values, fn ($v) => is_numeric($v));
+                    $scalarValue = ! empty($numericValues) ? array_sum($numericValues) / count($numericValues) : null;
                 }
             } else {
                 // Scalar formula
@@ -94,7 +94,7 @@ class KpiResultComputer
                 }
                 $scalarValue = $this->computeFormulaScalar($formula['items'], $varValues);
             }
-        } elseif (!empty($variableRaws[0])) {
+        } elseif (! empty($variableRaws[0])) {
             // Single variable or no formula: use first variable's aggregated value
             $vk = $variables[0]['variable_key'] ?? null;
             $fn = $variables[0]['fn'] ?? 'Latest';
@@ -135,11 +135,13 @@ class KpiResultComputer
      */
     private function computeRowByRow(array $formulaItems, array $variableRaws, array $variables): array
     {
-        if (count($variableRaws) < 2) return [];
+        if (count($variableRaws) < 2) {
+            return [];
+        }
 
         // Find shared keys across all variable raw_data
-        $allKeys = array_map(fn($raw) => !empty($raw) ? array_keys($raw[0] ?? []) : [], $variableRaws);
-        $sharedKeys = !empty($allKeys[0]) ? $allKeys[0] : [];
+        $allKeys = array_map(fn ($raw) => ! empty($raw) ? array_keys($raw[0] ?? []) : [], $variableRaws);
+        $sharedKeys = ! empty($allKeys[0]) ? $allKeys[0] : [];
         foreach ($allKeys as $keys) {
             $sharedKeys = array_values(array_intersect($sharedKeys, $keys));
         }
@@ -147,7 +149,7 @@ class KpiResultComputer
         $variableKeys = array_column($variables, 'variable_key');
 
         // Prefer filter_key as join key (unique row identifier)
-        $filterKeys = array_column(array_filter($variables, fn($v) => !empty($v['filter_key'])), 'filter_key');
+        $filterKeys = array_column(array_filter($variables, fn ($v) => ! empty($v['filter_key'])), 'filter_key');
         $joinKey = null;
         foreach ($filterKeys as $fk) {
             if (in_array($fk, $sharedKeys)) {
@@ -155,19 +157,21 @@ class KpiResultComputer
                 break;
             }
         }
-        if (!$joinKey) {
+        if (! $joinKey) {
             $joinKey = null;
             foreach ($sharedKeys as $sk) {
-                if (!in_array($sk, $variableKeys)) {
+                if (! in_array($sk, $variableKeys)) {
                     $joinKey = $sk;
                     break;
                 }
             }
         }
-        if (!$joinKey && !empty($sharedKeys)) {
+        if (! $joinKey && ! empty($sharedKeys)) {
             $joinKey = $sharedKeys[0];
         }
-        if (!$joinKey) return [];
+        if (! $joinKey) {
+            return [];
+        }
 
         // Build lookup from first variable
         $lookup = [];
@@ -183,7 +187,9 @@ class KpiResultComputer
         $lastRaw = end($variableRaws);
         foreach ($lastRaw as $row) {
             $key = trim((string) ($row[$joinKey] ?? ''));
-            if (!isset($lookup[$key])) continue;
+            if (! isset($lookup[$key])) {
+                continue;
+            }
             $match = $lookup[$key];
 
             // Extract each variable's value
@@ -199,7 +205,9 @@ class KpiResultComputer
             // Build record: joinKey first, then other shared keys, then value
             $record = [$joinKey => trim((string) ($match[$joinKey] ?? $key))];
             foreach ($sharedKeys as $sk) {
-                if ($sk === $joinKey) continue;
+                if ($sk === $joinKey) {
+                    continue;
+                }
                 $v = $match[$sk] ?? $row[$sk] ?? null;
                 $record[$sk] = is_string($v) ? trim($v) : $v;
             }
@@ -217,7 +225,9 @@ class KpiResultComputer
     private function computeFormulaScalar(array $items, array $variableValues): ?float
     {
         $expr = $this->buildExpression($items, $variableValues);
-        if ($expr === null) return null;
+        if ($expr === null) {
+            return null;
+        }
         try {
             return $this->evalExpression($expr);
         } catch (\Throwable) {
@@ -232,11 +242,17 @@ class KpiResultComputer
         foreach ($items as $item) {
             $type = $item['type'] ?? '';
             if ($type === 'variable') {
-                if ($varIndex >= count($variableValues)) return null;
+                if ($varIndex >= count($variableValues)) {
+                    return null;
+                }
                 $val = $variableValues[$varIndex++];
-                if ($val === null) return null;
+                if ($val === null) {
+                    return null;
+                }
                 $numVal = (float) $val;
-                if (is_nan($numVal)) return null;
+                if (is_nan($numVal)) {
+                    return null;
+                }
                 $parts[] = (string) $numVal;
             } elseif ($type === 'operator') {
                 $parts[] = " {$item['op']} ";
@@ -248,6 +264,7 @@ class KpiResultComputer
                 $parts[] = ')';
             }
         }
+
         return implode('', $parts);
     }
 
@@ -262,27 +279,37 @@ class KpiResultComputer
         $parseFactor = null;
 
         $parseFactor = function () use (&$parseFactor, &$parseExpr, &$s, &$pos, $len): ?float {
-            if ($pos >= $len) return null;
+            if ($pos >= $len) {
+                return null;
+            }
             if ($s[$pos] === '(') {
                 $pos++;
                 $val = $parseExpr();
-                if ($pos < $len && $s[$pos] === ')') $pos++;
+                if ($pos < $len && $s[$pos] === ')') {
+                    $pos++;
+                }
+
                 return $val;
             }
             if ($s[$pos] === '-') {
                 $pos++;
                 $val = $parseFactor();
+
                 return $val !== null ? -$val : null;
             }
             if ($s[$pos] === '+') {
                 $pos++;
+
                 return $parseFactor();
             }
             $start = $pos;
             while ($pos < $len && (($s[$pos] >= '0' && $s[$pos] <= '9') || $s[$pos] === '.')) {
                 $pos++;
             }
-            if ($start === $pos) return null;
+            if ($start === $pos) {
+                return null;
+            }
+
             return (float) substr($s, $start, $pos - $start);
         };
 
@@ -291,10 +318,15 @@ class KpiResultComputer
             while ($pos < $len && ($s[$pos] === '*' || $s[$pos] === '/')) {
                 $op = $s[$pos++];
                 $right = $parseFactor();
-                if ($left === null || $right === null) return null;
+                if ($left === null || $right === null) {
+                    return null;
+                }
                 $left = $op === '*' ? $left * $right : ($right != 0 ? $left / $right : null);
-                if ($left === null) return null;
+                if ($left === null) {
+                    return null;
+                }
             }
+
             return $left;
         };
 
@@ -303,22 +335,28 @@ class KpiResultComputer
             while ($pos < $len && ($s[$pos] === '+' || $s[$pos] === '-')) {
                 $op = $s[$pos++];
                 $right = $parseTerm();
-                if ($left === null || $right === null) return null;
+                if ($left === null || $right === null) {
+                    return null;
+                }
                 $left = $op === '+' ? $left + $right : $left - $right;
             }
+
             return $left;
         };
 
         $result = $parseExpr();
+
         return $result;
     }
 
     /**
      * Aggregate raw_data rows by variable_key and function.
      */
-    private function aggregateRaw(array $raw, ?string $variableKey, string $fn): float|null
+    private function aggregateRaw(array $raw, ?string $variableKey, string $fn): ?float
     {
-        if (empty($raw) || !$variableKey) return null;
+        if (empty($raw) || ! $variableKey) {
+            return null;
+        }
 
         $values = [];
         foreach ($raw as $row) {
@@ -328,10 +366,14 @@ class KpiResultComputer
                 if (is_array($v)) {
                     $v = reset($v);
                 }
-                if (is_numeric($v)) $values[] = (float) $v;
+                if (is_numeric($v)) {
+                    $values[] = (float) $v;
+                }
             }
         }
-        if (empty($values)) return null;
+        if (empty($values)) {
+            return null;
+        }
 
         return match ($fn) {
             'Sum' => array_sum($values),
@@ -348,10 +390,14 @@ class KpiResultComputer
     /**
      * Compute status (green/orange/red/grey) from value vs target.
      */
-    private function computeStatus(float|null $value, ?string $operator, float|null $target): string
+    private function computeStatus(?float $value, ?string $operator, ?float $target): string
     {
-        if ($value === null) return 'grey';
-        if ($operator === null || $target === null) return 'green';
+        if ($value === null) {
+            return 'grey';
+        }
+        if ($operator === null || $target === null) {
+            return 'green';
+        }
 
         return match ($operator) {
             '<=' => $value <= $target ? 'green' : ($value <= $target * 1.1 ? 'orange' : 'red'),
@@ -372,14 +418,14 @@ class KpiResultComputer
 
         // Auto-generated filter options from variable filter_keys
         foreach ($variables as $i => $var) {
-            if (!empty($var['is_filtered']) && !empty($var['filter_key'])) {
+            if (! empty($var['is_filtered']) && ! empty($var['filter_key'])) {
                 $fk = $var['filter_key'];
                 $raw = $variableRaws[$i] ?? [];
-                if (!empty($raw) && isset($raw[0][$fk])) {
-                    $vals = array_unique(array_map(fn($r) => trim((string) ($r[$fk] ?? '')), $raw));
+                if (! empty($raw) && isset($raw[0][$fk])) {
+                    $vals = array_unique(array_map(fn ($r) => trim((string) ($r[$fk] ?? '')), $raw));
                     $vals = array_filter($vals);
                     sort($vals);
-                    if (!isset($options[$fk])) {
+                    if (! isset($options[$fk])) {
                         $options[$fk] = [];
                     }
                     $options[$fk] = array_values(array_unique(array_merge($options[$fk], $vals)));
@@ -401,7 +447,7 @@ class KpiResultComputer
         $chartConfig = $kpiDef['chart_config'] ?? null;
         $graphTypes = $kpiDef['graph_types'] ?? [];
 
-        if (empty($chartConfig) || !in_array('Pareto Chart (Interactif)', $graphTypes, true)) {
+        if (empty($chartConfig) || ! in_array('Pareto Chart (Interactif)', $graphTypes, true)) {
             return null;
         }
 
@@ -409,18 +455,24 @@ class KpiResultComputer
         $valueKey = $chartConfig['pareto']['value_key'] ?? null;
         $aggregation = $chartConfig['pareto']['aggregation'] ?? 'Sum';
 
-        if (!$labelKey || !$valueKey || empty($rawData)) {
+        if (! $labelKey || ! $valueKey || empty($rawData)) {
             return null;
         }
 
         // Group by label and aggregate value
         $groups = [];
         foreach ($rawData as $row) {
-            if (!is_array($row)) continue;
-            $label = trim((string)($row[$labelKey] ?? ''));
-            if ($label === '') continue;
-            $val = isset($row[$valueKey]) && is_numeric($row[$valueKey]) ? (float)$row[$valueKey] : 0;
-            if (!isset($groups[$label])) $groups[$label] = 0.0;
+            if (! is_array($row)) {
+                continue;
+            }
+            $label = trim((string) ($row[$labelKey] ?? ''));
+            if ($label === '') {
+                continue;
+            }
+            $val = isset($row[$valueKey]) && is_numeric($row[$valueKey]) ? (float) $row[$valueKey] : 0;
+            if (! isset($groups[$label])) {
+                $groups[$label] = 0.0;
+            }
             if ($aggregation === 'Sum') {
                 $groups[$label] += $val;
             } elseif ($aggregation === 'Count') {
@@ -437,7 +489,7 @@ class KpiResultComputer
 
         $rows = [];
         foreach ($groups as $label => $value) {
-            $rows[] = [$labelKey => (string)$label, 'value' => $value];
+            $rows[] = [$labelKey => (string) $label, 'value' => $value];
         }
 
         return $rows;

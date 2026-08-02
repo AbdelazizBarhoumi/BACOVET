@@ -204,14 +204,14 @@ class DataMappingSeeder extends Seeder
             );
 
             // Track first row for each KPI
-            if (!isset($kpiFirstRowIds[$kpi])) {
+            if (! isset($kpiFirstRowIds[$kpi])) {
                 $kpiFirstRowIds[$kpi] = $row->id;
             }
         }
 
         // Now assign formulas to the first row of each KPI group
         foreach (self::FORMULA_MAP as $kpi => $formulaDef) {
-            if (!isset($kpiFirstRowIds[$kpi])) {
+            if (! isset($kpiFirstRowIds[$kpi])) {
                 continue;
             }
 

@@ -88,8 +88,8 @@ class DataMappingExportSqlTest extends TestCase
 
         $sql = $this->get('/data-mappings/export-sql')->getContent();
 
-        $pos_001 = strpos($sql, "F-REQ-001");
-        $pos_002a = strpos($sql, "F-REQ-002");
+        $pos_001 = strpos($sql, 'F-REQ-001');
+        $pos_002a = strpos($sql, 'F-REQ-002');
         // Both F-REQ-002 rows should come after F-REQ-001
         $this->assertGreaterThan($pos_001, $pos_002a);
     }
@@ -175,7 +175,7 @@ class DataMappingExportSqlTest extends TestCase
     public function test_escapes_quotes_in_string_values(): void
     {
         DataMapping::create([
-            'kpi' => "F-REQ-001", 'variable' => "It's a test",
+            'kpi' => 'F-REQ-001', 'variable' => "It's a test",
             'name' => 'BR with "quotes"',
         ]);
 
