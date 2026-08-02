@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useBuilder } from "./store";
+import { mergeTheme } from "./themes";
 import type { Widget } from "./types";
 import { AdvancedChartWidget } from "./widgets/advanced-chart";
 import { AiVisualWidget } from "./widgets/ai-visuals";
@@ -37,7 +40,8 @@ export function WidgetRenderer({ w, editing, onCellSelect, selectedCells, cursor
   onDeleteCol?: (c: number) => void;
   onResize?: (colWidths: number[], rowHeights: number[]) => void;
 }) {
-  const c = w.config;
+  const { theme } = useBuilder();
+  const c = useMemo(() => mergeTheme(w.config, theme), [w.config, theme]);
 
   switch (w.type) {
     case "kpi":

@@ -35,14 +35,17 @@ import {
     distinctValues,
     fieldLabel,
     fieldType,
-    formatNumber,
+    formatNumberWith,
     formatValue,
+    formatWellValue,
     isMeasure,
     measureLabel,
+    normalizeConditionalFormat,
     visualTable,
     type FieldType,
     type Row,
     type Visual,
+    type WellField,
 } from '@/lib/pbi/model';
 import { slicerKey, usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
@@ -58,10 +61,19 @@ const PALETTE = [
     'var(--chart-8)',
 ];
 
-const axisProps = {
-    tick: { fontSize: 10, fill: 'var(--muted-foreground)' },
-    stroke: 'var(--border)',
-} as const;
+/** Axis tick/style props honoring the visual's font settings. */
+function axisPropsFor(visual: Pick<Visual, 'fontFamily' | 'fontSize' | 'fontColor'>) {
+    const size = visual.fontSize ?? 10;
+    const color = visual.fontColor || 'var(--muted-foreground)';
+    return {
+        tick: {
+            fontSize: size,
+            fill: color,
+            fontFamily: visual.fontFamily || undefined,
+        },
+        stroke: 'var(--border)',
+    } as const;
+}
 
 const tooltipStyle = {
     backgroundColor: 'var(--popover)',
@@ -72,6 +84,34 @@ const tooltipStyle = {
 };
 
 type TooltipDatum = Record<string, string | number | boolean | null>;
+
+/** Formats a value honoring the visual's number format (and field override). */
+function visualFmt(
+    n: number,
+    visual: Pick<Visual, 'numberFormat'>,
+    wf?: Pick<WellField, 'format'>,
+): string {
+    return formatWellValue(n, wf, visual.numberFormat ?? 'auto');
+}
+
+/** Recharts tick formatter bound to a visual's number format. */
+function tickFmt(visual: Pick<Visual, 'numberFormat'>) {
+    return (v: number) => formatNumberWith(v, visual.numberFormat ?? 'auto');
+}
+
+const OKLCH_RE = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/;
+
+/** Mixes two `oklch()` colors at ratio `t` (0..1); falls back to `b` when unparseable. */
+function oklchMix(a: string, b: string, t: number): string {
+    const pa = a.match(OKLCH_RE);
+    const pb = b.match(OKLCH_RE);
+    if (!pa || !pb) return t < 0.5 ? a : b;
+    const out = [1, 2, 3].map(
+        (i) =>
+            Number(pa[i]) * (1 - t) + Number(pb[i]) * t,
+    );
+    return `oklch(${out[0]} ${out[1]} ${out[2]})`;
+}
 
 /** Shared recharts tooltip that honors the Tooltips well, formatted by type. */
 function CustomTooltip({
@@ -425,6 +465,7 @@ function ChartBody({
         case 'shapeMap':
             return (
                 <MapVisual
+                    visual={visual}
                     data={data}
                     series={series}
                     matchSet={matchSet}
@@ -448,7 +489,7 @@ function ChartBody({
                     {visual.values.map((v, i) => (
                         <div key={i} className="flex flex-col items-center">
                             <div className="text-3xl font-semibold tracking-tight text-foreground">
-                                {formatNumber(aggregate(rows, v))}
+                                {visualFmt(aggregate(rows, v), visual, v)}
                             </div>
                             <div className="mt-1 text-[11px] text-muted-foreground">
                                 {measureLabel(v)}
@@ -476,13 +517,13 @@ function ChartBody({
                             good ? 'text-success' : 'text-destructive',
                         )}
                     >
-                        {formatNumber(val)}
+                        {visualFmt(val, visual, v)}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
                         {measureLabel(v)}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                        Goal {formatNumber(goal)}
+                        Goal {visualFmt(goal, visual, v)}
                     </div>
                 </div>,
             );
@@ -516,10 +557,10 @@ function ChartBody({
                     </ResponsiveContainer>
                     <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center">
                         <div className="text-xl font-semibold text-foreground">
-                            {formatNumber(val)}
+                            {visualFmt(val, visual, v)}
                         </div>
                         <div className="text-[10px] text-muted-foreground">
-                            of {formatNumber(max)}
+                            of {visualFmt(max, visual, v)}
                         </div>
                     </div>
                 </div>,
@@ -557,14 +598,16 @@ function ChartBody({
                             {visual.showLabels && (
                                 <LabelList
                                     dataKey={key}
-                                    formatter={(x: number) => formatNumber(x)}
-                                    style={{ fontSize: 9 }}
+                                    formatter={(x: number) =>
+                                        visualFmt(x, visual, visual.values[0])
+                                    }
+                                    style={{ fontSize: visual.fontSize ?? 9 }}
                                 />
                             )}
                         </Pie>
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
                     </PieChart>
                 </ResponsiveContainer>,
@@ -668,10 +711,10 @@ function ChartBody({
                             stroke="var(--border)"
                             vertical={false}
                         />
-                        <XAxis dataKey="category" {...axisProps} />
+                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         <Bar dataKey="base" stackId="w" fill="transparent" />
@@ -708,14 +751,14 @@ function ChartBody({
                             stroke="var(--border)"
                             vertical={false}
                         />
-                        <XAxis dataKey="category" {...axisProps} />
+                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
                         {series.map((s, i) => (
                             <Line
@@ -743,14 +786,14 @@ function ChartBody({
                             stroke="var(--border)"
                             vertical={false}
                         />
-                        <XAxis dataKey="category" {...axisProps} />
+                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
                         {series.map((s, i) => (
                             <Area
@@ -780,14 +823,14 @@ function ChartBody({
                             stroke="var(--border)"
                             vertical={false}
                         />
-                        <XAxis dataKey="category" {...axisProps} />
+                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
                         {series.map((s, i) =>
                             i === 0 ? (
@@ -854,14 +897,14 @@ function ChartBody({
                         <XAxis
                             dataKey={scXKey}
                             type="number"
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <YAxis
                             dataKey={scYKey}
                             type="number"
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         {visual.type === 'bubble' && (
                             <ZAxis dataKey={scZKey} range={[40, 500]} />
@@ -928,18 +971,18 @@ function ChartBody({
                         />
                         <XAxis
                             type="number"
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <YAxis
                             type="category"
                             dataKey="category"
                             width={90}
-                            {...axisProps}
+                            {...axisPropsFor(visual)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && series.length > 1 && (
-                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
                         {series.map((s, i) => (
                             <Bar
@@ -996,14 +1039,14 @@ function ChartBody({
                             stroke="var(--border)"
                             vertical={false}
                         />
-                        <XAxis dataKey="category" {...axisProps} />
+                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && series.length > 1 && (
-                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
                         )}
                         {series.map((s, i) => (
                             <Bar
@@ -1034,10 +1077,10 @@ function ChartBody({
                                     <LabelList
                                         position="top"
                                         formatter={(v: number) =>
-                                            formatNumber(v)
+                                            visualFmt(v, visual, visual.values[0])
                                         }
                                         style={{
-                                            fontSize: 9,
+                                            fontSize: visual.fontSize ?? 9,
                                             fill: 'var(--muted-foreground)',
                                         }}
                                     />
@@ -1082,7 +1125,11 @@ function analyticsLines(
                     stroke="var(--chart-4)"
                     strokeDasharray="4 4"
                     label={{
-                        value: `Average ${formatNumber(avg)}`,
+                        value: `Average ${visualFmt(
+                            avg,
+                            visual,
+                            visual.values[0],
+                        )}`,
                         fontSize: 9,
                         fill: 'var(--muted-foreground)',
                     }}
@@ -1137,6 +1184,24 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
             Math.max(...data.map((d) => Number(d[s]) || 0), 1),
         ]),
     );
+    const cf = normalizeConditionalFormat(visual.conditionalFormat);
+
+    /** Background tint for a value in a column when colorScale is on. */
+    const scaleColor = (col: string, val: number): string => {
+        const max = Number(maxByCol[col]) || 1;
+        const ratio = Math.max(0, Math.min(1, val / max));
+        const mid = cf.midColor;
+        const from = cf.minColor;
+        const to = cf.maxColor;
+        const mix = (a: string, b: string, t: number): string =>
+            a.startsWith('oklch') && b.startsWith('oklch')
+                ? oklchMix(a, b, t)
+                : t < 0.5
+                  ? from
+                  : to;
+        const c = ratio < 0.5 ? mix(from, mid, ratio * 2) : mix(mid, to, (ratio - 0.5) * 2);
+        return c;
+    };
     const totals = series.map((s) =>
         data.reduce((t, d) => t + (Number(d[s]) || 0), 0),
     );
@@ -1180,15 +1245,27 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                                     <td
                                         key={s}
                                         className="relative border-b border-border px-2 py-1 text-right tabular-nums"
+                                        style={
+                                            cf.mode === 'colorScale'
+                                                ? {
+                                                      backgroundColor:
+                                                          scaleColor(s, val),
+                                                  }
+                                                : undefined
+                                        }
                                     >
-                                        {visual.conditionalFormat && (
+                                        {cf.mode === 'databars' && (
                                             <span
-                                                className="absolute inset-y-[2px] left-0 rounded-sm bg-brand/15"
-                                                style={{ width: `${pct}%` }}
+                                                className="absolute inset-y-[2px] left-0 rounded-sm"
+                                                style={{
+                                                    width: `${pct}%`,
+                                                    backgroundColor: cf.maxColor,
+                                                    opacity: 0.15,
+                                                }}
                                             />
                                         )}
                                         <span className="relative">
-                                            {formatNumber(val)}
+                                            {visualFmt(val, visual, visual.values[0])}
                                         </span>
                                     </td>
                                 );
@@ -1203,7 +1280,7 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                                     key={i}
                                     className="px-2 py-1 text-right tabular-nums"
                                 >
-                                    {formatNumber(t)}
+                                    {visualFmt(t, visual, visual.values[0])}
                                 </td>
                             ))}
                         </tr>
@@ -1376,17 +1453,18 @@ function SmartNarrative({
         <div className="h-full overflow-auto p-2 text-[11px] leading-relaxed text-foreground">
             <p>
                 <strong>{key}</strong> totalled{' '}
-                <strong>{formatNumber(total)}</strong> across {data.length}{' '}
+                <strong>{visualFmt(total, visual, visual.values[0])}</strong>{' '}
+                across {data.length}{' '}
                 {visual.axis[0] ? fieldLabel(visual.axis[0]) : 'categories'} and{' '}
                 {rows.length.toLocaleString()} rows in the current filter
                 context.
             </p>
             <p className="mt-2">
                 <strong>{top['category']}</strong> had the highest value at{' '}
-                {formatNumber(Number(top[key]))} (
+                {visualFmt(Number(top[key]), visual, visual.values[0])} (
                 {((Number(top[key]) / (total || 1)) * 100).toFixed(1)}% of
                 total), while <strong>{bottom['category']}</strong> was lowest
-                at {formatNumber(Number(bottom[key]))}.
+                at {visualFmt(Number(bottom[key]), visual, visual.values[0])}.
             </p>
             <p className="mt-2 text-muted-foreground">
                 Summary updates automatically as filters change.
@@ -1469,7 +1547,7 @@ function DecompositionTree({ visual, rows }: { visual: Visual; rows: Row[] }) {
             <div className="min-w-24">
                 <div className="font-semibold">{measureLabel(measure)}</div>
                 <div className="text-lg">
-                    {formatNumber(aggregate(scoped, measure))}
+                    {visualFmt(aggregate(scoped, measure), visual, measure)}
                 </div>
                 {path.map((p, i) => (
                     <button
@@ -1497,7 +1575,7 @@ function DecompositionTree({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             <span className="flex justify-between">
                                 <span className="truncate">{it.k}</span>
                                 <span className="tabular-nums">
-                                    {formatNumber(it.v)}
+                                    {visualFmt(it.v, visual, measure)}
                                 </span>
                             </span>
                             <span
@@ -1538,10 +1616,10 @@ function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
             <div className="min-h-0 flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data}>
-                        <XAxis dataKey="category" {...axisProps} />
+                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         <Bar
@@ -1580,10 +1658,10 @@ function ScriptVisual({
                             stroke="var(--border)"
                             vertical={false}
                         />
-                        <XAxis dataKey="category" {...axisProps} />
+                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={(v) => formatNumber(v)}
-                            {...axisProps}
+                            tickFormatter={tickFmt(visual)}
+                            {...axisPropsFor(visual)}
                         />
                         <Line
                             type="monotone"
@@ -1599,11 +1677,13 @@ function ScriptVisual({
 }
 
 function MapVisual({
+    visual,
     data,
     series,
     matchSet,
     onPointClick,
 }: {
+    visual: Visual;
     data: Record<string, string | number>[];
     series: string[];
     matchSet: Set<string> | null;
@@ -1629,7 +1709,7 @@ function MapVisual({
                     >
                         <span className="truncate">{d['category']}</span>
                         <span className="font-semibold tabular-nums">
-                            {formatNumber(v)}
+                            {visualFmt(v, visual, visual.values[0])}
                         </span>
                     </button>
                 );

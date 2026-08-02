@@ -15,7 +15,7 @@ export function ParetoWidget({ c, id }: { c: WidgetConfig; id?: string }) {
       <ScalerHeader series={series} c={c} />
       <div className="flex-1 min-h-0">
         <ParetoChart
-          data={series.map((s) => ({ label: s.x, v: s.v, color: targetColor(s.v, c.target, seriesMax) }))}
+          data={series.map((s) => ({ label: s.x, v: s.v, color: targetColor(s.v, c.target, seriesMax, c) }))}
           height={180}
         />
       </div>

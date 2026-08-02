@@ -45,7 +45,7 @@ export function BarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
             {multiSeries.length === 1 ? (
               <Bar dataKey={multiSeries[0].name} name={multiSeries[0].label} fill={c.accent ?? "#ec4899"} radius={[4, 4, 0, 0]}>
                 {multiSeries[0].data.map((s, i) => (
-                  <Cell key={i} fill={targetColor(s.v, c.target, seriesMax)} />
+                  <Cell key={i} fill={targetColor(s.v, c.target, seriesMax, c)} />
                 ))}
               </Bar>
             ) : (

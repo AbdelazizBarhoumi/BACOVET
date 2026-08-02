@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Bar, BarChart, Cell, Legend, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis, CartesianGrid } from "recharts";
+import { formatNumber } from "../format";
 import type { WidgetConfig } from "../types";
 import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, targetColor, barGradientStops, WidgetTooltip, ScalerHeader, wrap, MeasureErrorBanner } from "./shared";
 
@@ -22,10 +23,10 @@ export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" |
     const values = hasScalar ? [{ label: c.label ?? "Measure", value: scalar }] : multiSeries.map((ms) => ({ label: ms.label, value: ms.data.reduce((s, d) => s + d.v, 0) }));
     return wrap(c, boxStyle(c), <div className="flex h-full flex-col items-center justify-center gap-2">
       {values.map((v) => {
-        const color = v.value !== undefined ? targetColor(Number(v.value), c.target, Math.max(Number(v.value) || 1, 1)) : undefined;
+        const color = v.value !== undefined ? targetColor(Number(v.value), c.target, Math.max(Number(v.value) || 1, 1), c) : undefined;
         return (
           <div key={v.label} className="flex flex-col items-center">
-            <div className="text-4xl font-semibold tabular-nums" style={color ? { color } : undefined}>{Number(v.value).toLocaleString()}</div>
+            <div className="text-4xl font-semibold tabular-nums" style={color ? { color } : undefined}>{formatNumber(Number(v.value), { decimals: c.decimals ?? 0, prefix: c.prefix, compact: c.compact, unit: c.unit ?? "" })}</div>
             <div className="mt-1 text-[11px] text-muted-foreground">{v.label}</div>
           </div>
         );
@@ -35,7 +36,7 @@ export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" |
 
   const dim = (name: string) => (isDimmed(name) ? 0.2 : 1);
   const onClick = (e: unknown) => { const n = rechartClickLabel(e); if (n != null) click(n); };
-  const gradients = barGradientStops(series.map((s) => s.v), c.target);
+  const gradients = barGradientStops(series.map((s) => s.v), c.target, c);
   const gid = (i: number) => `adv-grad-${gradId}-${i}`;
 
   if (type === "scatter" || type === "bubble") {
@@ -48,7 +49,7 @@ export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" |
         {type === "bubble" && hasExplicit && <ZAxis dataKey="size" range={[30, Math.min(220, 40 + maxSize)]} />}
         <Tooltip content={<WidgetTooltip />} />
         <Scatter name="Points" data={points as { x: number; y: number; name: string; size: number; color: string }[]} fill={c.accent ?? "#3b82f6"}>
-          {points.map((p, i) => <Cell key={i} fill={c.target && !hasExplicit ? targetColor(p.y, c.target, Math.max(...points.map((x) => x.y), 1)) : p.color} fillOpacity={dim(p.name)} />)}
+          {points.map((p, i) => <Cell key={i} fill={c.target && !hasExplicit ? targetColor(p.y, c.target, Math.max(...points.map((x) => x.y), 1), c) : p.color} fillOpacity={dim(p.name)} />)}
         </Scatter>
       </ScatterChart>
     </ResponsiveContainer></div></div>);
@@ -62,14 +63,14 @@ export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" |
     if (type === "funnel") {
       return wrap(c, boxStyle(c), <div className="flex h-full flex-col items-center justify-center gap-1 p-4">{fallbackData.map((d) => (
         <div key={d.name} className="flex w-full items-center justify-between rounded bg-primary/15 px-2 py-1 text-[11px]" style={{ width: `${30 + (d.value / maxVal) * 65}%` }}>
-          <span className="truncate">{d.name}</span><span className="font-semibold tabular-nums">{d.value.toLocaleString()}</span>
+          <span className="truncate">{d.name}</span><span className="font-semibold tabular-nums">{formatNumber(d.value, { decimals: c.decimals ?? 0, prefix: c.prefix, compact: c.compact })}</span>
         </div>
       ))}</div>);
     }
     if (type === "treemap") {
       return wrap(c, boxStyle(c), <div className="flex h-full flex-wrap content-start gap-1 p-2 overflow-auto">{fallbackData.map((d) => (
-        <div key={d.name} className="flex min-w-[40%] flex-1 flex-col justify-between rounded p-2 text-[10px] text-white" style={{ background: targetColor(d.value, c.target, maxVal), height: 60, minHeight: 40 }}>
-          <span className="truncate">{d.name}</span><span className="text-right font-bold">{d.value.toLocaleString()}</span>
+        <div key={d.name} className="flex min-w-[40%] flex-1 flex-col justify-between rounded p-2 text-[10px] text-white" style={{ background: targetColor(d.value, c.target, maxVal, c), height: 60, minHeight: 40 }}>
+          <span className="truncate">{d.name}</span><span className="text-right font-bold">{formatNumber(d.value, { decimals: c.decimals ?? 0, prefix: c.prefix, compact: c.compact })}</span>
         </div>
       ))}</div>);
     }
@@ -78,7 +79,7 @@ export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" |
       return (
         <div key={d.name} className="flex items-center gap-2">
           <span className="w-16 truncate text-[10px] text-muted-foreground text-right">{d.name}</span>
-          <div className="h-5 flex-1 rounded" style={{ background: targetColor(d.value, c.target, maxVal), opacity: 0.85, position: "relative" }}>
+          <div className="h-5 flex-1 rounded" style={{ background: targetColor(d.value, c.target, maxVal, c), opacity: 0.85, position: "relative" }}>
             <div className="absolute inset-0" style={{ transform: `translateY(${Math.min(base / (base + d.value), 1) * 100}%)` }} />
           </div>
         </div>

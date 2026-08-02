@@ -1,4 +1,5 @@
 import ReactECharts from "echarts-for-react";
+import { formatNumber } from "../format";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, lighten, widgetTooltipFormatter, noDataBound, noSeriesData, MeasureErrorBanner } from "./shared";
 
@@ -12,7 +13,7 @@ export function DonutWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const multiple = values.length > 1;
 
   const options = values.map((v) => {
-    const mainColor = c.target ? targetColor(v.value, c.target, Math.max(v.value, 1)) : v.color;
+    const mainColor = c.target ? targetColor(v.value, c.target, Math.max(v.value, 1), c) : v.color;
     const remainder = 100 - v.value;
     return {
       tooltip: {
@@ -56,7 +57,7 @@ export function DonutWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         left: "center",
         top: "48%",
         style: {
-          text: `${v.value.toFixed(c.decimals ?? 0)}%`,
+          text: `${formatNumber(v.value, { decimals: c.decimals ?? 0 })}%`,
           textAlign: "center",
           fill: "#111827",
           fontSize: multiple ? 14 : 22,

@@ -1,13 +1,15 @@
-import { Eye, Pencil, Save, RotateCcw, Download, Upload, Undo2, Redo2 } from "lucide-react";
-import { useRef } from "react";
+import { Eye, Pencil, Save, RotateCcw, Download, Upload, Undo2, Redo2, Palette } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { logActivity } from "./activity";
 import { useBuilder } from "./store";
+import { ThemeDialog } from "./theme-dialog";
 
 export function BuilderToolbar({ title }: { title: string }) {
   const { mode, setMode, save, reset, exportJson, importJson, widgets, isDirty, undo, redo, canUndo, canRedo } = useBuilder();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [themeOpen, setThemeOpen] = useState(false);
 
   const switchMode = (m: "view" | "edit") => {
     setMode(m);
@@ -67,6 +69,10 @@ export function BuilderToolbar({ title }: { title: string }) {
           </Button>
           <input ref={fileRef} type="file" accept="application/json" hidden
             onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])} />
+          <Button size="sm" variant="outline" onClick={() => setThemeOpen(true)} className="h-8 text-xs">
+            <Palette className="h-3 w-3 mr-1" /> Thème
+          </Button>
+          <ThemeDialog open={themeOpen} onClose={() => setThemeOpen(false)} />
         </>
       )}
     </div>

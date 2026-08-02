@@ -119,9 +119,17 @@ export type WidgetConfig = {
   label?: string;
   subtitle?: string;
   unit?: string;
+  /** Text rendered before the value (e.g. currency symbol or "Δ"). */
+  prefix?: string;
   decimals?: number;
+  /** Shorten large magnitudes with k/M/B suffixes. */
+  compact?: boolean;
   target?: number;
   text?: string;
+  /** Conditional formatting: "auto" = color from target/series-max scale, "none" = flat accent. */
+  conditionalFormat?: "auto" | "none";
+  /** Custom min/mid/max colors for the conditional-formatting scale. */
+  condScale?: { min: string; mid: string; max: string };
   // style
   bg?: string;
   bgGradient?: string; // full CSS gradient string, overrides bg when set
@@ -232,7 +240,21 @@ export type PageLayout = {
   pageId: string;
   version: number;
   widgets: Widget[];
+  theme?: DashboardTheme;
 };
+
+/**
+ * Page-level theme (Phase 6). `defaults` holds the curated style keys; at
+ * render time they fill in only the keys a widget has not explicitly set
+ * (widget wins). `palette` overrides multi-series colors when present.
+ */
+export type DashboardTheme = {
+  name?: string;
+  palette?: string[];
+  defaults: Partial<WidgetConfig>;
+};
+
+export const DEFAULT_COND_SCALE = { min: "#ef4444", mid: "#f59e0b", max: "#22c55e" };
 
 export function sanitizeWidgets(widgets: Widget[], allowedTypes: readonly WidgetType[]): Widget[] {
   const allowed = new Set<WidgetType>(allowedTypes as WidgetType[]);

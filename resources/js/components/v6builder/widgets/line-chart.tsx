@@ -30,7 +30,7 @@ export function LineChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         data: ms.data.map((s) => ({
           value: s.v,
           itemStyle: {
-            color: multiSeries.length === 1 && c.target ? targetColor(s.v, c.target, seriesMax) : color,
+            color: multiSeries.length === 1 && c.target ? targetColor(s.v, c.target, seriesMax, { conditionalFormat: c.conditionalFormat, condScale: c.condScale }) : color,
             opacity: isDimmed(s.x) ? 0.2 : 1,
           },
           ...(tipsByX.has(s.x) ? { tips: tipsByX.get(s.x) } : {}),
@@ -81,7 +81,7 @@ export function LineChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         },
       } : {}),
     };
-  }, [series, multiSeries, c.accent, c.showTarget, c.target, isDimmed]);
+  }, [series, multiSeries, c.accent, c.showTarget, c.target, c.conditionalFormat, c.condScale, isDimmed]);
 
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
   if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);

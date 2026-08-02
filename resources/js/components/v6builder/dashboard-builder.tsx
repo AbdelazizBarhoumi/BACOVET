@@ -9,11 +9,11 @@ import { Palette } from "./palette";
 import { BuilderProvider } from "./store";
 import { useBuilder } from "./store";
 import { BuilderToolbar } from "./toolbar";
-import type { MeasureDefinition, Widget } from "./types";
+import type { DashboardTheme, MeasureDefinition, Widget } from "./types";
 
 export function DashboardBuilder({
-  pageId, pageDbId, title, defaultLayout, defaultMeasures, apiBase, dataApiBase,
-}: { pageId: string; pageDbId: number; title: string; defaultLayout: Widget[]; defaultMeasures?: MeasureDefinition[]; apiBase?: string; dataApiBase?: string }) {
+  pageId, pageDbId, title, defaultLayout, defaultMeasures, defaultTheme, apiBase, dataApiBase,
+}: { pageId: string; pageDbId: number; title: string; defaultLayout: Widget[]; defaultMeasures?: MeasureDefinition[]; defaultTheme?: DashboardTheme | null; apiBase?: string; dataApiBase?: string }) {
   const loggedViewRef = useRef(false);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export function DashboardBuilder({
   }, [pageDbId, pageId, title]);
 
   return (
-    <BuilderProvider pageId={pageId} pageDbId={pageDbId} defaultLayout={defaultLayout} defaultMeasures={defaultMeasures} apiBase={apiBase} dataApiBase={dataApiBase}>
+    <BuilderProvider pageId={pageId} pageDbId={pageDbId} defaultLayout={defaultLayout} defaultMeasures={defaultMeasures} defaultTheme={defaultTheme} apiBase={apiBase} dataApiBase={dataApiBase}>
       <BuilderShell title={title} />
     </BuilderProvider>
   );

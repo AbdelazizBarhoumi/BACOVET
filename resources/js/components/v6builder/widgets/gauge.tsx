@@ -1,5 +1,6 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo, useState } from "react";
+import { formatNumber } from "../format";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, useWidgetData, MeasureErrorBanner } from "./shared";
 
@@ -29,17 +30,18 @@ function lighten(hex: string, amt: number): string {
 const SCALE_RED = "#ef4444";
 const SCALE_AMBER = "#f59e0b";
 const SCALE_GREEN = "#22c55e";
+type CondScale = { min: string; mid: string; max: string };
 
-function colorAt(t: number): string {
+function colorAt(t: number, scale: CondScale = { min: SCALE_RED, mid: SCALE_AMBER, max: SCALE_GREEN }): string {
   const tt = Math.min(1, Math.max(0, t));
-  return tt <= 0.5 ? mix(SCALE_RED, SCALE_AMBER, tt / 0.5) : mix(SCALE_AMBER, SCALE_GREEN, (tt - 0.5) / 0.5);
+  return tt <= 0.5 ? mix(scale.min, scale.mid, tt / 0.5) : mix(scale.mid, scale.max, (tt - 0.5) / 0.5);
 }
 
-function buildTrackStops(steps = 24): [number, string][] {
+function buildTrackStops(steps = 24, scale?: CondScale, flat?: string): [number, string][] {
   const stops: [number, string][] = [];
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
-    stops.push([(i + 1) / steps, lighten(colorAt(t), 0.72)]);
+    stops.push([(i + 1) / steps, flat ? lighten(flat, 0.88) : lighten(colorAt(t, scale), 0.72)]);
   }
   return stops;
 }
@@ -57,9 +59,11 @@ export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const [showPercent, setShowPercent] = useState(false);
 
   const t = hasData ? (value - min) / (max - min || 1) : 0;
-  const valueColor = colorAt(t);
-  const gradFrom = colorAt(Math.max(0, t - 0.001));
-  const trackStops = useMemo(() => buildTrackStops(), []);
+  const flat = c.conditionalFormat === "none" ? c.accent ?? "#3b82f6" : undefined;
+  const condScale = c.condScale;
+  const valueColor = flat ?? colorAt(t, condScale);
+  const gradFrom = flat ?? colorAt(Math.max(0, t - 0.001), condScale);
+  const trackStops = useMemo(() => buildTrackStops(24, condScale, flat), [condScale, flat]);
 
   const option = useMemo(() => ({
     series: [{
@@ -76,7 +80,7 @@ export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
           type: "linear",
           x: 0, y: 0, x2: 1, y2: 0,
           colorStops: [
-            { offset: 0, color: colorAt(0) },
+            { offset: 0, color: flat ?? colorAt(0, condScale) },
             { offset: 1, color: gradFrom },
           ],
         },
@@ -97,7 +101,7 @@ export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
       detail: { show: false },
       data: [{ value }],
     }],
-  }), [value, min, max, startAngle, endAngle, gradFrom, valueColor, trackStops]);
+  }), [value, min, max, startAngle, endAngle, gradFrom, valueColor, trackStops, flat, condScale]);
 
   const decimals = c.decimals ?? 1;
   const displayValue = !hasMapping
@@ -106,7 +110,7 @@ export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
     ? "—"
     : showPercent
     ? `${Math.round(t * 100)}%`
-    : `${value.toFixed(decimals).replace(".", ",")}${c.unit ?? ""}`;
+    : formatNumber(value, { decimals, prefix: c.prefix, compact: c.compact, unit: c.unit ?? "" });
 
   const interactive = hasMapping && hasData;
 
@@ -120,7 +124,7 @@ export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
       >
         <span
           onClick={interactive ? () => setShowPercent((s) => !s) : undefined}
-          title={interactive ? `${value.toFixed(Math.max(decimals, 2)).replace(".", ",")}${c.unit ?? ""} — cliquer pour ${showPercent ? "voir la valeur" : "voir en %"}` : undefined}
+          title={interactive ? `${formatNumber(value, { decimals: Math.max(decimals, 2), prefix: c.prefix, compact: c.compact, unit: c.unit ?? "" })} — cliquer pour ${showPercent ? "voir la valeur" : "voir en %"}` : undefined}
           className={`whitespace-pre-line text-center font-bold leading-tight transition-transform duration-150 ${
             interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""
           }`}
@@ -145,7 +149,7 @@ export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
 
       {hasMapping && hasData && c.target != null && (
         <div className="absolute bottom-2 left-0 right-0 text-center text-[11px] text-slate-400">
-          Objectif&nbsp;: {c.target.toFixed(decimals).replace(".", ",")}{c.unit ?? ""}
+          Objectif&nbsp;: {formatNumber(c.target, { decimals, prefix: c.prefix, compact: c.compact, unit: c.unit ?? "" })}
         </div>
       )}
     </div>

@@ -131,6 +131,8 @@ export function Inspector() {
   const hasAnalytics = ["funnel", "treemap", "waterfall", "scatter", "bubble", "stacked-bar", "stacked-area", "column", "stackedColumn", "stacked100Column", "stacked100Bar", "ribbon"].includes(t);
 
   const hasAccent = dataChartTypes.includes(t);
+  const condChartTypes = ["bar", "line", "area", "combo", "pareto", "donut", "gauge", "sparkline", "table"];
+  const hasCondFormat = dataChartTypes.includes(t) || condChartTypes.includes(t);
   const hasFontFamily = t !== "divider";
   const hasTypography = ["text", "table-grid"].includes(t);
   const hasBg = t !== "divider";
@@ -240,10 +242,14 @@ export function Inspector() {
               <Field label="Unité">
                 <Input value={c.unit ?? ""} onChange={(e) => set({ unit: e.target.value })} className="h-7 text-xs" />
               </Field>
+              <Field label="Préfixe">
+                <Input value={c.prefix ?? ""} onChange={(e) => set({ prefix: e.target.value })} className="h-7 text-xs" placeholder="ex. € ou Δ" />
+              </Field>
               <Field label="Décimales">
                 <Input type="number" min={0} max={4} value={c.decimals ?? 1}
                   onChange={(e) => set({ decimals: Number(e.target.value) })} className="h-7 text-xs" />
               </Field>
+              <FieldSwitch label="Compacter (k / M)" checked={!!c.compact} onChange={(v) => set({ compact: v })} />
             </>
           )}
           {hasTarget && (
@@ -366,6 +372,27 @@ export function Inspector() {
             <Field label="Texte (couleur)">
               <ColorRow value={c.fg} onChange={(v) => set({ fg: v })} withNone />
             </Field>
+          )}
+
+          {/* Conditional formatting */}
+          {hasCondFormat && (
+            <>
+              <SectionTitle>Mise en forme conditionnelle</SectionTitle>
+              <FieldSwitch label="Activer" checked={c.conditionalFormat !== "none"} onChange={(v) => set({ conditionalFormat: v ? "auto" : "none" })} />
+              {c.conditionalFormat !== "none" && (
+                <>
+                  <Field label="Couleur min (valeur faible)">
+                    <ColorRow value={c.condScale?.min} onChange={(v) => set({ condScale: { ...(c.condScale ?? {}), min: v } })} />
+                  </Field>
+                  <Field label="Couleur intermédiaire">
+                    <ColorRow value={c.condScale?.mid} onChange={(v) => set({ condScale: { ...(c.condScale ?? {}), mid: v } })} />
+                  </Field>
+                  <Field label="Couleur max (valeur forte)">
+                    <ColorRow value={c.condScale?.max} onChange={(v) => set({ condScale: { ...(c.condScale ?? {}), max: v } })} />
+                  </Field>
+                </>
+              )}
+            </>
           )}
 
           {/* Typography */}

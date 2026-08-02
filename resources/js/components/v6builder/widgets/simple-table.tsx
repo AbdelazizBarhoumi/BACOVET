@@ -1,3 +1,4 @@
+import { formatNumber } from "../format";
 import type { WidgetConfig } from "../types";
 import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, targetColor, noSeriesData, noDataBound, MeasureErrorBanner } from "./shared";
 
@@ -51,12 +52,12 @@ export function SimpleTableWidget({ c, id }: { c: WidgetConfig; id?: string }) {
                 </td>
                 {multiSeries.map((ms) => {
                   const val = (r.values as Record<string, number>)[ms.name] ?? 0;
-                  const color = targetColor(val, c.target, Math.max(...ms.data.map((d) => Math.abs(d.v)), 1));
+                  const color = targetColor(val, c.target, Math.max(...ms.data.map((d) => Math.abs(d.v)), 1), c);
                   return (
                     <td key={ms.name} className="px-2.5 py-1.5">
                       <div className="flex items-center justify-end gap-2">
                         <span className="font-bold tabular-nums whitespace-nowrap" style={{ color }}>
-                          {val.toFixed(c.decimals ?? 1).replace(".", ",")}{c.unit ?? ""}
+                          {formatNumber(val, { decimals: c.decimals ?? 1, prefix: c.prefix, compact: c.compact, unit: c.unit ?? "" })}
                         </span>
                       </div>
                     </td>

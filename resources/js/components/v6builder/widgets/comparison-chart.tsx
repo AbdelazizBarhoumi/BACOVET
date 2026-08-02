@@ -23,7 +23,7 @@ export function ComparisonChartWidget({ type, c, id }: { type: ComparisonChartTy
 
   const dim = (name: string) => (isDimmed(name) ? 0.2 : 1);
   const onClick = (e: unknown) => { const n = rechartClickLabel(e); if (n != null) click(n); };
-  const gradients = barGradientStops(series.map((s) => s.v), c.target);
+  const gradients = barGradientStops(series.map((s) => s.v), c.target, c);
   const gid = (i: number) => `cmp-grad-${gradId}-${i}`;
   const stacked = type === "stackedColumn" || type === "stacked100Column" || type === "stacked100Bar";
   const is100 = type === "stacked100Column" || type === "stacked100Bar";

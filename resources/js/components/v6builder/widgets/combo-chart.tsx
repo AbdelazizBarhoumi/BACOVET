@@ -21,11 +21,11 @@ export function ComboChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
           name: ms.label,
           type: "bar" as const,
           barMaxWidth: 32,
-          itemStyle: { borderRadius: [5, 5, 0, 0], color: echartsBarGradient(0, c.target, seriesMax) },
+          itemStyle: { borderRadius: [5, 5, 0, 0], color: echartsBarGradient(0, c.target, seriesMax, { conditionalFormat: c.conditionalFormat, condScale: c.condScale }) },
           data: ms.data.map((s) => withTips(s.x, {
             value: s.v,
             itemStyle: {
-              color: echartsBarGradient(s.v, c.target, seriesMax),
+              color: echartsBarGradient(s.v, c.target, seriesMax, { conditionalFormat: c.conditionalFormat, condScale: c.condScale }),
               opacity: isDimmed(s.x) ? 0.2 : 1,
             },
           })),
@@ -84,7 +84,7 @@ export function ComboChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         }] : []),
       ],
     };
-  }, [series, multiSeries, c.accent, c.showTarget, c.target, isDimmed]);
+  }, [series, multiSeries, c.accent, c.showTarget, c.target, c.conditionalFormat, c.condScale, isDimmed]);
 
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
   if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);

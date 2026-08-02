@@ -141,7 +141,8 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
   /** Scatter/bubble points when config.scatterX/scatterY are bound (empty otherwise). */
   scatterPoints: ScatterPoint[];
 } {
-  const { allMeasures, filteredRowsBySlug, rowsBySlug, datasets, crossFilter } = useBuilder();
+  const { allMeasures, filteredRowsBySlug, rowsBySlug, datasets, crossFilter, theme } = useBuilder();
+  const palette = theme?.palette && theme.palette.length ? theme.palette : COLORS;
 
   const valueNames = useMemo(() => {
     if (c.scatterX && c.scatterY) {
@@ -215,13 +216,13 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
 
   const legendSeries = useMemo(() => {
     if (!enrichedRows.length || !c.dataLegend || !valueFields.length) return [];
-    return aggregateLegendSeries(enrichedRows, c, measureFns, valueFields, c.dataLegend, COLORS);
-  }, [enrichedRows, c, measureFns, valueFields]);
+    return aggregateLegendSeries(enrichedRows, c, measureFns, valueFields, c.dataLegend, palette);
+  }, [enrichedRows, c, measureFns, valueFields, palette]);
 
   const scatterPoints = useMemo(() => {
     if (!enrichedRows.length) return [];
-    return aggregateScatter(enrichedRows, c, measureFns, valueFields, COLORS, c.dataLegend);
-  }, [enrichedRows, c, measureFns, valueFields]);
+    return aggregateScatter(enrichedRows, c, measureFns, valueFields, palette, c.dataLegend);
+  }, [enrichedRows, c, measureFns, valueFields, palette]);
 
   return { rows, data, multi, valueFields, loading: false, hasData: rows.length > 0, measureError, legendSeries, scatterPoints };
 }

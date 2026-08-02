@@ -9,7 +9,7 @@ export function SparklineWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const option = useMemo(() => {
     const last = series.length ? series[series.length - 1].v : 0;
     const seriesMax = Math.max(...series.map((s) => Math.abs(s.v)), 1);
-    const lineColor = c.target ? targetColor(last, c.target, seriesMax) : (c.accent ?? "#3b82f6");
+    const lineColor = c.target ? targetColor(last, c.target, seriesMax, { conditionalFormat: c.conditionalFormat, condScale: c.condScale }) : (c.accent ?? "#3b82f6");
 
     return {
       color: [lineColor],
@@ -38,7 +38,7 @@ export function SparklineWidget({ c, id }: { c: WidgetConfig; id?: string }) {
         },
       }],
     };
-  }, [series, c.accent, c.target]);
+  }, [series, c.accent, c.target, c.conditionalFormat, c.condScale]);
 
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
   if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);

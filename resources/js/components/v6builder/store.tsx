@@ -3,7 +3,8 @@ import { buildTables, fetchEndpointDatasets, type EndpointDataset, type TableDef
 import type { Row } from "@/lib/v6/model";
 import { logActivity, logWidgetActivity } from "./activity";
 import { topNValues, validateDateRange } from "./filters";
-import type { MeasureDefinition, PageLayout, TableCell, Widget, WidgetConfig, WidgetType } from "./types";
+import { captureTheme } from "./themes";
+import type { DashboardTheme, MeasureDefinition, PageLayout, TableCell, Widget, WidgetConfig, WidgetType } from "./types";
 import { makeEmptyTable, pushWidgets, ROW_HEIGHT, uid } from "./types";
 
 type Mode = "view" | "edit";
@@ -67,6 +68,9 @@ type Ctx = {
   applyCrossFilter: (sourceId: string, column: string, value: string, mode: "filter" | "highlight") => void;
   clearCrossFilter: () => void;
   clearAllFilters: () => void;
+  theme: DashboardTheme | null;
+  setTheme: (theme: DashboardTheme | null) => void;
+  saveTheme: (name: string) => void;
 };
 
 const BuilderCtx = createContext<Ctx | null>(null);
@@ -158,15 +162,16 @@ const MARGIN_KEY = {
 } as const;
 
 export function BuilderProvider({
-  pageId, pageDbId, defaultLayout, defaultMeasures = [], children, apiBase = "/api/builder-pages",
+  pageId, pageDbId, defaultLayout, defaultMeasures = [], defaultTheme = null, children, apiBase = "/api/builder-pages",
   dataApiBase = "/api/v6/endpoint-datasets",
   measuresApiBase = "/api/v6/measures",
-}: { pageId: string; pageDbId: number; defaultLayout: Widget[]; defaultMeasures?: MeasureDefinition[]; children: ReactNode; apiBase?: string; dataApiBase?: string; measuresApiBase?: string }) {
+}: { pageId: string; pageDbId: number; defaultLayout: Widget[]; defaultMeasures?: MeasureDefinition[]; defaultTheme?: DashboardTheme | null; children: ReactNode; apiBase?: string; dataApiBase?: string; measuresApiBase?: string }) {
   const [mode, setMode] = useState<Mode>("view");
   const [widgets, setWidgets] = useState<Widget[]>(defaultLayout);
   const [measures, setMeasures] = useState<MeasureDefinition[]>(defaultMeasures);
+  const [theme, setTheme] = useState<DashboardTheme | null>(defaultTheme);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [savedHash, setSavedHash] = useState<string>(JSON.stringify(defaultLayout));
+  const [savedHash, setSavedHash] = useState<string>(JSON.stringify({ widgets: defaultLayout, theme: defaultTheme }));
   const [tableSel, setTableSel] = useState<Record<string, string[]>>({});
   const [tableCursor, setTableCursor] = useState<Record<string, [number, number] | null>>({});
   const [tableClipboard, setTableClipboard] = useState<Partial<TableCell>[][] | null>(null);
@@ -486,7 +491,7 @@ export function BuilderProvider({
 
   const save = useCallback(async (): Promise<boolean> => {
     if (!pageDbId) return false;
-    const payload = { layout: { version: 2, widgets, measures } };
+    const payload = { layout: { version: 2, widgets, measures, theme } };
     try {
       const res = await fetch(`${apiBase}/${pageDbId}`, {
         method: "PUT",
@@ -500,18 +505,19 @@ export function BuilderProvider({
         body: JSON.stringify(payload),
       });
       if (!res.ok) return false;
-      setSavedHash(JSON.stringify(widgets));
+      setSavedHash(JSON.stringify({ widgets, theme }));
       return true;
     } catch {
       return false;
     }
-  }, [pageDbId, widgets, measures, apiBase]);
+  }, [pageDbId, widgets, measures, theme, apiBase]);
 
   const reset = useCallback(async (): Promise<boolean> => {
     if (!pageDbId) {
       setWidgets(defaultLayout);
       setMeasures(defaultMeasures);
-      setSavedHash(JSON.stringify(defaultLayout));
+      setTheme(defaultTheme);
+      setSavedHash(JSON.stringify({ widgets: defaultLayout, theme: defaultTheme }));
       setSelectedId(null);
       pastRef.current = [];
       futureRef.current = [];
@@ -537,7 +543,8 @@ export function BuilderProvider({
     }
     setWidgets(defaultLayout);
     setMeasures(defaultMeasures);
-    setSavedHash(JSON.stringify(defaultLayout));
+    setTheme(defaultTheme);
+    setSavedHash(JSON.stringify({ widgets: defaultLayout, theme: defaultTheme }));
     setSelectedId(null);
     pastRef.current = [];
     futureRef.current = [];
@@ -545,7 +552,7 @@ export function BuilderProvider({
     setCanRedo(false);
     logActivity("layout.reset", { detail: { widgetCount: defaultLayout.length } });
     return true;
-  }, [pageDbId, defaultLayout, defaultMeasures, apiBase]);
+  }, [pageDbId, defaultLayout, defaultMeasures, defaultTheme, apiBase]);
 
   const undo = useCallback(() => {
     if (pastRef.current.length === 0) return;
@@ -571,18 +578,24 @@ export function BuilderProvider({
 
   // canUndo and canRedo are managed via useState above
 
-  const exportJson = useCallback(() => JSON.stringify({ pageId, version: 2, widgets, measures }, null, 2), [pageId, widgets, measures]);
+  const exportJson = useCallback(() => JSON.stringify({ pageId, version: 2, widgets, measures, theme }, null, 2), [pageId, widgets, measures, theme]);
 
   const importJson = useCallback((raw: string) => {
     try {
       const parsed = JSON.parse(raw) as PageLayout;
       if (parsed?.widgets) setWidgets(parsed.widgets);
+      if (parsed?.theme) setTheme(parsed.theme);
       if (Array.isArray((parsed as PageLayout & { measures?: MeasureDefinition[] })?.measures)) setMeasures((parsed as PageLayout & { measures: MeasureDefinition[] }).measures);
     } catch { /* invalid JSON, ignore */ }
   }, []);
 
   const selected = useMemo(() => widgets.find((w) => w.id === selectedId) ?? null, [widgets, selectedId]);
-  const isDirty = useMemo(() => JSON.stringify(widgets) !== savedHash, [widgets, savedHash]);
+  const isDirty = useMemo(() => JSON.stringify({ widgets, theme }) !== savedHash, [widgets, theme, savedHash]);
+
+  const saveTheme = useCallback((name: string) => {
+    setTheme(captureTheme(widgets, name));
+    logActivity("theme.save", { detail: { name } });
+  }, [widgets]);
 
   const addMeasure = useCallback((measure: MeasureDefinition) => {
     setMeasures((current) => current.some((item) => item.name === measure.name) ? current.map((item) => item.name === measure.name ? measure : item) : [...current, measure]);
@@ -611,6 +624,7 @@ export function BuilderProvider({
     slicerDateRanges, setSlicerDateRanges,
     slicerTopN, setSlicerTopN,
     crossFilter, applyCrossFilter, clearCrossFilter, clearAllFilters,
+    theme, setTheme, saveTheme,
   };
   return <BuilderCtx.Provider value={value}>{children}</BuilderCtx.Provider>;
 }

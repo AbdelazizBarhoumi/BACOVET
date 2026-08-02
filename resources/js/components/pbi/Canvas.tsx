@@ -298,7 +298,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                 }}
                                 className={cn(
                                     'group absolute flex flex-col rounded p-2',
-                                    v.border && 'border border-border',
+                                    v.border && 'border',
                                     v.shadow && 'shadow-md',
                                     isSel &&
                                         !readOnly &&
@@ -311,6 +311,18 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     height: v.h,
                                     zIndex: v.z,
                                     backgroundColor: v.background,
+                                    ...(v.border && v.borderColor
+                                        ? { borderColor: v.borderColor }
+                                        : {}),
+                                    ...(v.borderWidth
+                                        ? { borderWidth: v.borderWidth }
+                                        : {}),
+                                    ...(v.radius !== undefined && v.radius !== null
+                                        ? { borderRadius: v.radius }
+                                        : {}),
+                                    ...(v.fontFamily
+                                        ? { fontFamily: v.fontFamily }
+                                        : {}),
                                 }}
                                 aria-label={v.altText || v.name}
                             >
@@ -335,7 +347,17 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                         !readOnly && 'cursor-move',
                                     )}
                                 >
-                                    <span className="truncate text-[11px] font-semibold text-foreground">
+                                    <span
+                                        className="truncate text-[11px] font-semibold text-foreground"
+                                        style={{
+                                            ...(v.fontColor
+                                                ? { color: v.fontColor }
+                                                : {}),
+                                            ...(v.fontSize
+                                                ? { fontSize: v.fontSize }
+                                                : {}),
+                                        }}
+                                    >
                                         {v.showTitle
                                             ? v.title || visualTypeLabel(v.type)
                                             : ''}

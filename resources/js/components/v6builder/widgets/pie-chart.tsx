@@ -1,10 +1,11 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, PIE_COLORS, hasWidgetBinding, useWidgetData, useCrossFilter, rechartClickLabel, WidgetTooltip, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
+import { boxStyle, wrap, usePalette, hasWidgetBinding, useWidgetData, useCrossFilter, rechartClickLabel, WidgetTooltip, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function PieChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const { multiSeries, hasSeries, series, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
+  const palette = usePalette();
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
   if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries) return wrap(c, boxStyle(c), noSeriesData());
@@ -38,7 +39,7 @@ export function PieChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
                 {ms.data.map((s, i) => (
                   <Cell
                     key={i}
-                    fill={PIE_COLORS[(si + i) % PIE_COLORS.length]}
+                    fill={palette[(si + i) % palette.length]}
                     fillOpacity={isDimmed(s.x) ? 0.2 : 1}
                     className="transition-opacity duration-150 cursor-pointer"
                   />

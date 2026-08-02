@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatNumber } from "../format";
 import type { WidgetConfig } from "../types";
 import { boxStyle, noDataBound, noSeriesData, targetColor, useCrossFilter, wrap, MeasureErrorBanner } from "./shared";
 import { useDatasetData } from "./use-dataset";
@@ -34,7 +35,7 @@ export function MapWidget({ c, id }: { c: WidgetConfig; id?: string }) {
     <div className="h-full w-full overflow-auto">
       <div className="grid min-h-full grid-cols-3 content-start gap-1.5 p-1.5">
         {points.map((p, i) => {
-          const color = targetColor(p.value, c.target, max);
+          const color = targetColor(p.value, c.target, max, c);
           const intensity = p.value / max;
           return (
             <div
@@ -47,10 +48,10 @@ export function MapWidget({ c, id }: { c: WidgetConfig; id?: string }) {
                 opacity: isDimmed(p.name) ? 0.25 : 1,
                 boxShadow: intensity > 0.55 ? `0 2px 6px ${color}44` : undefined,
               }}
-              title={`${p.name}: ${p.value.toFixed(decimals)}`}
+              title={`${p.name}: ${formatNumber(p.value, { decimals, prefix: c.prefix, compact: c.compact })}`}
             >
               <span className="w-full truncate text-center">{p.name}</span>
-              <span className="font-semibold tabular-nums">{p.value.toFixed(decimals)}</span>
+              <span className="font-semibold tabular-nums">{formatNumber(p.value, { decimals, prefix: c.prefix, compact: c.compact })}</span>
             </div>
           );
         })}

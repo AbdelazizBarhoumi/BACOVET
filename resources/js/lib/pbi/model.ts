@@ -20,12 +20,24 @@ export type Row = Record<string, string | number | boolean | null>;
 
 export type Agg = 'sum' | 'avg' | 'count' | 'min' | 'max' | 'distinct';
 
+/** Value presentation formats for numbers (per-field or per-visual). */
+export type NumberFormat =
+    | 'auto'
+    | 'int'
+    | '1dec'
+    | '2dec'
+    | 'compact'
+    | 'percent'
+    | 'currency';
+
 export type WellField = {
     table: string;
     name: string;
     agg: Agg;
     /** Optional friendly presentation name; never used for row lookup. */
     label?: string;
+    /** Number presentation format; `auto` falls back to the visual default. */
+    format?: NumberFormat;
 };
 
 export type FieldReference = {
@@ -34,6 +46,20 @@ export type FieldReference = {
 };
 
 const AGGREGATIONS: Agg[] = ['sum', 'avg', 'count', 'distinct', 'min', 'max'];
+
+export const NUMBER_FORMATS: NumberFormat[] = [
+    'auto',
+    'int',
+    '1dec',
+    '2dec',
+    'compact',
+    'percent',
+    'currency',
+];
+
+export function isNumberFormat(value: unknown): value is NumberFormat {
+    return typeof value === 'string' && NUMBER_FORMATS.includes(value as NumberFormat);
+}
 
 /** Converts drag metadata and legacy persisted values into a physical field reference. */
 export function parseFieldReference(input: unknown, fallbackTable?: string): FieldReference | null {
@@ -73,11 +99,57 @@ export function normalizeWellField(input: unknown, fallbackTable?: string): Well
     if (!reference) return null;
     const agg = AGGREGATIONS.includes(value.agg as Agg) ? (value.agg as Agg) : 'sum';
     const label = typeof value.label === 'string' && value.label.trim() ? value.label.trim() : undefined;
-    return { table: reference.table ?? '', name: reference.name, agg, ...(label ? { label } : {}) };
+    const format = isNumberFormat(value.format) ? value.format : undefined;
+    return {
+        table: reference.table ?? '',
+        name: reference.name,
+        agg,
+        ...(label ? { label } : {}),
+        ...(format ? { format } : {}),
+    };
 }
 
 export function fieldLabel(wf: Pick<WellField, 'name' | 'label'>): string {
     return wf.label?.trim() || wf.name;
+}
+
+const DEFAULT_CONDITIONAL: ConditionalFormat = {
+    mode: 'databars',
+    minColor: 'oklch(0.65 0.15 230)',
+    midColor: 'oklch(0.72 0.12 85)',
+    maxColor: 'oklch(0.58 0.17 25)',
+};
+
+/** Accepts a legacy boolean or a full config; returns a normalized config. */
+export function normalizeConditionalFormat(
+    input: unknown,
+): ConditionalFormat {
+    if (input && typeof input === 'object') {
+        const value = input as Record<string, unknown>;
+        const mode =
+            value.mode === 'colorScale' || value.mode === 'databars'
+                ? value.mode
+                : 'none';
+        return {
+            mode,
+            minColor:
+                typeof value.minColor === 'string'
+                    ? value.minColor
+                    : DEFAULT_CONDITIONAL.minColor,
+            midColor:
+                typeof value.midColor === 'string'
+                    ? value.midColor
+                    : DEFAULT_CONDITIONAL.midColor,
+            maxColor:
+                typeof value.maxColor === 'string'
+                    ? value.maxColor
+                    : DEFAULT_CONDITIONAL.maxColor,
+        };
+    }
+    // Legacy boolean: `true` meant "data bars".
+    return input
+        ? { ...DEFAULT_CONDITIONAL, mode: 'databars' }
+        : { ...DEFAULT_CONDITIONAL, mode: 'none' };
 }
 
 export type VisualType =
@@ -128,6 +200,15 @@ export type AnalyticsLine = {
     enabled: boolean;
 };
 
+/** Conditional formatting configuration for tables/matrices. */
+export type ConditionalFormat = {
+    /** `none` disables; `databars` sizes cells relative to the column max; `colorScale` tints min/mid/max. */
+    mode: 'none' | 'databars' | 'colorScale';
+    minColor: string;
+    midColor: string;
+    maxColor: string;
+};
+
 export type Visual = {
     id: string;
     type: VisualType;
@@ -158,10 +239,20 @@ export type Visual = {
     shadow: boolean;
     altText: string;
     colorIndex: number;
+    /** typography */
+    fontFamily?: string;
+    fontSize?: number;
+    fontColor?: string;
+    /** border styling (only when `border` is true) */
+    borderColor?: string;
+    borderWidth?: number;
+    radius?: number;
+    /** number format applied to values/ticks when fields don't override */
+    numberFormat?: NumberFormat;
     /** analytics pane */
     analytics: AnalyticsLine[];
     /** conditional formatting for table/matrix + column charts */
-    conditionalFormat: boolean;
+    conditionalFormat: boolean | ConditionalFormat;
     subtotals: boolean;
     /** drill level index into drillFields (hierarchy) */
     drillLevel: number;
@@ -1060,6 +1151,61 @@ export function formatNumber(n: number, compact = true) {
     if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
     if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
     return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+const DECIMALS: Record<Exclude<NumberFormat, 'auto'>, number | null> = {
+    int: 0,
+    '1dec': 1,
+    '2dec': 2,
+    compact: null,
+    percent: null,
+    currency: null,
+};
+
+const CURRENCY_SYMBOL = '$';
+
+/**
+ * Formats a number with an explicit presentation format. `auto` keeps the
+ * existing heuristic behavior (percent when |n| < 1, compact otherwise).
+ */
+export function formatNumberWith(n: number, code: NumberFormat): string {
+    if (!isFinite(n)) return '—';
+    switch (code) {
+        case 'percent':
+            return `${(n * 100).toFixed(1)}%`;
+        case 'currency':
+            return `${CURRENCY_SYMBOL}${n.toLocaleString('en-US', {
+                maximumFractionDigits: 0,
+            })}`;
+        case 'compact': {
+            const abs = Math.abs(n);
+            if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+            if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+            return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        }
+        case 'int':
+        case '1dec':
+        case '2dec':
+            return n.toLocaleString('en-US', {
+                minimumFractionDigits: DECIMALS[code] ?? 0,
+                maximumFractionDigits: DECIMALS[code] ?? 0,
+            });
+        default:
+            return formatNumber(n);
+    }
+}
+
+/**
+ * Resolves the effective format for a well field: the field's own format wins,
+ * otherwise the visual-level `numberFormat`, otherwise `auto`.
+ */
+export function formatWellValue(
+    n: number,
+    wf: Pick<WellField, 'format'> | undefined,
+    visualDefault: NumberFormat = 'auto',
+): string {
+    const code = wf?.format && wf.format !== 'auto' ? wf.format : visualDefault;
+    return formatNumberWith(n, code);
 }
 
 export function formatValue(

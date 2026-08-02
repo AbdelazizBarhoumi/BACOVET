@@ -1,6 +1,7 @@
 import { useMemo } from "react";
+import { formatNumber } from "../format";
 import type { WidgetConfig } from "../types";
-import { boxStyle, noDataBound, noSeriesData, useCrossFilter, wrap, MeasureErrorBanner } from "./shared";
+import { boxStyle, colorAt, noDataBound, noSeriesData, useCrossFilter, wrap, MeasureErrorBanner } from "./shared";
 import { useDatasetData } from "./use-dataset";
 
 export function MatrixWidget({ c, id }: { c: WidgetConfig; id?: string }) {
@@ -42,6 +43,8 @@ export function MatrixWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   if (!hasData || !table) return wrap(c, boxStyle(c), noSeriesData());
   const decimals = c.decimals ?? 1;
   const accent = c.accent ?? "#3b82f6";
+  const flat = c.conditionalFormat === "none";
+  const condScale = c.condScale;
   const colMax = table.cols.map((_, ci) => Math.max(...table.values.map((row) => Math.abs(row[ci])), 1));
 
   return wrap(c, boxStyle(c),
@@ -75,9 +78,9 @@ export function MatrixWidget({ c, id }: { c: WidgetConfig; id?: string }) {
                   <td
                     key={c2}
                     className="border border-border/60 px-2.5 py-1.5 text-right tabular-nums font-medium"
-                    style={{ backgroundColor: `color-mix(in oklch, ${accent} ${(intensity * 55).toFixed(0)}%, transparent)` }}
+                    style={{ backgroundColor: flat ? `color-mix(in oklch, ${accent} 18%, transparent)` : colorAt(intensity, condScale) }}
                   >
-                    {value.toFixed(decimals)}
+                    {formatNumber(value, { decimals, prefix: c.prefix, compact: c.compact })}
                   </td>
                 );
               })}

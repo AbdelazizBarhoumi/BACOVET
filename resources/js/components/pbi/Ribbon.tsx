@@ -38,6 +38,7 @@ import {
     TrendingUp,
     Type,
     MousePointerClick,
+    Palette,
 } from 'lucide-react';
 import { useState } from 'react';
 import { usePbi } from '@/lib/pbi/store';
@@ -217,6 +218,12 @@ export function Ribbon({
                         icon: Columns3,
                         active: openPanes.filters,
                         onClick: () => togglePane('filters'),
+                    },
+                    {
+                        label: 'Themes',
+                        icon: Palette,
+                        active: openPanes.themes,
+                        onClick: () => togglePane('themes'),
                     },
                 ],
             },

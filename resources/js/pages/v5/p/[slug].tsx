@@ -9,6 +9,7 @@ import {
     Filter,
     Layers,
     Link2,
+    Palette,
     Pencil,
     RefreshCw,
     Save,
@@ -29,6 +30,7 @@ import {
     FiltersPane,
     SelectionPane,
     SyncSlicersPane,
+    ThemesPane,
     VisualizationsPane,
 } from '@/components/pbi/Panes';
 import { Ribbon } from '@/components/pbi/Ribbon';
@@ -41,6 +43,7 @@ import {
 } from '@/lib/pbi/datasets';
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
+import { themeById, themeCssVars } from '@/lib/pbi/themes';
 import { fetchSchema } from '@/services/endpointManagerApi';
 
 type PageProps = {
@@ -361,6 +364,8 @@ function EditBody() {
         clearDrillthrough,
         crossFilter,
         clearCrossFilter,
+        theme,
+        customThemes,
     } = usePbi();
     const [dax, setDax] = useState(false);
     const [manage, setManage] = useState(false);
@@ -373,9 +378,17 @@ function EditBody() {
         filters: false,
         visualizations: false,
         fields: false,
+        themes: false,
     });
     const togglePaneCollapsed = (key: string) =>
         setPaneCollapsed((p) => ({ ...p, [key]: !p[key] }));
+
+    const activeTheme =
+        customThemes.find((t) => t.id === theme) ?? themeById(theme);
+    const themeStyle = useMemo(
+        () => themeCssVars(activeTheme) as React.CSSProperties,
+        [activeTheme],
+    );
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -416,7 +429,10 @@ function EditBody() {
                 </div>
             )}
 
-            <main className="flex min-h-0 flex-1">
+            <main
+                className="flex min-h-0 flex-1"
+                style={themeStyle}
+            >
                 <section className="min-h-0 flex-1 overflow-auto bg-muted">
                     <h1 className="sr-only">Interactive report canvas</h1>
                     <Canvas />
@@ -472,6 +488,19 @@ function EditBody() {
                     >
                         <FiltersPane
                             onCollapse={() => togglePaneCollapsed('filters')}
+                        />
+                    </PaneShell>
+                )}
+                {openPanes.themes && (
+                    <PaneShell
+                        title="Themes"
+                        icon={<Palette className="size-4" />}
+                        width="w-64"
+                        collapsed={paneCollapsed.themes}
+                        onToggle={() => togglePaneCollapsed('themes')}
+                    >
+                        <ThemesPane
+                            onCollapse={() => togglePaneCollapsed('themes')}
                         />
                     </PaneShell>
                 )}

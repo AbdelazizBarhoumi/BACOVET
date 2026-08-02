@@ -28,12 +28,14 @@ import {
     findTableForField,
     hasColumn,
     isMeasure,
+    normalizeConditionalFormat,
     normalizeWellField,
     registerMeasure,
     setTables,
     unregisterMeasure,
     type Agg,
     type AnalyticsLine,
+    type ConditionalFormat,
     type CrossFilter,
     type Field,
     type Interaction,
@@ -45,6 +47,7 @@ import {
     type VisualType,
     type WellField,
 } from './model';
+import { type ReportTheme } from './themes';
 
 export type WellName =
     | 'axis'
@@ -123,7 +126,8 @@ export type PaneName =
     | 'selection'
     | 'bookmarks'
     | 'syncSlicers'
-    | 'analytics';
+    | 'analytics'
+    | 'themes';
 
 export type State = {
     pages: Page[];
@@ -142,6 +146,8 @@ export type State = {
     editInteractions: boolean;
     bookmarks: Bookmark[];
     theme: string;
+    /** user-saved themes persisted alongside the layout */
+    customThemes: ReportTheme[];
     showGridlines: boolean;
     snapToGrid: boolean;
     zoom: number;
@@ -209,6 +215,8 @@ function normalizeState(state: State): State {
         tooltipHover: null,
         slicerDateRanges: state.slicerDateRanges ?? {},
         measures: state.measures ?? [],
+        theme: state.theme ?? 'default',
+        customThemes: Array.isArray(state.customThemes) ? state.customThemes : [],
         filters: (state.filters ?? []).map((f) => ({ ...f, type: f.type ?? 'list' })),
         slicerSelections,
         pages: state.pages.map((page) => ({
@@ -217,6 +225,11 @@ function normalizeState(state: State): State {
                 const next = { ...visual };
                 if (next.maxCategories === undefined || next.maxCategories === null)
                     next.maxCategories = 200;
+                if (next.fontSize === undefined || next.fontSize === null)
+                    next.fontSize = 10;
+                next.conditionalFormat = normalizeConditionalFormat(
+                    visual.conditionalFormat,
+                );
                 for (const well of wells) {
                     next[well] = (visual[well] ?? [])
                         .map((field) => normalizeWellField(field))
@@ -367,6 +380,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
     editInteractions: false,
     bookmarks: [],
     theme: 'default',
+    customThemes: [],
     showGridlines: true,
     snapToGrid: true,
     zoom: 100,
@@ -380,6 +394,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
         bookmarks: false,
         syncSlicers: false,
         analytics: false,
+        themes: false,
     },
     drillthrough: null,
     measures: [],
@@ -496,6 +511,13 @@ type Ctx = State & {
     ) => Promise<void>;
     removeMeasure: (id: string | number) => Promise<void>;
     setTheme: (t: string) => void;
+    saveTheme: (name: string, palette: string[], fontFamily?: string) => void;
+    updateTheme: (id: string, patch: Partial<ReportTheme>) => void;
+    removeTheme: (id: string) => void;
+    setConditionalFormat: (
+        visualId: string,
+        cfg: Partial<ConditionalFormat>,
+    ) => void;
     setRibbonTab: (t: string) => void;
     togglePane: (p: PaneName) => void;
     setZoom: (z: number) => void;
@@ -1346,6 +1368,48 @@ export function PbiProvider({
             }));
         },
         setTheme: (theme) => setState((s) => ({ ...s, theme })),
+        saveTheme: (name, palette, fontFamily) =>
+            setState((s) => ({
+                ...s,
+                customThemes: [
+                    ...s.customThemes,
+                    {
+                        id: uid('theme'),
+                        name: name.trim() || `Theme ${s.customThemes.length + 1}`,
+                        palette,
+                        ...(fontFamily ? { fontFamily } : {}),
+                    },
+                ],
+            })),
+        updateTheme: (id, patch) =>
+            setState((s) => ({
+                ...s,
+                customThemes: s.customThemes.map((t) =>
+                    t.id === id ? { ...t, ...patch } : t,
+                ),
+            })),
+        removeTheme: (id) =>
+            setState((s) => ({
+                ...s,
+                customThemes: s.customThemes.filter((t) => t.id !== id),
+                theme: s.theme === id ? 'default' : s.theme,
+            })),
+        setConditionalFormat: (visualId, cfg) =>
+            mapVisuals((vs) =>
+                vs.map((v) =>
+                    v.id === visualId
+                        ? {
+                              ...v,
+                              conditionalFormat: {
+                                  ...normalizeConditionalFormat(
+                                      v.conditionalFormat,
+                                  ),
+                                  ...cfg,
+                              },
+                          }
+                        : v,
+                ),
+            ),
         setRibbonTab: (ribbonTab) => setState((s) => ({ ...s, ribbonTab })),
         togglePane: (p) =>
             setState((s) => ({

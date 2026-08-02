@@ -1,6 +1,7 @@
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { useId } from "react";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
+import { formatNumber } from "../format";
 import type { WidgetConfig } from "../types";
 import { boxStyle, hasWidgetBinding, useWidgetData, MeasureErrorBanner } from "./shared";
 
@@ -66,7 +67,7 @@ export function KpiWidget({ c, id }: { c: WidgetConfig; id?: string }) {
                 color: "transparent",
               }}
             >
-              {v.toFixed(c.decimals ?? 1).replace(".", ",")}
+              {formatNumber(v, { decimals: c.decimals ?? 1, prefix: c.prefix, compact: c.compact })}
               <span
                 className="text-base ml-1 font-bold text-muted-foreground"
                 style={{ WebkitTextFillColor: "initial", backgroundImage: "none" }}
@@ -78,7 +79,7 @@ export function KpiWidget({ c, id }: { c: WidgetConfig; id?: string }) {
               <div
                 className="flex items-center gap-0.5 text-[11px] font-semibold rounded-full px-1.5 py-0.5 mb-1 shrink-0"
                 style={{ color: trendColor, backgroundColor: `${trendColor}1a` }}
-                title={`${trendDelta! > 0 ? "+" : ""}${trendDelta!.toFixed(c.decimals ?? 1).replace(".", ",")}${c.unit ?? ""} vs période précédente`}
+                title={`${trendDelta! > 0 ? "+" : ""}${formatNumber(trendDelta!, { decimals: c.decimals ?? 1, prefix: c.prefix, compact: c.compact, unit: c.unit ?? "" })} vs période précédente`}
               >
                 {trendDir === "up" ? <ArrowUpRight size={12} /> : trendDir === "down" ? <ArrowDownRight size={12} /> : <Minus size={12} />}
                 {Math.abs(trendPct).toFixed(0)}%
@@ -97,7 +98,7 @@ export function KpiWidget({ c, id }: { c: WidgetConfig; id?: string }) {
           </div>
           <div className="flex items-center justify-between mt-1">
             <span className="text-[10px] font-medium text-muted-foreground">
-              Objectif : {tgt}{c.unit ?? ""}
+              Objectif : {formatNumber(tgt, { decimals: c.decimals ?? 0, prefix: c.prefix, compact: c.compact })}{c.unit ?? ""}
             </span>
             <span className="text-[10px] font-semibold" style={{ color: statusColor }}>
               {targetPct.toFixed(0)}%

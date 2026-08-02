@@ -55,6 +55,7 @@ import {
 } from '@/lib/pbi/filters';
 import {
     MEASURES,
+    NUMBER_FORMATS,
     PAGE_PRESETS,
     distinctValues,
     fieldIssue,
@@ -64,8 +65,11 @@ import {
     isMeasure,
     measureError,
     measureLabel,
+    normalizeConditionalFormat,
     type Agg,
+    type ConditionalFormat,
     type Field,
+    type NumberFormat,
     type VisualType,
 } from '@/lib/pbi/model';
 import {
@@ -74,6 +78,13 @@ import {
     visualTypeLabel,
     type WellName,
 } from '@/lib/pbi/store';
+import {
+    THEME_COLOR_COUNT,
+    THEMES,
+    isValidPalette,
+    themeById,
+    type ReportTheme,
+} from '@/lib/pbi/themes';
 import { cn } from '@/lib/utils';
 import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
 
@@ -817,6 +828,7 @@ export function VisualizationsPane({
         dropField,
         removeWellField,
         setWellAgg,
+        setConditionalFormat,
         toggleAnalytics,
         page,
         pages,
@@ -1187,10 +1199,6 @@ export function VisualizationsPane({
                                         ['showLabels', 'Data labels'],
                                         ['border', 'Border'],
                                         ['shadow', 'Shadow'],
-                                        [
-                                            'conditionalFormat',
-                                            'Conditional formatting (data bars)',
-                                        ],
                                         ['subtotals', 'Totals / subtotals'],
                                     ] as const
                                 ).map(([key, label]) => (
@@ -1211,6 +1219,265 @@ export function VisualizationsPane({
                                         />
                                     </label>
                                 ))}
+                                <label className="block">
+                                    <span className="mb-1 block text-muted-foreground">
+                                        Background
+                                    </span>
+                                    <input
+                                        type="color"
+                                        value={
+                                            selected.background.startsWith('#')
+                                                ? selected.background
+                                                : '#ffffff'
+                                        }
+                                        onChange={(e) =>
+                                            updateVisual(selected.id, {
+                                                background: e.target.value,
+                                            })
+                                        }
+                                        className="h-7 w-full cursor-pointer rounded border border-border bg-background"
+                                    />
+                                </label>
+                                <label className="block">
+                                    <span className="mb-1 block text-muted-foreground">
+                                        Font
+                                    </span>
+                                    <select
+                                        value={selected.fontFamily ?? ''}
+                                        onChange={(e) =>
+                                            updateVisual(selected.id, {
+                                                fontFamily:
+                                                    e.target.value || undefined,
+                                            })
+                                        }
+                                        className="w-full rounded border border-border bg-background px-2 py-1"
+                                    >
+                                        <option value="">Report font</option>
+                                        <option value="ui-sans-serif, system-ui, sans-serif">
+                                            Sans-serif
+                                        </option>
+                                        <option value="Georgia, 'Times New Roman', serif">
+                                            Serif
+                                        </option>
+                                        <option value="ui-monospace, monospace">
+                                            Monospace
+                                        </option>
+                                    </select>
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Size
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min={8}
+                                                max={24}
+                                                value={selected.fontSize ?? 10}
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        fontSize: Number(
+                                                            e.target.value,
+                                                        ),
+                                                    })
+                                                }
+                                                className="w-full rounded border border-border bg-background px-2 py-1"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Color
+                                            </span>
+                                            <input
+                                                type="color"
+                                                value={
+                                                    selected.fontColor?.startsWith(
+                                                        '#',
+                                                    )
+                                                        ? selected.fontColor
+                                                        : '#000000'
+                                                }
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        fontColor:
+                                                            e.target.value,
+                                                    })
+                                                }
+                                                className="h-7 w-full cursor-pointer rounded border border-border bg-background"
+                                            />
+                                        </label>
+                                    </div>
+                                </label>
+                                <label className="block">
+                                    <span className="mb-1 block text-muted-foreground">
+                                        Number format
+                                    </span>
+                                    <select
+                                        value={selected.numberFormat ?? 'auto'}
+                                        onChange={(e) =>
+                                            updateVisual(selected.id, {
+                                                numberFormat:
+                                                    (e.target
+                                                        .value as NumberFormat) ||
+                                                    undefined,
+                                            })
+                                        }
+                                        className="w-full rounded border border-border bg-background px-2 py-1"
+                                    >
+                                        {NUMBER_FORMATS.map((f) => (
+                                            <option key={f} value={f}>
+                                                {f}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                {selected.border && (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Border
+                                            </span>
+                                            <input
+                                                type="color"
+                                                value={
+                                                    selected.borderColor?.startsWith(
+                                                        '#',
+                                                    )
+                                                        ? selected.borderColor
+                                                        : '#000000'
+                                                }
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        borderColor:
+                                                            e.target.value,
+                                                    })
+                                                }
+                                                className="h-7 w-full cursor-pointer rounded border border-border bg-background"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Width
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={8}
+                                                value={selected.borderWidth ?? 1}
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        borderWidth: Number(
+                                                            e.target.value,
+                                                        ),
+                                                    })
+                                                }
+                                                className="w-full rounded border border-border bg-background px-2 py-1"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-muted-foreground">
+                                                Radius
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={24}
+                                                value={selected.radius ?? 0}
+                                                onChange={(e) =>
+                                                    updateVisual(selected.id, {
+                                                        radius: Number(
+                                                            e.target.value,
+                                                        ),
+                                                    })
+                                                }
+                                                className="w-full rounded border border-border bg-background px-2 py-1"
+                                            />
+                                        </label>
+                                    </div>
+                                )}
+                                {['table', 'matrix'].includes(
+                                    selected.type,
+                                ) && (
+                                    <div className="space-y-2">
+                                        <label className="flex items-center justify-between">
+                                            <span>Conditional formatting</span>
+                                            <select
+                                                value={
+                                                    normalizeConditionalFormat(
+                                                        selected.conditionalFormat,
+                                                    ).mode
+                                                }
+                                                onChange={(e) =>
+                                                    setConditionalFormat(
+                                                        selected.id,
+                                                        {
+                                                            mode: e.target
+                                                                .value as ConditionalFormat['mode'],
+                                                        },
+                                                    )
+                                                }
+                                                className="rounded border border-border bg-background px-1 py-0.5"
+                                            >
+                                                <option value="none">
+                                                    None
+                                                </option>
+                                                <option value="databars">
+                                                    Data bars
+                                                </option>
+                                                <option value="colorScale">
+                                                    Color scale
+                                                </option>
+                                            </select>
+                                        </label>
+                                        {normalizeConditionalFormat(
+                                            selected.conditionalFormat,
+                                        ).mode !== 'none' && (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {(
+                                                    [
+                                                        ['minColor', 'Min'],
+                                                        ['midColor', 'Mid'],
+                                                        ['maxColor', 'Max'],
+                                                    ] as const
+                                                ).map(([key, label]) => (
+                                                    <label
+                                                        key={key}
+                                                        className="block"
+                                                    >
+                                                        <span className="mb-1 block text-muted-foreground">
+                                                            {label}
+                                                        </span>
+                                                        <input
+                                                            type="color"
+                                                            value={
+                                                                normalizeConditionalFormat(
+                                                                    selected.conditionalFormat,
+                                                                )[key].startsWith(
+                                                                    '#',
+                                                                )
+                                                                    ? normalizeConditionalFormat(
+                                                                          selected.conditionalFormat,
+                                                                      )[key]
+                                                                    : '#4c78d0'
+                                                            }
+                                                            onChange={(e) =>
+                                                                setConditionalFormat(
+                                                                    selected.id,
+                                                                    {
+                                                                        [key]:
+                                                                            e
+                                                                                .target
+                                                                                .value,
+                                                                    },
+                                                                )
+                                                            }
+                                                            className="h-7 w-full cursor-pointer rounded border border-border bg-background"
+                                                        />
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <label className="block">
                                     <span className="mb-1 block text-muted-foreground">
                                         Data colors (palette offset)
@@ -1335,6 +1602,141 @@ export function VisualizationsPane({
                     </div>
                 </>
             )}
+        </div>
+    );
+}
+
+/* ------------------------------ Themes pane ------------------------------ */
+
+export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
+    const {
+        theme,
+        customThemes,
+        setTheme,
+        saveTheme,
+        updateTheme,
+        removeTheme,
+        togglePane,
+    } = usePbi();
+    const [name, setName] = useState('');
+    const active = customThemes.find((t) => t.id === theme) ?? themeById(theme);
+
+    const allThemes: ReportTheme[] = [
+        ...THEMES,
+        ...customThemes.filter((t) => !THEMES.some((b) => b.id === t.id)),
+    ];
+
+    const paletteEditor = (t: ReportTheme, onChange: (p: string[]) => void) => (
+        <div className="grid grid-cols-8 gap-1">
+            {t.palette.slice(0, THEME_COLOR_COUNT).map((c, i) => (
+                <input
+                    key={i}
+                    type="color"
+                    value={c.startsWith('#') ? c : '#4c78d0'}
+                    onChange={(e) => {
+                        const next = [...t.palette];
+                        next[i] = e.target.value;
+                        onChange(next);
+                    }}
+                    className="h-5 w-full cursor-pointer rounded border border-border"
+                    aria-label={`${t.name} color ${i + 1}`}
+                />
+            ))}
+        </div>
+    );
+
+    const paletteSwatch = (t: ReportTheme) => (
+        <div className="grid grid-cols-8 gap-1">
+            {t.palette.slice(0, THEME_COLOR_COUNT).map((c, i) => (
+                <span
+                    key={i}
+                    className="h-5 rounded border border-border"
+                    style={{ backgroundColor: c.startsWith('#') ? c : '#4c78d0' }}
+                />
+            ))}
+        </div>
+    );
+
+    return (
+        <div className="flex h-full flex-col">
+            <PaneHeader
+                title="Themes"
+                right={
+                    <button
+                        onClick={() => togglePane('themes')}
+                        aria-label="Close themes pane"
+                    >
+                        <X className="size-3 text-muted-foreground" />
+                    </button>
+                }
+                onCollapse={onCollapse}
+            />
+            <div className="flex-1 space-y-3 overflow-auto px-3 pb-3 text-[11px]">
+                <div className="text-muted-foreground">
+                    Colors apply instantly to every visual.
+                </div>
+                {allThemes.map((t) => {
+                    const isActive = active?.id === t.id;
+                    const isCustom = customThemes.some((c) => c.id === t.id);
+                    return (
+                        <div
+                            key={t.id}
+                            className="rounded border border-border p-2"
+                        >
+                            <button
+                                onClick={() => setTheme(t.id)}
+                                className="flex w-full items-center justify-between"
+                            >
+                                <span className="font-medium">{t.name}</span>
+                                <span
+                                    className={
+                                        isActive
+                                            ? 'text-[var(--brand)]'
+                                            : 'text-muted-foreground'
+                                    }
+                                >
+                                    {isActive ? 'Active' : 'Apply'}
+                                </span>
+                            </button>
+                            <div className="mt-2">
+                                {isCustom
+                                    ? paletteEditor(t, (p) =>
+                                          updateTheme(t.id, { palette: p }),
+                                      )
+                                    : paletteSwatch(t)}
+                            </div>
+                            {isCustom && (
+                                <button
+                                    onClick={() => removeTheme(t.id)}
+                                    className="mt-2 flex items-center gap-1 text-destructive"
+                                >
+                                    <Trash2 className="size-3" /> Delete
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+                <div className="rounded border border-border p-2">
+                    <div className="mb-1 font-medium">Save current theme</div>
+                    <input
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Theme name"
+                        className="w-full rounded border border-border bg-background px-2 py-1"
+                    />
+                    <button
+                        onClick={() => {
+                            if (!isValidPalette(active.palette)) return;
+                            saveTheme(name, active.palette, active.fontFamily);
+                            setName('');
+                        }}
+                        disabled={!name.trim() || !isValidPalette(active.palette)}
+                        className="mt-2 flex w-full items-center justify-center gap-1 rounded bg-[var(--brand)] py-1 text-background disabled:opacity-50"
+                    >
+                        <Plus className="size-3" /> Save theme
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

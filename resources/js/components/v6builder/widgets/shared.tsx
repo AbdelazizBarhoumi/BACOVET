@@ -1,4 +1,5 @@
 import { TriangleAlert } from "lucide-react";
+import { formatNumber } from "../format";
 import { useBuilder } from "../store";
 import type { WidgetConfig } from "../types";
 import { DATASET_COLORS, useDatasetData, type ScatterPoint } from "./use-dataset";
@@ -39,10 +40,12 @@ export function useVisualData(c: WidgetConfig, widgetId?: string): {
   /** Scatter/bubble points when config.scatterX/scatterY are bound (empty otherwise). */
   scatterPoints: ScatterPoint[];
 } {
+  const { theme } = useBuilder();
   const ds = useDatasetData(c, widgetId);
   const hasValues = !!c.dataValue || !!c.dataValues?.length;
   const hasScatter = !!c.scatterX && !!c.scatterY;
   const hasData = !!c.datasetSlug && (hasValues || hasScatter) && ds.hasData;
+  const palette = theme?.palette && theme.palette.length ? theme.palette : DATASET_COLORS;
 
   const series: VisualSeries[] = hasData
     ? ds.multi.map((d) => ({ x: d.name, v: d.value, tips: d.tips }))
@@ -53,7 +56,7 @@ export function useVisualData(c: WidgetConfig, widgetId?: string): {
         : ds.valueFields.map((vf, i) => ({
             name: vf.key,
             label: vf.label,
-            color: DATASET_COLORS[i % DATASET_COLORS.length],
+            color: palette[i % palette.length],
             data: ds.multi.map((d) => ({ x: d.name, v: d.values[vf.key] ?? 0, tips: d.tips })),
           })))
     : [];
@@ -228,6 +231,12 @@ export const SHADOW: Record<NonNullable<WidgetConfig["shadow"]>, string> = {
 
 export const PIE_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#14b8a6"];
 
+/** Series palette: theme.palette when the page theme defines one, else the default palette. */
+export function usePalette(): string[] {
+  const { theme } = useBuilder();
+  return theme?.palette && theme.palette.length ? theme.palette : PIE_COLORS;
+}
+
 export function boxStyle(c: WidgetConfig): React.CSSProperties {
   const transforms: string[] = [];
   if (c.rotate) transforms.push(`rotate(${c.rotate}deg)`);
@@ -359,10 +368,10 @@ const SCALE_RED = "#ef4444";
 const SCALE_AMBER = "#f59e0b";
 const SCALE_GREEN = "#22c55e";
 
-/** Continuous red → amber → green color for t in [0,1]. */
-export function colorAt(t: number): string {
+/** Continuous red → amber → green color for t in [0,1], using a custom scale when provided. */
+export function colorAt(t: number, scale: { min: string; mid: string; max: string } = { min: SCALE_RED, mid: SCALE_AMBER, max: SCALE_GREEN }): string {
   const tt = Math.min(1, Math.max(0, t));
-  return tt <= 0.5 ? mixHex(SCALE_RED, SCALE_AMBER, tt / 0.5) : mixHex(SCALE_AMBER, SCALE_GREEN, (tt - 0.5) / 0.5);
+  return tt <= 0.5 ? mixHex(scale.min, scale.mid, tt / 0.5) : mixHex(scale.mid, scale.max, (tt - 0.5) / 0.5);
 }
 
 /**
@@ -376,14 +385,15 @@ export function scalePosition(value: number, target: number | undefined, seriesM
   return max > 0 ? value / max : 0;
 }
 
-/** Solid status color for a value, continuous rather than 3-bucket. */
-export function targetColor(value: number, target: number | undefined, seriesMax: number): string {
-  return colorAt(scalePosition(value, target, seriesMax));
+/** Solid status color for a value, continuous rather than 3-bucket. Honors cfg.conditionalFormat === "none" (flat accent). */
+export function targetColor(value: number, target: number | undefined, seriesMax: number, cfg?: WidgetConfig): string {
+  if (cfg?.conditionalFormat === "none") return cfg.accent ?? "#3b82f6";
+  return colorAt(scalePosition(value, target, seriesMax), cfg?.condScale);
 }
 
 /** ECharts itemStyle.color: vertical gradient (light top → saturated bottom), hue from targetColor. */
-export function echartsBarGradient(value: number, target: number | undefined, seriesMax: number) {
-  const base = targetColor(value, target, seriesMax);
+export function echartsBarGradient(value: number, target: number | undefined, seriesMax: number, cfg?: WidgetConfig) {
+  const base = targetColor(value, target, seriesMax, cfg);
   return {
     type: "linear" as const, x: 0, y: 0, x2: 0, y2: 1,
     colorStops: [{ offset: 0, color: lighten(base, 0.35) }, { offset: 1, color: base }],
@@ -391,11 +401,13 @@ export function echartsBarGradient(value: number, target: number | undefined, se
 }
 
 /** Per-value {from, to, solid} triples for building <linearGradient> SVG defs in recharts. */
-export function barGradientStops(values: number[], target?: number): { from: string; to: string; solid: string }[] {
+export function barGradientStops(values: number[], target?: number, cfg?: WidgetConfig): { from: string; to: string; solid: string }[] {
   const seriesMax = Math.max(...values.map((v) => Math.abs(v)), 1);
   return values.map((v) => {
-    const base = targetColor(v, target, seriesMax);
-    return { from: lighten(base, 0.35), to: base, solid: base };
+    const base = targetColor(v, target, seriesMax, cfg);
+    return cfg?.conditionalFormat === "none"
+      ? { from: base, to: base, solid: base }
+      : { from: lighten(base, 0.35), to: base, solid: base };
   });
 }
 
@@ -457,7 +469,7 @@ export function ScalerHeader({ series, c }: { series: { x: string; v: number }[]
       </div>
       <div className="flex items-baseline justify-between mt-0.5">
         <span className="text-lg font-bold leading-none text-foreground tabular-nums">
-          {scalerValue.toFixed(decimals)}
+          {formatNumber(scalerValue, { decimals, prefix: c.prefix, compact: c.compact })}
           {c.unit && <span className="text-xs ml-0.5 font-medium text-muted-foreground">{c.unit}</span>}
           <span className="text-[9px] ml-1 font-medium uppercase text-muted-foreground">{agg}</span>
         </span>

@@ -239,6 +239,7 @@ Route::middleware('v6.auth')->group(function () {
             'pageName' => $page->name,
             'layout' => $page->layout['widgets'] ?? [],
             'measures' => $page->layout['measures'] ?? [],
+            'theme' => $page->layout['theme'] ?? null,
         ]);
     })->name('v6.page');
 
