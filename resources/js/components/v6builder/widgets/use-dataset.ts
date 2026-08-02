@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { EndpointDataset } from "@/lib/v6/datasets";
 import { compileMeasure, validateMeasureExpression, type Row } from "@/lib/v6/model";
 import { useBuilder } from "../store";
-import type { WidgetConfig } from "../types";
+import type { DashboardTheme, MeasureDefinition, WidgetConfig } from "../types";
 import {
   aggregateDataset,
   aggregateDatasetMulti,
@@ -122,109 +122,129 @@ function enrichRows(
   });
 }
 
-/**
- * Reads the shared (already slicer-filtered) rows for the widget's dataset from
- * the store, then applies the active cross-filter — unless this widget was the
- * one that triggered it. Values bound to a different dataset are enriched onto
- * the primary rows via a shared join column (V5-style multi-endpoint support).
- */
-export function useDatasetData(c: WidgetConfig, widgetId?: string): {
+/** Shape of the (filterable) cross-filter a user can trigger by clicking a chart. */
+export type CrossFilterState = { sourceId: string; column: string; value: string; mode: "filter" | "highlight" } | null;
+
+/** Everything the dataset computation needs — a serialisable slice of the builder store. */
+export type DatasetState = {
+  allMeasures: MeasureDefinition[];
+  filteredRowsBySlug: Record<string, Row[]>;
+  rowsBySlug: Record<string, Row[]>;
+  datasets: EndpointDataset[];
+  crossFilter: CrossFilterState;
+  theme: DashboardTheme | null;
+};
+
+export type ComputedDataset = {
   rows: Row[];
   data: AggregatedRow[];
   multi: MultiAggregatedRow[];
   valueFields: ValueField[];
-  loading: boolean;
   hasData: boolean;
   measureError: string | null;
   /** Legend-split series when config.dataLegend is bound (empty otherwise). */
   legendSeries: LegendSeries[];
   /** Scatter/bubble points when config.scatterX/scatterY are bound (empty otherwise). */
   scatterPoints: ScatterPoint[];
-} {
-  const { allMeasures, filteredRowsBySlug, rowsBySlug, datasets, crossFilter, theme } = useBuilder();
+};
+
+/**
+ * Pure, hook-free dataset computation for a widget. Reads the shared (already
+ * slicer-filtered) rows for the widget's dataset from `state`, then applies the
+ * active cross-filter — unless this widget was the one that triggered it. Values
+ * bound to a different dataset are enriched onto the primary rows via a shared
+ * join column (V5-style multi-endpoint support). Reused verbatim by the hook
+ * and by the export pipeline so exports match what is rendered exactly.
+ */
+export function computeWidgetDataset(state: DatasetState, c: WidgetConfig, widgetId?: string): ComputedDataset {
+  const { allMeasures, filteredRowsBySlug, rowsBySlug, datasets, crossFilter, theme } = state;
   const palette = theme?.palette && theme.palette.length ? theme.palette : COLORS;
 
-  const valueNames = useMemo(() => {
-    if (c.scatterX && c.scatterY) {
-      const names = [c.scatterX, c.scatterY];
-      if (c.scatterSize) names.push(c.scatterSize);
-      return names;
-    }
-    if (c.dataValues?.length) return c.dataValues;
-    return c.dataValue ? [c.dataValue] : [];
-  }, [c.scatterX, c.scatterY, c.scatterSize, c.dataValues, c.dataValue]);
+  const valueNames =
+    c.scatterX && c.scatterY
+      ? [...(c.scatterSize ? [c.scatterX, c.scatterY, c.scatterSize] : [c.scatterX, c.scatterY])]
+      : c.dataValues?.length
+        ? c.dataValues
+        : c.dataValue
+          ? [c.dataValue]
+          : [];
 
-  const joinRegistry = useMemo(() => buildJoinRegistry(datasets), [datasets]);
+  const joinRegistry = buildJoinRegistry(datasets);
 
-  const valueFields = useMemo<ValueField[]>(() => {
-    const names = allMeasures.map((m) => m.name);
-    return valueNames.map((name) => {
-      const source = valueSource(c, name);
-      const ds = datasets.find((item) => item.slug === source);
-      const isMeasure = allMeasures.some((m) => m.name === name) || !ds?.columns?.some((col) => col.name === name);
-      const key = isMeasure || !source || source === c.datasetSlug ? name : `${source}::${name}`;
-      let error: string | undefined;
-      if (isMeasure) {
-        const def = allMeasures.find((m) => m.name === name);
-        if (def) {
-          const columns = (ds?.columns ?? []).map((col) => col.name);
-          const res = validateMeasureExpression(def.expression, columns, names);
-          if (!res.ok) error = `${name}: ${res.error}`;
-        }
+  const names = allMeasures.map((m) => m.name);
+  const valueFields: ValueField[] = valueNames.map((name) => {
+    const source = valueSource(c, name);
+    const ds = datasets.find((item) => item.slug === source);
+    const isMeasure = allMeasures.some((m) => m.name === name) || !ds?.columns?.some((col) => col.name === name);
+    const key = isMeasure || !source || source === c.datasetSlug ? name : `${source}::${name}`;
+    let error: string | undefined;
+    if (isMeasure) {
+      const def = allMeasures.find((m) => m.name === name);
+      if (def) {
+        const columns = (ds?.columns ?? []).map((col) => col.name);
+        const res = validateMeasureExpression(def.expression, columns, names);
+        if (!res.ok) error = `${name}: ${res.error}`;
       }
-      return { name, key, label: valueFieldLabel(name, isMeasure, fieldAggregation(c, name)), isMeasure, source, error };
-    });
-  }, [valueNames, allMeasures, datasets, c]);
-
-  /** First validation error across the bound measure fields (invalid formula, deleted column…). */
-  const measureError = valueFields.find((vf) => vf.error)?.error ?? null;
-
-  const measureFns = useMemo(() => {
-    const map: Record<string, ((rows: Row[]) => number) | null> = {};
-    for (const name of [...valueNames, ...(c.dataTooltips ?? [])]) {
-      const measureDef = allMeasures.find((measure) => measure.name === name);
-      map[name] = measureDef ? compileMeasure(measureDef.expression) : null;
     }
-    return map;
-  }, [allMeasures, valueNames, c.dataTooltips]);
+    return { name, key, label: valueFieldLabel(name, isMeasure, fieldAggregation(c, name)), isMeasure, source, error };
+  });
 
-  const rows = useMemo(() => {
-    const base = (c.ignoreFilters ? rowsBySlug : filteredRowsBySlug)[c.datasetSlug ?? ""] ?? [];
-    if (crossFilter?.mode !== "filter") return base;
-    if (crossFilter.sourceId === widgetId || !c.datasetSlug) return base;
+  const measureFns: Record<string, ((rows: Row[]) => number) | null> = {};
+  for (const name of [...valueNames, ...(c.dataTooltips ?? [])]) {
+    const measureDef = allMeasures.find((measure) => measure.name === name);
+    measureFns[name] = measureDef ? compileMeasure(measureDef.expression) : null;
+  }
+
+  const base = (c.ignoreFilters ? rowsBySlug : filteredRowsBySlug)[c.datasetSlug ?? ""] ?? [];
+  let rows = base;
+  if (crossFilter?.mode === "filter" && crossFilter.sourceId !== widgetId && c.datasetSlug) {
     const ds = datasets.find((item) => item.slug === c.datasetSlug);
-    if (!ds?.columns?.some((col) => col.name === crossFilter.column)) return base;
-    return base.filter((row) => String(row[crossFilter.column]) === crossFilter.value);
-  }, [rowsBySlug, filteredRowsBySlug, c.ignoreFilters, c.datasetSlug, crossFilter, widgetId, datasets]);
-
-  const enrichedRows = useMemo(
-    () => enrichRows(rows, valueFields, filteredRowsBySlug, c.datasetSlug ?? "", joinRegistry),
-    [rows, valueFields, filteredRowsBySlug, c.datasetSlug, joinRegistry],
-  );
-
-  const data = useMemo(() => {
-    if (rows.length && c.dataValue) return aggregateDataset(rows, c, measureFns[c.dataValue] ?? null);
-    return [];
-  }, [rows, c, measureFns]);
-
-  const multi = useMemo(() => {
-    if (enrichedRows.length && valueNames.length) {
-      return aggregateDatasetMulti(enrichedRows, c, measureFns, valueFields);
+    if (ds?.columns?.some((col) => col.name === crossFilter.column)) {
+      rows = base.filter((row) => String(row[crossFilter.column]) === crossFilter.value);
     }
-    return [];
-  }, [enrichedRows, c, valueNames, valueFields, measureFns]);
+  }
 
-  const legendSeries = useMemo(() => {
-    if (!enrichedRows.length || !c.dataLegend || !valueFields.length) return [];
-    return aggregateLegendSeries(enrichedRows, c, measureFns, valueFields, c.dataLegend, palette);
-  }, [enrichedRows, c, measureFns, valueFields, palette]);
+  const enrichedRows = enrichRows(rows, valueFields, filteredRowsBySlug, c.datasetSlug ?? "", joinRegistry);
 
-  const scatterPoints = useMemo(() => {
-    if (!enrichedRows.length) return [];
-    return aggregateScatter(enrichedRows, c, measureFns, valueFields, palette, c.dataLegend);
-  }, [enrichedRows, c, measureFns, valueFields, palette]);
+  const data = rows.length && c.dataValue ? aggregateDataset(rows, c, measureFns[c.dataValue] ?? null) : [];
+  const multi = enrichedRows.length && valueNames.length ? aggregateDatasetMulti(enrichedRows, c, measureFns, valueFields) : [];
+  const legendSeries =
+    enrichedRows.length && c.dataLegend && valueFields.length
+      ? aggregateLegendSeries(enrichedRows, c, measureFns, valueFields, c.dataLegend, palette)
+      : [];
+  const scatterPoints = enrichedRows.length ? aggregateScatter(enrichedRows, c, measureFns, valueFields, palette, c.dataLegend) : [];
 
-  return { rows, data, multi, valueFields, loading: false, hasData: rows.length > 0, measureError, legendSeries, scatterPoints };
+  return {
+    rows,
+    data,
+    multi,
+    valueFields,
+    hasData: rows.length > 0,
+    measureError: valueFields.find((vf) => vf.error)?.error ?? null,
+    legendSeries,
+    scatterPoints,
+  };
+}
+
+/**
+ * Hook wrapper over `computeWidgetDataset`; keeps the historical return shape
+ * (adds `loading`) so existing widgets are untouched.
+ */
+export function useDatasetData(c: WidgetConfig, widgetId?: string): ComputedDataset & { loading: boolean } {
+  const builder = useBuilder();
+  const state = useMemo<DatasetState>(
+    () => ({
+      allMeasures: builder.allMeasures,
+      filteredRowsBySlug: builder.filteredRowsBySlug,
+      rowsBySlug: builder.rowsBySlug,
+      datasets: builder.datasets,
+      crossFilter: builder.crossFilter,
+      theme: builder.theme,
+    }),
+    [builder.allMeasures, builder.filteredRowsBySlug, builder.rowsBySlug, builder.datasets, builder.crossFilter, builder.theme],
+  );
+  const result = useMemo(() => computeWidgetDataset(state, c, widgetId), [state, c, widgetId]);
+  return { ...result, loading: false };
 }
 
 export { COLORS as DATASET_COLORS };

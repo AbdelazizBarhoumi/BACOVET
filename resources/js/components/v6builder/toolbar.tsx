@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { logActivity } from "./activity";
+import { ExporterButton } from "./export/export-button";
 import { useBuilder } from "./store";
 import { ThemeDialog } from "./theme-dialog";
 
@@ -47,6 +48,7 @@ export function BuilderToolbar({ title }: { title: string }) {
       >
         {mode === "edit" ? <><Eye className="h-3 w-3 mr-1" /> Vue</> : <><Pencil className="h-3 w-3 mr-1" /> Éditer</>}
       </Button>
+      {mode === "view" && <ExporterButton title={title} />}
       {mode === "edit" && (
         <>
           <Button size="sm" variant="outline" onClick={undo} disabled={!canUndo} className="h-8 w-8 p-0" title="Annuler (Ctrl+Z)">

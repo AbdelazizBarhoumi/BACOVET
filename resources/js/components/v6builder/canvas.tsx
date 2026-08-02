@@ -1,6 +1,7 @@
 import { Copy, GripVertical, Lock, LockOpen, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { logWidgetActivity } from "./activity";
+import { registerReportNode } from "./export/report-node";
 import { toggleFieldOnWidget, type FieldRef } from "./field-binds";
 import { useBuilder } from "./store";
 import type { WidgetType } from "./types";
@@ -25,8 +26,14 @@ type DragState = {
 export function Canvas() {
   const { widgets, mode, selectedId, select, removeWidget, duplicateWidget, toggleLock, addWidget, updateWidget, tableSel, setTableSel, tableCursor, setTableCursor, tableClipboard, setTableClipboard, undo, redo, updateConfig, colWidthPx, setColWidthPx } = useBuilder();
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    registerReportNode(contentRef.current);
+    return () => registerReportNode(null);
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -356,12 +363,13 @@ export function Canvas() {
       onDrop={(e) => { if (mode === "edit") handleDrop(e); }}
     >
       <div className="relative" style={{ width: contentW * zoom, height: contentH * zoom }}>
-        <div className="relative" style={{ width: contentW, height: contentH, transform: `scale(${zoom})`, transformOrigin: "0 0" }}>
+        <div ref={contentRef} className="relative bg-background" style={{ width: contentW, height: contentH, transform: `scale(${zoom})`, transformOrigin: "0 0" }}>
           {widgets.map((w) => {
         const isSelected = selectedId === w.id;
         return (
           <div
             key={w.id}
+            data-widget-id={w.id}
             onMouseDownCapture={() => { if (mode === "edit") select(w.id); }}
             className={`group absolute rounded-lg ${isSelected ? "outline outline-2 outline-primary" : ""}`}
             style={{

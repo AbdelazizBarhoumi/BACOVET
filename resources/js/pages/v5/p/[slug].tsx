@@ -24,6 +24,7 @@ import {
     DaxDialog,
     ManageMeasuresDialog,
 } from '@/components/pbi/Dialogs';
+import { ExportMenu } from '@/components/pbi/ExportMenu';
 import {
     BookmarksPane,
     FieldsPane,
@@ -259,14 +260,17 @@ function Shell({
                             </Button>
                         </>
                     ) : (
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-[11px]"
-                            onClick={() => setMode('edit')}
-                        >
-                            <Pencil className="mr-1 h-3.5 w-3.5" /> Modifier
-                        </Button>
+                        <>
+                            <ExportMenu />
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[11px]"
+                                onClick={() => setMode('edit')}
+                            >
+                                <Pencil className="mr-1 h-3.5 w-3.5" /> Modifier
+                            </Button>
+                        </>
                     )}
                 </div>
             </header>

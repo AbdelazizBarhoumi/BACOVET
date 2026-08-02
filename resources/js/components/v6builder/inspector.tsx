@@ -11,7 +11,7 @@ import { bindFieldToRole, roleEligible, unbindFieldFromRole, type FieldRef, type
 import { useBuilder, DEFAULT_CONFIG_FOR, DEFAULT_SIZE } from "./store";
 import {
   addCol, addRow, cellAt, mergeRegion, moveCol, moveRow, removeCol, removeRow, unmergeAt, withCell,
-  type Agg, type TableGrid, type WidgetType, type WidgetConfig,
+  DEFAULT_COND_SCALE, type Agg, type TableGrid, type WidgetType, type WidgetConfig,
 } from "./types";
 import { SLICER_MODES } from "./widgets/slicer";
 
@@ -382,13 +382,13 @@ export function Inspector() {
               {c.conditionalFormat !== "none" && (
                 <>
                   <Field label="Couleur min (valeur faible)">
-                    <ColorRow value={c.condScale?.min} onChange={(v) => set({ condScale: { ...(c.condScale ?? {}), min: v } })} />
+                    <ColorRow value={c.condScale?.min} onChange={(v) => set({ condScale: { ...DEFAULT_COND_SCALE, ...c.condScale, min: v } })} />
                   </Field>
                   <Field label="Couleur intermédiaire">
-                    <ColorRow value={c.condScale?.mid} onChange={(v) => set({ condScale: { ...(c.condScale ?? {}), mid: v } })} />
+                    <ColorRow value={c.condScale?.mid} onChange={(v) => set({ condScale: { ...DEFAULT_COND_SCALE, ...c.condScale, mid: v } })} />
                   </Field>
                   <Field label="Couleur max (valeur forte)">
-                    <ColorRow value={c.condScale?.max} onChange={(v) => set({ condScale: { ...(c.condScale ?? {}), max: v } })} />
+                    <ColorRow value={c.condScale?.max} onChange={(v) => set({ condScale: { ...DEFAULT_COND_SCALE, ...c.condScale, max: v } })} />
                   </Field>
                 </>
               )}

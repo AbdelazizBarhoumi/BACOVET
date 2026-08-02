@@ -15,6 +15,7 @@ import type { Interaction } from '@/lib/pbi/model';
 import { visualTable } from '@/lib/pbi/model';
 import { defaultDropWell, usePbi, visualTypeLabel } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
+import { VisualExportButton } from './VisualExportButton';
 import { VisualView } from './VisualView';
 
 const GRID = 8;
@@ -362,6 +363,11 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                             ? v.title || visualTypeLabel(v.type)
                                             : ''}
                                     </span>
+                                    {readOnly && (
+                                        <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                                            <VisualExportButton visual={v} />
+                                        </span>
+                                    )}
                                     {!readOnly && (
                                         <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                                             {v.drillFields.length > 1 && (
