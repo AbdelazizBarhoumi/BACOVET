@@ -62,6 +62,7 @@ class BuildKpiMeasures extends Command
         }
 
         $created = 0;
+        $skipped = 0;
         $warnings = [];
 
         foreach ($groups as $kpi => $rows) {
@@ -69,6 +70,14 @@ class BuildKpiMeasures extends Command
 
             if ($measure['warning'] !== null) {
                 $warnings[] = "{$kpi}: {$measure['warning']}";
+            }
+
+            if ($measure['placeholder']) {
+                $name = trim((string) ($measure['name'] ?: $kpi)) ?: $kpi;
+                $this->line("  ! SKIPPED {$kpi} « {$name} » — no variable_key / no endpoint mapping");
+                $skipped++;
+
+                continue;
             }
 
             if ($dryRun) {
@@ -89,7 +98,7 @@ class BuildKpiMeasures extends Command
             $created++;
         }
 
-        $this->info(sprintf('%s %d measure(s).', $dryRun ? 'Would generate' : 'Generated', $created));
+        $this->info(sprintf('%s %d measure(s) (%d skipped).', $dryRun ? 'Would generate' : 'Generated', $created, $skipped));
 
         if (! empty($warnings)) {
             $this->newLine();
@@ -109,7 +118,7 @@ class BuildKpiMeasures extends Command
 
     /**
      * @param  Collection<int, DataMapping>  $rows
-     * @return array{name: string, expression: string, description: ?string, category: ?string, warning: ?string}
+     * @return array{name: string, expression: string, description: ?string, category: ?string, warning: ?string, placeholder: bool}
      */
     private function buildMeasure(string $kpi, Collection $rows, ?string $category): array
     {
@@ -135,6 +144,7 @@ class BuildKpiMeasures extends Command
             'description' => $description,
             'category' => $category ?? $this->resolveCategory($rows),
             'warning' => $warning,
+            'placeholder' => $warning !== null && str_contains($warning, 'has no variable_key'),
         ];
     }
 

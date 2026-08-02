@@ -341,7 +341,7 @@ function MeasureDialog({
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Mesures existantes
                 </div>
-                <div className="mt-1 space-y-1">
+                <div className="mt-1 max-h-40 space-y-1 overflow-y-auto pr-1">
                   {existingMeasures.length > 0 ? existingMeasures.map((m) => (
                     <div key={m.name} className="rounded bg-background px-2 py-1 font-mono text-[10px] text-muted-foreground">
                       {m.name}

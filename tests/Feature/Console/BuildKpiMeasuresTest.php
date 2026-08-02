@@ -84,7 +84,7 @@ class BuildKpiMeasuresTest extends TestCase
         $this->assertSame('SUM(WIP_Chaine)', $measure->expression);
     }
 
-    public function test_keyless_variable_uses_placeholder_and_warns(): void
+    public function test_keyless_variable_measure_is_skipped(): void
     {
         $this->seedKpi(
             'F-REQ-350',
@@ -103,14 +103,10 @@ class BuildKpiMeasuresTest extends TestCase
 
         $this->artisan('kpi:build-measures')
             ->expectsOutputToContain('has no variable_key')
+            ->expectsOutputToContain('SKIPPED F-REQ-350')
             ->assertSuccessful();
 
-        $measure = MeasureLibraryV6::where('name', 'RFT (RIGHT FIRST TIME)')->first();
-        $this->assertNotNull($measure);
-        $this->assertSame(
-            "SUM('Nombre de modèles validés de premier coup')/SUM('Total des modèles envoyés')",
-            $measure->expression,
-        );
+        $this->assertDatabaseCount('measures_library_v6', 0);
     }
 
     public function test_aggregation_functions_map_to_dax(): void

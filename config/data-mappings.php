@@ -31,23 +31,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 162,
-                            'label' => 'Nombre de modèles validés de premier coup',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 163,
-                            'label' => 'Total des modèles envoyés',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 162,
+                    'label' => 'Nombre de modèles validés de premier coup',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 163,
+                    'label' => 'Total des modèles envoyés',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de modèles validés de premier coup / Total des modèles envoyés',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -89,23 +89,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 164,
-                            'label' => 'Nombre de modèles envoyés à date',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 165,
-                            'label' => 'Total des modèles envoyés',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 164,
+                    'label' => 'Nombre de modèles envoyés à date',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 165,
+                    'label' => 'Total des modèles envoyés',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de modèles envoyés à date / Total des modèles envoyés',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -147,23 +147,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 166,
-                            'label' => 'Nombre de nomenclatures validées et fiables',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 167,
-                            'label' => 'Total des nomenclatures',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 166,
+                    'label' => 'Nombre de nomenclatures validées et fiables',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 167,
+                    'label' => 'Total des nomenclatures',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de nomenclatures validées et fiables / Total des nomenclatures',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart mensuel'],
@@ -205,23 +205,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 168,
-                            'label' => 'Nombre de modèles réclamés',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 169,
-                            'label' => 'Total des modèles',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 168,
+                    'label' => 'Nombre de modèles réclamés',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 169,
+                    'label' => 'Total des modèles',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de modèles réclamés / Total des modèles',
                 'highlight_color' => null,
                 'graph_types' => ['Scatter Plot (Nuage)'],
@@ -267,31 +267,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 72,
-                            'label' => 'Nombre des OF soldés archivés',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 73,
-                            'label' => 'Nombre total des OF',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 72,
+                    'label' => 'Nombre des OF soldés archivés',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 73,
+                    'label' => 'Nombre total des OF',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre des OF soldés archivés / Nombre total des OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -333,31 +333,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 105,
-                            'label' => 'Quantité physique',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 106,
-                            'label' => 'Quantité système',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 105,
+                    'label' => 'Quantité physique',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 106,
+                    'label' => 'Quantité système',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité physique / Quantité système * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
@@ -399,31 +399,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 107,
-                            'label' => 'Quantité physique',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 108,
-                            'label' => 'Quantité système',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 107,
+                    'label' => 'Quantité physique',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 108,
+                    'label' => 'Quantité système',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité physique / Quantité système * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
@@ -465,31 +465,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 109,
-                            'label' => 'Quantité physique',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 110,
-                            'label' => 'Quantité système',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 109,
+                    'label' => 'Quantité physique',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 110,
+                    'label' => 'Quantité système',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité physique / Quantité système * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
@@ -531,23 +531,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 111,
-                            'label' => 'Coût des marchandises',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 112,
-                            'label' => 'Stock moyen',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 111,
+                    'label' => 'Coût des marchandises',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 112,
+                    'label' => 'Stock moyen',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Coût des marchandises / Stock moyen',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
@@ -589,23 +589,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 113,
-                            'label' => 'Coût des marchandises',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 114,
-                            'label' => 'Stock moyen',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 113,
+                    'label' => 'Coût des marchandises',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 114,
+                    'label' => 'Stock moyen',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Coût des marchandises / Stock moyen',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
@@ -647,23 +647,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 115,
-                            'label' => 'Coût des marchandises',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 116,
-                            'label' => 'Stock moyen',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 115,
+                    'label' => 'Coût des marchandises',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 116,
+                    'label' => 'Stock moyen',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Coût des marchandises / Stock moyen',
                 'highlight_color' => null,
                 'graph_types' => ['Jauge Radiale'],
@@ -705,31 +705,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 117,
-                            'label' => 'Valeur des articles sans mouvement durant 365 jours',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 118,
-                            'label' => 'Valeur totale du stock',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 117,
+                    'label' => 'Valeur des articles sans mouvement durant 365 jours',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 118,
+                    'label' => 'Valeur totale du stock',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Valeur des articles sans mouvement durant 365 jours / Valeur totale du stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -771,31 +771,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 119,
-                            'label' => 'Valeur des articles sans mouvement durant 365 jours',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 120,
-                            'label' => 'Valeur totale du stock',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 119,
+                    'label' => 'Valeur des articles sans mouvement durant 365 jours',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 120,
+                    'label' => 'Valeur totale du stock',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Valeur des articles sans mouvement durant 365 jours / Valeur totale du stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -837,31 +837,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 121,
-                            'label' => 'Valeur des articles sans mouvement durant 365 jours',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 122,
-                            'label' => 'Valeur totale du stock',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 121,
+                    'label' => 'Valeur des articles sans mouvement durant 365 jours',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 122,
+                    'label' => 'Valeur totale du stock',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Valeur des articles sans mouvement durant 365 jours / Valeur totale du stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -903,31 +903,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 123,
-                            'label' => 'Nombre de rouleaux',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 124,
-                            'label' => 'Capacité de stockage',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 123,
+                    'label' => 'Nombre de rouleaux',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 124,
+                    'label' => 'Capacité de stockage',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rouleaux / Capacité de stockage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -969,31 +969,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 125,
-                            'label' => 'Nombre de rouleaux',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 126,
-                            'label' => 'Capacité de stockage',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 125,
+                    'label' => 'Nombre de rouleaux',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 126,
+                    'label' => 'Capacité de stockage',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rouleaux / Capacité de stockage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -1035,31 +1035,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 127,
-                            'label' => 'Nombre de rouleaux',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 128,
-                            'label' => 'Capacité de stockage',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 127,
+                    'label' => 'Nombre de rouleaux',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 128,
+                    'label' => 'Capacité de stockage',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rouleaux / Capacité de stockage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -1101,18 +1101,18 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 131,
-                            'label' => 'Transfert coupe',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '+',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 131,
+                    'label' => 'Transfert coupe',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Transfert coupe +',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -1154,18 +1154,18 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 131,
-                            'label' => 'Transfert coupe',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '+',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 131,
+                    'label' => 'Transfert coupe',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Transfert coupe +',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -1207,23 +1207,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 139,
-                            'label' => 'Transfert coupe',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '+',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 140,
-                            'label' => 'Transfert coupe Jemmel',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 139,
+                    'label' => 'Transfert coupe',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 140,
+                    'label' => 'Transfert coupe Jemmel',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Transfert coupe + Transfert coupe Jemmel',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -1265,23 +1265,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 139,
-                            'label' => 'Transfert coupe',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '+',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 140,
-                            'label' => 'Transfert coupe Jemmel',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 139,
+                    'label' => 'Transfert coupe',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 140,
+                    'label' => 'Transfert coupe Jemmel',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Transfert coupe + Transfert coupe Jemmel',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -1323,23 +1323,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 143,
-                            'label' => 'Date de transfert',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '-',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 144,
-                            'label' => 'Date de réservation',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 143,
+                    'label' => 'Date de transfert',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 144,
+                    'label' => 'Date de réservation',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Date de transfert - Date de réservation',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -1381,23 +1381,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 145,
-                            'label' => 'Date de transfert',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '-',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 146,
-                            'label' => 'Date de réservation',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 145,
+                    'label' => 'Date de transfert',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 146,
+                    'label' => 'Date de réservation',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Date de transfert - Date de réservation',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -1439,31 +1439,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 147,
-                            'label' => 'Typologie fournitures',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 148,
-                            'label' => 'Valeur stock',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 147,
+                    'label' => 'Typologie fournitures',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 148,
+                    'label' => 'Valeur stock',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Typologie fournitures / Valeur stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Pie Chart (Secteurs)'],
@@ -1505,31 +1505,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 149,
-                            'label' => 'Provenance',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 150,
-                            'label' => 'Valeur stock',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 149,
+                    'label' => 'Provenance',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 150,
+                    'label' => 'Valeur stock',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Provenance / Valeur stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Pie Chart (Secteurs)'],
@@ -1571,31 +1571,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 151,
-                            'label' => 'Famille FG',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 152,
-                            'label' => 'Valeur stock',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 151,
+                    'label' => 'Famille FG',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 152,
+                    'label' => 'Valeur stock',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Famille FG / Valeur stock * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Pie Chart (Secteurs)'],
@@ -1637,31 +1637,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 153,
-                            'label' => 'Quantité livrée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 154,
-                            'label' => 'Quantité commandée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 153,
+                    'label' => 'Quantité livrée',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 154,
+                    'label' => 'Quantité commandée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité livrée / Quantité commandée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
@@ -1703,31 +1703,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 155,
-                            'label' => 'Quantité livrée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 156,
-                            'label' => 'Quantité commandée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 155,
+                    'label' => 'Quantité livrée',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 156,
+                    'label' => 'Quantité commandée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité livrée / Quantité commandée * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
@@ -1780,23 +1780,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 157,
-                            'label' => 'Quantité réalisée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 158,
-                            'label' => 'Objectif journalier',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 157,
+                    'label' => 'Quantité réalisée',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 158,
+                    'label' => 'Objectif journalier',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité réalisée / Objectif journalier',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
@@ -1838,23 +1838,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 160,
-                            'label' => 'STRH',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '+',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 161,
-                            'label' => 'Lead Time Transport',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 160,
+                    'label' => 'STRH',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '+',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 161,
+                    'label' => 'Lead Time Transport',
+                ],
+            ],
+        ],
                 'formula_readable' => 'STRH + Lead Time Transport',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -1900,31 +1900,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 72,
-                            'label' => 'Nombre des OF soldés archivés',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 73,
-                            'label' => 'Nombre total des OF',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 72,
+                    'label' => 'Nombre des OF soldés archivés',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 73,
+                    'label' => 'Nombre total des OF',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre des OF soldés archivés / Nombre total des OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -2048,31 +2048,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 78,
-                            'label' => 'Demandes de négociation',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 79,
-                            'label' => 'Gammes déchiffrage',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 78,
+                    'label' => 'Demandes de négociation',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 79,
+                    'label' => 'Gammes déchiffrage',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Demandes de négociation / Gammes déchiffrage * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -2114,23 +2114,23 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 168,
-                            'label' => 'Nombre de modèles réclamés',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 169,
-                            'label' => 'Total des modèles',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 168,
+                    'label' => 'Nombre de modèles réclamés',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 169,
+                    'label' => 'Total des modèles',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de modèles réclamés / Total des modèles',
                 'highlight_color' => null,
                 'graph_types' => ['Scatter Plot (Nuage)'],
@@ -2176,31 +2176,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 1,
-                            'label' => 'Nombre de rejet suite inspection commande',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 2,
-                            'label' => 'Nombre d\'inspection commande',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 1,
+                    'label' => 'Nombre de rejet suite inspection commande',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 2,
+                    'label' => 'Nombre d\'inspection commande',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection commande / Nombre d\'inspection commande * 100',
                 'highlight_color' => '#f4f73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -2242,31 +2242,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 3,
-                            'label' => 'Nombre de rejet suite contrôle par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 4,
-                            'label' => 'Nombre de contrôle par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 3,
+                    'label' => 'Nombre de rejet suite contrôle par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 4,
+                    'label' => 'Nombre de contrôle par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production * 100',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -2308,31 +2308,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 7,
-                            'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 8,
-                            'label' => 'Nombre de pièces produites par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 7,
+                    'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 8,
+                    'label' => 'Nombre de pièces produites par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => '#f7f13b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -2374,31 +2374,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 9,
-                            'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 10,
-                            'label' => 'Nombre de pièces produites par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 9,
+                    'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 10,
+                    'label' => 'Nombre de pièces produites par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -2440,31 +2440,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 11,
-                            'label' => 'Nombre de rejet suite inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 12,
-                            'label' => 'Nombre d\'inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 11,
+                    'label' => 'Nombre de rejet suite inspection paquet',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 12,
+                    'label' => 'Nombre d\'inspection paquet',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -2506,31 +2506,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 13,
-                            'label' => 'Nombre de rejet suite inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 14,
-                            'label' => 'Nombre d\'inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 13,
+                    'label' => 'Nombre de rejet suite inspection paquet',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 14,
+                    'label' => 'Nombre d\'inspection paquet',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -2572,9 +2572,9 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -2616,9 +2616,9 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -2660,9 +2660,9 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -2704,31 +2704,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 36,
-                            'label' => 'Nombre de rejet suite inspection colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 37,
-                            'label' => 'Nombre d\'inspection colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 36,
+                    'label' => 'Nombre de rejet suite inspection colis',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 37,
+                    'label' => 'Nombre d\'inspection colis',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection colis / Nombre d\'inspection colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
@@ -2770,31 +2770,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 40,
-                            'label' => 'Minutes produites',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 41,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 40,
+                    'label' => 'Minutes produites',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 41,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
@@ -2858,49 +2858,49 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 42,
-                            'label' => 'Quantité déclarée par chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 43,
-                            'label' => 'SOT',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 44,
-                            'label' => 'Effectif de la chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 45,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 42,
+                    'label' => 'Quantité déclarée par chaîne',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 43,
+                    'label' => 'SOT',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 44,
+                    'label' => 'Effectif de la chaîne',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 45,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité déclarée par chaîne * SOT / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => '#d8f73b',
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -2953,31 +2953,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 46,
-                            'label' => 'Minutes produites',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 47,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 46,
+                    'label' => 'Minutes produites',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 47,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
@@ -3041,49 +3041,49 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 49,
-                            'label' => 'Quantité déclarée par chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 50,
-                            'label' => 'SAM',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 51,
-                            'label' => 'Effectif de la chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 52,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 49,
+                    'label' => 'Quantité déclarée par chaîne',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 50,
+                    'label' => 'SAM',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 51,
+                    'label' => 'Effectif de la chaîne',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 52,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité déclarée par chaîne * SAM / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -3125,14 +3125,14 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 53,
-                            'label' => 'Quantité engagement par chaîne',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 53,
+                    'label' => 'Quantité engagement par chaîne',
                 ],
+            ],
+        ],
                 'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => '#f7e73b',
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -3267,31 +3267,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 60,
-                            'label' => 'Minutes produites poste 221',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 61,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 60,
+                    'label' => 'Minutes produites poste 221',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 61,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites poste 221 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
@@ -3333,31 +3333,31 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 62,
-                            'label' => 'Minutes produites poste 213',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 63,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 62,
+                    'label' => 'Minutes produites poste 213',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 63,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites poste 213 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
@@ -3410,40 +3410,40 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 64,
-                            'label' => 'Quantité produite individuelle',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 65,
-                            'label' => 'Temps d\'opération',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 66,
-                            'label' => 'Minute présence déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 64,
+                    'label' => 'Quantité produite individuelle',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 65,
+                    'label' => 'Temps d\'opération',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 66,
+                    'label' => 'Minute présence déclarée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Horizontal Bar Chart'],
@@ -3474,14 +3474,14 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 67,
-                            'label' => 'Temps standard alloué',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 67,
+                    'label' => 'Temps standard alloué',
                 ],
+            ],
+        ],
                 'formula_readable' => 'Temps standard alloué',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -3512,14 +3512,14 @@ return [
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 68,
-                            'label' => 'Temps article fournisseur',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 68,
+                    'label' => 'Temps article fournisseur',
                 ],
+            ],
+        ],
                 'formula_readable' => 'Temps article fournisseur',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -3671,15 +3671,15 @@ lancés crée sur G.PRO',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 82,
-                            'label' => 'Numéro Ordre de Fabrication 
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 82,
+                    'label' => 'Numéro Ordre de Fabrication 
 lancés crée sur G.PRO',
-                        ],
-                    ],
                 ],
+            ],
+        ],
                 'formula_readable' => 'Numéro Ordre de Fabrication 
 lancés crée sur G.PRO',
                 'highlight_color' => null,
@@ -3782,31 +3782,31 @@ lancés crée sur G.PRO',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 88,
-                            'label' => 'Quantité produite déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 89,
-                            'label' => 'Quantité OF',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 88,
+                    'label' => 'Quantité produite déclarée',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 89,
+                    'label' => 'Quantité OF',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
@@ -3949,9 +3949,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
@@ -4004,12 +4004,12 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'lparen',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'lparen',
                 ],
+            ],
+        ],
                 'formula_readable' => '(',
                 'highlight_color' => '#cef73b',
                 'graph_types' => ['Bar Chart (par chaîne)'],
@@ -4062,38 +4062,38 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'lparen',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 101,
-                            'label' => 'Quantité lancée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '-',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 102,
-                            'label' => 'Quantité coupée',
-                        ],
-                        [
-                            'type' => 'rparen',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 103,
-                            'label' => 'Cadence hebdomadaire moyenne',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'lparen',
                 ],
+                [
+                    'type' => 'variable',
+                    'ref' => 101,
+                    'label' => 'Quantité lancée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 102,
+                    'label' => 'Quantité coupée',
+                ],
+                [
+                    'type' => 'rparen',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 103,
+                    'label' => 'Cadence hebdomadaire moyenne',
+                ],
+            ],
+        ],
                 'formula_readable' => '(Quantité lancée - Quantité coupée) / Cadence hebdomadaire moyenne',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -4165,23 +4165,23 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 168,
-                            'label' => 'Nombre de modèles réclamés',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 169,
-                            'label' => 'Total des modèles',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 168,
+                    'label' => 'Nombre de modèles réclamés',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 169,
+                    'label' => 'Total des modèles',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de modèles réclamés / Total des modèles',
                 'highlight_color' => null,
                 'graph_types' => ['Scatter Plot (Nuage)'],
@@ -4268,31 +4268,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 1,
-                            'label' => 'Nombre de rejet suite inspection commande',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 2,
-                            'label' => 'Nombre d\'inspection commande',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 1,
+                    'label' => 'Nombre de rejet suite inspection commande',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 2,
+                    'label' => 'Nombre d\'inspection commande',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection commande / Nombre d\'inspection commande * 100',
                 'highlight_color' => '#f4f73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -4334,31 +4334,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 3,
-                            'label' => 'Nombre de rejet suite contrôle par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 4,
-                            'label' => 'Nombre de contrôle par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 3,
+                    'label' => 'Nombre de rejet suite contrôle par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 4,
+                    'label' => 'Nombre de contrôle par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production * 100',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -4400,31 +4400,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 7,
-                            'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 8,
-                            'label' => 'Nombre de pièces produites par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 7,
+                    'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 8,
+                    'label' => 'Nombre de pièces produites par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => '#f7f13b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -4466,31 +4466,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 9,
-                            'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 10,
-                            'label' => 'Nombre de pièces produites par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 9,
+                    'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 10,
+                    'label' => 'Nombre de pièces produites par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -4532,31 +4532,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 36,
-                            'label' => 'Nombre de rejet suite inspection colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 37,
-                            'label' => 'Nombre d\'inspection colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 36,
+                    'label' => 'Nombre de rejet suite inspection colis',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 37,
+                    'label' => 'Nombre d\'inspection colis',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection colis / Nombre d\'inspection colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
@@ -4598,31 +4598,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 40,
-                            'label' => 'Minutes produites',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 41,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 40,
+                    'label' => 'Minutes produites',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 41,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
@@ -4686,49 +4686,49 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 42,
-                            'label' => 'Quantité déclarée par chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 43,
-                            'label' => 'SOT',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 44,
-                            'label' => 'Effectif de la chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 45,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 42,
+                    'label' => 'Quantité déclarée par chaîne',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 43,
+                    'label' => 'SOT',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 44,
+                    'label' => 'Effectif de la chaîne',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 45,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité déclarée par chaîne * SOT / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => '#d8f73b',
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -4781,31 +4781,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 46,
-                            'label' => 'Minutes produites',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 47,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 46,
+                    'label' => 'Minutes produites',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 47,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)'],
@@ -4869,49 +4869,49 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 49,
-                            'label' => 'Quantité déclarée par chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 50,
-                            'label' => 'SAM',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 51,
-                            'label' => 'Effectif de la chaîne',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 52,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 49,
+                    'label' => 'Quantité déclarée par chaîne',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 50,
+                    'label' => 'SAM',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 51,
+                    'label' => 'Effectif de la chaîne',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 52,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité déclarée par chaîne * SAM / Effectif de la chaîne * Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -4953,14 +4953,14 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 53,
-                            'label' => 'Quantité engagement par chaîne',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 53,
+                    'label' => 'Quantité engagement par chaîne',
                 ],
+            ],
+        ],
                 'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => '#f7e73b',
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -5106,40 +5106,40 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 64,
-                            'label' => 'Quantité produite individuelle',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 65,
-                            'label' => 'Temps d\'opération',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 66,
-                            'label' => 'Minute présence déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 64,
+                    'label' => 'Quantité produite individuelle',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 65,
+                    'label' => 'Temps d\'opération',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 66,
+                    'label' => 'Minute présence déclarée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Horizontal Bar Chart'],
@@ -5170,14 +5170,14 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 67,
-                            'label' => 'Temps standard alloué',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 67,
+                    'label' => 'Temps standard alloué',
                 ],
+            ],
+        ],
                 'formula_readable' => 'Temps standard alloué',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -5208,14 +5208,14 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 68,
-                            'label' => 'Temps article fournisseur',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 68,
+                    'label' => 'Temps article fournisseur',
                 ],
+            ],
+        ],
                 'formula_readable' => 'Temps article fournisseur',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -5437,31 +5437,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 88,
-                            'label' => 'Quantité produite déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 89,
-                            'label' => 'Quantité OF',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 88,
+                    'label' => 'Quantité produite déclarée',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 89,
+                    'label' => 'Quantité OF',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
@@ -5615,12 +5615,12 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'lparen',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'lparen',
                 ],
+            ],
+        ],
                 'formula_readable' => '(',
                 'highlight_color' => '#cef73b',
                 'graph_types' => ['Bar Chart (par chaîne)'],
@@ -5692,23 +5692,23 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 168,
-                            'label' => 'Nombre de modèles réclamés',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 169,
-                            'label' => 'Total des modèles',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 168,
+                    'label' => 'Nombre de modèles réclamés',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 169,
+                    'label' => 'Total des modèles',
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de modèles réclamés / Total des modèles',
                 'highlight_color' => null,
                 'graph_types' => ['Scatter Plot (Nuage)'],
@@ -5754,31 +5754,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 11,
-                            'label' => 'Nombre de rejet suite inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 12,
-                            'label' => 'Nombre d\'inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 11,
+                    'label' => 'Nombre de rejet suite inspection paquet',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 12,
+                    'label' => 'Nombre d\'inspection paquet',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -5820,31 +5820,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 13,
-                            'label' => 'Nombre de rejet suite inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 14,
-                            'label' => 'Nombre d\'inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 13,
+                    'label' => 'Nombre de rejet suite inspection paquet',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 14,
+                    'label' => 'Nombre d\'inspection paquet',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -5886,9 +5886,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -5930,9 +5930,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -5974,9 +5974,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -6070,31 +6070,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 60,
-                            'label' => 'Minutes produites poste 221',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 61,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 60,
+                    'label' => 'Minutes produites poste 221',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 61,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites poste 221 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
@@ -6136,31 +6136,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 62,
-                            'label' => 'Minutes produites poste 213',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 63,
-                            'label' => 'Minutes présence',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 62,
+                    'label' => 'Minutes produites poste 213',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 63,
+                    'label' => 'Minutes présence',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Minutes produites poste 213 / Minutes présence * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Combo Bar/Line'],
@@ -6213,40 +6213,40 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 64,
-                            'label' => 'Quantité produite individuelle',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 65,
-                            'label' => 'Temps d\'opération',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 66,
-                            'label' => 'Minute présence déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 64,
+                    'label' => 'Quantité produite individuelle',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 65,
+                    'label' => 'Temps d\'opération',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 66,
+                    'label' => 'Minute présence déclarée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Horizontal Bar Chart'],
@@ -6338,15 +6338,15 @@ lancés crée sur G.PRO',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 82,
-                            'label' => 'Numéro Ordre de Fabrication 
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 82,
+                    'label' => 'Numéro Ordre de Fabrication 
 lancés crée sur G.PRO',
-                        ],
-                    ],
                 ],
+            ],
+        ],
                 'formula_readable' => 'Numéro Ordre de Fabrication 
 lancés crée sur G.PRO',
                 'highlight_color' => null,
@@ -6449,31 +6449,31 @@ lancés crée sur G.PRO',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 88,
-                            'label' => 'Quantité produite déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 89,
-                            'label' => 'Quantité OF',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 88,
+                    'label' => 'Quantité produite déclarée',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 89,
+                    'label' => 'Quantité OF',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
@@ -6627,38 +6627,38 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'lparen',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 101,
-                            'label' => 'Quantité lancée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '-',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 102,
-                            'label' => 'Quantité coupée',
-                        ],
-                        [
-                            'type' => 'rparen',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 103,
-                            'label' => 'Cadence hebdomadaire moyenne',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'lparen',
                 ],
+                [
+                    'type' => 'variable',
+                    'ref' => 101,
+                    'label' => 'Quantité lancée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '-',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 102,
+                    'label' => 'Quantité coupée',
+                ],
+                [
+                    'type' => 'rparen',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 103,
+                    'label' => 'Cadence hebdomadaire moyenne',
+                ],
+            ],
+        ],
                 'formula_readable' => '(Quantité lancée - Quantité coupée) / Cadence hebdomadaire moyenne',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -6734,31 +6734,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 7,
-                            'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 8,
-                            'label' => 'Nombre de pièces produites par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 7,
+                    'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 8,
+                    'label' => 'Nombre de pièces produites par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => '#f7f13b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -6800,9 +6800,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -6844,9 +6844,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -6888,14 +6888,14 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 53,
-                            'label' => 'Quantité engagement par chaîne',
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 53,
+                    'label' => 'Quantité engagement par chaîne',
                 ],
+            ],
+        ],
                 'formula_readable' => 'Quantité engagement par chaîne',
                 'highlight_color' => '#f7e73b',
                 'graph_types' => ['Gauge Chart (Jauge)'],
@@ -7041,40 +7041,40 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 64,
-                            'label' => 'Quantité produite individuelle',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 65,
-                            'label' => 'Temps d\'opération',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 66,
-                            'label' => 'Minute présence déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 64,
+                    'label' => 'Quantité produite individuelle',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 65,
+                    'label' => 'Temps d\'opération',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 66,
+                    'label' => 'Minute présence déclarée',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite individuelle * Temps d\'opération / Minute présence déclarée * 100',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Horizontal Bar Chart'],
@@ -7236,31 +7236,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 88,
-                            'label' => 'Quantité produite déclarée',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 89,
-                            'label' => 'Quantité OF',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 88,
+                    'label' => 'Quantité produite déclarée',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 89,
+                    'label' => 'Quantité OF',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Quantité produite déclarée / Quantité OF * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Donut Chart (Anneau)'],
@@ -7403,9 +7403,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Bar Chart (par chaîne)'],
@@ -7481,31 +7481,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 1,
-                            'label' => 'Nombre de rejet suite inspection commande',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 2,
-                            'label' => 'Nombre d\'inspection commande',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 1,
+                    'label' => 'Nombre de rejet suite inspection commande',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 2,
+                    'label' => 'Nombre d\'inspection commande',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection commande / Nombre d\'inspection commande * 100',
                 'highlight_color' => '#f4f73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -7547,31 +7547,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 3,
-                            'label' => 'Nombre de rejet suite contrôle par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 4,
-                            'label' => 'Nombre de contrôle par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 3,
+                    'label' => 'Nombre de rejet suite contrôle par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 4,
+                    'label' => 'Nombre de contrôle par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite contrôle par chaîne de production / Nombre de contrôle par chaîne de production * 100',
                 'highlight_color' => '#eaf73b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -7613,31 +7613,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 5,
-                            'label' => 'Nombre de rejet suite contrôle RFID colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 6,
-                            'label' => 'Nombre de contrôle RFID colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 5,
+                    'label' => 'Nombre de rejet suite contrôle RFID colis',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 6,
+                    'label' => 'Nombre de contrôle RFID colis',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite contrôle RFID colis / Nombre de contrôle RFID colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -7679,31 +7679,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 7,
-                            'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 8,
-                            'label' => 'Nombre de pièces produites par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 7,
+                    'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 8,
+                    'label' => 'Nombre de pièces produites par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => '#f7f13b',
                 'graph_types' => ['Big Number avec couleur'],
@@ -7745,31 +7745,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 9,
-                            'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 10,
-                            'label' => 'Nombre de pièces produites par chaîne de production',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 9,
+                    'label' => 'Nombre de pièces OK de premier coup par chaîne de production',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 10,
+                    'label' => 'Nombre de pièces produites par chaîne de production',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de pièces OK de premier coup par chaîne de production / Nombre de pièces produites par chaîne de production * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -7811,31 +7811,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 11,
-                            'label' => 'Nombre de rejet suite inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 12,
-                            'label' => 'Nombre d\'inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 11,
+                    'label' => 'Nombre de rejet suite inspection paquet',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 12,
+                    'label' => 'Nombre d\'inspection paquet',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -7877,31 +7877,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 13,
-                            'label' => 'Nombre de rejet suite inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 14,
-                            'label' => 'Nombre d\'inspection paquet',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 13,
+                    'label' => 'Nombre de rejet suite inspection paquet',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 14,
+                    'label' => 'Nombre d\'inspection paquet',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection paquet / Nombre d\'inspection paquet * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -7943,9 +7943,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -7987,9 +7987,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -8031,9 +8031,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -8086,31 +8086,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 21,
-                            'label' => 'Nombre de rejet suite inspection livraison vignettes',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 22,
-                            'label' => 'Nombre d\'inspection livraison vignettes',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 21,
+                    'label' => 'Nombre de rejet suite inspection livraison vignettes',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 22,
+                    'label' => 'Nombre d\'inspection livraison vignettes',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection livraison vignettes / Nombre d\'inspection livraison vignettes * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -8152,31 +8152,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 23,
-                            'label' => 'Nombre de rejet suite inspection livraison accessoires',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 24,
-                            'label' => 'Nombre d\'inspection livraison accessoires',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 23,
+                    'label' => 'Nombre de rejet suite inspection livraison accessoires',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 24,
+                    'label' => 'Nombre d\'inspection livraison accessoires',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection livraison accessoires / Nombre d\'inspection livraison accessoires * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -8218,31 +8218,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 25,
-                            'label' => 'Nombre de rejet suite inspection livraison accessoires',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 26,
-                            'label' => 'Nombre d\'inspection livraison accessoires',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 25,
+                    'label' => 'Nombre de rejet suite inspection livraison accessoires',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 26,
+                    'label' => 'Nombre d\'inspection livraison accessoires',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection livraison accessoires / Nombre d\'inspection livraison accessoires * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -8284,31 +8284,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 27,
-                            'label' => 'Nombre de rejet suite inspection livraison Compo',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 28,
-                            'label' => 'Nombre d\'inspection livraison Compo',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 27,
+                    'label' => 'Nombre de rejet suite inspection livraison Compo',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 28,
+                    'label' => 'Nombre d\'inspection livraison Compo',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection livraison Compo / Nombre d\'inspection livraison Compo * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Big Number avec couleur'],
@@ -8350,31 +8350,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 29,
-                            'label' => 'Nombre de rejet suite inspection livraison Compo',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 30,
-                            'label' => 'Nombre d\'inspection livraison Compo',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 29,
+                    'label' => 'Nombre de rejet suite inspection livraison Compo',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 30,
+                    'label' => 'Nombre d\'inspection livraison Compo',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection livraison Compo / Nombre d\'inspection livraison Compo * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Line Chart (Courbe)', 'Big Number avec couleur'],
@@ -8446,9 +8446,9 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                    ],
-                ],
+            'items' => [
+            ],
+        ],
                 'formula_readable' => '',
                 'highlight_color' => null,
                 'graph_types' => ['Pareto Chart (Interactif)'],
@@ -8550,31 +8550,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 36,
-                            'label' => 'Nombre de rejet suite inspection colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 37,
-                            'label' => 'Nombre d\'inspection colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 36,
+                    'label' => 'Nombre de rejet suite inspection colis',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 37,
+                    'label' => 'Nombre d\'inspection colis',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection colis / Nombre d\'inspection colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
@@ -8616,31 +8616,31 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'variable',
-                            'ref' => 38,
-                            'label' => 'Nombre de rejet suite inspection AQL colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '/',
-                        ],
-                        [
-                            'type' => 'variable',
-                            'ref' => 39,
-                            'label' => 'Nombre d\'inspection AQL colis',
-                        ],
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 100,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'variable',
+                    'ref' => 38,
+                    'label' => 'Nombre de rejet suite inspection AQL colis',
                 ],
+                [
+                    'type' => 'operator',
+                    'op' => '/',
+                ],
+                [
+                    'type' => 'variable',
+                    'ref' => 39,
+                    'label' => 'Nombre d\'inspection AQL colis',
+                ],
+                [
+                    'type' => 'operator',
+                    'op' => '*',
+                ],
+                [
+                    'type' => 'number',
+                    'value' => 100,
+                ],
+            ],
+        ],
                 'formula_readable' => 'Nombre de rejet suite inspection AQL colis / Nombre d\'inspection AQL colis * 100',
                 'highlight_color' => null,
                 'graph_types' => ['Not specified'],
@@ -8723,17 +8723,17 @@ allouée',
                     ],
                 ],
                 'formula' => [
-                    'items' => [
-                        [
-                            'type' => 'operator',
-                            'op' => '*',
-                        ],
-                        [
-                            'type' => 'number',
-                            'value' => 2,
-                        ],
-                    ],
+            'items' => [
+                [
+                    'type' => 'operator',
+                    'op' => '*',
                 ],
+                [
+                    'type' => 'number',
+                    'value' => 2,
+                ],
+            ],
+        ],
                 'formula_readable' => '* 2',
                 'highlight_color' => null,
                 'graph_types' => null,
