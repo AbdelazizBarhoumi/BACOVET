@@ -1,15 +1,16 @@
 import { useId } from "react";
 import { Bar, BarChart, Cell, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, barGradientStops, ScalerHeader, wrap } from "./shared";
+import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, barGradientStops, ScalerHeader, wrap, MeasureErrorBanner } from "./shared";
 
 export type ComparisonChartType = "column" | "stackedColumn" | "stacked100Column" | "stacked100Bar" | "ribbon";
 
 export function ComparisonChartWidget({ type, c, id }: { type: ComparisonChartType; c: WidgetConfig; id?: string }) {
   const gradId = useId();
-  const { series, multiSeries, hasSeries, hasScalar } = useWidgetData(c, id);
+  const { series, multiSeries, hasSeries, hasScalar, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries && !hasScalar) return wrap(c, boxStyle(c), noSeriesData());
 
   const data = multiSeries.length

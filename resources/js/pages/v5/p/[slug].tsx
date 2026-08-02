@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { Canvas, PageTabs } from '@/components/pbi/Canvas';
 import {
     DaxDialog,
+    ManageMeasuresDialog,
 } from '@/components/pbi/Dialogs';
 import {
     BookmarksPane,
@@ -198,8 +199,10 @@ function Shell({
         if (savingRef.current) return;
         savingRef.current = true;
         try {
+            // Measures live in the shared library, not the per-page layout.
+            const { measures: _measures, ...pbi } = state;
             await axios.put(`/api/v5/builder-pages/${pageId}`, {
-                layout: { version: 2, pbi: state },
+                layout: { version: 2, pbi },
             });
             toast.success('Layout enregistré');
             setDirty(false);
@@ -360,6 +363,7 @@ function EditBody() {
         clearCrossFilter,
     } = usePbi();
     const [dax, setDax] = useState(false);
+    const [manage, setManage] = useState(false);
     const [paneCollapsed, setPaneCollapsed] = useState<
         Record<string, boolean>
     >({
@@ -375,7 +379,10 @@ function EditBody() {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <Ribbon onOpenDax={() => setDax(true)} />
+            <Ribbon
+                onOpenDax={() => setDax(true)}
+                onOpenManage={() => setManage(true)}
+            />
 
             {editInteractions && (
                 <div className="bg-brand/15 px-3 py-1 text-[11px] text-foreground">
@@ -533,6 +540,9 @@ function EditBody() {
                     </footer>
 
             {dax && <DaxDialog onClose={() => setDax(false)} />}
+            {manage && (
+                <ManageMeasuresDialog onClose={() => setManage(false)} />
+            )}
         </div>
     );
 }

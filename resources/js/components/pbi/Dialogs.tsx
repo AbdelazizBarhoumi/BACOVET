@@ -1,3 +1,4 @@
+import { AlertTriangle, Folder, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -10,7 +11,7 @@ import {
     type DaxSignature,
     type DaxSuggestion,
 } from '@/lib/pbi/dax';
-import { MEASURES, formatNumber, type Row } from '@/lib/pbi/model';
+import { MEASURES, formatNumber, measureError, validateMeasureExpression, type Field, type Row } from '@/lib/pbi/model';
 import { mkVisual, usePbi, wf } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
@@ -417,14 +418,36 @@ function SignatureHint({ signature }: { signature: DaxSignature }) {
     );
 }
 
-export function DaxDialog({ onClose }: { onClose: () => void }) {
-    const { tables, addMeasure, state } = usePbi();
+export function DaxDialog({
+    onClose,
+    edit,
+}: {
+    onClose: () => void;
+    edit?: Field | null;
+}) {
+    const { tables, addMeasure, updateMeasure, state } = usePbi();
     const taRef = useRef<HTMLTextAreaElement>(null);
     const preRef = useRef<HTMLPreElement>(null);
-    const [expr, setExpr] = useState('New Measure = ');
-    const [cursor, setCursor] = useState('New Measure = '.length);
+    const editing = !!edit;
+    const [expr, setExpr] = useState(() => {
+        if (edit?.expression) {
+            const formula = edit.expression.replace(/^\s*[^=]+=\s*/, '');
+            return `${edit.name} = ${formula}`;
+        }
+        return 'New Measure = ';
+    });
+    const [cursor, setCursor] = useState(() => {
+        if (edit?.expression) {
+            const formula = edit.expression.replace(/^\s*[^=]+=\s*/, '');
+            return `${edit.name} = ${formula}`.length;
+        }
+        return 'New Measure = '.length;
+    });
+    const [category, setCategory] = useState(edit?.category ?? '');
+    const [description, setDescription] = useState(edit?.description ?? '');
     const [active, setActive] = useState(0);
     const [visible, setVisible] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         requestAnimationFrame(() => {
@@ -522,7 +545,23 @@ export function DaxDialog({ onClose }: { onClose: () => void }) {
         }
     };
 
-    const commit = () => {
+    const validation = useMemo(() => {
+        const eq = expr.indexOf('=');
+        const name = (eq >= 0 ? expr.slice(0, eq) : expr).trim();
+        const formula = (eq >= 0 ? expr.slice(eq + 1) : expr).trim();
+        if (!name) return 'Enter a measure name before the = sign';
+        if (!formula) return 'Enter a DAX formula after the = sign';
+        const columns = tables.flatMap((t) => t.fields.map((f) => f.name));
+        const result = validateMeasureExpression(
+            formula,
+            columns,
+            measures.map((m) => m.name),
+        );
+        return result.ok ? null : result.error;
+    }, [expr, tables, measures]);
+
+    const commit = async () => {
+        if (saving) return;
         const eq = expr.indexOf('=');
         const name = (eq >= 0 ? expr.slice(0, eq) : expr).trim();
         const formula = (eq >= 0 ? expr.slice(eq + 1) : expr).trim();
@@ -534,54 +573,81 @@ export function DaxDialog({ onClose }: { onClose: () => void }) {
             toast.error('Enter a DAX formula after the = sign');
             return;
         }
-        if (measures.some((m) => m.name === name)) {
+        if (
+            measures.some(
+                (m) =>
+                    m.name === name &&
+                    (edit == null || String(m.id) !== String(edit.id)),
+            )
+        ) {
             toast.error(`Measure "${name}" already exists`);
             return;
         }
-        addMeasure(name, expr.trim());
-        toast.success('Measure created', {
-            description: `${name} = ${formula}`,
-        });
-        onClose();
+        if (validation) {
+            toast.error(validation);
+            return;
+        }
+        setSaving(true);
+        try {
+            const full = `${name} = ${formula}`;
+            if (edit) {
+                await updateMeasure(edit.id!, name, full, category, description);
+                toast.success('Measure updated', {
+                    description: `${name} = ${formula}`,
+                });
+            } else {
+                await addMeasure(name, full, category, description);
+                toast.success('Measure created', {
+                    description: `${name} = ${formula}`,
+                });
+            }
+            onClose();
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Failed to save measure');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <Modal open onClose={onClose} title="New measure" wide>
+        <Modal open onClose={onClose} title={editing ? 'Edit measure' : 'New measure'} wide>
             <div className="space-y-3 p-4">
-                <div className="flex flex-wrap gap-1 text-[11px]">
-                    <span className="py-0.5 text-muted-foreground">
-                        Quick start:
-                    </span>
-                    {[
-                        'SUM(',
-                        'AVERAGE(',
-                        'COUNTROWS(',
-                        'DISTINCTCOUNT(',
-                        'IF(',
-                    ].map((snippet) => (
-                            <button
-                                key={snippet}
-                                onClick={() => {
-                                    setExpr(`New Measure = ${snippet}`);
-                                    setCursor(`New Measure = ${snippet}`.length - 1);
-                                    setVisible(true);
-                                    requestAnimationFrame(() => {
-                                        taRef.current?.focus();
-                                        taRef.current?.setSelectionRange(
-                                            `New Measure = ${snippet}`.length -
-                                                1,
-                                            `New Measure = ${snippet}`.length -
-                                                1,
-                                        );
-                                    });
-                                }}
-                                className="rounded-full border border-border px-2 py-0.5 font-mono hover:bg-accent"
-                            >
-                                {snippet}
-                            </button>
-                        ),
-                    )}
-                </div>
+                {!editing && (
+                    <div className="flex flex-wrap gap-1 text-[11px]">
+                        <span className="py-0.5 text-muted-foreground">
+                            Quick start:
+                        </span>
+                        {[
+                            'SUM(',
+                            'AVERAGE(',
+                            'COUNTROWS(',
+                            'DISTINCTCOUNT(',
+                            'IF(',
+                        ].map((snippet) => (
+                                <button
+                                    key={snippet}
+                                    onClick={() => {
+                                        setExpr(`New Measure = ${snippet}`);
+                                        setCursor(`New Measure = ${snippet}`.length - 1);
+                                        setVisible(true);
+                                        requestAnimationFrame(() => {
+                                            taRef.current?.focus();
+                                            taRef.current?.setSelectionRange(
+                                                `New Measure = ${snippet}`.length -
+                                                    1,
+                                                `New Measure = ${snippet}`.length -
+                                                    1,
+                                            );
+                                        });
+                                    }}
+                                    className="rounded-full border border-border px-2 py-0.5 font-mono hover:bg-accent"
+                                >
+                                    {snippet}
+                                </button>
+                            ),
+                        )}
+                    </div>
+                )}
                 <div className="relative">
                     {signature && <SignatureHint signature={signature} />}
                     <FormulaOverlay
@@ -618,6 +684,11 @@ export function DaxDialog({ onClose }: { onClose: () => void }) {
                         spellCheck={false}
                         className="text-transparent caret-foreground selection:bg-brand/40 h-28 w-full resize-none rounded border border-border bg-background p-2 font-mono text-[12px] leading-[1.4]"
                     />
+                    {validation && (
+                        <div className="mt-1 text-[11px] text-red-500">
+                            {validation}
+                        </div>
+                    )}
                     {show && (
                         <div className="absolute right-0 left-0 top-full z-10 mt-1 overflow-hidden rounded border border-border bg-card shadow-xl">
                             <div className="flex">
@@ -668,9 +739,29 @@ export function DaxDialog({ onClose }: { onClose: () => void }) {
                         </div>
                     )}
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-[11px] text-muted-foreground">
+                        Folder (category)
+                        <input
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            placeholder="Finance, Operations…"
+                            className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-brand"
+                        />
+                    </label>
+                    <label className="block text-[11px] text-muted-foreground">
+                        Description
+                        <input
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Optional"
+                            className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-brand"
+                        />
+                    </label>
+                </div>
                 <div className="text-[11px] text-muted-foreground">
                     Existing measures:
-                    <ul className="mt-1 space-y-0.5 font-mono">
+                    <ul className="mt-1 max-h-24 space-y-0.5 overflow-auto font-mono">
                         {measures.map((m) => (
                             <li key={m.name}>{m.expression}</li>
                         ))}
@@ -685,12 +776,206 @@ export function DaxDialog({ onClose }: { onClose: () => void }) {
                     </button>
                     <button
                         onClick={commit}
-                        className="rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground"
+                        disabled={saving}
+                        className="rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground disabled:opacity-50"
                     >
-                        Commit
+                        {editing ? 'Save changes' : 'Commit'}
                     </button>
                 </div>
             </div>
+        </Modal>
+    );
+}
+
+/* ------------------------- Measure management ------------------------- */
+
+export function ManageMeasuresDialog({
+    onClose,
+}: {
+    onClose: () => void;
+}) {
+    const { measures, removeMeasure } = usePbi();
+    const [createOpen, setCreateOpen] = useState(false);
+    const [editTarget, setEditTarget] = useState<Field | null>(null);
+    const [confirm, setConfirm] = useState<Field | null>(null);
+    const [busy, setBusy] = useState(false);
+
+    const items = useMemo(
+        () => [
+            ...MEASURES.filter(
+                (m) => !measures.some((c) => c.name === m.name),
+            ),
+            ...measures,
+        ],
+        [measures],
+    );
+
+    const folders = useMemo(() => {
+        const map = new Map<string, Field[]>();
+        for (const m of items) {
+            const key = m.category?.trim() || 'Uncategorized';
+            const arr = map.get(key) ?? [];
+            arr.push(m);
+            map.set(key, arr);
+        }
+        return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    }, [items]);
+
+    const del = async (m: Field) => {
+        if (busy || m.id == null) return;
+        setBusy(true);
+        try {
+            await removeMeasure(m.id);
+            toast.success(`Measure "${m.name}" deleted`);
+            setConfirm(null);
+        } catch (e) {
+            toast.error(
+                e instanceof Error ? e.message : 'Failed to delete measure',
+            );
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <Modal open onClose={onClose} title="Manage measures" wide>
+            <div className="p-4">
+                <div className="mb-3 flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">
+                        Shared measure library — usable on every page.
+                    </span>
+                    <button
+                        onClick={() => setCreateOpen(true)}
+                        className="flex items-center gap-1 rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground"
+                    >
+                        <Plus className="size-3.5" /> New measure
+                    </button>
+                </div>
+                {folders.map(([folder, list]) => (
+                    <div key={folder} className="mb-3">
+                        <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                            <Folder className="size-3.5" />
+                            {folder}
+                            <span className="text-muted-foreground/60">
+                                ({list.length})
+                            </span>
+                        </div>
+                        <ul className="mt-1 space-y-1">
+                            {list.map((m) => {
+                                const error = measureError(m.name);
+                                const builtin =
+                                    MEASURES.some((b) => b.name === m.name);
+                                return (
+                                    <li
+                                        key={m.name}
+                                        className="flex items-center gap-2 rounded border border-border bg-background px-2 py-1.5"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="truncate font-mono text-[12px] font-semibold">
+                                                    {m.name}
+                                                </span>
+                                                {builtin && (
+                                                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                                                        built-in
+                                                    </span>
+                                                )}
+                                                {error && (
+                                                    <span
+                                                        className="inline-flex min-w-0 shrink-0 items-center gap-1 truncate text-[10px] text-red-500"
+                                                        title={error}
+                                                    >
+                                                        <AlertTriangle className="size-3 shrink-0" />
+                                                        {error}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="truncate font-mono text-[11px] text-muted-foreground">
+                                                {m.expression}
+                                            </div>
+                                            {m.description && (
+                                                <div className="truncate text-[11px] text-muted-foreground/70">
+                                                    {m.description}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {!builtin && (
+                                            <>
+                                                <button
+                                                    onClick={() =>
+                                                        setEditTarget(m)
+                                                    }
+                                                    title="Edit measure"
+                                                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                                >
+                                                    <Pencil className="size-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() =>
+                                                        setConfirm(m)
+                                                    }
+                                                    title="Delete measure"
+                                                    className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                                                >
+                                                    <Trash2 className="size-3.5" />
+                                                </button>
+                                            </>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                ))}
+                {!items.length && (
+                    <p className="py-6 text-center text-[12px] text-muted-foreground">
+                        No measures yet — create one with “New measure”.
+                    </p>
+                )}
+            </div>
+            {createOpen && (
+                <DaxDialog onClose={() => setCreateOpen(false)} />
+            )}
+            {editTarget && (
+                <DaxDialog
+                    key={`edit-${editTarget.id ?? editTarget.name}`}
+                    edit={editTarget}
+                    onClose={() => setEditTarget(null)}
+                />
+            )}
+            {confirm && (
+                <Modal
+                    open
+                    onClose={() => setConfirm(null)}
+                    title="Delete measure"
+                >
+                    <div className="p-4 text-[12px]">
+                        <p>
+                            Delete{' '}
+                            <strong className="font-mono">
+                                {confirm.name}
+                            </strong>
+                            ? Visuals using it will stop resolving until they
+                            are re-linked to another field.
+                        </p>
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                onClick={() => setConfirm(null)}
+                                className="rounded border border-border px-3 py-1 text-[12px]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => del(confirm)}
+                                disabled={busy}
+                                className="rounded bg-red-600 px-3 py-1 text-[12px] font-medium text-white disabled:opacity-50"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </Modal>
     );
 }

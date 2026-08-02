@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildTables, fetchEndpointDatasets, type EndpointDataset, type TableDef } from "@/lib/pbi/datasets";
-import type { Row } from "@/lib/pbi/model";
+import { buildTables, fetchEndpointDatasets, type EndpointDataset, type TableDef } from "@/lib/v6/datasets";
+import type { Row } from "@/lib/v6/model";
 import { logActivity, logWidgetActivity } from "./activity";
 import type { MeasureDefinition, PageLayout, TableCell, Widget, WidgetConfig, WidgetType } from "./types";
 import { makeEmptyTable, pushWidgets, ROW_HEIGHT, uid } from "./types";
@@ -16,6 +16,12 @@ type Ctx = {
   measures: MeasureDefinition[];
   addMeasure: (measure: MeasureDefinition) => void;
   removeMeasure: (name: string) => void;
+  sharedMeasures: MeasureDefinition[];
+  measuresLoading: boolean;
+  refreshSharedMeasures: () => void;
+  saveSharedMeasure: (measure: MeasureDefinition) => Promise<boolean>;
+  removeSharedMeasure: (name: string) => Promise<boolean>;
+  allMeasures: MeasureDefinition[];
   selectedId: string | null;
   select: (id: string | null) => void;
   selected: Widget | null;
@@ -150,7 +156,8 @@ const MARGIN_KEY = {
 export function BuilderProvider({
   pageId, pageDbId, defaultLayout, defaultMeasures = [], children, apiBase = "/api/builder-pages",
   dataApiBase = "/api/v6/endpoint-datasets",
-}: { pageId: string; pageDbId: number; defaultLayout: Widget[]; defaultMeasures?: MeasureDefinition[]; children: ReactNode; apiBase?: string; dataApiBase?: string }) {
+  measuresApiBase = "/api/v6/measures",
+}: { pageId: string; pageDbId: number; defaultLayout: Widget[]; defaultMeasures?: MeasureDefinition[]; children: ReactNode; apiBase?: string; dataApiBase?: string; measuresApiBase?: string }) {
   const [mode, setMode] = useState<Mode>("view");
   const [widgets, setWidgets] = useState<Widget[]>(defaultLayout);
   const [measures, setMeasures] = useState<MeasureDefinition[]>(defaultMeasures);
@@ -192,6 +199,86 @@ export function BuilderProvider({
   }, [loadDatasets]);
 
   const tableDefs = useMemo(() => buildTables(datasets), [datasets]);
+
+  // ─── shared measure library (global, live on every page) ───
+  const [sharedMeasures, setSharedMeasures] = useState<MeasureDefinition[]>([]);
+  const [measuresLoading, setMeasuresLoading] = useState(false);
+  const fetchSharedMeasures = useCallback(
+    () =>
+      fetch(measuresApiBase, {
+        credentials: "include",
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+      })
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+        .then((data) => (Array.isArray(data?.measures) ? data.measures : []) as MeasureDefinition[]),
+    [measuresApiBase],
+  );
+
+  const refreshSharedMeasures = useCallback(() => {
+    setMeasuresLoading(true);
+    fetchSharedMeasures()
+      .then(setSharedMeasures)
+      .catch(() => { /* keep last known library */ })
+      .finally(() => setMeasuresLoading(false));
+  }, [fetchSharedMeasures]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSharedMeasures()
+      .then((next) => { if (!cancelled) setSharedMeasures(next); })
+      .catch(() => { /* keep last known library */ });
+    return () => { cancelled = true; };
+  }, [fetchSharedMeasures]);
+
+  const saveSharedMeasure = useCallback(async (measure: MeasureDefinition) => {
+    const existing = sharedMeasures.find((m) => m.name === measure.name);
+    try {
+      const res = await fetch(existing?.id ? `${measuresApiBase}/${existing.id}` : measuresApiBase, {
+        method: existing?.id ? "PUT" : "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-XSRF-TOKEN": getCsrfToken(),
+        },
+        body: JSON.stringify({
+          name: measure.name,
+          expression: measure.expression,
+          description: measure.description ?? "",
+          category: measure.category ?? "",
+        }),
+      });
+      if (!res.ok) return false;
+      refreshSharedMeasures();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [sharedMeasures, measuresApiBase, refreshSharedMeasures]);
+
+  const removeSharedMeasure = useCallback(async (name: string) => {
+    const existing = sharedMeasures.find((m) => m.name === name);
+    if (!existing?.id) return false;
+    try {
+      const res = await fetch(`${measuresApiBase}/${existing.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest", "X-XSRF-TOKEN": getCsrfToken() },
+      });
+      if (!res.ok) return false;
+      refreshSharedMeasures();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [sharedMeasures, measuresApiBase, refreshSharedMeasures]);
+
+  /** Widget resolution order: local page measures override shared ones with the same name. */
+  const allMeasures = useMemo(() => {
+    const localNames = new Set(measures.map((m) => m.name));
+    return [...sharedMeasures.filter((m) => !localNames.has(m.name)), ...measures];
+  }, [sharedMeasures, measures]);
 
   const rowsBySlug = useMemo(() => {
     const out: Record<string, Row[]> = {};
@@ -486,6 +573,7 @@ export function BuilderProvider({
   const value: Ctx = {
     mode, setMode, pageId, pageDbId, widgets, selectedId,
     measures, addMeasure, removeMeasure,
+    sharedMeasures, measuresLoading, refreshSharedMeasures, saveSharedMeasure, removeSharedMeasure, allMeasures,
     select: setSelectedId, selected,
     addWidget, updateWidget, updateConfig, removeWidget, duplicateWidget,
     toggleLock, moveZ,

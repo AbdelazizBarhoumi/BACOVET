@@ -1,13 +1,14 @@
 import { useId } from "react";
 import { Bar, BarChart, Cell, Legend, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, targetColor, barGradientStops, ScalerHeader, wrap } from "./shared";
+import { boxStyle, hasWidgetBinding, noDataBound, noSeriesData, rechartClickLabel, useWidgetData, useCrossFilter, targetColor, barGradientStops, ScalerHeader, wrap, MeasureErrorBanner } from "./shared";
 
 export function AdvancedChartWidget({ type, c, id }: { type: "card" | "funnel" | "treemap" | "waterfall" | "scatter" | "bubble" | "stacked-bar" | "stacked-area"; c: WidgetConfig; id?: string }) {
   const gradId = useId();
-  const { series, multiSeries, hasSeries, scalar, hasScalar } = useWidgetData(c, id);
+  const { series, multiSeries, hasSeries, scalar, hasScalar, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries && !hasScalar) return wrap(c, boxStyle(c), noSeriesData());
   const data = multiSeries.length
     ? multiSeries[0].data.map((row, i) => ({

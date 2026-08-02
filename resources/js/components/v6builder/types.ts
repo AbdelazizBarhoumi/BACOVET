@@ -204,9 +204,12 @@ export const V6_WIDGET_TYPES: readonly WidgetType[] = [
 ];
 
 export type MeasureDefinition = {
+  /** Backend id — set when the measure lives in the shared library. */
+  id?: number;
   name: string;
   expression: string;
   description?: string;
+  category?: string;
 };
 
 export type PageLayout = {

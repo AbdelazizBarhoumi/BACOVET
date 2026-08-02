@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronsRight,
   Database,
+  FolderClosed,
   Pencil,
   Plus,
   RefreshCw,
@@ -15,24 +16,35 @@ import {
   Sigma,
   Table2,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { type EndpointDataset } from "@/lib/pbi/datasets";
+import { type EndpointDataset } from "@/lib/v6/datasets";
 import {
   applySuggestion as applyDaxSuggestion,
   completeDax,
   daxSignature,
   type DaxSuggestion,
-} from "@/lib/pbi/dax";
-import { MEASURES, type Field, type TableDef } from "@/lib/pbi/model";
+} from "@/lib/v6/dax";
+import { MEASURES, type Field, type TableDef, validateMeasureExpression } from "@/lib/v6/model";
 import { fieldBoundToWidget, toggleFieldOnWidget, type FieldRef } from "./field-binds";
 import { useBuilder } from "./store";
+import type { MeasureDefinition } from "./types";
 
 function signatureLabel(signature: ReturnType<typeof daxSignature>) {
   if (!signature) return null;
   return `${signature.name}(${signature.args.map((arg, index) => (index === signature.activeArg ? `[${arg}]` : arg)).join(", ")})`;
 }
+
+type MeasureScope = "local" | "shared";
+
+export type MeasureSavePayload = {
+  name: string;
+  expression: string;
+  category?: string;
+  scope: MeasureScope;
+};
 
 function MeasureDialog({
   open,
@@ -41,6 +53,9 @@ function MeasureDialog({
   existingMeasures,
   initialName,
   initialExpression,
+  initialCategory = "",
+  initialScope = "local",
+  allColumnNames,
   onSave,
 }: {
   open: boolean;
@@ -49,11 +64,17 @@ function MeasureDialog({
   existingMeasures: Field[];
   initialName: string;
   initialExpression: string;
-  onSave: (name: string, expression: string) => void;
+  initialCategory?: string;
+  initialScope?: MeasureScope;
+  allColumnNames: string[];
+  onSave: (payload: MeasureSavePayload) => Promise<boolean>;
 }) {
   const [name, setName] = useState(initialName);
   const [expression, setExpression] = useState(initialExpression);
+  const [category, setCategory] = useState(initialCategory);
+  const [scope, setScope] = useState<MeasureScope>(initialScope);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [cursor, setCursor] = useState(initialExpression.length);
   const [active, setActive] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,13 +84,16 @@ function MeasureDialog({
     requestAnimationFrame(() => {
       setName(initialName);
       setExpression(initialExpression);
+      setCategory(initialCategory);
+      setScope(initialScope);
       setCursor(initialExpression.length);
       setError("");
       setActive(0);
+      setSaving(false);
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(initialExpression.length, initialExpression.length);
     });
-  }, [open, initialName, initialExpression]);
+  }, [open, initialName, initialExpression, initialCategory, initialScope]);
 
   const suggestions = useMemo(
     () => completeDax(expression, cursor, datasets, existingMeasures),
@@ -100,34 +124,49 @@ function MeasureDialog({
     const selectedDataset = datasets[0];
     const selectedColumn = selectedDataset?.fields.find((field) => field.type === "number") ?? selectedDataset?.fields[0];
     if (selectedDataset && selectedColumn) {
-      const next = `New Measure = ${fn}(${selectedDataset.name}[${selectedColumn.name}])`;
+      const next = `${fn}(${selectedDataset.name}[${selectedColumn.name}])`;
       setName(`${selectedColumn.name} ${fn.toLowerCase()}`);
       setExpression(next);
-      setCursor(next.length - 1);
+      setCursor(next.length);
       requestAnimationFrame(() => {
         textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(next.length - 1, next.length - 1);
+        textareaRef.current?.setSelectionRange(next.length, next.length);
       });
     }
   };
 
-  const save = () => {
+  const save = async () => {
     const trimmedExpression = expression.trim();
     const eq = trimmedExpression.indexOf("=");
     const finalName = (name.trim() || (eq >= 0 ? trimmedExpression.slice(0, eq).trim() : ""));
     const finalExpression = trimmedExpression;
 
-    if (!finalName || !finalExpression) {
-      setError("Nom et expression obligatoires.");
+    if (!finalName) {
+      setError("Le nom de la mesure est obligatoire.");
       return;
     }
-    if (!/=/.test(finalExpression)) {
-      setError("Utilise le format: Nom = Expression DAX");
+    if (!finalExpression) {
+      setError("L'expression est obligatoire.");
       return;
     }
 
-    onSave(finalName, finalExpression);
-    onClose();
+    const measureNames = existingMeasures.map((m) => m.name);
+    const validation = validateMeasureExpression(finalExpression, allColumnNames, measureNames);
+    if (!validation.ok) {
+      setError(validation.error);
+      return;
+    }
+
+    setSaving(true);
+    const ok = await onSave({
+      name: finalName,
+      expression: finalExpression,
+      category: scope === "shared" ? category.trim() || undefined : undefined,
+      scope,
+    });
+    setSaving(false);
+    if (ok) onClose();
+    else setError("Impossible d'enregistrer la mesure. Réessayez.");
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -178,6 +217,23 @@ function MeasureDialog({
             ))}
           </div>
 
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+              {(["local", "shared"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setScope(s)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${scope === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}
+                >
+                  {s === "local" ? "Locale à la page" : "Bibliothèque partagée"}
+                </button>
+              ))}
+            </div>
+            <span className="text-[10px] text-muted-foreground">
+              {scope === "shared" ? "Visible sur toutes les pages." : "Enregistrée dans cette page uniquement."}
+            </span>
+          </div>
+
           <div className="grid gap-3 lg:grid-cols-[1.25fr_0.75fr]">
             <div className="space-y-3">
               <div className="grid gap-2 sm:grid-cols-2">
@@ -194,11 +250,20 @@ function MeasureDialog({
                 </div>
                 <div>
                   <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Expression
+                    {scope === "shared" ? "Catégorie" : "Expression"}
                   </div>
-                  <div className="rounded border border-border bg-background px-3 py-2 text-[11px] text-muted-foreground">
-                    {signatureLabel(signature) ?? "Écris une formule DAX simple ou utilise les suggestions."}
-                  </div>
+                  {scope === "shared" ? (
+                    <input
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value)}
+                      placeholder="Ex. Finance"
+                      className="w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                    />
+                  ) : (
+                    <div className="rounded border border-border bg-background px-3 py-2 text-[11px] text-muted-foreground">
+                      {signatureLabel(signature) ?? "Écris une formule DAX simple ou utilise les suggestions."}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -292,8 +357,8 @@ function MeasureDialog({
           <button onClick={onClose} className="rounded border border-border px-3 py-2 text-sm">
             Annuler
           </button>
-          <button onClick={save} className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground">
-            Créer la mesure
+          <button onClick={() => void save()} disabled={saving} className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-60">
+            {saving ? "Enregistrement…" : scope === "shared" ? "Enregistrer dans la bibliothèque" : "Créer la mesure"}
           </button>
         </DialogFooter>
       </DialogContent>
@@ -307,6 +372,8 @@ type FieldItem = {
   ambiguous: boolean;
   isMeasure: boolean;
   custom: boolean;
+  shared?: boolean;
+  category?: string;
   expression?: string;
 };
 
@@ -335,6 +402,9 @@ export function DataBanner() {
     measures,
     addMeasure,
     removeMeasure,
+    sharedMeasures,
+    saveSharedMeasure,
+    removeSharedMeasure,
     selected: selectedWidget,
     updateConfig,
     datasets,
@@ -344,7 +414,7 @@ export function DataBanner() {
   } = useBuilder();
   const [query, setQuery] = useState("");
   const [measureOpen, setMeasureOpen] = useState(false);
-  const [editingMeasure, setEditingMeasure] = useState<{ name: string; expression: string } | null>(null);
+  const [editingMeasure, setEditingMeasure] = useState<{ name: string; expression: string; category?: string; scope: MeasureScope } | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = useState(false);
 
@@ -358,6 +428,11 @@ export function DataBanner() {
     }
     return map;
   }, [datasets]);
+
+  const allColumnNames = useMemo(
+    () => tableDefs.flatMap((t) => t.fields.map((f) => f.name)),
+    [tableDefs],
+  );
 
   const customMeasureFields: Field[] = useMemo(
     () =>
@@ -378,6 +453,33 @@ export function DataBanner() {
     ],
     [customMeasureFields],
   );
+
+  /** Shared-library measures, grouped into category folders for the sidebar. */
+  const sharedGroups: FieldGroup[] = useMemo(() => {
+    const byCategory = new Map<string, MeasureDefinition[]>();
+    for (const m of sharedMeasures) {
+      const key = (m.category ?? "").trim() || "Sans catégorie";
+      if (!byCategory.has(key)) byCategory.set(key, []);
+      byCategory.get(key)!.push(m);
+    }
+    const groups: FieldGroup[] = [];
+    for (const [category, list] of byCategory) {
+      groups.push({
+        name: category,
+        fields: list.map((m) => ({
+          ref: { table: "Measures", name: m.name, type: "number", measure: true },
+          label: m.name,
+          ambiguous: false,
+          isMeasure: true,
+          custom: false,
+          shared: true,
+          category,
+          expression: m.expression,
+        })),
+      });
+    }
+    return groups;
+  }, [sharedMeasures]);
 
   const groups: FieldGroup[] = useMemo(() => {
     const out: FieldGroup[] = [
@@ -421,10 +523,12 @@ export function DataBanner() {
     return out;
   }, [measureFields, tableDefs, datasetByTable]);
 
+  const allGroups = useMemo(() => [...groups.slice(0, 1), ...sharedGroups, ...groups.slice(1)], [groups, sharedGroups]);
+
   const visibleGroups = useMemo(() => {
     const text = query.trim().toLowerCase();
-    if (!text) return groups;
-    return groups
+    if (!text) return allGroups;
+    return allGroups
       .map((g) => ({
         ...g,
         fields: g.fields.filter((f) =>
@@ -434,29 +538,56 @@ export function DataBanner() {
         ),
       }))
       .filter((g) => g.fields.length > 0);
-  }, [groups, query]);
+  }, [allGroups, query]);
+
+  const allMeasureNames = useMemo(
+    () => [...measureFields.map((m) => m.name), ...sharedMeasures.map((m) => m.name)],
+    [measureFields, sharedMeasures],
+  );
+
+  const dialogMeasures = useMemo<Field[]>(
+    () => [
+      ...measureFields,
+      ...sharedMeasures
+        .filter((m) => !measureFields.some((f) => f.name === m.name))
+        .map((m) => ({ table: "Measures", name: m.name, type: "number" as const, measure: true, expression: m.expression })),
+    ],
+    [measureFields, sharedMeasures],
+  );
+
+  const measureErrorFor = (f: FieldItem): string | null => {
+    if (!f.expression) return null;
+    const res = validateMeasureExpression(f.expression, allColumnNames, allMeasureNames);
+    return res.ok ? null : res.error;
+  };
 
   const dragField = (e: React.DragEvent, item: FieldItem) => {
     e.dataTransfer.setData("text/plain", JSON.stringify({ kind: "field", ...item.ref }));
     e.dataTransfer.effectAllowed = "copy";
   };
 
-  const openMeasureModal = (measure?: { name: string; expression: string }) => {
+  const openMeasureModal = (measure?: { name: string; expression: string; category?: string; scope?: MeasureScope }) => {
     if (measure) {
-      setEditingMeasure(measure);
+      setEditingMeasure({ name: measure.name, expression: measure.expression, category: measure.category, scope: measure.scope ?? "local" });
     } else {
       const table = tableDefs[0];
       const preferredColumn = table?.fields.find((field) => field.type === "number") ?? table?.fields[0];
       const nextName = preferredColumn ? `${preferredColumn.name} total` : "New Measure";
       const nextExpression = table && preferredColumn
-        ? `${nextName} = SUM(${table.name}[${preferredColumn.name}])`
-        : "New Measure = SUM(Table[Column])";
-      setEditingMeasure({ name: nextName, expression: nextExpression });
+        ? `SUM(${preferredColumn.name})`
+        : "SUM(Column)";
+      setEditingMeasure({ name: nextName, expression: nextExpression, category: "", scope: "local" });
     }
     setMeasureOpen(true);
   };
 
-  const saveMeasure = (name: string, expression: string) => {
+  const saveMeasure = async (payload: MeasureSavePayload): Promise<boolean> => {
+    const { name, expression, category, scope } = payload;
+    if (scope === "shared") {
+      const ok = await saveSharedMeasure({ name, expression, category });
+      if (ok) setEditingMeasure(null);
+      return ok;
+    }
     const existing = measures.find((measure) => measure.name === name);
     if (editingMeasure && editingMeasure.name !== name) {
       removeMeasure(editingMeasure.name);
@@ -465,6 +596,7 @@ export function DataBanner() {
     }
     addMeasure({ name, expression });
     setEditingMeasure(null);
+    return true;
   };
 
   if (collapsed) {
@@ -541,6 +673,7 @@ export function DataBanner() {
 
         {visibleGroups.map((g) => {
           const isOpen = !!open[g.name];
+          const isSharedGroup = g.fields.length > 0 && !!g.fields[0].shared;
           return (
             <div key={g.name}>
               <button
@@ -550,24 +683,34 @@ export function DataBanner() {
                 <ChevronRight
                   className={`size-3 transition-transform ${isOpen ? "rotate-90" : ""}`}
                 />
-                <Table2 className="size-3 text-muted-foreground" />
+                {isSharedGroup ? (
+                  <FolderClosed className="size-3 text-violet-500" />
+                ) : (
+                  <Table2 className="size-3 text-muted-foreground" />
+                )}
                 <span className="min-w-0 flex-1 truncate">{g.name}</span>
-                {g.meta && (
+                {isSharedGroup ? (
+                  <span className="pr-1 font-mono text-[9px] text-violet-500">
+                    {g.fields.length} mesure{g.fields.length > 1 ? "s" : ""}
+                  </span>
+                ) : g.meta ? (
                   <span className="pr-1 font-mono text-[9px] text-muted-foreground">
                     {g.meta.rows.toLocaleString()} lignes
                   </span>
-                )}
+                ) : null}
               </button>
               {isOpen && (
                 <div className="pb-1">
                   {g.fields.map((f) => {
                     const bound = fieldBoundToWidget(selectedWidget, f.ref);
+                    const exprError = measureErrorFor(f);
                     return (
                       <div
                         key={`${g.name}.${f.ref.name}`}
                         draggable
                         onDragStart={(e) => dragField(e, f)}
                         title={
+                          exprError ??
                           f.expression ??
                           (f.ambiguous
                             ? `${f.ref.table}[${f.ref.name}]`
@@ -586,15 +729,18 @@ export function DataBanner() {
                           className="size-3 accent-[var(--brand)]"
                         />
                         <FieldTypeIcon item={f} />
-                        <span className="min-w-0 flex-1 truncate">
+                        <span className={`min-w-0 flex-1 truncate ${exprError ? "text-amber-600" : ""}`}>
                           {f.ambiguous ? `${g.name}.${f.ref.name}` : f.ref.name}
                         </span>
-                        {f.custom && (
+                        {exprError && (
+                          <TriangleAlert className="size-3 shrink-0 text-amber-500" />
+                        )}
+                        {(f.custom || f.shared) && (
                           <span className="flex shrink-0 items-center gap-0.5">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openMeasureModal({ name: f.ref.name, expression: f.expression ?? "" });
+                                openMeasureModal({ name: f.ref.name, expression: f.expression ?? "", category: f.category, scope: f.shared ? "shared" : "local" });
                               }}
                               className="rounded border border-border p-0.5 hover:bg-secondary"
                               title="Modifier"
@@ -604,7 +750,8 @@ export function DataBanner() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                removeMeasure(f.ref.name);
+                                if (f.shared) void removeSharedMeasure(f.ref.name);
+                                else removeMeasure(f.ref.name);
                               }}
                               className="rounded border border-border p-0.5 text-destructive hover:bg-secondary"
                               title="Supprimer"
@@ -639,9 +786,12 @@ export function DataBanner() {
             setEditingMeasure(null);
           }}
           datasets={tableDefs}
-          existingMeasures={measureFields}
+          existingMeasures={dialogMeasures}
           initialName={editingMeasure.name}
           initialExpression={editingMeasure.expression}
+          initialCategory={editingMeasure.category}
+          initialScope={editingMeasure.scope}
+          allColumnNames={allColumnNames}
           onSave={saveMeasure}
         />
       )}

@@ -1,10 +1,10 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, lighten, noSeriesData, noDataBound, ScalerHeader } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, echartsClickLabel, lighten, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function RadarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { series, multiSeries, hasSeries } = useWidgetData(c, id);
+  const { series, multiSeries, hasSeries, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
 
   const option = useMemo(() => {
@@ -63,6 +63,7 @@ export function RadarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   }, [series, multiSeries, c.accent, isDimmed]);
 
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries) return wrap(c, boxStyle(c), noSeriesData());
 
   return wrap(c, boxStyle(c),

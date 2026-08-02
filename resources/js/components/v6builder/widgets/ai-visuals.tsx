@@ -1,18 +1,19 @@
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, noDataBound, noSeriesData, wrap } from "./shared";
+import { boxStyle, noDataBound, noSeriesData, wrap, MeasureErrorBanner } from "./shared";
 import { useDatasetData } from "./use-dataset";
 
 export type AiVisualType = "decompositionTree" | "keyInfluencers" | "smartNarrative" | "qna" | "rVisual" | "pythonVisual";
 
 export function AiVisualWidget({ type, c, id }: { type: AiVisualType; c: WidgetConfig; id?: string }) {
-  const { rows, data, hasData } = useDatasetData(c, id);
+  const { rows, data, hasData, measureError } = useDatasetData(c, id);
   const dim = c.dataAxis;
   const value = c.dataValue;
   const groupKey = c.dataGroup;
 
   if (!c.datasetSlug || !value) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasData || !rows.length) return wrap(c, boxStyle(c), noSeriesData());
 
   switch (type) {

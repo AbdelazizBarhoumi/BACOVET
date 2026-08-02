@@ -1,7 +1,7 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo, useState } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, useWidgetData } from "./shared";
+import { boxStyle, wrap, useWidgetData, MeasureErrorBanner } from "./shared";
 
 // ---- color helpers -------------------------------------------------------
 
@@ -47,7 +47,7 @@ function buildTrackStops(steps = 24): [number, string][] {
 // ---------------------------------------------------------------------------
 
 export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { scalar: value, hasScalar: hasData } = useWidgetData(c, id);
+  const { scalar: value, hasScalar: hasData, measureError } = useWidgetData(c, id);
   const min = c.gaugeMin ?? 0;
   const max = c.gaugeMax ?? (c.target ? c.target * 1.2 : 100);
   const startAngle = c.gaugeStartAngle ?? 210;
@@ -150,6 +150,8 @@ export function GaugeWidget({ c, id }: { c: WidgetConfig; id?: string }) {
       )}
     </div>
   );
+
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
 
   return wrap(c, boxStyle(c), content);
 }

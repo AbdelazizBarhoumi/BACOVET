@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import type { EndpointDataset } from "@/lib/pbi/datasets";
-import { compileMeasure, type Row } from "@/lib/pbi/model";
+import type { EndpointDataset } from "@/lib/v6/datasets";
+import { compileMeasure, validateMeasureExpression, type Row } from "@/lib/v6/model";
 import { useBuilder } from "../store";
 import type { Agg, WidgetConfig } from "../types";
 
@@ -19,6 +19,8 @@ export type ValueField = {
   isMeasure: boolean;
   /** Source dataset slug this value is resolved against (falls back to the widget dataset). */
   source: string;
+  /** Measure validation error (invalid formula, deleted column…). */
+  error?: string;
 };
 
 const COLORS = ["#3b82f6", "#22c55e", "#ec4899", "#f59e0b", "#a855f7", "#06b6d4", "#ef4444", "#14b8a6"];
@@ -235,8 +237,9 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
   valueFields: ValueField[];
   loading: boolean;
   hasData: boolean;
+  measureError: string | null;
 } {
-  const { measures, filteredRowsBySlug, datasets, crossFilter } = useBuilder();
+  const { allMeasures, filteredRowsBySlug, datasets, crossFilter } = useBuilder();
 
   const valueNames = useMemo(() => {
     if (c.dataValues?.length) return c.dataValues;
@@ -246,23 +249,36 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
   const joinRegistry = useMemo(() => buildJoinRegistry(datasets), [datasets]);
 
   const valueFields = useMemo<ValueField[]>(() => {
+    const names = allMeasures.map((m) => m.name);
     return valueNames.map((name) => {
       const source = valueSource(c, name);
       const ds = datasets.find((item) => item.slug === source);
-      const isMeasure = measures.some((m) => m.name === name) || !ds?.columns?.some((col) => col.name === name);
+      const isMeasure = allMeasures.some((m) => m.name === name) || !ds?.columns?.some((col) => col.name === name);
       const key = isMeasure || !source || source === c.datasetSlug ? name : `${source}::${name}`;
-      return { name, key, label: valueFieldLabel(name, isMeasure, fieldAggregation(c, name)), isMeasure, source };
+      let error: string | undefined;
+      if (isMeasure) {
+        const def = allMeasures.find((m) => m.name === name);
+        if (def) {
+          const columns = (ds?.columns ?? []).map((col) => col.name);
+          const res = validateMeasureExpression(def.expression, columns, names);
+          if (!res.ok) error = `${name}: ${res.error}`;
+        }
+      }
+      return { name, key, label: valueFieldLabel(name, isMeasure, fieldAggregation(c, name)), isMeasure, source, error };
     });
-  }, [valueNames, measures, datasets, c]);
+  }, [valueNames, allMeasures, datasets, c]);
+
+  /** First validation error across the bound measure fields (invalid formula, deleted column…). */
+  const measureError = valueFields.find((vf) => vf.error)?.error ?? null;
 
   const measureFns = useMemo(() => {
     const map: Record<string, ((rows: Row[]) => number) | null> = {};
     for (const name of valueNames) {
-      const measureDef = measures.find((measure) => measure.name === name);
+      const measureDef = allMeasures.find((measure) => measure.name === name);
       map[name] = measureDef ? compileMeasure(measureDef.expression) : null;
     }
     return map;
-  }, [measures, valueNames]);
+  }, [allMeasures, valueNames]);
 
   const rows = useMemo(() => {
     let out = filteredRowsBySlug[c.datasetSlug ?? ""] ?? [];
@@ -292,7 +308,7 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
     return [];
   }, [enrichedRows, c, valueNames, valueFields, measureFns]);
 
-  return { rows, data, multi, valueFields, loading: false, hasData: rows.length > 0 };
+  return { rows, data, multi, valueFields, loading: false, hasData: rows.length > 0, measureError };
 }
 
 export { COLORS as DATASET_COLORS };

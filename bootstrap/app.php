@@ -47,6 +47,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/v6-auth/*',
             'api/v6/builder-pages/*',
             'api/v6/builder-pages',
+            'api/v6/measures/*',
+            'api/v6/measures',
         ]);
 
         $middleware->web(append: [

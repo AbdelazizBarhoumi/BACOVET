@@ -2,7 +2,7 @@ import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { useId } from "react";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, hasWidgetBinding, useWidgetData } from "./shared";
+import { boxStyle, hasWidgetBinding, useWidgetData, MeasureErrorBanner } from "./shared";
 
 function lighten(hex: string, amt: number): string {
   const n = parseInt(hex.slice(1), 16);
@@ -14,7 +14,14 @@ function lighten(hex: string, amt: number): string {
 export function KpiWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const style = boxStyle(c);
   const gradientId = useId();
-  const { scalar, hasScalar, series } = useWidgetData(c, id);
+  const { scalar, hasScalar, series, measureError } = useWidgetData(c, id);
+  if (measureError) {
+    return (
+      <div className="h-full w-full flex flex-col p-3" style={style}>
+        <div className="flex-1 min-h-0"><MeasureErrorBanner message={measureError} /></div>
+      </div>
+    );
+  }
   const v = hasScalar ? scalar : 0;
   const tgt = c.target ?? 0;
   const status = tgt ? (v >= tgt ? "ok" : v >= tgt * 0.9 ? "warn" : "bad") : "ok";

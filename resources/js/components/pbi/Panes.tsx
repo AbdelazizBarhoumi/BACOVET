@@ -35,13 +35,19 @@ import {
     Eye,
     EyeOff,
     Filter,
+    Folder,
+    MoreHorizontal,
+    Pencil,
     Plus,
     Search,
     Sigma,
     Table2,
+    Trash2,
+    TriangleAlert,
     X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import {
     MEASURES,
     PAGE_PRESETS,
@@ -49,8 +55,10 @@ import {
     fieldLabel,
     fieldType,
     isMeasure,
+    measureError,
     measureLabel,
     type Agg,
+    type Field,
     type VisualType,
 } from '@/lib/pbi/model';
 import {
@@ -60,6 +68,7 @@ import {
     type WellName,
 } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
+import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
 
 /* ------------------------------ Icon set ------------------------------- */
 /* The Visualizations pane and Data pane now use Microsoft's own Fluent UI
@@ -235,23 +244,78 @@ export function FieldsPane({
 }: {
     onCollapse?: () => void;
 }) {
-    const { addFilter, selected, toggleField, tables, measures } = usePbi();
+    const { addFilter, selected, toggleField, tables, measures, removeMeasure } =
+        usePbi();
     const [query, setQuery] = useState('');
     const [open, setOpen] = useState<Record<string, boolean>>({});
+    const [folderOpen, setFolderOpen] = useState<Record<string, boolean>>({});
+    const [menuFor, setMenuFor] = useState<string | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+    const [editTarget, setEditTarget] = useState<Field | null>(null);
+    const [manageOpen, setManageOpen] = useState(false);
+    const [busy, setBusy] = useState(false);
 
-    const custom = measures ?? [];
-    const groups = [
-        {
-            name: 'Measures',
-            fields: [
-                ...MEASURES.filter(
-                    (m) => !custom.some((c) => c.name === m.name),
-                ),
-                ...custom,
-            ],
-        },
-        ...tables.map((t) => ({ name: t.name, fields: t.fields })),
-    ];
+    const custom = useMemo(() => measures ?? [], [measures]);
+    const measureFields = useMemo(
+        () => [
+            ...MEASURES.filter(
+                (m) => !custom.some((c) => c.name === m.name),
+            ),
+            ...custom,
+        ],
+        [custom],
+    );
+
+    const measureFolders = useMemo(() => {
+        const map = new Map<string, Field[]>();
+        for (const m of measureFields) {
+            const key = m.category?.trim() || 'Other';
+            const arr = map.get(key) ?? [];
+            arr.push(m);
+            map.set(key, arr);
+        }
+        return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    }, [measureFields]);
+
+    const del = async (name: string) => {
+        const target = custom.find((m) => m.name === name);
+        if (busy || !target || target.id == null) return;
+        setBusy(true);
+        try {
+            await removeMeasure(target.id);
+            toast.success(`Measure "${name}" deleted`);
+            setConfirmDelete(null);
+            setMenuFor(null);
+        } catch (e) {
+            toast.error(
+                e instanceof Error ? e.message : 'Failed to delete measure',
+            );
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const measureChecked = (f: Field) =>
+        !!selected &&
+        [...selected.axis, ...selected.values, ...selected.legend].some(
+            (x) => x.name === f.name && x.table === 'Measures',
+        );
+
+    const toggleMeasure = (f: Field) => {
+        if (!selected) return;
+        toggleField(
+            selected.id,
+            defaultDropWell(selected.type) === 'axis'
+                ? 'axis'
+                : f.measure || f.type === 'number'
+                  ? 'values'
+                  : 'axis',
+            f.name,
+            'Measures',
+        );
+    };
+
+    const groups = tables.map((t) => ({ name: t.name, fields: t.fields }));
 
     return (
         <div className="flex h-full flex-col">
@@ -268,6 +332,230 @@ export function FieldsPane({
                 </div>
             </div>
             <div className="flex-1 overflow-auto px-1 pb-2">
+                {measureFields.length > 0 && (
+                    <div key="Measures">
+                        <div className="flex items-center">
+                            <button
+                                onClick={() =>
+                                    setOpen((o) => ({
+                                        ...o,
+                                        Measures: !o.Measures,
+                                    }))
+                                }
+                                className="flex w-full items-center gap-1 rounded px-1 py-1 text-[12px] font-medium hover:bg-accent"
+                            >
+                                <ChevronRight
+                                    className={cn(
+                                        'size-3 transition-transform',
+                                        open.Measures && 'rotate-90',
+                                    )}
+                                />
+                                <Sigma className="size-3 text-muted-foreground" />
+                                <span className="truncate">Measures</span>
+                            </button>
+                            <button
+                                onClick={() => setManageOpen(true)}
+                                title="Manage measures"
+                                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent"
+                            >
+                                <MoreHorizontal className="size-3.5" />
+                            </button>
+                        </div>
+                        {open.Measures &&
+                            measureFolders.map(([folder, list]) => {
+                                const visible = list.filter((f) =>
+                                    [
+                                        f.name,
+                                        folder,
+                                        f.expression ?? '',
+                                    ].some((value) =>
+                                        value
+                                            .toLowerCase()
+                                            .includes(query.toLowerCase()),
+                                    ),
+                                );
+                                if (!visible.length) return null;
+                                return (
+                                    <div key={folder}>
+                                        <button
+                                            onClick={() =>
+                                                setFolderOpen((o) => ({
+                                                    ...o,
+                                                    [folder]: !o[folder],
+                                                }))
+                                            }
+                                            className="ml-4 flex w-full items-center gap-1 rounded px-1 py-[2px] text-[11px] font-medium text-muted-foreground hover:bg-accent"
+                                        >
+                                            <ChevronRight
+                                                className={cn(
+                                                    'size-2.5 transition-transform',
+                                                    folderOpen[folder] &&
+                                                        'rotate-90',
+                                                )}
+                                            />
+                                            <Folder className="size-3 text-muted-foreground" />
+                                            <span className="truncate">
+                                                {folder}
+                                            </span>
+                                            <span className="ml-auto pr-1 text-[10px] text-muted-foreground/60">
+                                                {visible.length}
+                                            </span>
+                                        </button>
+                                        {folderOpen[folder] &&
+                                            visible.map((f) => {
+                                                const error = measureError(
+                                                    f.name,
+                                                );
+                                                return (
+                                                    <div
+                                                        key={f.name}
+                                                        className="relative"
+                                                    >
+                                                        <div
+                                                            draggable
+                                                            onDragStart={(
+                                                                e,
+                                                            ) => {
+                                                                e.dataTransfer.setData(
+                                                                    'text/plain',
+                                                                    JSON.stringify(
+                                                                        {
+                                                                            table:
+                                                                                'Measures',
+                                                                            name: f.name,
+                                                                        },
+                                                                    ),
+                                                                );
+                                                                e.dataTransfer.effectAllowed =
+                                                                    e.ctrlKey
+                                                                        ? 'copy'
+                                                                        : 'move';
+                                                            }}
+                                                            title={
+                                                                f.expression ??
+                                                                `[${f.name}]`
+                                                            }
+                                                            className="ml-5 flex cursor-grab items-center gap-2 rounded px-2 py-[3px] text-[11px] hover:bg-accent active:cursor-grabbing"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={measureChecked(
+                                                                    f,
+                                                                )}
+                                                                onChange={() =>
+                                                                    toggleMeasure(
+                                                                        f,
+                                                                    )
+                                                                }
+                                                                className="size-3 accent-[var(--brand)]"
+                                                            />
+                                                            <Sigma className="size-3 text-muted-foreground" />
+                                                            <span className="truncate">
+                                                                {f.name}
+                                                            </span>
+                                                            {error && (
+                                                                <span
+                                                                    className="shrink-0 text-red-500"
+                                                                    title={
+                                                                        error
+                                                                    }
+                                                                >
+                                                                    <TriangleAlert className="size-3" />
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            onClick={() =>
+                                                                setMenuFor(
+                                                                    menuFor ===
+                                                                        f.name
+                                                                        ? null
+                                                                        : f.name,
+                                                                )
+                                                            }
+                                                            title="Measure actions"
+                                                            className="absolute top-1 right-1 z-10 rounded p-0.5 text-muted-foreground hover:bg-accent"
+                                                        >
+                                                            <MoreHorizontal className="size-3.5" />
+                                                        </button>
+                                                        {menuFor ===
+                                                            f.name && (
+                                                            <div className="absolute right-6 top-0 z-20 w-40 rounded border border-border bg-card py-1 text-[11px] shadow-xl">
+                                                                {confirmDelete ===
+                                                                f.name ? (
+                                                                    <div className="px-2 py-1">
+                                                                        <p className="mb-1 text-muted-foreground">
+                                                                            Delete{' '}
+                                                                            <span className="font-mono">
+                                                                                {f.name}
+                                                                            </span>
+                                                                            ?
+                                                                        </p>
+                                                                        <div className="flex justify-end gap-1">
+                                                                            <button
+                                                                                onClick={() =>
+                                                                                    setConfirmDelete(
+                                                                                        null,
+                                                                                    )
+                                                                                }
+                                                                                className="rounded border border-border px-2 py-0.5"
+                                                                            >
+                                                                                No
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() =>
+                                                                                    del(
+                                                                                        f.name,
+                                                                                    )
+                                                                                }
+                                                                                disabled={
+                                                                                    busy
+                                                                                }
+                                                                                className="rounded bg-red-600 px-2 py-0.5 text-white disabled:opacity-50"
+                                                                            >
+                                                                                Yes
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setEditTarget(
+                                                                                    f,
+                                                                                );
+                                                                                setMenuFor(
+                                                                                    null,
+                                                                                );
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
+                                                                        >
+                                                                            <Pencil className="size-3" />
+                                                                            Edit
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() =>
+                                                                                setConfirmDelete(
+                                                                                    f.name,
+                                                                                )
+                                                                            }
+                                                                            className="flex w-full items-center gap-2 px-2 py-1 text-red-500 hover:bg-accent"
+                                                                        >
+                                                                            <Trash2 className="size-3" />
+                                                                            Delete
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                );
+                            })}
+                    </div>
+                )}
                 {groups.map((g) => {
                     const fields = g.fields.filter((f) =>
                         [f.name, g.name, `${g.name}.${f.name}`].some((value) =>
@@ -384,6 +672,18 @@ export function FieldsPane({
                     );
                 })}
             </div>
+            {manageOpen && (
+                <ManageMeasuresDialog
+                    onClose={() => setManageOpen(false)}
+                />
+            )}
+            {editTarget && (
+                <DaxDialog
+                    key={`edit-${editTarget.id ?? editTarget.name}`}
+                    edit={editTarget}
+                    onClose={() => setEditTarget(null)}
+                />
+            )}
         </div>
     );
 }

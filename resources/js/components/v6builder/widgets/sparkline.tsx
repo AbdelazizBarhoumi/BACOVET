@@ -1,10 +1,10 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, noSeriesData, noDataBound, ScalerHeader } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function SparklineWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { series, hasSeries } = useWidgetData(c, id);
+  const { series, hasSeries, measureError } = useWidgetData(c, id);
 
   const option = useMemo(() => {
     const last = series.length ? series[series.length - 1].v : 0;
@@ -41,6 +41,7 @@ export function SparklineWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   }, [series, c.accent, c.target]);
 
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries) return wrap(c, boxStyle(c), noSeriesData());
 
   return wrap(c, boxStyle(c),

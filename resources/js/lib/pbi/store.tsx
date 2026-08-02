@@ -4,9 +4,17 @@ import {
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from 'react';
+import {
+    createMeasure as apiCreateMeasure,
+    deleteMeasure as apiDeleteMeasure,
+    fetchMeasures,
+    updateMeasure as apiUpdateMeasure,
+    type MeasureRecord,
+} from '@/services/measureApi';
 import type { JoinRegistry } from './joins';
 import {
     PAGE_PRESETS,
@@ -17,6 +25,7 @@ import {
     normalizeWellField,
     registerMeasure,
     setTables,
+    unregisterMeasure,
     type Agg,
     type AnalyticsLine,
     type CrossFilter,
@@ -47,6 +56,20 @@ export function defaultDropWell(type: VisualType): WellName {
 
 function isSlicerType(type: VisualType): boolean {
     return ['slicer', 'buttonSlicer', 'listSlicer', 'inputSlicer', 'dateSlicer'].includes(type);
+}
+
+/** Converts a server-side measure record into a `Field` usable by the canvas. */
+function toMeasureField(record: MeasureRecord): Field {
+    return {
+        table: 'Measures',
+        name: record.name,
+        type: 'number',
+        measure: true,
+        expression: record.expression,
+        id: record.id,
+        category: record.category,
+        description: record.description,
+    };
 }
 
 export type ReportFilter = {
@@ -431,7 +454,20 @@ type Ctx = State & {
     addBookmark: (name: string) => void;
     applyBookmark: (id: string) => void;
     removeBookmark: (id: string) => void;
-    addMeasure: (name: string, expression: string) => void;
+    addMeasure: (
+        name: string,
+        expression: string,
+        category?: string | null,
+        description?: string | null,
+    ) => Promise<void>;
+    updateMeasure: (
+        id: string | number,
+        name: string,
+        expression: string,
+        category?: string | null,
+        description?: string | null,
+    ) => Promise<void>;
+    removeMeasure: (id: string | number) => Promise<void>;
     setTheme: (t: string) => void;
     setRibbonTab: (t: string) => void;
     togglePane: (p: PaneName) => void;
@@ -478,6 +514,53 @@ export function PbiProvider({
             if (m.expression) registerMeasure(m.name, m.expression);
         }
     }, [rawState.measures]);
+
+    // Page-local measures saved before the shared library existed.
+    const legacyMeasures = useRef<Field[]>(initialState?.measures ?? []);
+
+    // Load the shared measure library from the server on mount and migrate
+    // any legacy page-local measures into it once (skipping names that are
+    // already in the library). Uses setRawState directly so this internal
+    // sync does not mark the layout dirty.
+    useEffect(() => {
+        let stop = false;
+        const load = async () => {
+            try {
+                const library = await fetchMeasures();
+                if (stop) return;
+                const existing = new Set(library.map((m) => m.name));
+                const migrated: Field[] = [];
+                for (const legacy of legacyMeasures.current) {
+                    if (!legacy.expression || existing.has(legacy.name)) continue;
+                    try {
+                        const record = await apiCreateMeasure({
+                            name: legacy.name.trim(),
+                            expression: legacy.expression.trim(),
+                            category: legacy.category ?? null,
+                            description: legacy.description ?? null,
+                        });
+                        existing.add(record.name);
+                        migrated.push(toMeasureField(record));
+                    } catch {
+                        // name already taken (another page imported it) or a
+                        // transient failure: skip this one and continue.
+                    }
+                }
+                if (stop) return;
+                setRawState((s) => ({
+                    ...s,
+                    measures: [...library.map(toMeasureField), ...migrated],
+                }));
+            } catch {
+                // Library unreachable: keep whatever page-local measures were
+                // in the initial state so the report still renders.
+            }
+        };
+        void load();
+        return () => {
+            stop = true;
+        };
+    }, []);
 
     const setState = useCallback<React.Dispatch<React.SetStateAction<State>>>(
         (updater) => {
@@ -701,6 +784,7 @@ export function PbiProvider({
         return map;
     }, [
         tables,
+        state.pages,
         state.filters,
         state.slicerSelections,
         state.slicerDateRanges,
@@ -1118,25 +1202,66 @@ export function PbiProvider({
                 ...s,
                 bookmarks: s.bookmarks.filter((b) => b.id !== id),
             })),
-        addMeasure: (name, expression) => {
-            registerMeasure(name, expression);
+        addMeasure: async (
+            name,
+            expression,
+            category = null,
+            description = null,
+        ) => {
+            const record = await apiCreateMeasure({
+                name: name.trim(),
+                expression: expression.trim(),
+                category: category ?? null,
+                description: description ?? null,
+            });
+            registerMeasure(record.name, record.expression);
             setState((s) =>
-                s.measures.some((m) => m.name === name)
+                s.measures.some((m) => m.name === record.name)
                     ? s
                     : {
                           ...s,
                           measures: [
                               ...s.measures,
-                              {
-                                  table: 'Measures',
-                                  name,
-                                  type: 'number',
-                                  measure: true,
-                                  expression,
-                              },
+                              toMeasureField(record),
                           ],
                       },
             );
+        },
+        updateMeasure: async (
+            id,
+            name,
+            expression,
+            category = null,
+            description = null,
+        ) => {
+            const record = await apiUpdateMeasure(id, {
+                name: name.trim(),
+                expression: expression.trim(),
+                category: category ?? null,
+                description: description ?? null,
+            });
+            registerMeasure(record.name, record.expression);
+            setState((s) => ({
+                ...s,
+                measures: s.measures.map((m) =>
+                    String(m.id) === String(record.id)
+                        ? toMeasureField(record)
+                        : m,
+                ),
+            }));
+        },
+        removeMeasure: async (id) => {
+            const target = state.measures.find(
+                (m) => String(m.id) === String(id),
+            );
+            await apiDeleteMeasure(id);
+            if (target) unregisterMeasure(target.name);
+            setState((s) => ({
+                ...s,
+                measures: s.measures.filter(
+                    (m) => String(m.id) !== String(id),
+                ),
+            }));
         },
         setTheme: (theme) => setState((s) => ({ ...s, theme })),
         setRibbonTab: (ribbonTab) => setState((s) => ({ ...s, ribbonTab })),

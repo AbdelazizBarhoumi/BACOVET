@@ -1,11 +1,12 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, PIE_COLORS, hasWidgetBinding, useWidgetData, useCrossFilter, rechartClickLabel, noSeriesData, noDataBound, ScalerHeader } from "./shared";
+import { boxStyle, wrap, PIE_COLORS, hasWidgetBinding, useWidgetData, useCrossFilter, rechartClickLabel, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function PieChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { multiSeries, hasSeries } = useWidgetData(c, id);
+  const { multiSeries, hasSeries, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries) return wrap(c, boxStyle(c), noSeriesData());
 
   const multiple = multiSeries.length > 1;

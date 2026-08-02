@@ -1,10 +1,11 @@
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, targetColor, noSeriesData, noDataBound } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, useCrossFilter, targetColor, noSeriesData, noDataBound, MeasureErrorBanner } from "./shared";
 
 export function SimpleTableWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { multiSeries, hasSeries } = useWidgetData(c, id);
+  const { multiSeries, hasSeries, measureError } = useWidgetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries) return wrap(c, boxStyle(c), noSeriesData());
 
   const rows = multiSeries.length

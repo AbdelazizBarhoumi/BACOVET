@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, noDataBound, noSeriesData, useCrossFilter, wrap } from "./shared";
+import { boxStyle, noDataBound, noSeriesData, useCrossFilter, wrap, MeasureErrorBanner } from "./shared";
 import { useDatasetData } from "./use-dataset";
 
 export function MatrixWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { rows, hasData } = useDatasetData(c, id);
+  const { rows, hasData, measureError } = useDatasetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   const rowKey = c.dataAxis;
   const colKey = c.dataGroup;
@@ -38,6 +38,7 @@ export function MatrixWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   }, [rows, rowKey, colKey, valueKey]);
 
   if (!c.datasetSlug || !valueKey) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasData || !table) return wrap(c, boxStyle(c), noSeriesData());
   const decimals = c.decimals ?? 1;
   const accent = c.accent ?? "#3b82f6";

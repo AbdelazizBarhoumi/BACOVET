@@ -1,12 +1,13 @@
 import { useId } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, noSeriesData, noDataBound, ScalerHeader } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, noSeriesData, noDataBound, ScalerHeader, MeasureErrorBanner } from "./shared";
 
 export function BarChartWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   const gradId = useId().replace(/:/g, "");
-  const { series, multiSeries, hasSeries } = useWidgetData(c, id);
+  const { series, multiSeries, hasSeries, measureError } = useWidgetData(c, id);
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries) return wrap(c, boxStyle(c), noSeriesData());
 
   const seriesMax = Math.max(...series.map((s) => Math.abs(s.v)), 1);

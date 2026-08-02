@@ -17,6 +17,7 @@ import {
     Circle,
     Columns3,
     Donut,
+    FolderCog,
     Frame,
     Gauge,
     Grid3x3,
@@ -91,7 +92,13 @@ function RibbonButton({ label, icon: Icon, onClick, active }: Action) {
     );
 }
 
-export function Ribbon({ onOpenDax }: { onOpenDax: () => void }) {
+export function Ribbon({
+    onOpenDax,
+    onOpenManage,
+}: {
+    onOpenDax: () => void;
+    onOpenManage: () => void;
+}) {
     const {
         ribbonTab,
         setRibbonTab,
@@ -176,6 +183,7 @@ export function Ribbon({ onOpenDax }: { onOpenDax: () => void }) {
                 title: 'Calculations',
                 actions: [
                     { label: 'New measure', icon: Braces, onClick: onOpenDax },
+                    { label: 'Manage measures', icon: FolderCog, onClick: onOpenManage },
                 ],
             },
         ],

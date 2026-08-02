@@ -1464,7 +1464,7 @@ v5.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     v5.form = v5Form
 /**
- * @see routes/web.php:219
+ * @see routes/web.php:227
  * @route '/v6'
  */
 export const v6 = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -1478,7 +1478,7 @@ v6.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:219
+ * @see routes/web.php:227
  * @route '/v6'
  */
 v6.url = (options?: RouteQueryOptions) => {
@@ -1486,7 +1486,7 @@ v6.url = (options?: RouteQueryOptions) => {
 }
 
 /**
- * @see routes/web.php:219
+ * @see routes/web.php:227
  * @route '/v6'
  */
 v6.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -1494,7 +1494,7 @@ v6.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     method: 'get',
 })
 /**
- * @see routes/web.php:219
+ * @see routes/web.php:227
  * @route '/v6'
  */
 v6.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -1503,7 +1503,7 @@ v6.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
     /**
- * @see routes/web.php:219
+ * @see routes/web.php:227
  * @route '/v6'
  */
     const v6Form = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -1512,7 +1512,7 @@ v6.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     })
 
             /**
- * @see routes/web.php:219
+ * @see routes/web.php:227
  * @route '/v6'
  */
         v6Form.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -1520,7 +1520,7 @@ v6.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
             method: 'get',
         })
             /**
- * @see routes/web.php:219
+ * @see routes/web.php:227
  * @route '/v6'
  */
         v6Form.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

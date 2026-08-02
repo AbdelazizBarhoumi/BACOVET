@@ -1,9 +1,9 @@
 import ReactECharts from "echarts-for-react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, lighten, noDataBound, noSeriesData } from "./shared";
+import { boxStyle, wrap, hasWidgetBinding, useWidgetData, targetColor, lighten, noDataBound, noSeriesData, MeasureErrorBanner } from "./shared";
 
 export function DonutWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { multiSeries, hasSeries, hasScalar } = useWidgetData(c, id);
+  const { multiSeries, hasSeries, hasScalar, measureError } = useWidgetData(c, id);
 
   const values = hasScalar && !multiSeries.length
     ? [{ name: c.label ?? "Value", value: multiSeries.reduce((s, m) => s + m.data.reduce((x, d) => x + d.v, 0), 0), color: c.accent ?? "#3b82f6" }]
@@ -66,6 +66,7 @@ export function DonutWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   });
 
   if (!hasWidgetBinding(c)) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasSeries && !hasScalar) return wrap(c, boxStyle(c), noSeriesData());
 
   return wrap(c, boxStyle(c),

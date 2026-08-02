@@ -204,6 +204,14 @@ Route::middleware('v5.auth')->group(function () {
     // Capture + query both require a v5 session.
     Route::post('/api/v5-activity', [BuilderActivityV5Controller::class, 'store']);
     Route::get('/api/v5-activity', [BuilderActivityV5Controller::class, 'index']);
+
+    // ── V5 MEASURE LIBRARY (shared, reusable calculations) ────────────
+    Route::prefix('api/v5/measures')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\MeasureV5Controller::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Api\MeasureV5Controller::class, 'store']);
+        Route::put('/{id}', [App\Http\Controllers\Api\MeasureV5Controller::class, 'update']);
+        Route::delete('/{id}', [App\Http\Controllers\Api\MeasureV5Controller::class, 'destroy']);
+    });
 });
 
 // ── V6 DASHBOARD (V4 foundation; data/measure/graph upgrades) ───────
@@ -236,6 +244,12 @@ Route::middleware('v6.auth')->group(function () {
 
     Route::get('/api/v6/endpoint-datasets', [App\Http\Controllers\Api\EndpointDatasetV5Controller::class, 'index']);
     Route::put('/api/v6/builder-pages/{id}', [BuilderPageV6Controller::class, 'update']);
+
+    // ── V6 SHARED MEASURE LIBRARY ───────────────────────────────────
+    Route::get('/api/v6/measures', [App\Http\Controllers\Api\MeasureLibraryV6Controller::class, 'index']);
+    Route::post('/api/v6/measures', [App\Http\Controllers\Api\MeasureLibraryV6Controller::class, 'store']);
+    Route::put('/api/v6/measures/{id}', [App\Http\Controllers\Api\MeasureLibraryV6Controller::class, 'update']);
+    Route::delete('/api/v6/measures/{id}', [App\Http\Controllers\Api\MeasureLibraryV6Controller::class, 'destroy']);
 });
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);

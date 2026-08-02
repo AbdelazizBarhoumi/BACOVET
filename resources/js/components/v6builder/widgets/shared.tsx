@@ -1,3 +1,4 @@
+import { TriangleAlert } from "lucide-react";
 import { useBuilder } from "../store";
 import type { WidgetConfig } from "../types";
 import { DATASET_COLORS, useDatasetData } from "./use-dataset";
@@ -26,6 +27,7 @@ export function useWidgetData(c: WidgetConfig, widgetId?: string): {
   hasScalar: boolean;
   rows: Record<string, unknown>[];
   loading: boolean;
+  measureError: string | null;
 } {
   const ds = useDatasetData(c, widgetId);
   const hasData = !!c.datasetSlug && (!!c.dataValue || !!c.dataValues?.length) && ds.hasData;
@@ -43,7 +45,18 @@ export function useWidgetData(c: WidgetConfig, widgetId?: string): {
   const scalar = hasData ? ds.data.reduce((sum, d) => sum + d.value, 0) : 0;
   const hasScalar = hasData;
 
-  return { series, multiSeries, hasSeries, scalar, hasScalar, rows: hasData ? ds.rows : [], loading: false };
+  return { series, multiSeries, hasSeries, scalar, hasScalar, rows: hasData ? ds.rows : [], loading: false, measureError: ds.measureError };
+}
+
+/** Widget-sized inline warning when a bound measure formula is invalid or references a deleted column. */
+export function MeasureErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center">
+      <TriangleAlert className="size-5 shrink-0 text-amber-500" />
+      <div className="max-w-[90%] text-[11px] font-medium text-amber-700">{message}</div>
+      <div className="text-[10px] text-muted-foreground">Corrigez la formule de la mesure dans le panneau Data.</div>
+    </div>
+  );
 }
 
 /** Extract a category label from an ECharts click event (no `any`). */

@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import type { WidgetConfig } from "../types";
-import { boxStyle, noDataBound, noSeriesData, targetColor, useCrossFilter, wrap } from "./shared";
+import { boxStyle, noDataBound, noSeriesData, targetColor, useCrossFilter, wrap, MeasureErrorBanner } from "./shared";
 import { useDatasetData } from "./use-dataset";
 
 export function MapWidget({ c, id }: { c: WidgetConfig; id?: string }) {
-  const { rows, hasData } = useDatasetData(c, id);
+  const { rows, hasData, measureError } = useDatasetData(c, id);
   const { isDimmed, click } = useCrossFilter(c, id);
   const locKey = c.dataAxis;
   const valueKey = c.dataValue;
@@ -25,6 +25,7 @@ export function MapWidget({ c, id }: { c: WidgetConfig; id?: string }) {
   }, [rows, locKey, valueKey]);
 
   if (!c.datasetSlug || !locKey) return wrap(c, boxStyle(c), noDataBound());
+  if (measureError) return wrap(c, boxStyle(c), <MeasureErrorBanner message={measureError} />);
   if (!hasData || !points.length) return wrap(c, boxStyle(c), noSeriesData());
   const max = Math.max(...points.map((p) => p.value), 1);
   const decimals = c.decimals ?? 0;
