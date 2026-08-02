@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { buildTables, fetchEndpointDatasets, type EndpointDataset, type TableDef } from "@/lib/v6/datasets";
 import type { Row } from "@/lib/v6/model";
 import { logActivity, logWidgetActivity } from "./activity";
+import { topNValues, validateDateRange } from "./filters";
 import type { MeasureDefinition, PageLayout, TableCell, Widget, WidgetConfig, WidgetType } from "./types";
 import { makeEmptyTable, pushWidgets, ROW_HEIGHT, uid } from "./types";
 
@@ -58,11 +59,14 @@ type Ctx = {
   filteredRowsBySlug: Record<string, Row[]>;
   slicerSelections: Record<string, string[]>;
   setSlicerSelections: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
-  slicerDateRanges: Record<string, { from?: string; to?: string }>;
-  setSlicerDateRanges: React.Dispatch<React.SetStateAction<Record<string, { from?: string; to?: string }>>>;
-  crossFilter: { sourceId: string; column: string; value: string } | null;
-  applyCrossFilter: (sourceId: string, column: string, value: string) => void;
+  slicerDateRanges: Record<string, { from?: string; to?: string; preset?: string }>;
+  setSlicerDateRanges: React.Dispatch<React.SetStateAction<Record<string, { from?: string; to?: string; preset?: string }>>>;
+  slicerTopN: Record<string, { axis: string; value: string; n: number; enabled: boolean }>;
+  setSlicerTopN: React.Dispatch<React.SetStateAction<Record<string, { axis: string; value: string; n: number; enabled: boolean }>>>;
+  crossFilter: { sourceId: string; column: string; value: string; mode: "filter" | "highlight" } | null;
+  applyCrossFilter: (sourceId: string, column: string, value: string, mode: "filter" | "highlight") => void;
   clearCrossFilter: () => void;
+  clearAllFilters: () => void;
 };
 
 const BuilderCtx = createContext<Ctx | null>(null);
@@ -113,11 +117,11 @@ export const DEFAULT_CONFIG_FOR: Record<WidgetType, WidgetConfig> = {
   map: { ...STYLE_DEFAULTS, label: "Map", accent: "#3b82f6" },
   filledMap: { ...STYLE_DEFAULTS, label: "Filled map", accent: "#3b82f6" },
   shapeMap: { ...STYLE_DEFAULTS, label: "Shape map", accent: "#3b82f6" },
-  slicer: { ...STYLE_DEFAULTS, label: "Slicer" },
-  buttonSlicer: { ...STYLE_DEFAULTS, label: "Button slicer" },
-  listSlicer: { ...STYLE_DEFAULTS, label: "List slicer" },
-  inputSlicer: { ...STYLE_DEFAULTS, label: "Input slicer" },
-  dateSlicer: { ...STYLE_DEFAULTS, label: "Date slicer" },
+  slicer: { ...STYLE_DEFAULTS, label: "Slicer", slicerMode: "list" },
+  buttonSlicer: { ...STYLE_DEFAULTS, label: "Button slicer", slicerMode: "buttons" },
+  listSlicer: { ...STYLE_DEFAULTS, label: "List slicer", slicerMode: "list" },
+  inputSlicer: { ...STYLE_DEFAULTS, label: "Input slicer", slicerMode: "search" },
+  dateSlicer: { ...STYLE_DEFAULTS, label: "Date slicer", slicerMode: "date" },
   image: { ...STYLE_DEFAULTS, label: "Image", imageUrl: "", radius: 0, padding: 0 },
   button: { ...STYLE_DEFAULTS, label: "Button", buttonText: "Cliquez", linkUrl: "" },
   decompositionTree: { ...STYLE_DEFAULTS, label: "Arbre de décomposition" },
@@ -294,7 +298,8 @@ export function BuilderProvider({
 
   // ─── global filters (slicers + date ranges) ───
   const [slicerSelections, setSlicerSelections] = useState<Record<string, string[]>>({});
-  const [slicerDateRanges, setSlicerDateRanges] = useState<Record<string, { from?: string; to?: string }>>({});
+  const [slicerDateRanges, setSlicerDateRanges] = useState<Record<string, { from?: string; to?: string; preset?: string }>>({});
+  const [slicerTopN, setSlicerTopN] = useState<Record<string, { axis: string; value: string; n: number; enabled: boolean }>>({});
 
   const filteredRowsBySlug = useMemo(() => {
     const out: Record<string, Row[]> = {};
@@ -311,6 +316,8 @@ export function BuilderProvider({
         const from = range?.from;
         const to = range?.to;
         if (!from && !to) continue;
+        // Invalid range (from > to) must never blank the page — skip it.
+        if (!validateDateRange(from, to)) continue;
         for (const slug of targets) {
           out[slug] = out[slug].filter((row) => {
             const val = String(row[col] ?? "").slice(0, 10);
@@ -318,6 +325,16 @@ export function BuilderProvider({
             if (to && val > to) return false;
             return true;
           });
+        }
+      } else if (cfg.slicerMode === "topN") {
+        const topn = slicerTopN[w.id];
+        const vcol = cfg.dataValue;
+        const n = Math.max(1, topn?.n ?? cfg.maxCategories ?? 10);
+        if (!topn?.enabled) continue;
+        for (const slug of targets) {
+          if (vcol && !columnsBySlug[slug]?.includes(vcol)) continue;
+          const keep = topNValues(out[slug], col, vcol, n);
+          if (keep.size) out[slug] = out[slug].filter((row) => keep.has(String(row[col] ?? "(vide)")));
         }
       } else {
         const sel = slicerSelections[w.id];
@@ -329,18 +346,24 @@ export function BuilderProvider({
       }
     }
     return out;
-  }, [rowsBySlug, columnsBySlug, widgets, slicerSelections, slicerDateRanges]);
+  }, [rowsBySlug, columnsBySlug, widgets, slicerSelections, slicerDateRanges, slicerTopN]);
 
   // ─── cross-filter (click a chart → others filter) ───
-  const [crossFilter, setCrossFilter] = useState<{ sourceId: string; column: string; value: string } | null>(null);
-  const applyCrossFilter = useCallback((sourceId: string, column: string, value: string) => {
+  const [crossFilter, setCrossFilter] = useState<{ sourceId: string; column: string; value: string; mode: "filter" | "highlight" } | null>(null);
+  const applyCrossFilter = useCallback((sourceId: string, column: string, value: string, mode: "filter" | "highlight") => {
     setCrossFilter((cur) =>
       cur && cur.sourceId === sourceId && cur.column === column && cur.value === value
         ? null
-        : { sourceId, column, value },
+        : { sourceId, column, value, mode },
     );
   }, []);
   const clearCrossFilter = useCallback(() => setCrossFilter(null), []);
+  const clearAllFilters = useCallback(() => {
+    setSlicerSelections({});
+    setSlicerDateRanges({});
+    setSlicerTopN({});
+    setCrossFilter(null);
+  }, []);
 
   // Wrapper that tracks history before every widget mutation
   const trackWidgets = useCallback((updater: (prev: Widget[]) => Widget[]) => {
@@ -586,7 +609,8 @@ export function BuilderProvider({
     rowsBySlug, filteredRowsBySlug,
     slicerSelections, setSlicerSelections,
     slicerDateRanges, setSlicerDateRanges,
-    crossFilter, applyCrossFilter, clearCrossFilter,
+    slicerTopN, setSlicerTopN,
+    crossFilter, applyCrossFilter, clearCrossFilter, clearAllFilters,
   };
   return <BuilderCtx.Provider value={value}>{children}</BuilderCtx.Provider>;
 }

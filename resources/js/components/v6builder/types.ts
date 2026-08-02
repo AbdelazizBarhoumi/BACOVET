@@ -109,6 +109,12 @@ export type WidgetConfig = {
   slicerValues?: string[];
   slicerMin?: string;
   slicerMax?: string;
+  /** Renders a slicer widget in one of the supported modes (default derived from widget type). */
+  slicerMode?: "list" | "dropdown" | "search" | "buttons" | "date" | "relative" | "topN";
+  /** What clicking this widget's elements does to other widgets. */
+  interaction?: "filter" | "highlight" | "none";
+  /** When true the widget ignores slicer + cross-filters (reads raw rows). */
+  ignoreFilters?: boolean;
   // display
   label?: string;
   subtitle?: string;

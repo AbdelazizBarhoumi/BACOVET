@@ -49,6 +49,11 @@ import {
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
+    relativeDateRange,
+    type FilterType,
+    type RelativePreset,
+} from '@/lib/pbi/filters';
+import {
     MEASURES,
     PAGE_PRESETS,
     distinctValues,
@@ -1345,20 +1350,60 @@ export function FiltersPane({
         filters,
         addFilter,
         toggleFilterValue,
+        setFilterValues,
         removeFilter,
         setFilterScope,
+        setFilterType,
+        setFilterQuery,
+        setFilterRange,
+        setFilterRelative,
+        setFilterTopN,
         selected,
         tables,
         tableRows,
+        measures,
     } = usePbi();
     const columns = tables.flatMap((t) =>
         t.fields
             .filter((f) => f.type !== 'number' && f.type !== 'boolean')
             .map((f) => ({ name: f.name, table: t.name })),
     );
+    const numericColumns = useMemo(
+        () => [
+            ...tables.flatMap((t) =>
+                t.fields
+                    .filter((f) => f.type === 'number')
+                    .map((f) => ({ name: f.name, table: t.name })),
+            ),
+            ...(measures ?? []).map((m) => ({ name: m.name, table: m.table })),
+        ],
+        [tables, measures],
+    );
 
     const rowsFor = (f: (typeof filters)[number]) =>
         (f.table && tableRows[f.table]) || [];
+
+    const filterTypes: { value: FilterType; label: string }[] = [
+        { value: 'list', label: 'List' },
+        { value: 'dropdown', label: 'Dropdown' },
+        { value: 'search', label: 'Search' },
+        { value: 'dateRange', label: 'Date range' },
+        { value: 'relativeDate', label: 'Relative date' },
+        { value: 'topN', label: 'Top N' },
+    ];
+
+    const relativePresets: { value: RelativePreset; label: string }[] = [
+        { value: 'today', label: 'Today' },
+        { value: 'yesterday', label: 'Yesterday' },
+        { value: 'last7days', label: 'Last 7 days' },
+        { value: 'last30days', label: 'Last 30 days' },
+        { value: 'last90days', label: 'Last 90 days' },
+        { value: 'thisMonth', label: 'This month' },
+        { value: 'lastMonth', label: 'Last month' },
+        { value: 'thisYear', label: 'This year' },
+        { value: 'lastYear', label: 'Last year' },
+        { value: 'ytd', label: 'Year to date' },
+    ];
 
     return (
         <div className="flex h-full flex-col">
@@ -1409,9 +1454,20 @@ export function FiltersPane({
                                 {f.column}{' '}
                                 <span className="text-muted-foreground">
                                     is{' '}
-                                    {f.values.length
-                                        ? f.values.join(', ')
-                                        : '(All)'}
+                                    {f.type === 'search' && f.query
+                                        ? `“${f.query}”`
+                                        : f.type === 'topN'
+                                          ? `Top ${f.topN}`
+                                          : f.type === 'relativeDate'
+                                            ? (relativePresets.find(
+                                                  (p) =>
+                                                      p.value === f.relative,
+                                              )?.label ?? 'Relative date')
+                                            : f.type === 'dateRange'
+                                              ? `${f.from ?? '…'} → ${f.to ?? '…'}`
+                                              : f.values.length
+                                                ? f.values.join(', ')
+                                                : '(All)'}
                                 </span>
                             </span>
                             <button
@@ -1420,6 +1476,24 @@ export function FiltersPane({
                                 <X className="size-3 text-muted-foreground hover:text-destructive" />
                             </button>
                         </div>
+                        <select
+                            aria-label={`Filter type for ${f.column}`}
+                            value={f.type}
+                            onChange={(e) =>
+                                setFilterType(
+                                    f.column,
+                                    f.table,
+                                    e.target.value as FilterType,
+                                )
+                            }
+                            className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+                        >
+                            {filterTypes.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                    {t.label}
+                                </option>
+                            ))}
+                        </select>
                         <select
                             aria-label={`Filter scope for ${f.column}`}
                             value={f.scope}
@@ -1435,28 +1509,207 @@ export function FiltersPane({
                             <option value="report">All pages</option>
                             <option value="page">Current page</option>
                         </select>
-                        <div className="max-h-36 overflow-auto">
-                            {distinctValues(f.column, rowsFor(f)).map((v) => (
-                                <label
-                                    key={v}
-                                    className="flex items-center gap-2 py-[1px] text-[11px]"
+
+                        {f.type === 'search' && (
+                            <input
+                                type="text"
+                                value={f.query ?? ''}
+                                onChange={(e) =>
+                                    setFilterQuery(
+                                        f.column,
+                                        f.table,
+                                        e.target.value,
+                                    )
+                                }
+                                placeholder={`Search ${f.column}…`}
+                                className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                            />
+                        )}
+
+                        {f.type === 'dateRange' && (
+                            <div className="flex items-center gap-1 text-[10px]">
+                                <input
+                                    type="date"
+                                    value={f.from ?? ''}
+                                    onChange={(e) =>
+                                        setFilterRange(
+                                            f.column,
+                                            f.table,
+                                            e.target.value || undefined,
+                                            f.to,
+                                        )
+                                    }
+                                    className="w-full rounded border border-border bg-background px-1 py-0.5"
+                                />
+                                <span className="text-muted-foreground">
+                                    →
+                                </span>
+                                <input
+                                    type="date"
+                                    value={f.to ?? ''}
+                                    onChange={(e) =>
+                                        setFilterRange(
+                                            f.column,
+                                            f.table,
+                                            f.from,
+                                            e.target.value || undefined,
+                                        )
+                                    }
+                                    className="w-full rounded border border-border bg-background px-1 py-0.5"
+                                />
+                            </div>
+                        )}
+
+                        {f.type === 'relativeDate' && (
+                            <>
+                                <select
+                                    value={f.relative ?? 'last7days'}
+                                    onChange={(e) =>
+                                        setFilterRelative(
+                                            f.column,
+                                            f.table,
+                                            e.target.value as RelativePreset,
+                                        )
+                                    }
+                                    className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        checked={f.values.includes(v)}
-                                        onChange={() =>
-                                            toggleFilterValue(
-                                                f.column,
-                                                v,
-                                                f.table,
-                                            )
+                                    {relativePresets.map((p) => (
+                                        <option key={p.value} value={p.value}>
+                                            {p.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-muted-foreground">
+                                    {(() => {
+                                        const r = relativeDateRange(
+                                            f.relative ?? 'last7days',
+                                        );
+                                        return `${r.from} → ${r.to}`;
+                                    })()}
+                                </p>
+                            </>
+                        )}
+
+                        {f.type === 'topN' && (
+                            <div className="flex items-center gap-1 text-[10px]">
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={f.topN ?? 10}
+                                    onChange={(e) => {
+                                        const n = Math.max(
+                                            1,
+                                            Number(e.target.value) || 10,
+                                        );
+                                        setFilterTopN(
+                                            f.column,
+                                            f.table,
+                                            n,
+                                            f.topNBy ?? {
+                                                name:
+                                                    numericColumns[0]?.name ??
+                                                    '',
+                                                agg: 'sum',
+                                                table:
+                                                    numericColumns[0]?.table,
+                                            },
+                                        );
+                                    }}
+                                    className="w-14 rounded border border-border bg-background px-1 py-0.5"
+                                />
+                                <select
+                                    aria-label={`Top N measure for ${f.column}`}
+                                    value={f.topNBy?.name ?? ''}
+                                    onChange={(e) =>
+                                        setFilterTopN(
+                                            f.column,
+                                            f.table,
+                                            f.topN ?? 10,
+                                            {
+                                                name: e.target.value,
+                                                agg: 'sum',
+                                                table: numericColumns.find(
+                                                    (c) =>
+                                                        c.name ===
+                                                        e.target.value,
+                                                )?.table,
+                                            },
+                                        )
+                                    }
+                                    className="min-w-0 flex-1 rounded border border-border bg-background px-1 py-0.5"
+                                >
+                                    {numericColumns.map((c) => (
+                                        <option key={c.name} value={c.name}>
+                                            {c.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {(f.type === 'list' || f.type === 'dropdown') && (
+                            <div className="max-h-36 overflow-auto">
+                                {f.type === 'dropdown' && (
+                                    <select
+                                        aria-label={`Dropdown value for ${f.column}`}
+                                        value={
+                                            f.values.length
+                                                ? f.values[0]
+                                                : '__all__'
                                         }
-                                        className="size-3 accent-[var(--brand)]"
-                                    />
-                                    <span className="truncate">{v}</span>
-                                </label>
-                            ))}
-                        </div>
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            setFilterValues(
+                                                f.column,
+                                                f.table,
+                                                v === '__all__' ? [] : [v],
+                                            );
+                                        }}
+                                        className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+                                    >
+                                        <option value="__all__">
+                                            (All)
+                                        </option>
+                                        {distinctValues(
+                                            f.column,
+                                            rowsFor(f),
+                                        ).map((v) => (
+                                            <option key={v} value={v}>
+                                                {v}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                                {f.type === 'dropdown'
+                                    ? null
+                                    : distinctValues(f.column, rowsFor(f)).map(
+                                          (v) => (
+                                              <label
+                                                  key={v}
+                                                  className="flex items-center gap-2 py-[1px] text-[11px]"
+                                              >
+                                                  <input
+                                                      type="checkbox"
+                                                      checked={f.values.includes(
+                                                          v,
+                                                      )}
+                                                      onChange={() =>
+                                                          toggleFilterValue(
+                                                              f.column,
+                                                              v,
+                                                              f.table,
+                                                          )
+                                                      }
+                                                      className="size-3 accent-[var(--brand)]"
+                                                  />
+                                                  <span className="truncate">
+                                                      {v}
+                                                  </span>
+                                              </label>
+                                          ),
+                                      )}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>

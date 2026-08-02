@@ -141,7 +141,7 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
   /** Scatter/bubble points when config.scatterX/scatterY are bound (empty otherwise). */
   scatterPoints: ScatterPoint[];
 } {
-  const { allMeasures, filteredRowsBySlug, datasets, crossFilter } = useBuilder();
+  const { allMeasures, filteredRowsBySlug, rowsBySlug, datasets, crossFilter } = useBuilder();
 
   const valueNames = useMemo(() => {
     if (c.scatterX && c.scatterY) {
@@ -187,14 +187,14 @@ export function useDatasetData(c: WidgetConfig, widgetId?: string): {
     return map;
   }, [allMeasures, valueNames, c.dataTooltips]);
 
-  const primaryRows = filteredRowsBySlug[c.datasetSlug ?? ""] ?? [];
-
   const rows = useMemo(() => {
-    if (!crossFilter || crossFilter.sourceId === widgetId || !c.datasetSlug) return primaryRows;
+    const base = (c.ignoreFilters ? rowsBySlug : filteredRowsBySlug)[c.datasetSlug ?? ""] ?? [];
+    if (crossFilter?.mode !== "filter") return base;
+    if (crossFilter.sourceId === widgetId || !c.datasetSlug) return base;
     const ds = datasets.find((item) => item.slug === c.datasetSlug);
-    if (!ds?.columns?.some((col) => col.name === crossFilter.column)) return primaryRows;
-    return primaryRows.filter((row) => String(row[crossFilter.column]) === crossFilter.value);
-  }, [primaryRows, crossFilter, widgetId, c.datasetSlug, datasets]);
+    if (!ds?.columns?.some((col) => col.name === crossFilter.column)) return base;
+    return base.filter((row) => String(row[crossFilter.column]) === crossFilter.value);
+  }, [rowsBySlug, filteredRowsBySlug, c.ignoreFilters, c.datasetSlug, crossFilter, widgetId, datasets]);
 
   const enrichedRows = useMemo(
     () => enrichRows(rows, valueFields, filteredRowsBySlug, c.datasetSlug ?? "", joinRegistry),

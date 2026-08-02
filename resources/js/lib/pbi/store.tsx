@@ -15,6 +15,12 @@ import {
     updateMeasure as apiUpdateMeasure,
     type MeasureRecord,
 } from '@/services/measureApi';
+import {
+    applyFilter,
+    type FilterType,
+    type RelativePreset,
+    type ReportFilter,
+} from './filters';
 import type { JoinRegistry } from './joins';
 import {
     PAGE_PRESETS,
@@ -72,15 +78,7 @@ function toMeasureField(record: MeasureRecord): Field {
     };
 }
 
-export type ReportFilter = {
-    column: string;
-    values: string[];
-    /** page = current page only, report = all pages */
-    scope: 'page' | 'report';
-    pageId?: string | undefined;
-    /** dataset table the column belongs to */
-    table?: string | undefined;
-};
+export type { ReportFilter } from './filters';
 
 export type Bookmark = {
     id: string;
@@ -211,6 +209,7 @@ function normalizeState(state: State): State {
         tooltipHover: null,
         slicerDateRanges: state.slicerDateRanges ?? {},
         measures: state.measures ?? [],
+        filters: (state.filters ?? []).map((f) => ({ ...f, type: f.type ?? 'list' })),
         slicerSelections,
         pages: state.pages.map((page) => ({
             ...page,
@@ -452,8 +451,33 @@ type Ctx = State & {
         scope?: 'page' | 'report',
     ) => void;
     toggleFilterValue: (column: string, value: string, table?: string) => void;
+    setFilterValues: (column: string, table: string | undefined, values: string[]) => void;
     setFilterScope: (column: string, table: string | undefined, scope: 'page' | 'report') => void;
     removeFilter: (column: string, table?: string) => void;
+    setFilterType: (
+        column: string,
+        table: string | undefined,
+        type: FilterType,
+    ) => void;
+    setFilterQuery: (column: string, table: string | undefined, query: string) => void;
+    setFilterRange: (
+        column: string,
+        table: string | undefined,
+        from: string | undefined,
+        to: string | undefined,
+    ) => void;
+    setFilterRelative: (
+        column: string,
+        table: string | undefined,
+        relative: RelativePreset,
+    ) => void;
+    setFilterTopN: (
+        column: string,
+        table: string | undefined,
+        topN: number,
+        topNBy: { table?: string; name: string; agg: Agg },
+    ) => void;
+    toggleEditInteractions: () => void;
     addBookmark: (name: string) => void;
     applyBookmark: (id: string) => void;
     removeBookmark: (id: string) => void;
@@ -729,17 +753,10 @@ export function PbiProvider({
             let out = t.rows;
             for (const f of state.filters) {
                 if (f.table && f.table !== t.name) continue;
-                if (!hasColumn(t, f.column)) continue;
-                if (
-                    f.scope === 'page' &&
-                    f.pageId &&
-                    f.pageId !== state.activePageId
-                )
-                    continue;
-                if (f.values.length)
-                    out = out.filter((r) =>
-                        f.values.includes(String(r[f.column])),
-                    );
+                out = applyFilter(out, f, {
+                    table: t,
+                    activePageId: state.activePageId,
+                });
             }
             for (const [visualId, range] of Object.entries(state.slicerDateRanges)) {
                 if (!range.from && !range.to) continue;
@@ -1100,6 +1117,7 @@ export function PbiProvider({
                                   table,
                                   values: [],
                                   scope,
+                                  type: 'list',
                                   pageId:
                                       scope === 'page'
                                           ? s.activePageId
@@ -1122,6 +1140,15 @@ export function PbiProvider({
                         : f,
                 ),
             })),
+        setFilterValues: (column, table, values) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    f.column === column && f.table === table
+                        ? { ...f, values: [...values] }
+                        : f,
+                ),
+            })),
         setFilterScope: (column, table, scope) =>
             setState((s) => ({
                 ...s,
@@ -1141,6 +1168,56 @@ export function PbiProvider({
                 filters: s.filters.filter(
                     (f) => !(f.column === column && f.table === table),
                 ),
+            })),
+        setFilterType: (column, table, type) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    f.column === column && f.table === table
+                        ? { ...f, type }
+                        : f,
+                ),
+            })),
+        setFilterQuery: (column, table, query) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    f.column === column && f.table === table
+                        ? { ...f, type: 'search', query }
+                        : f,
+                ),
+            })),
+        setFilterRange: (column, table, from, to) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    f.column === column && f.table === table
+                        ? { ...f, type: 'dateRange', from, to }
+                        : f,
+                ),
+            })),
+        setFilterRelative: (column, table, relative) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    f.column === column && f.table === table
+                        ? { ...f, type: 'relativeDate', relative }
+                        : f,
+                ),
+            })),
+        setFilterTopN: (column, table, topN, topNBy) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    f.column === column && f.table === table
+                        ? { ...f, type: 'topN', topN, topNBy }
+                        : f,
+                ),
+            })),
+        toggleEditInteractions: () =>
+            setState((s) => ({
+                ...s,
+                editInteractions: !s.editInteractions,
             })),
         addBookmark: (name) =>
             setState((s) => {

@@ -37,6 +37,7 @@ import {
     ToggleLeft,
     TrendingUp,
     Type,
+    MousePointerClick,
 } from 'lucide-react';
 import { useState } from 'react';
 import { usePbi } from '@/lib/pbi/store';
@@ -107,6 +108,8 @@ export function Ribbon({
         openPanes,
         togglePane,
         addBookmark,
+        editInteractions,
+        toggleEditInteractions,
     } = usePbi();
     const [collapsed, setCollapsed] = useState(false);
 
@@ -214,6 +217,17 @@ export function Ribbon({
                         icon: Columns3,
                         active: openPanes.filters,
                         onClick: () => togglePane('filters'),
+                    },
+                ],
+            },
+            {
+                title: 'Interactions',
+                actions: [
+                    {
+                        label: 'Edit interactions',
+                        icon: MousePointerClick,
+                        active: editInteractions,
+                        onClick: () => toggleEditInteractions(),
                     },
                 ],
             },

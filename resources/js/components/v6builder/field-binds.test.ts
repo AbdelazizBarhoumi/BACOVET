@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { Widget, WidgetConfig } from "./types";
 import {
   bindFieldToRole,
   fieldBoundToRole,
@@ -9,6 +8,7 @@ import {
   widgetValueFields,
   type FieldRef,
 } from "./field-binds";
+import type { Widget, WidgetConfig } from "./types";
 
 function makeWidget(config: Partial<WidgetConfig> = {}): Widget {
   return { id: "w1", type: "bar", x: 0, y: 0, w: 6, h: 4, config: { datasetSlug: "ds", ...config } };

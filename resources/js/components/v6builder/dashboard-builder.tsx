@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { logActivity, setPageContext } from "./activity";
 import { Canvas } from "./canvas";
 import { DataBanner } from "./data-banner";
+import { FilterBar } from "./filter-bar";
 import { Inspector } from "./inspector";
 import { Palette } from "./palette";
 import { BuilderProvider } from "./store";
@@ -38,6 +39,7 @@ function BuilderShell({ title }: { title: string }) {
   return (
     <div className="flex flex-col h-[calc(100vh-40px)]">
       <BuilderToolbar title={title} />
+      {mode === "view" && <FilterBar />}
       <div className="flex-1 flex min-h-0">
         {mode === "edit" && (
           <>

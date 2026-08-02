@@ -207,12 +207,13 @@ export function useCrossFilter(c: WidgetConfig, widgetId?: string): {
   const { crossFilter, applyCrossFilter, datasets } = useBuilder();
   const ds = datasets.find((item) => item.slug === c.datasetSlug);
   const hasColumn = !!ds?.columns?.some((col) => col.name === crossFilter?.column);
-  const onOther = !!crossFilter && !!widgetId && crossFilter.sourceId !== widgetId && !!c.datasetSlug && hasColumn;
-  const active = onOther;
+  const reacts = c.interaction !== "none";
+  const active = !!crossFilter && !!widgetId && !!c.datasetSlug && hasColumn && reacts;
   const isDimmed = (name: string) => active && String(name) !== crossFilter!.value;
   const click = (name: string) => {
-    if (!c.dataAxis) return;
-    applyCrossFilter(widgetId ?? "", c.dataAxis, String(name));
+    if (!c.dataAxis || c.interaction === "none") return;
+    const mode: "filter" | "highlight" = c.interaction === "highlight" ? "highlight" : "filter";
+    applyCrossFilter(widgetId ?? "", c.dataAxis, String(name), mode);
   };
   return { active, isDimmed, click };
 }

@@ -13,6 +13,7 @@ import {
   addCol, addRow, cellAt, mergeRegion, moveCol, moveRow, removeCol, removeRow, unmergeAt, withCell,
   type Agg, type TableGrid, type WidgetType, type WidgetConfig,
 } from "./types";
+import { SLICER_MODES } from "./widgets/slicer";
 
 const PALETTES = ["#22c55e","#3b82f6","#ec4899","#f59e0b","#ef4444","#a855f7","#06b6d4","#14b8a6","#f97316","#64748b","#0ea5e9","#84cc16"];
 const GRADIENTS = [
@@ -499,7 +500,7 @@ export function Inspector() {
         {/* ─── TAB: DONNÉES ─── */}
         {hasDataTab && (
           <TabsContent value="data" className="space-y-3 pt-3">
-            <DataBindingInspector c={c} set={set} singleValue={SINGLE_VALUE_WIDGETS.includes(t)} isMatrix={t === "matrix"} isScatter={t === "scatter" || t === "bubble"} />
+            <DataBindingInspector c={c} set={set} singleValue={SINGLE_VALUE_WIDGETS.includes(t)} isMatrix={t === "matrix"} isScatter={t === "scatter" || t === "bubble"} isSlicer={["slicer", "buttonSlicer", "listSlicer", "inputSlicer", "dateSlicer"].includes(t)} />
           </TabsContent>
         )}
 
@@ -745,12 +746,13 @@ function TableGridInspector({ widgetId, t, onChange }: {
   );
 }
 
-function DataBindingInspector({ c, set, singleValue, isMatrix, isScatter }: {
+function DataBindingInspector({ c, set, singleValue, isMatrix, isScatter, isSlicer }: {
   c: WidgetConfig;
   set: (patch: Partial<WidgetConfig>) => void;
   singleValue: boolean;
   isMatrix: boolean;
   isScatter: boolean;
+  isSlicer: boolean;
 }) {
   const { datasets, allMeasures, selected: widget, updateConfig } = useBuilder();
   const ds = datasets.find((d) => d.slug === c.datasetSlug);
@@ -807,6 +809,18 @@ function DataBindingInspector({ c, set, singleValue, isMatrix, isScatter }: {
   return (
     <>
       <SectionTitle>Source de données</SectionTitle>
+      {isSlicer && (
+        <Field label="Mode de filtrage">
+          <Select value={c.slicerMode ?? "list"} onValueChange={(v) => set({ slicerMode: v as WidgetConfig["slicerMode"] })}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {SLICER_MODES.map((m) => (
+                <SelectItem key={m.value} value={m.value} className="text-xs">{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
       <Field label="Endpoint / Dataset">
         <Select value={c.datasetSlug ?? "__none"} onValueChange={(v) => {
           const slug = v === "__none" ? undefined : v;
@@ -990,6 +1004,23 @@ function DataBindingInspector({ c, set, singleValue, isMatrix, isScatter }: {
                 </SelectContent>
               </Select>
             </Field>
+          )}
+
+          {!isSlicer && (
+            <>
+              <SectionTitle>Interaction</SectionTitle>
+              <Field label="Au clic">
+                <Select value={c.interaction ?? "filter"} onValueChange={(v) => set({ interaction: v as WidgetConfig["interaction"] })}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="filter" className="text-xs">Filtrer les autres visuels</SelectItem>
+                    <SelectItem value="highlight" className="text-xs">Mettre en surbrillance</SelectItem>
+                    <SelectItem value="none" className="text-xs">Aucune</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <FieldSwitch label="Réagir aux filtres des autres" checked={!c.ignoreFilters} onChange={(v) => set({ ignoreFilters: !v })} />
+            </>
           )}
 
           <button onClick={unset} className="w-full rounded border border-border px-2 py-1.5 text-[11px] text-destructive hover:bg-destructive/10">
