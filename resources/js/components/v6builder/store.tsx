@@ -9,6 +9,25 @@ import { makeEmptyTable, pushWidgets, ROW_HEIGHT, uid } from "./types";
 
 type Mode = "view" | "edit";
 
+/** Stable fingerprint so the 50s dataset poll skips identical payloads instead
+ *  of rebuilding every table (and all widget rows) on every tick. */
+function datasetsSignature(list: EndpointDataset[]): string {
+  return JSON.stringify(
+    list.map((d) => [
+      d.slug,
+      d.name,
+      d.label,
+      d.object,
+      d.object_type,
+      d.source,
+      d.row_count,
+      d.last_synced_at ?? "",
+      d.columns,
+      d.sample_data,
+    ]),
+  );
+}
+
 type Ctx = {
   mode: Mode;
   setMode: (m: Mode) => void;
@@ -184,6 +203,13 @@ export function BuilderProvider({
   // ─── shared endpoint datasets ───
   const [datasets, setDatasets] = useState<EndpointDataset[]>([]);
   const [datasetsLoading, setDatasetsLoading] = useState(false);
+  const lastDatasetsSignatureRef = useRef<string | null>(null);
+  const applyDatasets = useCallback((next: EndpointDataset[]) => {
+    const signature = datasetsSignature(next);
+    if (signature === lastDatasetsSignatureRef.current) return;
+    lastDatasetsSignatureRef.current = signature;
+    setDatasets(next);
+  }, []);
   const loadDatasets = useCallback(
     () => fetchEndpointDatasets(undefined, dataApiBase),
     [dataApiBase],
@@ -191,21 +217,23 @@ export function BuilderProvider({
   const refreshDatasets = useCallback(() => {
     setDatasetsLoading(true);
     loadDatasets()
-      .then(setDatasets)
+      .then(applyDatasets)
       .catch(() => { /* keep last known datasets */ })
       .finally(() => setDatasetsLoading(false));
-  }, [loadDatasets]);
+  }, [loadDatasets, applyDatasets]);
 
   useEffect(() => {
     let cancelled = false;
     loadDatasets()
-      .then((next) => { if (!cancelled) setDatasets(next); })
+      .then((next) => { if (!cancelled) applyDatasets(next); })
       .catch(() => { /* keep last known datasets */ });
     const timer = setInterval(() => {
-      loadDatasets().then(setDatasets).catch(() => { /* keep last known datasets */ });
+      loadDatasets()
+        .then((next) => { if (!cancelled) applyDatasets(next); })
+        .catch(() => { /* keep last known datasets */ });
     }, 50_000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [loadDatasets]);
+  }, [loadDatasets, applyDatasets]);
 
   const tableDefs = useMemo(() => buildTables(datasets), [datasets]);
 

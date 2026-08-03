@@ -26,7 +26,6 @@ import {
     ToggleLeftRegular,
 } from '@fluentui/react-icons';
 import { usePage } from '@inertiajs/react';
-import axios from 'axios';
 import {
     Bookmark,
     ChevronDown,
@@ -89,12 +88,15 @@ import {
     themeById,
     type ReportTheme,
 } from '@/lib/pbi/themes';
+import { uploadPageImage } from '@/lib/pbi/uploadImage';
 import { isSingleValueType, visualConfig } from '@/lib/pbi/visualConfig';
 import { cn } from '@/lib/utils';
 import { CartesianFormat } from './CartesianFormat';
 import { ConditionalFormatControl } from './ConditionalFormatDialog';
 import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
 import {
+    ALIGNS,
+    Biu,
     ColorInput,
     FONT_OPTIONS,
     NumberInput,
@@ -1520,14 +1522,9 @@ function TextImageFormat({ visual }: { visual: Visual }) {
     const { pageId } = usePage().props as unknown as { pageId: number };
 
     const uploadImage = async (file: File) => {
-        const form = new FormData();
-        form.append('image', file);
         try {
-            const { data } = await axios.post<{ url: string }>(
-                `/api/v5/builder-pages/${pageId}/images`,
-                form,
-            );
-            updateVisual(visual.id, { imageUrl: data.url });
+            const url = await uploadPageImage(pageId, file);
+            updateVisual(visual.id, { imageUrl: url });
             toast.success('Image téléversée');
         } catch {
             toast.error("Échec du téléversement de l'image");
@@ -1585,6 +1582,34 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                                 }
                             />
                         </div>
+                        <Biu
+                            label="Font style"
+                            bold={visual.fontBold}
+                            italic={visual.fontItalic}
+                            underline={visual.fontUnderline}
+                            onChange={(p) =>
+                                updateVisual(visual.id, {
+                                    fontBold: p.bold,
+                                    fontItalic: p.italic,
+                                    fontUnderline: p.underline,
+                                })
+                            }
+                        />
+                        <Select
+                            label="Horizontal alignment"
+                            value={visual.textAlign ?? 'left'}
+                            options={ALIGNS}
+                            onChange={(v) =>
+                                updateVisual(visual.id, {
+                                    textAlign:
+                                        v === 'left' ||
+                                        v === 'center' ||
+                                        v === 'right'
+                                            ? v
+                                            : undefined,
+                                })
+                            }
+                        />
                     </Section>
                 </>
             )}
@@ -1651,14 +1676,9 @@ function GenericFormat({ visual }: { visual: Visual }) {
     const { pageId } = usePage().props as unknown as { pageId: number };
 
     const uploadImage = async (file: File) => {
-        const form = new FormData();
-        form.append('image', file);
         try {
-            const { data } = await axios.post<{ url: string }>(
-                `/api/v5/builder-pages/${pageId}/images`,
-                form,
-            );
-            updateVisual(selected.id, { imageUrl: data.url });
+            const url = await uploadPageImage(pageId, file);
+            updateVisual(selected.id, { imageUrl: url });
             toast.success('Image téléversée');
         } catch {
             toast.error("Échec du téléversement de l'image");

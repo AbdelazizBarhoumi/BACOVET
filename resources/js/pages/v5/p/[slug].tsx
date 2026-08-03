@@ -39,6 +39,7 @@ import { Toaster } from '@/components/ui/sonner';
 import {
     buildTables,
     fetchEndpointDatasets,
+    type EndpointDataset,
     type TableDef,
 } from '@/lib/pbi/datasets';
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
@@ -72,6 +73,30 @@ function formatDraftTime(value: string): string {
     const match = /(\d{2}):(\d{2})/.exec(value);
     if (match) return `${match[1]}:${match[2]}`;
     return value;
+}
+
+/**
+ * Stable fingerprint of the fetched datasets. The V5 page polls every 50s and
+ * would otherwise rebuild every table + recompute all filtered rows on every
+ * tick (new object identity) — causing lag and spurious highlight flashes even
+ * when nothing changed. Skipping identical payloads keeps no-op polls free.
+ */
+function datasetsSignature(list: EndpointDataset[]): string {
+    return JSON.stringify(
+        list.map((d) => [
+            d.slug,
+            d.name,
+            d.label,
+            d.object,
+            d.object_type,
+            d.source,
+            d.status ?? '',
+            d.row_count,
+            d.last_synced_at ?? '',
+            d.columns,
+            d.sample_data,
+        ]),
+    );
 }
 
 export default function V5PageView() {
@@ -138,6 +163,7 @@ export default function V5PageView() {
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
+    const lastDatasetsSignatureRef = useRef<string | null>(null);
 
     useEffect(() => {
         let stop = false;
@@ -145,9 +171,12 @@ export default function V5PageView() {
             try {
                 const datasets = await fetchEndpointDatasets();
                 if (stop) return;
+                setFailed(false);
+                const signature = datasetsSignature(datasets);
+                if (signature === lastDatasetsSignatureRef.current) return;
+                lastDatasetsSignatureRef.current = signature;
                 const built = buildTables(datasets);
                 setTables(built);
-                setFailed(false);
                 try {
                     const schema = await fetchV5Schema();
                     if (!stop) setJoins(buildJoinRegistry(schema, built));

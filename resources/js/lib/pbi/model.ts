@@ -794,6 +794,10 @@ export type Visual = {
     fontFamily?: string;
     fontSize?: number;
     fontColor?: string;
+    fontBold?: boolean;
+    fontItalic?: boolean;
+    fontUnderline?: boolean;
+    textAlign?: 'left' | 'center' | 'right';
     /** border styling (only when `border` is true) */
     borderColor?: string;
     borderWidth?: number;
@@ -849,10 +853,19 @@ export type PageFormat = {
     hidden: boolean;
 };
 
-export const PAGE_PRESETS: { name: string; width: number; height: number }[] = [
+export const PAGE_PRESETS: {
+    name: string;
+    width: number;
+    height: number;
+    paper?: boolean;
+}[] = [
     { name: '16:9', width: 1280, height: 720 },
     { name: '4:3', width: 960, height: 720 },
-    { name: 'Letter', width: 1100, height: 850 },
+    { name: 'A5', width: 559, height: 794, paper: true },
+    { name: 'A4', width: 794, height: 1123, paper: true },
+    { name: 'A4 landscape', width: 1123, height: 794, paper: true },
+    { name: 'A3', width: 1123, height: 1587, paper: true },
+    { name: 'Letter', width: 1100, height: 850, paper: true },
     { name: 'Tooltip', width: 320, height: 240 },
     { name: 'Custom', width: 1280, height: 720 },
 ];

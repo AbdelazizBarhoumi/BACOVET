@@ -21,6 +21,7 @@ export type EndpointDataset = {
     sample_data: Record<string, unknown>[] | null;
     row_count: number;
     last_synced_at: string | null;
+    status?: string | null;
 };
 
 export async function fetchEndpointDatasets(

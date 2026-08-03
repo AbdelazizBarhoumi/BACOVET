@@ -187,16 +187,38 @@ function legendLabelFormatter(
     );
 }
 
+/** Left margin reserved for a rotated Y-axis title (outside the plot). */
+const AXIS_TITLE_LEFT_MARGIN = 28;
+/** Bottom margin reserved for an X-axis title (outside the plot). */
+const AXIS_TITLE_BOTTOM_MARGIN = 18;
+/** X position (from the SVG left edge) of a Y-axis title. */
+const Y_TITLE_PAD = 2;
+/** Gutter width for the column value axis; wide enough that tick labels like
+ * `1,234,567.89` fit on one line instead of wrapping. */
+const VALUE_AXIS_WIDTH = 80;
+/** Gutter width for the bar category axis. */
+const CATEGORY_AXIS_WIDTH = 110;
+
 /** Recharts `label` prop for an axis title (undefined when empty). Vertical
- * (Y) axes get rotated text running alongside the ticks. */
-function axisTitle(axis: AxisStyle, vertical?: boolean) {
+ * (Y) axes get rotated text in the left margin, outside the plot; horizontal
+ * (X) axes get text below the ticks. `gutterWidth` is the vertical axis tick
+ * gutter so the Y title can be pushed clear of the tick labels. */
+function axisTitle(
+    axis: AxisStyle,
+    vertical?: boolean,
+    gutterWidth = 60,
+): Record<string, unknown> | undefined {
     if (!axis.title) return undefined;
     const f = axis.titleFont;
     return {
         value: axis.title,
-        position: vertical ? ('insideLeft' as const) : ('insideTop' as const),
+        position: vertical ? ('insideLeft' as const) : ('bottom' as const),
         angle: vertical ? -90 : undefined,
-        offset: vertical ? 20 : -6,
+        // `insideLeft` places x at axisX + offset; a negative offset of
+        // -(gutterWidth + margin) parks the rotated title in the left margin.
+        offset: vertical
+            ? -(gutterWidth + AXIS_TITLE_LEFT_MARGIN - Y_TITLE_PAD)
+            : 0,
         fill: f?.color || 'var(--muted-foreground)',
         fontSize: f?.fontSize ?? 11,
         fontWeight: f?.bold ? 700 : undefined,
@@ -205,7 +227,12 @@ function axisTitle(axis: AxisStyle, vertical?: boolean) {
 }
 
 /** Recharts props for a numeric (value) axis honoring an AxisStyle. */
-function valueAxisProps(axis: AxisStyle, visual: Visual, vertical?: boolean) {
+function valueAxisProps(
+    axis: AxisStyle,
+    visual: Visual,
+    vertical?: boolean,
+    gutterWidth = 60,
+) {
     const props: Record<string, unknown> = {
         hide: !axis.show,
         tick: fontStyleProps(axis.labelsFont, {
@@ -216,7 +243,7 @@ function valueAxisProps(axis: AxisStyle, visual: Visual, vertical?: boolean) {
         tickFormatter: (v: number) =>
             formatDisplayUnitValue(v, axis.displayUnits, axis.decimals),
     };
-    const label = axisTitle(axis, vertical);
+    const label = axisTitle(axis, vertical, gutterWidth);
     if (label) props.label = label;
     if (axis.min !== undefined || axis.max !== undefined)
         props.domain = [axis.min ?? 'auto', axis.max ?? 'auto'];
@@ -228,6 +255,7 @@ function categoryAxisProps(
     axis: AxisStyle,
     visual: Visual,
     vertical?: boolean,
+    gutterWidth = 90,
 ) {
     const props: Record<string, unknown> = {
         hide: !axis.show,
@@ -237,7 +265,7 @@ function categoryAxisProps(
             fontFamily: visual.fontFamily,
         }),
     };
-    const label = axisTitle(axis, vertical);
+    const label = axisTitle(axis, vertical, gutterWidth);
     if (label) props.label = label;
     return props;
 }
@@ -1031,6 +1059,12 @@ function ChartBody({
                     style={{
                         fontSize: visual.fontSize ?? undefined,
                         color: visual.fontColor ?? undefined,
+                        fontWeight: visual.fontBold ? 700 : undefined,
+                        fontStyle: visual.fontItalic ? 'italic' : undefined,
+                        textDecoration: visual.fontUnderline
+                            ? 'underline'
+                            : undefined,
+                        textAlign: visual.textAlign ?? undefined,
                     }}
                 >
                     {visual.text}
@@ -1044,7 +1078,7 @@ function ChartBody({
                     className="h-full w-full object-contain"
                 />
             ) : (
-                <EmptyVisual label="Image — upload or set a URL in Format" />
+                <EmptyVisual label="Image" />
             );
         case 'button':
             return (
@@ -1592,12 +1626,18 @@ function ChartBody({
                     ? normalize(data, series)
                     : data;
             const stacked = visual.type !== 'bar' || visual.legend.length > 0;
+            const barMargin = {
+                top: 8,
+                right: 12,
+                left: 8 + (yAxis.title ? AXIS_TITLE_LEFT_MARGIN : 0),
+                bottom: xAxis.title ? AXIS_TITLE_BOTTOM_MARGIN : 0,
+            };
             return plotWrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={bdata}
                         layout="vertical"
-                        margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
+                        margin={barMargin}
                     >
                         <CartesianGrid
                             stroke={gridlines.color}
@@ -1612,8 +1652,13 @@ function ChartBody({
                         <YAxis
                             type="category"
                             dataKey="category"
-                            width={90}
-                            {...categoryAxisProps(yAxis, visual, true)}
+                            width={CATEGORY_AXIS_WIDTH}
+                            {...categoryAxisProps(
+                                yAxis,
+                                visual,
+                                true,
+                                CATEGORY_AXIS_WIDTH,
+                            )}
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {legendShown && series.length > 1 && (
@@ -1689,12 +1734,15 @@ function ChartBody({
                 visual.type === 'stacked100Column' ||
                 visual.type === 'ribbon' ||
                 visual.legend.length > 0;
+            const colMargin = {
+                top: 8,
+                right: 8,
+                left: yAxis.title ? AXIS_TITLE_LEFT_MARGIN : 0,
+                bottom: xAxis.title ? AXIS_TITLE_BOTTOM_MARGIN : 0,
+            };
             return plotWrap(
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        data={cdata}
-                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                    >
+                    <BarChart data={cdata} margin={colMargin}>
                         <CartesianGrid
                             stroke={gridlines.color}
                             horizontal={gridlines.horizontal}
@@ -1705,7 +1753,15 @@ function ChartBody({
                             dataKey="category"
                             {...categoryAxisProps(xAxis, visual, false)}
                         />
-                        <YAxis {...valueAxisProps(yAxis, visual, true)} />
+                        <YAxis
+                            width={VALUE_AXIS_WIDTH}
+                            {...valueAxisProps(
+                                yAxis,
+                                visual,
+                                true,
+                                VALUE_AXIS_WIDTH,
+                            )}
+                        />
                         <Tooltip content={chartTooltip(visual)} />
                         {legendShown && series.length > 1 && (
                             <Legend
