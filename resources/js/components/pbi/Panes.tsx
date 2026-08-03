@@ -2125,7 +2125,7 @@ export function FiltersPane({
                 )}
                 onDragOver={(e) => {
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'copy';
+                    e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
                 }}
                 onDragEnter={(e) => {
                     e.preventDefault();

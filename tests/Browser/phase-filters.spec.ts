@@ -49,14 +49,29 @@ test.describe('Phase 4 — Filters', () => {
         await expect(page.getByText(/Observations is/)).toHaveCount(1);
     });
 
+    test('adds a filter by dragging a field from the Data pane', async ({ page }) => {
+        await page.getByPlaceholder('Search').fill('Observations');
+        await page.locator('button').filter({ hasText: 'articlescolis' }).first().click();
+        const field = page.locator('div[draggable="true"]').filter({ hasText: 'Observations' }).first();
+        await expect(field).toBeVisible();
+        const filtersPane = page.locator('aside').filter({
+            has: page.getByRole('heading', { name: 'Filters' }),
+        });
+        await field.dragTo(filtersPane.locator('div.overflow-auto'));
+        await expect(page.getByText(/Observations is/)).toBeVisible();
+        const filter = page.getByText(/Observations is/).locator('..').locator('..');
+        await filter.locator('button').last().click();
+        await expect(page.getByText(/Observations is/)).toHaveCount(0);
+    });
+
     test('selects a filter value, changes scope, removes it, and reloads cleanly', async ({ page }) => {
         await selectObservations(page);
         const filter = page.getByText(/Observations is/).locator('..').locator('..');
         const value = filter.getByRole('checkbox').first();
         await value.check();
         await expect(page.getByText(/Observations is null/)).toBeVisible();
-        await filter.getByRole('combobox').selectOption('page');
-        await expect(filter.getByRole('combobox')).toHaveValue('page');
+        await filter.getByLabel('Filter scope for Observations').selectOption('page');
+        await expect(filter.getByLabel('Filter scope for Observations')).toHaveValue('page');
         await filter.locator('button').last().click();
         await expect(page.getByText(/Observations is/)).toHaveCount(0);
         await page.reload();

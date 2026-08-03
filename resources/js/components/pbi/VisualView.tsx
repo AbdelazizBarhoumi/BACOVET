@@ -1413,7 +1413,7 @@ function ChartBody({
         }
         case 'table':
         case 'matrix':
-            return <TableVisual visual={visual} rows={rows} />;
+            return <TableVisual visual={visual} rows={rows} match={match} />;
         default: {
             // column, stackedColumn, stacked100Column, ribbon
             const cdata =
@@ -1596,9 +1596,26 @@ function analyticsLines(
 
 /* --------------------------------- Table -------------------------------- */
 
-function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
+function TableVisual({
+    visual,
+    rows,
+    match,
+}: {
+    visual: Visual;
+    rows: Row[];
+    match: ((r: Row) => boolean) | null;
+}) {
     const groupCol = visual.axis[0]?.name;
     const legendCol = visual.legend[0]?.name;
+    /** Row group values that match an active cross-highlight (null = none). */
+    const matchSet = useMemo(() => {
+        if (!match || !groupCol) return null;
+        const s = new Set<string>();
+        for (const r of rows) if (match(r)) s.add(String(r[groupCol]));
+        return s;
+    }, [match, rows, groupCol]);
+    const dimmed = (d: Record<string, string | number>) =>
+        matchSet ? !matchSet.has(String(d['category'])) : false;
     const cf = normalizeConditionalFormat(visual.conditionalFormat);
     const extra =
         cf.style === 'none' || cf.style === 'fieldValue'
@@ -1664,7 +1681,11 @@ function TableVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                 </thead>
                 <tbody>
                     {data.map((d, i) => (
-                        <tr key={i} className="hover:bg-accent">
+                        <tr
+                            key={i}
+                            className="hover:bg-accent"
+                            style={{ opacity: dimmed(d) ? 0.25 : 1 }}
+                        >
                             {groupCol && (
                                 <td className="border-b border-border px-2 py-1">
                                     {d['category']}

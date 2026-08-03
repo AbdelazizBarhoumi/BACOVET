@@ -95,4 +95,46 @@ test.describe('Phase 5 — Interaction settings', () => {
         await toggle.click();
         await expect(page.getByText(/Edit interactions is on/)).not.toBeVisible();
     });
+
+    test('sets a Highlight interaction without selecting the target visual', async ({ page }) => {
+        // Create a source visual, then a target visual that we move aside so
+        // the two do not overlap on the canvas.
+        const column = page.locator('button[title="Clustered column"]');
+        await column.click();
+        const visuals = page.locator('[aria-label="Column"]');
+        const source = visuals.nth((await visuals.count()) - 1);
+
+        await column.click();
+        const target = visuals.last();
+        const targetBox = await target.boundingBox();
+        if (targetBox) {
+            await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 6);
+            await page.mouse.down();
+            await page.mouse.move(
+                targetBox.x + targetBox.width / 2 + 180,
+                targetBox.y + targetBox.height + 80,
+                { steps: 8 },
+            );
+            await page.mouse.up();
+        }
+
+        // Turn on edit-interactions mode from the ribbon.
+        await page.locator('button').filter({ hasText: 'View' }).click();
+        await page.locator('button').filter({ hasText: 'Edit interactions' }).click();
+
+        // Select the source visual.
+        const sourceBox = await source.boundingBox();
+        if (!sourceBox) throw new Error('Source visual has no bounding box.');
+        await page.mouse.click(sourceBox.x + 10, sourceBox.y + 10);
+
+        // The floating Filter/Highlight/None bar should appear on the target.
+        const highlight = target.getByRole('button', { name: 'highlight', exact: true });
+        await expect(highlight).toBeVisible();
+
+        // Clicking Highlight must register the interaction AND keep the source
+        // selected (the click must not fall through to select the figure).
+        await highlight.click();
+        await expect(highlight).toHaveClass(/bg-brand/);
+        await expect(target).not.toHaveClass(/outline-brand/);
+    });
 });

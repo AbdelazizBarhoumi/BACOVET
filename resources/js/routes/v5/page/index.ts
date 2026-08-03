@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::image
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 export const image = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ image.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::image
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 image.url = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions) => {
@@ -42,7 +42,7 @@ image.url = (args: { id: string | number, filename: string | number } | [id: str
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::image
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 image.get = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -51,7 +51,7 @@ image.get = (args: { id: string | number, filename: string | number } | [id: str
 })
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::image
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 image.head = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -61,7 +61,7 @@ image.head = (args: { id: string | number, filename: string | number } | [id: st
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::image
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
     const imageForm = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -71,7 +71,7 @@ image.head = (args: { id: string | number, filename: string | number } | [id: st
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::image
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
         imageForm.get = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -80,7 +80,7 @@ image.head = (args: { id: string | number, filename: string | number } | [id: st
         })
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::image
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
         imageForm.head = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

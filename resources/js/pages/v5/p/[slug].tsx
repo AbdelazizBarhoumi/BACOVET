@@ -43,8 +43,10 @@ import {
     type TableDef,
 } from '@/lib/pbi/datasets';
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
+import type { Interaction } from '@/lib/pbi/model';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
+import { cn } from '@/lib/utils';
 import {
     getV5CsrfToken,
     handleV5Error,
@@ -60,6 +62,9 @@ type PageProps = {
     layoutDraft?: { version?: number; pbi?: State } | null;
     layoutDraftUpdatedAt?: string | null;
 };
+
+/** A layout snapshot as persisted: the store state minus the shared measures. */
+type DraftPbi = Omit<State, 'measures'>;
 
 function parseInitialState(layout: PageProps['layout']): State | undefined {
     const pbi = layout?.pbi;
@@ -81,6 +86,9 @@ export default function V5PageView() {
 
     const initialState = useMemo(() => parseInitialState(layout), [layout]);
     const [dirty, setDirty] = useState(false);
+    // Bumped on every persistence-relevant edit, so the autosave can debounce
+    // against the last real interaction rather than a fixed interval.
+    const [editTick, setEditTick] = useState(0);
 
     // Only mark the report dirty for persistence-relevant changes. Transient
     // UI state (hover, selection, cross-filter highlight, drillthrough) must
@@ -89,10 +97,10 @@ export default function V5PageView() {
     const onStoreChange = useCallback((next: State) => {
         const prev = lastPersistedStateRef.current;
         lastPersistedStateRef.current = next;
-        // onChange only fires for real user actions (never on mount or
-        // internal syncs), so the first notification is always a change.
+        // The first notification is the store's initial normalized state
+        // (mount-time no-op syncs), not a user edit: register it as the
+        // persistence baseline without marking the report dirty.
         if (!prev) {
-            setDirty(true);
             return;
         }
         const persistent = (s: State) => ({
@@ -103,6 +111,7 @@ export default function V5PageView() {
             slicerDateRanges: s.slicerDateRanges,
             slicerSync: s.slicerSync,
             interactions: s.interactions,
+            defaultInteraction: s.defaultInteraction,
             bookmarks: s.bookmarks,
             theme: s.theme,
             customThemes: s.customThemes,
@@ -116,6 +125,7 @@ export default function V5PageView() {
         });
         if (JSON.stringify(persistent(next)) !== JSON.stringify(persistent(prev))) {
             setDirty(true);
+            setEditTick((t) => t + 1);
         }
     }, []);
 
@@ -225,6 +235,7 @@ export default function V5PageView() {
                     pageName={pageName}
                     dirty={dirty}
                     setDirty={setDirty}
+                    editTick={editTick}
                     layoutDraft={layoutDraft}
                     layoutDraftUpdatedAt={layoutDraftUpdatedAt}
                 />
@@ -240,6 +251,7 @@ function Shell({
     pageName,
     dirty,
     setDirty,
+    editTick,
     layoutDraft,
     layoutDraftUpdatedAt,
 }: {
@@ -248,6 +260,7 @@ function Shell({
     pageName: string;
     dirty: boolean;
     setDirty: (v: boolean) => void;
+    editTick: number;
     layoutDraft?: PageProps['layoutDraft'];
     layoutDraftUpdatedAt?: string | null;
 }) {
@@ -255,7 +268,9 @@ function Shell({
     const [mode, setMode] = useState<'view' | 'edit'>('view');
     const savingRef = useRef(false);
     const draftSavingRef = useRef(false);
-    const [checkpointAt, setCheckpointAt] = useState<string | null>(null);
+    const [checkpointAt, setCheckpointAt] = useState<string | null>(() =>
+        layoutDraftUpdatedAt ? formatDraftTime(layoutDraftUpdatedAt) : null,
+    );
     const [showDraftBanner, setShowDraftBanner] = useState(
         () => !!layoutDraft?.pbi?.pages?.length,
     );
@@ -263,12 +278,18 @@ function Shell({
     // Always-available latest snapshot for the interval + unload flush.
     const stateRef = useRef(state);
     stateRef.current = state;
+    // Most recent draft persisted this session, so restore uses the latest
+    // checkpoint rather than the (possibly older) page-load snapshot.
+    const latestDraftRef = useRef<{ version?: number; pbi?: DraftPbi } | null>(
+        layoutDraft ?? null,
+    );
     const lastSavedRef = useRef<string | null>(null);
     const dirtyRef = useRef(dirty);
     dirtyRef.current = dirty;
 
     const flushDraft = useCallback(() => {
         const { measures: _measures, ...pbi } = stateRef.current;
+        latestDraftRef.current = { version: 2, pbi };
         fetch(`/api/v5/builder-pages/${pageId}`, {
             method: 'PUT',
             keepalive: true,
@@ -297,6 +318,8 @@ function Shell({
             setDirty(false);
             setCheckpointAt(null);
             setShowDraftBanner(false);
+            latestDraftRef.current = null;
+            lastSavedRef.current = null;
         } catch (err) {
             if (handleV5Error(statusOfError(err))) return;
             toast.error("Échec de l'enregistrement du layout");
@@ -316,13 +339,13 @@ function Shell({
                 layout_draft: { version: 2, pbi },
             });
             lastSavedRef.current = serialized;
+            latestDraftRef.current = { version: 2, pbi };
             setCheckpointAt(
                 new Date().toLocaleTimeString('fr-FR', {
                     hour: '2-digit',
                     minute: '2-digit',
                 }),
             );
-            setShowDraftBanner(true);
         } catch (err) {
             if (!handleV5Error(statusOfError(err))) {
                 toast.error('Impossible de sauvegarder le brouillon');
@@ -332,17 +355,33 @@ function Shell({
         }
     }, [pageId]);
 
-    // Checkpoint autosave: every few seconds while dirty, persist the current
-    // work to the layout_draft column, which never overwrites the committed
-    // layout. Fixed interval (not a resetting debounce) so transient hover /
-    // selection activity cannot starve it.
+    const discardDraft = async () => {
+        try {
+            await axios.put(`/api/v5/builder-pages/${pageId}`, {
+                layout_draft: null,
+            });
+            latestDraftRef.current = null;
+            lastSavedRef.current = null;
+            setShowDraftBanner(false);
+            setCheckpointAt(null);
+        } catch (err) {
+            if (!handleV5Error(statusOfError(err))) {
+                toast.error("Impossible d'ignorer le brouillon");
+            }
+        }
+    };
+
+    // Checkpoint autosave: persist 5s after the last persistence-relevant
+    // change. Only real edits bump editTick (transient hover / selection
+    // activity is filtered out upstream), so the timer resets on actual
+    // interactions and cannot be starved by passive mouse movement.
     useEffect(() => {
         if (!dirty) return;
-        const timer = setInterval(() => {
+        const timer = setTimeout(() => {
             void checkpoint();
         }, 5000);
-        return () => clearInterval(timer);
-    }, [dirty, checkpoint]);
+        return () => clearTimeout(timer);
+    }, [dirty, checkpoint, editTick]);
 
     // Flush the latest draft when the page unloads (reload/navigation) so
     // edits made right before leaving are not lost. keepalive lets the request
@@ -363,7 +402,7 @@ function Shell({
     }, [flushDraft]);
 
     const restoreDraft = () => {
-        const draft = layoutDraft?.pbi;
+        const draft = latestDraftRef.current?.pbi;
         if (draft && Array.isArray(draft.pages) && draft.pages.length) {
             setState({
                 ...JSON.parse(JSON.stringify(draft)),
@@ -371,9 +410,6 @@ function Shell({
             });
         }
         setShowDraftBanner(false);
-        setCheckpointAt(
-            layoutDraftUpdatedAt ? formatDraftTime(layoutDraftUpdatedAt) : null,
-        );
     };
 
     return (
@@ -454,7 +490,7 @@ function Shell({
                             Restaurer le brouillon
                         </button>
                         <button
-                            onClick={() => setShowDraftBanner(false)}
+                            onClick={discardDraft}
                             className="text-muted-foreground underline hover:text-foreground"
                         >
                             Ignorer
@@ -552,6 +588,9 @@ function EditBody() {
         mobileView,
         setState,
         editInteractions,
+        defaultInteraction,
+        setDefaultInteraction,
+        clearInteractions,
         drillthrough,
         clearDrillthrough,
         crossFilter,
@@ -590,9 +629,37 @@ function EditBody() {
             />
 
             {editInteractions && (
-                <div className="bg-brand/15 px-3 py-1 text-[11px] text-foreground">
-                    Edit interactions is on — select a source visual, then
-                    choose Filter / Highlight / None on each other visual.
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-brand/15 px-3 py-1 text-[11px] text-foreground">
+                    <span>
+                        Edit interactions is on — select a source visual, then
+                        choose Filter / Highlight / None on each other visual.
+                    </span>
+                    <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">Default:</span>
+                        {(
+                            ['filter', 'highlight', 'none'] as Interaction[]
+                        ).map((m) => (
+                            <button
+                                key={m}
+                                onClick={() => setDefaultInteraction(m)}
+                                className={cn(
+                                    'rounded px-1.5 py-0.5 capitalize',
+                                    defaultInteraction === m
+                                        ? 'bg-brand text-brand-foreground'
+                                        : 'hover:bg-accent',
+                                )}
+                            >
+                                {m}
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        onClick={clearInteractions}
+                        title="Remove every per-visual rule so the default applies to all visuals"
+                        className="underline hover:text-brand"
+                    >
+                        Apply to all
+                    </button>
                 </div>
             )}
             {crossFilter && (

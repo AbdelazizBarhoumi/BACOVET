@@ -158,6 +158,8 @@ export type State = {
     crossFilter: CrossFilter;
     /** sourceId -> targetId -> behaviour */
     interactions: Record<string, Record<string, Interaction>>;
+    /** behaviour applied to any source/target pair without an explicit rule */
+    defaultInteraction: Interaction;
     /** live hovered point for tooltip pages */
     tooltipHover: TooltipHover | null;
     editInteractions: boolean;
@@ -287,6 +289,11 @@ function normalizeState(state: State): State {
         // persisting them can reopen a report with every slicer filtered out.
         crossFilter: null,
         tooltipHover: null,
+        defaultInteraction:
+            state.defaultInteraction === 'filter' ||
+            state.defaultInteraction === 'none'
+                ? state.defaultInteraction
+                : 'highlight',
         slicerDateRanges: state.slicerDateRanges ?? {},
         measures: state.measures ?? [],
         theme: state.theme ?? 'default',
@@ -521,6 +528,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
     slicerSync: {},
     crossFilter: null,
     interactions: {},
+    defaultInteraction: 'highlight',
     tooltipHover: null,
     editInteractions: false,
     bookmarks: [],
@@ -618,6 +626,8 @@ type Ctx = State & {
         targetId: string,
         mode: Interaction,
     ) => void;
+    setDefaultInteraction: (mode: Interaction) => void;
+    clearInteractions: () => void;
     interactionFor: (sourceId: string, targetId: string) => Interaction;
     addFilter: (
         column: string,
@@ -726,6 +736,14 @@ export function PbiProvider({
         rawStateRef.current = rawState;
     }, [rawState]);
 
+    // Emit the initial normalized state once so consumers can seed their
+    // persistence baseline; the first real change is then compared against
+    // this instead of being mistaken for the baseline itself.
+    useEffect(() => {
+        onChange?.(rawStateRef.current);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // Re-wire persisted DAX measures into the aggregation engine after a
     // page reload (MEASURE_IMPL lives in module scope, not the layout).
     useEffect(() => {
@@ -786,6 +804,9 @@ export function PbiProvider({
             const prev = rawStateRef.current;
             const next =
                 typeof updater === 'function' ? updater(prev) : updater;
+            // No-op updates (e.g. mount-time tooltip cleanup that returns the
+            // same state) must not notify the parent persistence logic.
+            if (next === prev) return;
             rawStateRef.current = next;
             setRawState(next);
             onChange?.(next);
@@ -1076,8 +1097,9 @@ export function PbiProvider({
 
     const interactionFor = useCallback(
         (sourceId: string, targetId: string): Interaction =>
-            state.interactions[sourceId]?.[targetId] ?? 'filter',
-        [state.interactions],
+            state.interactions[sourceId]?.[targetId] ??
+            state.defaultInteraction,
+        [state.interactions, state.defaultInteraction],
     );
 
     const value: Ctx = {
@@ -1424,6 +1446,10 @@ export function PbiProvider({
                     },
                 },
             })),
+        setDefaultInteraction: (mode) =>
+            setState((s) => ({ ...s, defaultInteraction: mode })),
+        clearInteractions: () =>
+            setState((s) => ({ ...s, interactions: {} })),
         interactionFor,
         addFilter: (column, table, scope = 'report') =>
             setState((s) =>

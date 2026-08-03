@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::upload
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
 export const upload = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ upload.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::upload
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
 upload.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -44,7 +44,7 @@ upload.url = (args: { id: string | number } | [id: string | number ] | string | 
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::upload
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
 upload.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -54,7 +54,7 @@ upload.post = (args: { id: string | number } | [id: string | number ] | string |
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::upload
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
     const uploadForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -64,7 +64,7 @@ upload.post = (args: { id: string | number } | [id: string | number ] | string |
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::upload
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
         uploadForm.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

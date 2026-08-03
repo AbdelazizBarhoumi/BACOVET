@@ -119,12 +119,22 @@ class BuilderPageV5Controller extends Controller
 
         if (array_key_exists('layout_draft', $validated)) {
             $page->layout_draft = $validated['layout_draft'];
-            $page->layout_draft_updated_at = now();
-            $this->logActivity('layout.checkpoint', [
-                'page_id' => $page->id,
-                'page_slug' => $page->slug,
-                'page_name' => $page->name,
-            ]);
+
+            if ($validated['layout_draft'] === null) {
+                $page->layout_draft_updated_at = null;
+                $this->logActivity('layout.discard', [
+                    'page_id' => $page->id,
+                    'page_slug' => $page->slug,
+                    'page_name' => $page->name,
+                ]);
+            } else {
+                $page->layout_draft_updated_at = now();
+                $this->logActivity('layout.checkpoint', [
+                    'page_id' => $page->id,
+                    'page_slug' => $page->slug,
+                    'page_name' => $page->name,
+                ]);
+            }
         }
 
         if (array_key_exists('group_id', $validated) && $validated['group_id'] !== $page->group_id) {

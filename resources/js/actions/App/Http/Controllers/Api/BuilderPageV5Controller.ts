@@ -315,7 +315,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::destroy
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:149
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:159
  * @route '/api/v5/builder-pages/{id}'
  */
 export const destroy = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -330,7 +330,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::destroy
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:149
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:159
  * @route '/api/v5/builder-pages/{id}'
  */
 destroy.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -358,7 +358,7 @@ destroy.url = (args: { id: string | number } | [id: string | number ] | string |
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::destroy
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:149
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:159
  * @route '/api/v5/builder-pages/{id}'
  */
 destroy.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -368,7 +368,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::destroy
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:149
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:159
  * @route '/api/v5/builder-pages/{id}'
  */
     const destroyForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -383,7 +383,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::destroy
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:149
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:159
  * @route '/api/v5/builder-pages/{id}'
  */
         destroyForm.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -399,7 +399,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
     destroy.form = destroyForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::duplicate
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:170
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:180
  * @route '/api/v5/builder-pages/{id}/duplicate'
  */
 export const duplicate = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -414,7 +414,7 @@ duplicate.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::duplicate
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:170
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:180
  * @route '/api/v5/builder-pages/{id}/duplicate'
  */
 duplicate.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -442,7 +442,7 @@ duplicate.url = (args: { id: string | number } | [id: string | number ] | string
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::duplicate
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:170
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:180
  * @route '/api/v5/builder-pages/{id}/duplicate'
  */
 duplicate.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -452,7 +452,7 @@ duplicate.post = (args: { id: string | number } | [id: string | number ] | strin
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::duplicate
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:170
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:180
  * @route '/api/v5/builder-pages/{id}/duplicate'
  */
     const duplicateForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -462,7 +462,7 @@ duplicate.post = (args: { id: string | number } | [id: string | number ] | strin
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::duplicate
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:170
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:180
  * @route '/api/v5/builder-pages/{id}/duplicate'
  */
         duplicateForm.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -473,7 +473,7 @@ duplicate.post = (args: { id: string | number } | [id: string | number ] | strin
     duplicate.form = duplicateForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::uploadImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
 export const uploadImage = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -488,7 +488,7 @@ uploadImage.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::uploadImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
 uploadImage.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -516,7 +516,7 @@ uploadImage.url = (args: { id: string | number } | [id: string | number ] | stri
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::uploadImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
 uploadImage.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -526,7 +526,7 @@ uploadImage.post = (args: { id: string | number } | [id: string | number ] | str
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::uploadImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
     const uploadImageForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -536,7 +536,7 @@ uploadImage.post = (args: { id: string | number } | [id: string | number ] | str
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::uploadImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:199
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:209
  * @route '/api/v5/builder-pages/{id}/images'
  */
         uploadImageForm.post = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -547,7 +547,7 @@ uploadImage.post = (args: { id: string | number } | [id: string | number ] | str
     uploadImage.form = uploadImageForm
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::showImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 export const showImage = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -562,7 +562,7 @@ showImage.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::showImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 showImage.url = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions) => {
@@ -588,7 +588,7 @@ showImage.url = (args: { id: string | number, filename: string | number } | [id:
 
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::showImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 showImage.get = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -597,7 +597,7 @@ showImage.get = (args: { id: string | number, filename: string | number } | [id:
 })
 /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::showImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
 showImage.head = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -607,7 +607,7 @@ showImage.head = (args: { id: string | number, filename: string | number } | [id
 
     /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::showImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
     const showImageForm = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -617,7 +617,7 @@ showImage.head = (args: { id: string | number, filename: string | number } | [id
 
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::showImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
         showImageForm.get = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -626,7 +626,7 @@ showImage.head = (args: { id: string | number, filename: string | number } | [id
         })
             /**
 * @see \App\Http\Controllers\Api\BuilderPageV5Controller::showImage
- * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:224
+ * @see app/Http/Controllers/Api/BuilderPageV5Controller.php:234
  * @route '/api/v5/builder-pages/{id}/images/{filename}'
  */
         showImageForm.head = (args: { id: string | number, filename: string | number } | [id: string | number, filename: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

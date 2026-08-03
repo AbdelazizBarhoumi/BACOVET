@@ -249,7 +249,7 @@ export function Ribbon({
                 </div>
             </div>
             {!collapsed && (
-                <div className="flex h-[100px] items-stretch overflow-x-auto border-t border-border bg-ribbon">
+                <div className="flex h-[90px] items-stretch overflow-x-auto border-t border-border bg-ribbon">
                     {active.map((g) => (
                         <Group key={g.title} title={g.title}>
                             {g.menu ?? (

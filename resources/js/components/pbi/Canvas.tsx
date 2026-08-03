@@ -491,7 +491,12 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                 </div>
 
                                 {interactionTarget && (
-                                    <div className="absolute top-1 right-1 z-10 flex gap-1 rounded bg-popover/95 p-1 shadow">
+                                    <div
+                                        className="absolute top-1 right-1 z-10 flex gap-1 rounded bg-popover/95 p-1 shadow"
+                                        onMouseDown={(e) =>
+                                            e.stopPropagation()
+                                        }
+                                    >
                                         {(
                                             [
                                                 'filter',
