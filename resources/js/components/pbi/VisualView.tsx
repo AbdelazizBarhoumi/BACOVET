@@ -160,6 +160,33 @@ function fontStyleProps(
     };
 }
 
+/** Legend label renderer that applies the legend font color/style. Recharts
+ * colors legend text from the series color (an inline style on each span),
+ * so `wrapperStyle` color never shows — wrap the label in a span instead. */
+function legendLabelFormatter(
+    font:
+        | {
+              color?: string;
+              bold?: boolean;
+              italic?: boolean;
+              underline?: boolean;
+          }
+        | undefined,
+) {
+    return (value: string | number) => (
+        <span
+            style={{
+                color: font?.color || 'var(--muted-foreground)',
+                fontWeight: font?.bold ? 700 : undefined,
+                fontStyle: font?.italic ? 'italic' : undefined,
+                textDecoration: font?.underline ? 'underline' : undefined,
+            }}
+        >
+            {value}
+        </span>
+    );
+}
+
 /** Recharts `label` prop for an axis title (undefined when empty). Vertical
  * (Y) axes get rotated text running alongside the ticks. */
 function axisTitle(axis: AxisStyle, vertical?: boolean) {
@@ -999,7 +1026,13 @@ function ChartBody({
             );
         case 'text':
             return (
-                <div className="h-full w-full overflow-auto p-2 text-sm text-foreground">
+                <div
+                    className="h-full w-full overflow-auto p-2"
+                    style={{
+                        fontSize: visual.fontSize ?? undefined,
+                        color: visual.fontColor ?? undefined,
+                    }}
+                >
                     {visual.text}
                 </div>
             );
@@ -1606,6 +1639,7 @@ function ChartBody({
                                           : 'center'
                                 }
                                 wrapperStyle={legendStyle}
+                                formatter={legendLabelFormatter(legend.font)}
                             />
                         )}
                         {series.map((s, i) => (
@@ -1696,6 +1730,7 @@ function ChartBody({
                                           : 'center'
                                 }
                                 wrapperStyle={legendStyle}
+                                formatter={legendLabelFormatter(legend.font)}
                             />
                         )}
                         {series.map((s, i) => (

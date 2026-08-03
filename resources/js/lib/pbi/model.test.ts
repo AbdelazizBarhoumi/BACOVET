@@ -7,6 +7,7 @@ import {
     evaluateMeasure,
     fieldLabel,
     formatCallout,
+    formatDisplayUnitValue,
     formatNumberPattern,
     gaugeBoundValue,
     inferFieldType,
@@ -530,6 +531,55 @@ describe('callout formatting', () => {
         expect(formatCallout(false, style, undefined, 'boolean')).toBe('No');
         expect(formatCallout(null, style, undefined, 'text')).toBe('—');
         expect(formatCallout(12_345, style, undefined, 'number')).toBe('12.3K');
+    });
+
+    it('honors decimal places in auto display units', () => {
+        expect(
+            formatCallout(62.567, { displayUnits: 'auto', decimals: 2 }),
+        ).toBe('62.57');
+        expect(
+            formatCallout(0.5, { displayUnits: 'auto', decimals: 1 }),
+        ).toBe('0.5');
+        expect(
+            formatCallout(250, { displayUnits: 'auto', decimals: 2 }),
+        ).toBe('250');
+        expect(
+            formatCallout(1_500_000, { displayUnits: 'auto', decimals: 1 }),
+        ).toBe('1.5M');
+    });
+
+    it('formats auto display units without trailing zeros', () => {
+        expect(formatCallout(2_500, { displayUnits: 'auto' })).toBe('2.5K');
+        expect(formatCallout(250, { displayUnits: 'auto' })).toBe('250');
+    });
+});
+
+describe('formatDisplayUnitValue — axis ticks / data labels', () => {
+    it('applies the decimal cap in auto mode', () => {
+        expect(formatDisplayUnitValue(62.567, 'auto', 2)).toBe('62.57');
+        expect(formatDisplayUnitValue(0.5, 'auto', 1)).toBe('0.5');
+        expect(formatDisplayUnitValue(250, 'auto', 2)).toBe('250');
+        expect(formatDisplayUnitValue(1_500_000, 'auto', 1)).toBe('1.5M');
+    });
+
+    it('keeps compact scaling when decimals are unset', () => {
+        expect(formatDisplayUnitValue(2_500, 'auto')).toBe('2.5K');
+        expect(formatDisplayUnitValue(250, 'auto')).toBe('250');
+        expect(formatDisplayUnitValue(250, 'auto', 0)).toBe('250');
+    });
+
+    it('still scales and formats explicit units', () => {
+        expect(formatDisplayUnitValue(12_345, 'thousands', 1)).toBe('12.3K');
+        expect(formatDisplayUnitValue(0.5, 'percent', 1)).toBe('50.0%');
+        expect(formatDisplayUnitValue(4_200, 'none', 2)).toBe('4,200.00');
+        expect(formatDisplayUnitValue(2500, 'currency', 0)).toBe('$2,500');
+    });
+
+    it('renders non-finite values as an em dash', () => {
+        expect(formatDisplayUnitValue(Number.NaN, 'auto')).toBe('—');
+        expect(formatDisplayUnitValue(Number.POSITIVE_INFINITY, 'auto')).toBe(
+            '—',
+        );
     });
 });
 

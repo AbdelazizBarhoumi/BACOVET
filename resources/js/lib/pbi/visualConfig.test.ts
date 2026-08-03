@@ -63,6 +63,19 @@ describe('visualConfig', () => {
         }
     });
 
+    it('gives text/image elements a format-only config (no wells, no analytics)', () => {
+        for (const type of ['text', 'image'] as const) {
+            const config = visualConfig(type);
+            expect(config.build).toEqual([]);
+            expect(config.showAnalytics).toBe(false);
+            expect(config.analyticsKinds).toEqual([]);
+            expect(config.format).toBe('element');
+            expect(config.sections).toEqual([]);
+            expect(isSingleValueType(type)).toBe(false);
+            expect(isCartesianType(type)).toBe(false);
+        }
+    });
+
     it('gives bar/column visuals cartesian sections and restricted analytics', () => {
         for (const type of [
             'column',

@@ -31,7 +31,7 @@ export type VisualConfig = {
     /** Analytics line kinds offered in the Analytics tab. */
     analyticsKinds: AnalyticsKind[];
     /** Which Format-tab renderer to use. */
-    format: 'generic' | 'singleValue' | 'cartesian' | 'gauge';
+    format: 'generic' | 'singleValue' | 'cartesian' | 'gauge' | 'element';
     /** Format sections rendered by the section-based renderers. */
     sections: FormatSection[];
 };
@@ -123,6 +123,15 @@ export const GENERIC_CONFIG: VisualConfig = {
     sections: [],
 };
 
+/** Text / image elements: no field wells, no analytics, format-only pane. */
+export const ELEMENT_CONFIG: VisualConfig = {
+    build: [],
+    showAnalytics: false,
+    analyticsKinds: [],
+    format: 'element',
+    sections: [],
+};
+
 export function isSingleValueType(type: VisualType): boolean {
     return SINGLE_VALUE_TYPES.includes(type);
 }
@@ -135,5 +144,6 @@ export function visualConfig(type: VisualType): VisualConfig {
     if (type === 'gauge') return GAUGE_CONFIG;
     if (isSingleValueType(type)) return SINGLE_VALUE_CONFIG;
     if (isCartesianType(type)) return CARTESIAN_CONFIG;
+    if (type === 'text' || type === 'image') return ELEMENT_CONFIG;
     return GENERIC_CONFIG;
 }

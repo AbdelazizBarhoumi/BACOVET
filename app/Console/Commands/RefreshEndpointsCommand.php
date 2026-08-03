@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\EndpointDatasetRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
@@ -13,7 +14,7 @@ use Illuminate\Support\Str;
 class RefreshEndpointsCommand extends Command
 {
     protected $signature = 'endpoints:refresh
-        {--timeout=30 : Per-request timeout in seconds}
+        {--timeout=60 : Per-request timeout in seconds}
         {--dry-run : Fetch live data but do not write data.json}
         {--force : Run even outside the 08:00-21:59 window}
         {--id= : Only refresh the endpoint with this id}';
@@ -206,6 +207,8 @@ class RefreshEndpointsCommand extends Command
 
                 return self::FAILURE;
             }
+
+            app(EndpointDatasetRegistry::class)->forgetCache();
         }
 
         foreach ($failed as $failure) {

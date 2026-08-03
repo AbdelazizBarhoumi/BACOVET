@@ -30,6 +30,7 @@ export function EndpointsToolbar({
     onRefresh,
     onNew,
     loading,
+    refreshing = false,
     sources,
 }: {
     value: ToolbarValue;
@@ -37,9 +38,11 @@ export function EndpointsToolbar({
     onRefresh: () => void;
     onNew: () => void;
     loading: boolean;
+    refreshing?: boolean;
     sources: string[];
 }) {
-    const set = (patch: Partial<ToolbarValue>) => onChange({ ...value, ...patch });
+    const set = (patch: Partial<ToolbarValue>) =>
+        onChange({ ...value, ...patch });
 
     return (
         <div className="flex flex-wrap items-center gap-2">
@@ -53,7 +56,10 @@ export function EndpointsToolbar({
                 />
             </div>
 
-            <Select value={value.method} onValueChange={(method) => set({ method })}>
+            <Select
+                value={value.method}
+                onValueChange={(method) => set({ method })}
+            >
                 <SelectTrigger className="h-7 w-24 font-mono text-[10px] tracking-wider uppercase">
                     <SelectValue placeholder="Method" />
                 </SelectTrigger>
@@ -67,7 +73,10 @@ export function EndpointsToolbar({
                 </SelectContent>
             </Select>
 
-            <Select value={value.source} onValueChange={(source) => set({ source })}>
+            <Select
+                value={value.source}
+                onValueChange={(source) => set({ source })}
+            >
                 <SelectTrigger className="h-7 w-28 font-mono text-[10px] tracking-wider uppercase">
                     <SelectValue placeholder="Source" />
                 </SelectTrigger>
@@ -81,7 +90,10 @@ export function EndpointsToolbar({
                 </SelectContent>
             </Select>
 
-            <Select value={value.status} onValueChange={(status) => set({ status })}>
+            <Select
+                value={value.status}
+                onValueChange={(status) => set({ status })}
+            >
                 <SelectTrigger className="h-7 w-28 font-mono text-[10px] tracking-wider uppercase">
                     <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -98,11 +110,17 @@ export function EndpointsToolbar({
                 size="sm"
                 variant="outline"
                 onClick={onRefresh}
-                disabled={loading}
+                disabled={loading || refreshing}
                 className="h-7 text-[10px] tracking-wider uppercase"
             >
-                <RefreshCw className={loading ? 'h-3 w-3 animate-spin' : 'mr-1 h-3 w-3'} />
-                {loading ? 'Loading…' : 'Refresh'}
+                <RefreshCw
+                    className={
+                        loading || refreshing
+                            ? 'h-3 w-3 animate-spin'
+                            : 'mr-1 h-3 w-3'
+                    }
+                />
+                {loading || refreshing ? 'Loading…' : 'Refresh'}
             </Button>
 
             <Button

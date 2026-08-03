@@ -29,7 +29,7 @@ type FieldErrors = Partial<Record<'name' | 'endpoint', string>>;
 
 const URL_RE = /^https?:\/\/.+/i;
 const TEST_DEBOUNCE_MS = 500;
-const TEST_TIMEOUT_S = 30;
+const TEST_TIMEOUT_S = 60;
 
 function isTimeoutError(err: unknown): boolean {
     return (

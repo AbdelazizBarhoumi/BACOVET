@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\EndpointDataset;
+use App\Services\EndpointDatasetRegistry;
+use App\Support\DatasetRows;
 use App\Support\EndpointSchemaAnalyzer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -140,7 +143,7 @@ class NovacityEndpointsController extends Controller
     {
         $exitCode = Artisan::call('endpoints:refresh', [
             '--force' => true,
-            '--timeout' => (int) config('novacity.timeout', 30),
+            '--timeout' => (int) config('novacity.timeout', 60),
         ]);
 
         return response()->json([
@@ -165,7 +168,7 @@ class NovacityEndpointsController extends Controller
 
         $exitCode = Artisan::call('endpoints:refresh', [
             '--force' => true,
-            '--timeout' => (int) config('novacity.timeout', 30),
+            '--timeout' => (int) config('novacity.timeout', 60),
             '--id' => $id,
         ]);
 
@@ -320,6 +323,8 @@ class NovacityEndpointsController extends Controller
             return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
         }
 
+        $this->syncDatasetEntry($entry);
+
         return response()->json(['success' => true, 'entry' => $entry], 201);
     }
 
@@ -349,6 +354,7 @@ class NovacityEndpointsController extends Controller
         }
 
         $entry = $items[$index];
+        $oldSlug = app(EndpointDatasetRegistry::class)->slugOf((string) ($entry['endpoint'] ?? ''));
 
         foreach (['name', 'method', 'endpoint', 'status'] as $key) {
             if (array_key_exists($key, $validated)) {
@@ -366,6 +372,13 @@ class NovacityEndpointsController extends Controller
 
         if (! $this->persistItems($items)) {
             return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
+        }
+
+        $this->syncDatasetEntry($entry);
+
+        $newSlug = app(EndpointDatasetRegistry::class)->slugOf((string) ($entry['endpoint'] ?? ''));
+        if ($oldSlug !== '' && $oldSlug !== $newSlug) {
+            EndpointDataset::where('slug', $oldSlug)->delete();
         }
 
         return response()->json(['success' => true, 'entry' => $entry]);
@@ -388,10 +401,18 @@ class NovacityEndpointsController extends Controller
             return response()->json(['success' => false, 'error' => 'Entry not found'], 404);
         }
 
+        $slug = app(EndpointDatasetRegistry::class)->slugOf((string) ($items[$index]['endpoint'] ?? ''));
+
         unset($items[$index]);
 
         if (! $this->persistItems(array_values($items))) {
             return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
+        }
+
+        $this->invalidateDatasetCaches();
+
+        if ($slug !== '') {
+            EndpointDataset::where('slug', $slug)->delete();
         }
 
         return response()->json(['success' => true]);
@@ -423,6 +444,8 @@ class NovacityEndpointsController extends Controller
         if (! $this->persistItems($items)) {
             return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
         }
+
+        $this->syncDatasetEntry($copy);
 
         return response()->json(['success' => true, 'entry' => $copy]);
     }
@@ -470,6 +493,8 @@ class NovacityEndpointsController extends Controller
         if (! $this->persistItems($newItems)) {
             return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
         }
+
+        $this->invalidateDatasetCaches();
 
         return response()->json([
             'success' => true,
@@ -594,8 +619,8 @@ class NovacityEndpointsController extends Controller
         try {
             $method = strtolower($validated['method']);
             $httpResponse = $method === 'post'
-                ? Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 30))->post($url)
-                : Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 30))->get($url);
+                ? Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 60))->post($url)
+                : Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 60))->get($url);
 
             $status = $httpResponse->status();
             $body = $httpResponse->json();
@@ -663,8 +688,8 @@ class NovacityEndpointsController extends Controller
         try {
             $method = strtolower($validated['method']);
             $httpResponse = $method === 'post'
-                ? Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 30))->post($url)
-                : Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 30))->get($url);
+                ? Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 60))->post($url)
+                : Http::withHeaders($headers)->timeout((int) config('novacity.timeout', 60))->get($url);
 
             $status = $httpResponse->status();
             $body = $httpResponse->json() ?? $httpResponse->body();
@@ -696,6 +721,8 @@ class NovacityEndpointsController extends Controller
             if (! $this->persistItems($items)) {
                 return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
             }
+
+            $this->syncDatasetEntry($entry);
 
             return response()->json([
                 'success' => true,
@@ -841,6 +868,59 @@ class NovacityEndpointsController extends Controller
         self::$cachedSchema = null;
 
         return true;
+    }
+
+    /**
+     * Forget the V5/V6 registry cache so the next read re-parses data.json.
+     */
+    private function invalidateDatasetCaches(): void
+    {
+        app(EndpointDatasetRegistry::class)->forgetCache();
+        self::flushCache();
+    }
+
+    /**
+     * Immediately upsert (or remove) the endpoint_datasets row for one item so
+     * the V5 builder sees create/update/delete without waiting for a sync.
+     */
+    private function syncDatasetEntry(array $item): void
+    {
+        $this->invalidateDatasetCaches();
+
+        $registry = app(EndpointDatasetRegistry::class);
+        $slug = $registry->slugOf((string) ($item['endpoint'] ?? ''));
+
+        if ($slug === '') {
+            return;
+        }
+
+        $entry = $registry->buildEntry($item);
+
+        if ($entry === null) {
+            EndpointDataset::where('slug', $slug)->delete();
+
+            return;
+        }
+
+        $rows = DatasetRows::extractRows($item['response'] ?? null);
+
+        EndpointDataset::updateOrCreate(
+            ['slug' => $slug],
+            [
+                'name' => (string) $entry['name'],
+                'label' => $entry['label'],
+                'object' => $entry['object'],
+                'object_type' => $entry['object_type'],
+                'source' => (string) $entry['source'],
+                'method' => 'GET',
+                'columns' => DatasetRows::buildColumns((array) $entry['columns'], $rows),
+                'sample_data' => $rows,
+                'row_count' => count($rows),
+                'last_status' => 'ok',
+                'last_error' => null,
+                'last_synced_at' => now(),
+            ],
+        );
     }
 
     /**

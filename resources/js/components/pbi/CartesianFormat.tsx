@@ -117,12 +117,20 @@ function AxisSection({
                     <FontStyleControls
                         label="Title font"
                         font={axis.titleFont}
-                        onChange={(p) => onPatch({ titleFont: p })}
+                        onChange={(p) =>
+                            onPatch({
+                                titleFont: { ...axis.titleFont, ...p },
+                            })
+                        }
                     />
                     <FontStyleControls
                         label="Values font"
                         font={axis.labelsFont}
-                        onChange={(p) => onPatch({ labelsFont: p })}
+                        onChange={(p) =>
+                            onPatch({
+                                labelsFont: { ...axis.labelsFont, ...p },
+                            })
+                        }
                     />
                     {isValue && (
                         <>
@@ -513,7 +521,11 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         <FontStyleControls
                             label="Label font"
                             font={dataLabels.font}
-                            onChange={(p) => patchDataLabels({ font: p })}
+                            onChange={(p) =>
+                                patchDataLabels({
+                                    font: { ...dataLabels.font, ...p },
+                                })
+                            }
                         />
                     </>
                 )}
@@ -545,7 +557,9 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         <FontStyleControls
                             label="Legend font"
                             font={legend.font}
-                            onChange={(p) => patchLegend({ font: p })}
+                            onChange={(p) =>
+                                patchLegend({ font: { ...legend.font, ...p } })
+                            }
                         />
                         {!hasLegendField && (
                             <p className="text-[10px] text-muted-foreground">

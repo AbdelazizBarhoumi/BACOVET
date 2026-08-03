@@ -16,6 +16,7 @@ import {
     visualTable,
     visualTitleStyle,
     type Interaction,
+    type Visual,
 } from '@/lib/pbi/model';
 import {
     defaultDropWell,
@@ -29,9 +30,12 @@ import { VisualView } from './VisualView';
 
 const GRID = 8;
 
+type ResizeDir = 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
+
 type DragState = {
     id: string;
     mode: 'move' | 'resize';
+    dir?: ResizeDir;
     startX: number;
     startY: number;
     ox: number;
@@ -196,10 +200,34 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                 y: Math.max(0, snap(drag.oy + dy)),
             });
         } else {
-            updateVisual(drag.id, {
-                w: Math.max(80, snap(drag.ow + dx)),
-                h: Math.max(60, snap(drag.oh + dy)),
-            });
+            const dir = drag.dir ?? 'se';
+            const hasN = dir.includes('n');
+            const hasS = dir.includes('s');
+            const hasW = dir.includes('w');
+            const hasE = dir.includes('e');
+            let x = drag.ox;
+            let y = drag.oy;
+            let w = drag.ow;
+            let h = drag.oh;
+            if (hasW) x = snap(drag.ox + dx);
+            if (hasN) y = snap(drag.oy + dy);
+            if (hasE) w = snap(drag.ow + dx);
+            if (hasS) h = snap(drag.oh + dy);
+            if (hasW) w = drag.ow - (x - drag.ox);
+            if (hasN) h = drag.oh - (y - drag.oy);
+            x = Math.max(0, x);
+            y = Math.max(0, y);
+            if (w < 80) {
+                if (hasW) x -= 80 - w;
+                w = 80;
+            }
+            if (h < 60) {
+                if (hasN) y -= 60 - h;
+                h = 60;
+            }
+            x = Math.max(0, x);
+            y = Math.max(0, y);
+            updateVisual(drag.id, { x, y, w, h });
         }
     };
 
@@ -296,6 +324,8 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                               rows)
                             : (tableRows[dataTable] ?? rows);
                         const isSel = selected?.id === v.id;
+                        const isElement =
+                            v.type === 'text' || v.type === 'image';
                         const interactionTarget =
                             !readOnly &&
                             editInteractions &&
@@ -383,6 +413,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                 }}
                                 aria-label={v.altText || v.name}
                             >
+                                {!readOnly || !isElement ? (
                                 <div
                                     onMouseDown={
                                         readOnly
@@ -408,7 +439,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                         className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
                                         style={visualTitleStyle(v)}
                                     >
-                                        {v.showTitle
+                                        {v.showTitle && !isElement
                                             ? v.title || visualTypeLabel(v.type)
                                             : ''}
                                     </span>
@@ -472,6 +503,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                         </span>
                                     )}
                                 </div>
+                                ) : null}
                                 <div className="min-h-0 flex-1">
                                     <VisualView visual={v} rows={vRows} />
                                 </div>
@@ -511,23 +543,49 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     </div>
                                 )}
 
-                                {!readOnly && (
-                                    <div
-                                        onMouseDown={(e) => {
-                                            e.stopPropagation();
-                                            setDrag({
-                                                id: v.id,
-                                                mode: 'resize',
-                                                startX: e.clientX,
-                                                startY: e.clientY,
-                                                ox: v.x,
-                                                oy: v.y,
-                                                ow: v.w,
-                                                oh: v.h,
-                                            });
-                                        }}
-                                        className="absolute right-0 bottom-0 size-3 cursor-nwse-resize rounded-sm bg-brand/60 opacity-0 group-hover:opacity-100"
-                                    />
+                                {!readOnly && isSel && (
+                                    <>
+                                        <ResizeHandle
+                                            dir="n"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                        <ResizeHandle
+                                            dir="s"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                        <ResizeHandle
+                                            dir="e"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                        <ResizeHandle
+                                            dir="w"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                        <ResizeHandle
+                                            dir="nw"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                        <ResizeHandle
+                                            dir="ne"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                        <ResizeHandle
+                                            dir="sw"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                        <ResizeHandle
+                                            dir="se"
+                                            visual={v}
+                                            setDrag={setDrag}
+                                        />
+                                    </>
                                 )}
                             </div>
                         );
@@ -682,6 +740,55 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
 
             <TooltipPagePopup />
         </div>
+    );
+}
+
+const HANDLE_POS: Record<
+    ResizeDir,
+    { className: string; cursor: string }
+> = {
+    n: { className: 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-6', cursor: 'cursor-n-resize' },
+    s: { className: 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-2 w-6', cursor: 'cursor-s-resize' },
+    e: { className: 'top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-2 h-6', cursor: 'cursor-e-resize' },
+    w: { className: 'top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-2 h-6', cursor: 'cursor-w-resize' },
+    nw: { className: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2 size-3', cursor: 'cursor-nwse-resize' },
+    ne: { className: 'top-0 right-0 translate-x-1/2 -translate-y-1/2 size-3', cursor: 'cursor-nesw-resize' },
+    sw: { className: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 size-3', cursor: 'cursor-nesw-resize' },
+    se: { className: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2 size-3', cursor: 'cursor-nwse-resize' },
+};
+
+function ResizeHandle({
+    dir,
+    visual: v,
+    setDrag,
+}: {
+    dir: ResizeDir;
+    visual: Visual;
+    setDrag: (d: DragState) => void;
+}) {
+    const pos = HANDLE_POS[dir];
+    return (
+        <div
+            onMouseDown={(e) => {
+                e.stopPropagation();
+                setDrag({
+                    id: v.id,
+                    mode: 'resize',
+                    dir,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    ox: v.x,
+                    oy: v.y,
+                    ow: v.w,
+                    oh: v.h,
+                });
+            }}
+            className={cn(
+                'absolute z-20 rounded-sm bg-brand/60 hover:bg-brand',
+                pos.className,
+                pos.cursor,
+            )}
+        />
     );
 }
 

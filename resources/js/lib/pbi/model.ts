@@ -2209,8 +2209,26 @@ export function formatDisplayUnitValue(
         case 'currency':
             return `$${fixed(n, d ?? 0)}`;
         default:
-            return formatNumber(n);
+            return formatAutoNumber(n, d);
     }
+}
+
+/**
+ * Auto display-unit formatting: keeps the compact K/M scaling for large
+ * values but honors the decimal-places cap, and shows raw decimals rather
+ * than a surprise percentage for values below 1.
+ */
+function formatAutoNumber(n: number, decimals?: number): string {
+    const dp =
+        typeof decimals === 'number' && isFinite(decimals) ? decimals : undefined;
+    const abs = Math.abs(n);
+    const scaled = (value: number, suffix: string) =>
+        `${value.toLocaleString('en-US', {
+            maximumFractionDigits: dp ?? 1,
+        })}${suffix}`;
+    if (abs >= 1_000_000) return scaled(n / 1_000_000, 'M');
+    if (abs >= 1_000) return scaled(n / 1_000, 'K');
+    return n.toLocaleString('en-US', { maximumFractionDigits: dp ?? 0 });
 }
 
 /**
@@ -2257,7 +2275,7 @@ export function formatCallout(
         case 'currency':
             return `$${fixed(n, decimals ?? 0)}`;
         default:
-            return formatNumber(n);
+            return formatAutoNumber(n, decimals);
     }
 }
 

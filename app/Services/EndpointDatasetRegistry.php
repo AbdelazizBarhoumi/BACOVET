@@ -117,6 +117,14 @@ class EndpointDatasetRegistry
         ];
     }
 
+    /**
+     * Dataset slug for a raw endpoint URL ('' when not api/-prefixed).
+     */
+    public function slugOf(string $url): string
+    {
+        return $this->extractSlug($url);
+    }
+
     private function extractSlug(string $url): string
     {
         $parsed = parse_url($url);

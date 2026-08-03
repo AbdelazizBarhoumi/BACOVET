@@ -52,12 +52,17 @@ export function RefreshHealthPanel({
     const [health, setHealth] = useState<EndpointHealth | null>(null);
     const [items, setItems] = useState<EndpointSummary[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [running, setRunning] = useState(false);
     const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
+    const load = useCallback(async (quiet = false) => {
+        if (!quiet) {
+            setLoading(true);
+        } else {
+            setRefreshing(true);
+        }
         setError(null);
         try {
             const [healthData, listData] = await Promise.all([
@@ -74,6 +79,7 @@ export function RefreshHealthPanel({
             );
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     }, []);
 
@@ -96,7 +102,7 @@ export function RefreshHealthPanel({
                         ')',
                 );
             }
-            await load();
+            await load(true);
             onRefreshed();
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Refresh failed');
@@ -122,7 +128,7 @@ export function RefreshHealthPanel({
                         `Refresh failed for "${item.name}" (exit code ${result.exit_code})`,
                     );
                 }
-                await load();
+                await load(true);
                 onRefreshed();
             } catch (err) {
                 toast.error(
@@ -207,20 +213,27 @@ export function RefreshHealthPanel({
             <Panel
                 title="Per-endpoint status"
                 right={
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleRefreshNow}
-                        disabled={running}
-                    >
-                        <RefreshCw
-                            className={cn(
-                                'mr-2 h-3.5 w-3.5',
-                                running && 'animate-spin',
-                            )}
-                        />
-                        {running ? 'Refreshing…' : 'Refresh now'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {refreshing && (
+                            <span className="text-[10px] text-muted-foreground">
+                                Updating…
+                            </span>
+                        )}
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleRefreshNow}
+                            disabled={running || refreshing}
+                        >
+                            <RefreshCw
+                                className={cn(
+                                    'mr-2 h-3.5 w-3.5',
+                                    running && 'animate-spin',
+                                )}
+                            />
+                            {running ? 'Refreshing…' : 'Refresh now'}
+                        </Button>
+                    </div>
                 }
             >
                 {loading ? (
@@ -298,8 +311,7 @@ export function RefreshHealthPanel({
                                                     className="h-6 w-6 p-0"
                                                     title="Refresh this endpoint now"
                                                     disabled={
-                                                        refreshingId ===
-                                                        item.id
+                                                        refreshingId === item.id
                                                     }
                                                     onClick={() =>
                                                         handleRefreshOne(item)

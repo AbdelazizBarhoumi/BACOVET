@@ -27,11 +27,13 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(50);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [filters, setFilters] = useState<EndpointFilters>(initialFilters);
 
     const filtersRef = useRef(filters);
     const mountedRef = useRef(true);
+    const seqRef = useRef(0);
 
     useEffect(() => {
         filtersRef.current = filters;
@@ -44,33 +46,44 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         };
     }, []);
 
-    const refresh = useCallback(async (nextFilters?: EndpointFilters) => {
-        const merged = nextFilters ?? filtersRef.current;
-        setLoading(true);
-        try {
-            const result = await fetchEndpoints(merged);
-            if (!mountedRef.current) {
-                return;
+    const refresh = useCallback(
+        async (nextFilters?: EndpointFilters, opts?: { quiet?: boolean }) => {
+            const merged = nextFilters ?? filtersRef.current;
+            const seq = ++seqRef.current;
+            if (opts?.quiet) {
+                setRefreshing(true);
+            } else {
+                setLoading(true);
             }
-            setItems(result.items);
-            setStats(result.stats ?? EMPTY_STATS);
-            setTotal(result.total);
-            setPage(result.page);
-            setPerPage(result.per_page);
-            setError(null);
-        } catch (err) {
-            if (!mountedRef.current) {
-                return;
+            try {
+                const result = await fetchEndpoints(merged);
+                if (!mountedRef.current || seq !== seqRef.current) {
+                    return;
+                }
+                setItems(result.items);
+                setStats(result.stats ?? EMPTY_STATS);
+                setTotal(result.total);
+                setPage(result.page);
+                setPerPage(result.per_page);
+                setError(null);
+            } catch (err) {
+                if (!mountedRef.current || seq !== seqRef.current) {
+                    return;
+                }
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Failed to load endpoints',
+                );
+            } finally {
+                if (mountedRef.current && seq === seqRef.current) {
+                    setLoading(false);
+                    setRefreshing(false);
+                }
             }
-            setError(
-                err instanceof Error ? err.message : 'Failed to load endpoints',
-            );
-        } finally {
-            if (mountedRef.current) {
-                setLoading(false);
-            }
-        }
-    }, []);
+        },
+        [],
+    );
 
     useEffect(() => {
         refresh();
@@ -81,7 +94,7 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
             setFilters((prev) => {
                 const next = { ...prev, ...patch, page: 1 };
                 filtersRef.current = next;
-                refresh(next);
+                refresh(next, { quiet: true });
                 return next;
             });
         },
@@ -93,7 +106,7 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
             setFilters((prev) => {
                 const next = { ...prev, page: nextPage };
                 filtersRef.current = next;
-                refresh(next);
+                refresh(next, { quiet: true });
                 return next;
             });
         },
@@ -107,7 +120,7 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         ): Promise<EndpointEntry | null> => {
             try {
                 const entry = await createEndpoint(payload, signal);
-                await refresh();
+                await refresh(undefined, { quiet: true });
                 return entry;
             } catch (err) {
                 if (signal?.aborted) return null;
@@ -126,7 +139,7 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         ): Promise<EndpointEntry | null> => {
             try {
                 const entry = await updateEndpoint(id, payload, signal);
-                await refresh();
+                await refresh(undefined, { quiet: true });
                 return entry;
             } catch (err) {
                 if (signal?.aborted) return null;
@@ -141,7 +154,7 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         async (id: string): Promise<boolean> => {
             try {
                 await deleteEndpoint(id);
-                await refresh();
+                await refresh(undefined, { quiet: true });
                 return true;
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Delete failed');
@@ -155,7 +168,7 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         async (id: string): Promise<EndpointEntry | null> => {
             try {
                 const entry = await duplicateEndpoint(id);
-                await refresh();
+                await refresh(undefined, { quiet: true });
                 return entry;
             } catch (err) {
                 setError(
@@ -185,6 +198,7 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         page,
         perPage,
         loading,
+        refreshing,
         error,
         filters,
         setError,

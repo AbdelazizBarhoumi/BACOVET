@@ -96,17 +96,22 @@ export function ExportSurface({
                                             : {}),
                                     }}
                                 >
-                                    <div className="flex items-center justify-between pb-1">
-                                        <span
-                                            className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
-                                            style={visualTitleStyle(v)}
-                                        >
-                                            {v.showTitle
-                                                ? v.title ||
-                                                  visualTypeLabel(v.type)
-                                                : ''}
-                                        </span>
-                                    </div>
+                                    {v.type !== 'text' &&
+                                        v.type !== 'image' && (
+                                            <div className="flex items-center justify-between pb-1">
+                                                <span
+                                                    className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
+                                                    style={visualTitleStyle(v)}
+                                                >
+                                                    {v.showTitle
+                                                        ? v.title ||
+                                                          visualTypeLabel(
+                                                              v.type,
+                                                          )
+                                                        : ''}
+                                                </span>
+                                            </div>
+                                        )}
                                     <div className="min-h-0 flex-1">
                                         <VisualView visual={v} rows={vRows} />
                                     </div>

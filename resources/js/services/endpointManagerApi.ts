@@ -97,7 +97,7 @@ async function fetchWithToken<T>(
     const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
 
     let response: Response;
     try {
@@ -117,7 +117,7 @@ async function fetchWithToken<T>(
         });
     } catch (err) {
         if (controller.signal.aborted) {
-            throw new Error('Request timed out after 30 seconds');
+            throw new Error('Request timed out after 60 seconds');
         }
         throw err;
     } finally {

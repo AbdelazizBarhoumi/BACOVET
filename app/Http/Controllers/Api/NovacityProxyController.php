@@ -25,7 +25,7 @@ class NovacityProxyController extends Controller
         }
 
         $response = Http::withHeaders($headers)
-            ->timeout((int) config('novacity.timeout', 30))
+            ->timeout((int) config('novacity.timeout', 60))
             ->get($baseUrl.'/'.ltrim($path, '/'), $query);
 
         if ($response->failed()) {

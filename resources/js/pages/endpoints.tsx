@@ -84,6 +84,7 @@ export default function EndpointsPage() {
         page,
         perPage,
         loading,
+        refreshing,
         error,
         applyFilters,
         goToPage,
@@ -426,6 +427,7 @@ export default function EndpointsPage() {
                                     onRefresh={handleRefresh}
                                     onNew={handleNew}
                                     loading={loading}
+                                    refreshing={refreshing}
                                     sources={sources}
                                 />
                             }

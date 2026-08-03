@@ -94,7 +94,17 @@ import { cn } from '@/lib/utils';
 import { CartesianFormat } from './CartesianFormat';
 import { ConditionalFormatControl } from './ConditionalFormatDialog';
 import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
-import { ColorInput, resolveColor, TitleSection } from './formatControls';
+import {
+    ColorInput,
+    FONT_OPTIONS,
+    NumberInput,
+    Section,
+    Select,
+    TextInput,
+    Toggle,
+    resolveColor,
+    TitleSection,
+} from './formatControls';
 import { GaugeFormat } from './GaugeFormat';
 import { SingleValueFormat } from './SingleValueFormat';
 
@@ -931,14 +941,15 @@ export function VisualizationsPane({
     const [dragOverWell, setDragOverWell] = useState<WellName | null>(null);
 
     const config = selected ? visualConfig(selected.type) : null;
+    // Text/image elements are format-only: no field wells, no analytics.
     const tabs: ('fields' | 'format' | 'analytics')[] = config
         ? [
-              'fields',
+              ...(config.build.length ? (['fields'] as const) : []),
               'format',
               ...(config.showAnalytics ? (['analytics'] as const) : []),
           ]
         : ['fields', 'format', 'analytics'];
-    const activeTab = tabs.includes(tab) ? tab : 'fields';
+    const activeTab = tabs.includes(tab) ? tab : tabs[0];
 
     const well = (name: WellName, label: string) => (
         <div className="mb-3">
@@ -1397,6 +1408,8 @@ export function VisualizationsPane({
                                 <CartesianFormat visual={selected} />
                             ) : config?.format === 'gauge' ? (
                                 <GaugeFormat visual={selected} />
+                            ) : config?.format === 'element' ? (
+                                <TextImageFormat visual={selected} />
                             ) : (
                                 <GenericFormat visual={selected} />
                             ))}
@@ -1426,6 +1439,207 @@ export function VisualizationsPane({
                     </div>
                 </>
             )}
+        </div>
+    );
+}
+
+/** Shared "General" block for text/image elements: background, border (color,
+ * width, radius), shadow and position/size. No chart-only options. */
+function ElementGeneral({ visual }: { visual: Visual }) {
+    const { updateVisual } = usePbi();
+    return (
+        <Section title="General" defaultOpen>
+            <ColorInput
+                label="Background"
+                value={visual.background}
+                onChange={(v) => updateVisual(visual.id, { background: v })}
+            />
+            <Toggle
+                label="Border"
+                checked={visual.border}
+                onChange={(v) => updateVisual(visual.id, { border: v })}
+            />
+            {visual.border && (
+                <div className="grid grid-cols-3 gap-2">
+                    <ColorInput
+                        label="Color"
+                        value={visual.borderColor}
+                        onChange={(v) =>
+                            updateVisual(visual.id, { borderColor: v })
+                        }
+                    />
+                    <NumberInput
+                        label="Width"
+                        min={1}
+                        max={8}
+                        value={visual.borderWidth ?? 1}
+                        onChange={(v) =>
+                            updateVisual(visual.id, { borderWidth: v })
+                        }
+                    />
+                    <NumberInput
+                        label="Radius"
+                        min={0}
+                        max={24}
+                        value={visual.radius ?? 0}
+                        onChange={(v) =>
+                            updateVisual(visual.id, { radius: v })
+                        }
+                    />
+                </div>
+            )}
+            <Toggle
+                label="Shadow"
+                checked={visual.shadow}
+                onChange={(v) => updateVisual(visual.id, { shadow: v })}
+            />
+            <div className="grid grid-cols-2 gap-2">
+                {(['x', 'y', 'w', 'h'] as const).map((k) => (
+                    <NumberInput
+                        key={k}
+                        label={
+                            k === 'w'
+                                ? 'Width'
+                                : k === 'h'
+                                  ? 'Height'
+                                  : `${k.toUpperCase()} px`
+                        }
+                        value={visual[k]}
+                        onChange={(v) => updateVisual(visual.id, { [k]: v })}
+                    />
+                ))}
+            </div>
+        </Section>
+    );
+}
+
+/** The Format pane for text boxes and images: content + look only. */
+function TextImageFormat({ visual }: { visual: Visual }) {
+    const { updateVisual } = usePbi();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { pageId } = usePage().props as unknown as { pageId: number };
+
+    const uploadImage = async (file: File) => {
+        const form = new FormData();
+        form.append('image', file);
+        try {
+            const { data } = await axios.post<{ url: string }>(
+                `/api/v5/builder-pages/${pageId}/images`,
+                form,
+            );
+            updateVisual(visual.id, { imageUrl: data.url });
+            toast.success('Image téléversée');
+        } catch {
+            toast.error("Échec du téléversement de l'image");
+        }
+    };
+
+    return (
+        <div className="space-y-3 text-[11px]">
+            {visual.type === 'text' && (
+                <>
+                    <Section title="Text" defaultOpen>
+                        <label className="block">
+                            <span className="mb-1 block text-muted-foreground">
+                                Content
+                            </span>
+                            <textarea
+                                value={visual.text ?? ''}
+                                onChange={(e) =>
+                                    updateVisual(visual.id, {
+                                        text: e.target.value,
+                                    })
+                                }
+                                className="h-20 w-full rounded border border-border bg-background px-2 py-1"
+                            />
+                        </label>
+                    </Section>
+                    <Section title="Font" defaultOpen>
+                        <Select
+                            label="Font family"
+                            value={visual.fontFamily ?? ''}
+                            options={FONT_OPTIONS}
+                            onChange={(v) =>
+                                updateVisual(visual.id, {
+                                    fontFamily: v || undefined,
+                                })
+                            }
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                            <NumberInput
+                                label="Size"
+                                min={8}
+                                max={48}
+                                value={visual.fontSize ?? 14}
+                                onChange={(v) =>
+                                    updateVisual(visual.id, {
+                                        fontSize: v,
+                                    })
+                                }
+                            />
+                            <ColorInput
+                                label="Color"
+                                value={visual.fontColor}
+                                onChange={(v) =>
+                                    updateVisual(visual.id, { fontColor: v })
+                                }
+                            />
+                        </div>
+                    </Section>
+                </>
+            )}
+            {visual.type === 'image' && (
+                <Section title="Image" defaultOpen>
+                    <TextInput
+                        label="Image URL"
+                        value={visual.imageUrl ?? ''}
+                        onChange={(v) =>
+                            updateVisual(visual.id, { imageUrl: v })
+                        }
+                    />
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Upload image
+                        </span>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) uploadImage(file);
+                                e.target.value = '';
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex w-full items-center justify-center gap-1 rounded border border-border bg-background px-2 py-1 text-sm text-foreground hover:bg-accent"
+                        >
+                            <Upload className="size-3.5" />
+                            Choose file…
+                        </button>
+                    </label>
+                    {visual.imageUrl && (
+                        <div className="flex items-center justify-center rounded border border-border bg-background p-1">
+                            <img
+                                src={visual.imageUrl}
+                                alt="Preview"
+                                className="max-h-24 object-contain"
+                            />
+                        </div>
+                    )}
+                    <TextInput
+                        label="Alt text (accessibility)"
+                        value={visual.altText ?? ''}
+                        onChange={(v) =>
+                            updateVisual(visual.id, { altText: v })
+                        }
+                    />
+                </Section>
+            )}
+            <ElementGeneral visual={visual} />
         </div>
     );
 }
