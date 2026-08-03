@@ -466,6 +466,7 @@ Route::middleware(['auth', 'role:it'])->prefix('novacity-endpoints')->group(func
     Route::get('/list', [NovacityEndpointsController::class, 'index']);
     Route::get('/health', [NovacityEndpointsController::class, 'health']);
     Route::post('/refresh', [NovacityEndpointsController::class, 'refresh']);
+    Route::post('/{id}/refresh', [NovacityEndpointsController::class, 'refreshOne']);
     Route::post('/test', [NovacityEndpointsController::class, 'test']);
     Route::post('/', [NovacityEndpointsController::class, 'store']);
     Route::post('/reorder', [NovacityEndpointsController::class, 'reorder']);

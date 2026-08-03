@@ -657,11 +657,22 @@ export type DataLabelSeriesOverride = {
     font?: FontStyle;
 };
 
+/** What each bar/column label shows: category, value, percent, or combos. */
+export type DataLabelContent =
+    | 'category'
+    | 'value'
+    | 'percentOfTotal'
+    | 'categoryValue'
+    | 'categoryPercent'
+    | 'valuePercent'
+    | 'all';
+
 /** Data labels for bars/columns. */
 export type DataLabelStyle = {
     show: boolean;
     applyTo: 'all' | 'perSeries';
     position: DataLabelPosition;
+    content?: DataLabelContent;
     displayUnits: DisplayUnit;
     decimals?: number;
     font?: FontStyle;
@@ -2151,6 +2162,7 @@ export const DEFAULT_DATA_LABELS: DataLabelStyle = {
     show: false,
     applyTo: 'all',
     position: 'auto',
+    content: 'value',
     displayUnits: 'auto',
     decimals: 1,
 };
@@ -2484,6 +2496,16 @@ const DATA_LABEL_POSITIONS: DataLabelPosition[] = [
     'insideBase',
 ];
 
+const DATA_LABEL_CONTENTS: DataLabelContent[] = [
+    'category',
+    'value',
+    'percentOfTotal',
+    'categoryValue',
+    'categoryPercent',
+    'valuePercent',
+    'all',
+];
+
 export function normalizeDataLabelStyle(input: unknown): DataLabelStyle {
     if (!input || typeof input !== 'object') return { ...DEFAULT_DATA_LABELS };
     const value = input as Record<string, unknown>;
@@ -2495,6 +2517,9 @@ export function normalizeDataLabelStyle(input: unknown): DataLabelStyle {
         )
             ? (value.position as DataLabelPosition)
             : DEFAULT_DATA_LABELS.position,
+        content: DATA_LABEL_CONTENTS.includes(value.content as DataLabelContent)
+            ? (value.content as DataLabelContent)
+            : DEFAULT_DATA_LABELS.content,
         displayUnits: isDisplayUnit(value.displayUnits)
             ? value.displayUnits
             : DEFAULT_DATA_LABELS.displayUnits,

@@ -138,14 +138,43 @@ class NovacityEndpointsController extends Controller
      */
     public function refresh(): JsonResponse
     {
-        $exitCode = Artisan::call('endpoints:refresh', ['--force' => true]);
-        $output = Artisan::output();
+        $exitCode = Artisan::call('endpoints:refresh', [
+            '--force' => true,
+            '--timeout' => (int) config('novacity.timeout', 30),
+        ]);
 
         return response()->json([
             'success' => $exitCode === 0,
             'exit_code' => $exitCode,
-            'output' => $output,
+            'output' => Artisan::output(),
             'meta' => $this->loadRefreshMeta(),
+        ]);
+    }
+
+    /**
+     * Run endpoints:refresh for a single endpoint (by id) and return its summary.
+     */
+    public function refreshOne(string $id): JsonResponse
+    {
+        if ($this->findById($id) === null) {
+            return response()->json([
+                'success' => false,
+                'error' => "No endpoint found with id {$id}",
+            ], 404);
+        }
+
+        $exitCode = Artisan::call('endpoints:refresh', [
+            '--force' => true,
+            '--timeout' => (int) config('novacity.timeout', 30),
+            '--id' => $id,
+        ]);
+
+        return response()->json([
+            'success' => $exitCode === 0,
+            'exit_code' => $exitCode,
+            'output' => Artisan::output(),
+            'meta' => $this->loadRefreshMeta(),
+            'entry' => $this->summarizeItem($this->findById($id) ?? []),
         ]);
     }
 

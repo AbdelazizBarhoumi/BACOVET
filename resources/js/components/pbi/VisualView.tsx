@@ -26,7 +26,11 @@ import {
     YAxis,
     ZAxis,
 } from 'recharts';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import {
     cfAggToAgg,
@@ -87,7 +91,9 @@ const PALETTE = [
 ];
 
 /** Axis tick/style props honoring the visual's font settings. */
-function axisPropsFor(visual: Pick<Visual, 'fontFamily' | 'fontSize' | 'fontColor'>) {
+function axisPropsFor(
+    visual: Pick<Visual, 'fontFamily' | 'fontSize' | 'fontColor'>,
+) {
     const size = visual.fontSize ?? 10;
     const color = visual.fontColor || 'var(--muted-foreground)';
     return {
@@ -132,7 +138,16 @@ const GRIDLINE_DASH: Record<string, string | undefined> = {
 
 /** Recharts text style block from a FontStyle, falling back to defaults. */
 function fontStyleProps(
-    font: { fontSize?: number; color?: string; fontFamily?: string; bold?: boolean; italic?: boolean; underline?: boolean } | undefined,
+    font:
+        | {
+              fontSize?: number;
+              color?: string;
+              fontFamily?: string;
+              bold?: boolean;
+              italic?: boolean;
+              underline?: boolean;
+          }
+        | undefined,
     fallback: { fontSize: number; color: string; fontFamily?: string },
 ) {
     return {
@@ -152,9 +167,7 @@ function axisTitle(axis: AxisStyle, vertical?: boolean) {
     const f = axis.titleFont;
     return {
         value: axis.title,
-        position: vertical
-            ? ('insideLeft' as const)
-            : ('insideTop' as const),
+        position: vertical ? ('insideLeft' as const) : ('insideTop' as const),
         angle: vertical ? -90 : undefined,
         offset: vertical ? 20 : -6,
         fill: f?.color || 'var(--muted-foreground)',
@@ -165,11 +178,7 @@ function axisTitle(axis: AxisStyle, vertical?: boolean) {
 }
 
 /** Recharts props for a numeric (value) axis honoring an AxisStyle. */
-function valueAxisProps(
-    axis: AxisStyle,
-    visual: Visual,
-    vertical?: boolean,
-) {
+function valueAxisProps(axis: AxisStyle, visual: Visual, vertical?: boolean) {
     const props: Record<string, unknown> = {
         hide: !axis.show,
         tick: fontStyleProps(axis.labelsFont, {
@@ -236,6 +245,94 @@ function labelPosition(
             return 'insideBottom';
         default:
             return 'top';
+    }
+}
+
+/** Anchor for a multi-line bar/column label, mirroring recharts' cartesian
+ * position math for the positions this app actually uses. `block` describes
+ * how the whole line stack lines up against `y` (start/middle/end). */
+function labelBlockAnchor(
+    vb: { x?: number; y?: number; width?: number; height?: number },
+    position: string | { x?: number; y?: number } | undefined,
+    offset: number,
+): {
+    x: number;
+    y: number;
+    textAnchor: 'start' | 'middle' | 'end';
+    block: 'start' | 'middle' | 'end';
+} {
+    const x = Number(vb.x ?? 0);
+    const y = Number(vb.y ?? 0);
+    const width = Number(vb.width ?? 0);
+    const height = Number(vb.height ?? 0);
+    const verticalSign = height >= 0 ? 1 : -1;
+    const horizontalSign = width >= 0 ? 1 : -1;
+    const verticalOffset = verticalSign * offset;
+    const horizontalOffset = horizontalSign * offset;
+    switch (position) {
+        case 'top':
+            return {
+                x: x + width / 2,
+                y: y - verticalOffset,
+                textAnchor: 'middle',
+                block: verticalSign > 0 ? 'end' : 'start',
+            };
+        case 'bottom':
+            return {
+                x: x + width / 2,
+                y: y + height + verticalOffset,
+                textAnchor: 'middle',
+                block: verticalSign > 0 ? 'start' : 'end',
+            };
+        case 'left':
+            return {
+                x: x - horizontalOffset,
+                y: y + height / 2,
+                textAnchor: horizontalSign > 0 ? 'end' : 'start',
+                block: 'middle',
+            };
+        case 'right':
+            return {
+                x: x + width + horizontalOffset,
+                y: y + height / 2,
+                textAnchor: horizontalSign > 0 ? 'start' : 'end',
+                block: 'middle',
+            };
+        case 'insideLeft':
+            return {
+                x: x + horizontalOffset,
+                y: y + height / 2,
+                textAnchor: horizontalSign > 0 ? 'start' : 'end',
+                block: 'middle',
+            };
+        case 'insideRight':
+            return {
+                x: x + width - horizontalOffset,
+                y: y + height / 2,
+                textAnchor: horizontalSign > 0 ? 'end' : 'start',
+                block: 'middle',
+            };
+        case 'insideTop':
+            return {
+                x: x + width / 2,
+                y: y + verticalOffset,
+                textAnchor: 'middle',
+                block: verticalSign > 0 ? 'start' : 'end',
+            };
+        case 'insideBottom':
+            return {
+                x: x + width / 2,
+                y: y + height - verticalOffset,
+                textAnchor: 'middle',
+                block: verticalSign > 0 ? 'end' : 'start',
+            };
+        default:
+            return {
+                x: x + width / 2,
+                y: y + height / 2,
+                textAnchor: 'middle',
+                block: 'middle',
+            };
     }
 }
 
@@ -556,8 +653,25 @@ function ChartBody({
                 extra,
                 extraColor,
             ),
-        [rows, visual.axis, visual.legend, visual.values, visual.tooltips, visual.maxCategories, extra, extraColor],
+        [
+            rows,
+            visual.axis,
+            visual.legend,
+            visual.values,
+            visual.tooltips,
+            visual.maxCategories,
+            extra,
+            extraColor,
+        ],
     );
+
+    /** Per-series grand totals across all rows, for "percent of total" labels. */
+    const seriesTotals = useMemo(() => {
+        const totals: Record<string, number> = {};
+        for (const s of series)
+            totals[s] = data.reduce((sum, d) => sum + (Number(d[s]) || 0), 0);
+        return totals;
+    }, [data, series]);
 
     const cfValues = useMemo(
         () => data.map((d) => Number(d['_cf']) || 0),
@@ -565,10 +679,7 @@ function ChartBody({
     );
 
     /** Per-point conditional fill; falls back to the palette color. */
-    const pointFill = (
-        d: Record<string, string | number>,
-        fallback: string,
-    ) =>
+    const pointFill = (d: Record<string, string | number>, fallback: string) =>
         conditionalColor(cf, d['_cf'] ?? null, cfValues, d['_cfx']) ?? fallback;
 
     /** Whole-series color for line/area/scatter when formatting is active. */
@@ -618,11 +729,7 @@ function ChartBody({
 
     /** Cell opacity per data item when a cross-highlight is active. */
     const itemOpacity = (d: Record<string, string | number>) =>
-        matchSet
-            ? matchSet.has(String(d['category']))
-                ? 1
-                : 0.2
-            : 1;
+        matchSet ? (matchSet.has(String(d['category'])) ? 1 : 0.2) : 1;
 
     /* ----- Cartesian (bar/column) style values ----- */
 
@@ -645,10 +752,7 @@ function ChartBody({
             : PALETTE[(i + visual.colorIndex) % PALETTE.length];
 
     /** Per-point fill: conditional format wins, then per-category color. */
-    const barFill = (
-        d: Record<string, string | number>,
-        i: number,
-    ) => {
+    const barFill = (d: Record<string, string | number>, i: number) => {
         const cat = String(d['category'] ?? '');
         const perCat =
             bars.applyTo === 'perCategory'
@@ -666,8 +770,7 @@ function ChartBody({
 
     const labelFormatter = (v: number) =>
         dataLabels.displayUnits !== 'auto' ||
-        (dataLabels.decimals !== undefined &&
-            dataLabels.decimals !== null)
+        (dataLabels.decimals !== undefined && dataLabels.decimals !== null)
             ? formatDisplayUnitValue(
                   v,
                   dataLabels.displayUnits,
@@ -692,18 +795,118 @@ function ChartBody({
                 : undefined;
         if (!o) return baseLabelStyle;
         return fontStyleProps(
-            { ...(dataLabels.font ?? {}), ...(o.font ?? {}), color: o.color ?? o.font?.color },
+            {
+                ...(dataLabels.font ?? {}),
+                ...(o.font ?? {}),
+                color: o.color ?? o.font?.color,
+            },
             {
                 fontSize: o.font?.fontSize ?? visual.fontSize ?? 9,
                 color:
                     o.color ||
                     dataLabels.font?.color ||
                     'var(--muted-foreground)',
-                fontFamily:
-                    o.font?.fontFamily || visual.fontFamily,
+                fontFamily: o.font?.fontFamily || visual.fontFamily,
             },
         );
     };
+
+    /** Label lines for one bar/column, honoring the content dropdown. */
+    const labelContentLines = (
+        row: Record<string, string | number>,
+        s: string,
+        total: number,
+    ): string[] => {
+        const v = Number(row[s] ?? 0);
+        const val = labelFormatter(v);
+        const pct =
+            total !== 0
+                ? `${((v / total) * 100).toFixed(dataLabels.decimals ?? 1)}%`
+                : '0%';
+        const cat = String(row['category'] ?? '');
+        switch (dataLabels.content) {
+            case 'category':
+                return [cat];
+            case 'value':
+                return [val];
+            case 'percentOfTotal':
+                return [pct];
+            case 'categoryValue':
+                return [cat, val];
+            case 'categoryPercent':
+                return [cat, pct];
+            case 'valuePercent':
+                return [val, pct];
+            case 'all':
+                return [cat, val, pct];
+            default:
+                return [val];
+        }
+    };
+
+    /** Recharts LabelList `content` renderer: payload-aware multi-line labels.
+     * `raw` is the chart dataset; the `index` recharts passes matches it 1:1
+     * (normalized stacked-100 rows preserve order). */
+    const renderLabelContent =
+        (raw: Record<string, string | number>[], s: string) =>
+        (props: {
+            index?: number;
+            viewBox?: {
+                x?: number;
+                y?: number;
+                width?: number;
+                height?: number;
+                cx?: number;
+                cy?: number;
+            };
+            position?: string | { x?: number; y?: number };
+            offset?: number;
+        }) => {
+            if (props.index == null) return null;
+            const row = raw[props.index];
+            if (!row) return null;
+            const lines = labelContentLines(row, s, seriesTotals[s] ?? 0);
+            if (!lines.length) return null;
+            const style = labelStyleFor(s);
+            const vb = props.viewBox;
+            const anchor = labelBlockAnchor(
+                vb
+                    ? {
+                          x: vb.x,
+                          y: vb.y,
+                          width: vb.width,
+                          height: vb.height,
+                      }
+                    : {},
+                props.position,
+                props.offset ?? 5,
+            );
+            const lineHeight = (style.fontSize ?? 9) * 1.2;
+            const firstDy =
+                anchor.block === 'end'
+                    ? -(lines.length - 1) * lineHeight
+                    : anchor.block === 'middle'
+                      ? -((lines.length - 1) * lineHeight) / 2
+                      : 0;
+            return (
+                <text
+                    {...style}
+                    x={anchor.x}
+                    y={anchor.y}
+                    textAnchor={anchor.textAnchor}
+                >
+                    {lines.map((ln, i) => (
+                        <tspan
+                            key={i}
+                            x={anchor.x}
+                            dy={i === 0 ? firstDy : lineHeight}
+                        >
+                            {ln}
+                        </tspan>
+                    ))}
+                </text>
+            );
+        };
 
     /** Legacy-safe: honor the pre-cartesian `showLegend` field too. */
     const legendShown =
@@ -773,8 +976,7 @@ function ChartBody({
         <div
             className="h-full w-full"
             onMouseLeave={() => {
-                if (tooltipHover?.sourceId === visual.id)
-                    setTooltipHover(null);
+                if (tooltipHover?.sourceId === visual.id) setTooltipHover(null);
             }}
         >
             {node}
@@ -861,19 +1063,29 @@ function ChartBody({
         return <EmptyVisual label={visual.type} />;
 
     if (!rows.length)
-        return <EmptyVisual label="No data" hint="No data matches the current filters" />;
+        return (
+            <EmptyVisual
+                label="No data"
+                hint="No data matches the current filters"
+            />
+        );
 
     switch (visual.type) {
         case 'card': {
             const callout = normalizeCalloutStyle(visual.callout);
-            const goal = gaugeBoundValue(rows, visual.target[0], visual.targetValue);
+            const goal = gaugeBoundValue(
+                rows,
+                visual.target[0],
+                visual.targetValue,
+            );
             const hasGoal = goal !== undefined;
             return wrap(
                 <div className="flex h-full flex-wrap items-center justify-around gap-2">
                     {visual.values.map((v, i) => {
                         const type = fieldType(v.name, v.table);
                         const raw = singleValue(rows, v);
-                        const numeric = typeof raw === 'number' && isFinite(raw);
+                        const numeric =
+                            typeof raw === 'number' && isFinite(raw);
                         const val = numeric ? raw : 0;
                         const good = hasGoal && val >= goal;
                         return (
@@ -961,7 +1173,11 @@ function ChartBody({
                         </Pie>
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
+                            <Legend
+                                wrapperStyle={{
+                                    fontSize: visual.fontSize ?? 10,
+                                }}
+                            />
                         )}
                     </PieChart>
                 </ResponsiveContainer>,
@@ -1054,9 +1270,7 @@ function ChartBody({
                         base: acc.running,
                         delta: val,
                         total: running,
-                        ...(d['_cf'] !== undefined
-                            ? { _cf: d['_cf'] }
-                            : {}),
+                        ...(d['_cf'] !== undefined ? { _cf: d['_cf'] } : {}),
                     });
                     return { running, items: acc.items };
                 },
@@ -1120,7 +1334,11 @@ function ChartBody({
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
+                            <Legend
+                                wrapperStyle={{
+                                    fontSize: visual.fontSize ?? 10,
+                                }}
+                            />
                         )}
                         {series.map((s, i) => {
                             const color =
@@ -1159,7 +1377,11 @@ function ChartBody({
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
+                            <Legend
+                                wrapperStyle={{
+                                    fontSize: visual.fontSize ?? 10,
+                                }}
+                            />
                         )}
                         {series.map((s, i) => {
                             const color =
@@ -1200,7 +1422,11 @@ function ChartBody({
                         />
                         <Tooltip content={chartTooltip(visual)} />
                         {visual.showLegend && (
-                            <Legend wrapperStyle={{ fontSize: visual.fontSize ?? 10 }} />
+                            <Legend
+                                wrapperStyle={{
+                                    fontSize: visual.fontSize ?? 10,
+                                }}
+                            />
                         )}
                         {series.map((s, i) =>
                             i === 0 ? (
@@ -1244,7 +1470,9 @@ function ChartBody({
                       x: p.x,
                       y: p.y,
                       ...(p.z !== undefined ? { z: p.z } : {}),
-                      ...(axisCol ? { category: String(p.raw[axisCol] ?? '') } : {}),
+                      ...(axisCol
+                          ? { category: String(p.raw[axisCol] ?? '') }
+                          : {}),
                       ...(visual.legend[0]
                           ? {
                                 legend: String(
@@ -1293,7 +1521,9 @@ function ChartBody({
                                       }: {
                                           cx?: number;
                                           cy?: number;
-                                          payload?: { category?: string | number };
+                                          payload?: {
+                                              category?: string | number;
+                                          };
                                       }) =>
                                           cx != null ? (
                                               <circle
@@ -1400,7 +1630,7 @@ function ChartBody({
                                             dataLabels.position,
                                             true,
                                         )}
-                                        formatter={labelFormatter}
+                                        content={renderLabelContent(bdata, s)}
                                         style={labelStyleFor(s)}
                                     />
                                 )}
@@ -1490,7 +1720,7 @@ function ChartBody({
                                             dataLabels.position,
                                             false,
                                         )}
-                                        formatter={labelFormatter}
+                                        content={renderLabelContent(cdata, s)}
                                         style={labelStyleFor(s)}
                                     />
                                 )}
@@ -1533,8 +1763,7 @@ function analyticsLines(
     const median = sorted.length
         ? sorted.length % 2
             ? sorted[Math.floor(sorted.length / 2)]!
-            : (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) /
-              2
+            : (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2
         : 0;
     /** Stat line (average/constant/min/max/median) positioned on the value axis. */
     const statLine = (value: number, color: string, label: string) => (
@@ -1702,7 +1931,10 @@ function TableVisual({
                                         className="relative border-b border-border px-2 py-1 text-right tabular-nums"
                                         style={
                                             background
-                                                ? { backgroundColor: background }
+                                                ? {
+                                                      backgroundColor:
+                                                          background,
+                                                  }
                                                 : undefined
                                         }
                                     >
@@ -1718,7 +1950,11 @@ function TableVisual({
                                             />
                                         )}
                                         <span className="relative">
-                                            {visualFmt(val, visual, visual.values[0])}
+                                            {visualFmt(
+                                                val,
+                                                visual,
+                                                visual.values[0],
+                                            )}
                                         </span>
                                     </td>
                                 );
@@ -1764,7 +2000,8 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const values = allValues.filter((v) =>
         v.toLowerCase().includes(q.toLowerCase()),
     );
-    const isOn = (v: string) => selection.includes(slicerKey(visual.axis[0]?.table, col, v));
+    const isOn = (v: string) =>
+        selection.includes(slicerKey(visual.axis[0]?.table, col, v));
     const selectedValue = allValues.find(isOn) ?? null;
 
     if (visual.type === 'dropdownSlicer')
@@ -1862,9 +2099,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     if (visual.type === 'dateSlicer') {
         const range = slicerDateRanges[visual.id] ?? {};
         const mode: SlicerDateMode = range.mode ?? 'between';
-        const dateVals = allValues.filter((v) =>
-            /^\d{4}-\d{2}-\d{2}/.test(v),
-        );
+        const dateVals = allValues.filter((v) => /^\d{4}-\d{2}-\d{2}/.test(v));
         const minIso = dateVals[0];
         const maxIso = dateVals[dateVals.length - 1];
         const minMs = minIso ? new Date(`${minIso}T00:00:00`).getTime() : 0;
@@ -1936,9 +2171,17 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             min={minMs}
                             max={maxMs}
                             step={STEP}
-                            value={[range.to ? new Date(`${range.to}T00:00:00`).getTime() : maxMs]}
+                            value={[
+                                range.to
+                                    ? new Date(`${range.to}T00:00:00`).getTime()
+                                    : maxMs,
+                            ]}
                             onValueChange={([v]) =>
-                                set({ mode: 'before', to: msToIso(v), from: undefined })
+                                set({
+                                    mode: 'before',
+                                    to: msToIso(v),
+                                    from: undefined,
+                                })
                             }
                         />
                     )}
@@ -1967,9 +2210,19 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             min={minMs}
                             max={maxMs}
                             step={STEP}
-                            value={[range.from ? new Date(`${range.from}T00:00:00`).getTime() : minMs]}
+                            value={[
+                                range.from
+                                    ? new Date(
+                                          `${range.from}T00:00:00`,
+                                      ).getTime()
+                                    : minMs,
+                            ]}
                             onValueChange={([v]) =>
-                                set({ mode: 'after', from: msToIso(v), to: undefined })
+                                set({
+                                    mode: 'after',
+                                    from: msToIso(v),
+                                    to: undefined,
+                                })
                             }
                         />
                     )}
@@ -1999,11 +2252,21 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             max={maxMs}
                             step={STEP}
                             value={[
-                                range.from ? new Date(`${range.from}T00:00:00`).getTime() : minMs,
-                                range.to ? new Date(`${range.to}T00:00:00`).getTime() : maxMs,
+                                range.from
+                                    ? new Date(
+                                          `${range.from}T00:00:00`,
+                                      ).getTime()
+                                    : minMs,
+                                range.to
+                                    ? new Date(`${range.to}T00:00:00`).getTime()
+                                    : maxMs,
                             ]}
                             onValueChange={([a, b]) =>
-                                set({ mode: 'between', from: msToIso(a), to: msToIso(b) })
+                                set({
+                                    mode: 'between',
+                                    from: msToIso(a),
+                                    to: msToIso(b),
+                                })
                             }
                         />
                     )}
@@ -2013,7 +2276,10 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             type="date"
                             value={range.from ?? ''}
                             onChange={(e) =>
-                                set({ mode: 'between', from: e.target.value || undefined })
+                                set({
+                                    mode: 'between',
+                                    from: e.target.value || undefined,
+                                })
                             }
                             className="rounded border border-border bg-background px-2 py-1"
                         />
@@ -2024,7 +2290,10 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             type="date"
                             value={range.to ?? ''}
                             onChange={(e) =>
-                                set({ mode: 'between', to: e.target.value || undefined })
+                                set({
+                                    mode: 'between',
+                                    to: e.target.value || undefined,
+                                })
                             }
                             className="rounded border border-border bg-background px-2 py-1"
                         />

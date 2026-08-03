@@ -121,8 +121,8 @@ class RefreshEndpointsCommandTest extends TestCase
         $this->assertSame('https://old-host/api/data/a?limit=100&offset=0', $items[0]['endpoint']);
         $this->assertSame(['success' => true, 'data' => ['fresh' => true]], $items[1]['response']);
         $this->assertSame(['success' => true, 'data' => ['fresh' => true]], $items[2]['response']);
-        $this->assertSame(500, $items[3]['status']);
-        $this->assertSame(['old' => true], $items[3]['response']);
+        $this->assertSame(200, $items[3]['status']);
+        $this->assertSame(['success' => true, 'data' => ['fresh' => true]], $items[3]['response']);
 
         $this->assertNotNull($items[0]['checked_at']);
         $this->assertNotNull($items[0]['last_ok_at']);
@@ -133,9 +133,9 @@ class RefreshEndpointsCommandTest extends TestCase
         $this->assertFalse(Cache::has('endpoints:refresh:retry_pending'));
 
         $meta = json_decode(file_get_contents($this->metaPath), true);
-        $this->assertSame(3, $meta['ok']);
+        $this->assertSame(4, $meta['ok']);
         $this->assertSame(0, $meta['failed']);
-        $this->assertSame(1, $meta['skipped']);
+        $this->assertSame(0, $meta['skipped']);
         $this->assertFalse($meta['retry_pending']);
         $this->assertNotNull($meta['last_run_at']);
     }
@@ -159,7 +159,7 @@ class RefreshEndpointsCommandTest extends TestCase
                 && $request->method() === 'POST';
         });
 
-        Http::assertNotSent(function ($request) {
+        Http::assertSent(function ($request) {
             return $request->url() === 'https://novacity.test/api/data/bad';
         });
     }
@@ -175,14 +175,52 @@ class RefreshEndpointsCommandTest extends TestCase
         $items = json_decode(file_get_contents($this->dataPath), true);
 
         $this->assertSame(['old' => true], $items[0]['response']);
+        $this->assertSame(500, $items[0]['status']);
         $this->assertNotNull($items[0]['checked_at']);
         $this->assertStringContainsString('boom', (string) $items[0]['last_error']);
+        $this->assertSame(500, $items[3]['status']);
         $this->assertTrue(Cache::has('endpoints:refresh:retry_pending'));
 
         $meta = json_decode(file_get_contents($this->metaPath), true);
         $this->assertSame(0, $meta['ok']);
-        $this->assertSame(3, $meta['failed']);
+        $this->assertSame(4, $meta['failed']);
+        $this->assertSame(0, $meta['skipped']);
         $this->assertTrue($meta['retry_pending']);
+    }
+
+    public function test_mixed_run_persists_error_statuses_and_allows_recovery(): void
+    {
+        Http::fake([
+            'https://novacity.test/api/data/a*' => Http::response(['success' => true, 'data' => ['fresh' => true]], 200),
+            'https://novacity.test/api/data/b' => Http::response(['success' => false, 'error' => 'boom'], 500),
+            'https://novacity.test/api/data/post' => Http::response(['success' => true, 'data' => ['fresh' => true]], 200),
+            'https://novacity.test/api/data/bad' => function () {
+                throw new \Illuminate\Http\Client\ConnectionException('Connection timed out');
+            },
+        ]);
+
+        $this->artisan('endpoints:refresh', ['--force' => true])->assertSuccessful();
+
+        $items = json_decode(file_get_contents($this->dataPath), true);
+
+        // Previously-OK endpoint that now returns HTTP 500: status is persisted.
+        $this->assertSame(500, $items[1]['status']);
+        $this->assertStringContainsString('HTTP 500', (string) $items[1]['last_error']);
+        $this->assertSame(['old' => true], $items[1]['response']);
+
+        // Connection error (no HTTP response): stored as 500 (unreachable).
+        $this->assertSame(500, $items[3]['status']);
+        $this->assertSame(['old' => true], $items[3]['response']);
+
+        // Previously-failed endpoint is re-checked and recovers to 200.
+        $this->assertSame(200, $items[0]['status']);
+        $this->assertSame(200, $items[2]['status']);
+
+        $meta = json_decode(file_get_contents($this->metaPath), true);
+        $this->assertSame(2, $meta['ok']);
+        $this->assertSame(2, $meta['failed']);
+        $this->assertSame(0, $meta['skipped']);
+        $this->assertFalse($meta['retry_pending']);
     }
 
     public function test_success_clears_retry_marker(): void
@@ -319,5 +357,37 @@ class RefreshEndpointsCommandTest extends TestCase
             && ! $request->hasHeader('Authorization'));
 
         $this->assertFalse(Cache::has('endpoints:refresh:jwt'));
+    }
+
+    public function test_refresh_one_only_refreshes_the_targeted_endpoint(): void
+    {
+        Http::fake([
+            'https://novacity.test/*' => Http::response(['success' => true, 'data' => ['fresh' => true]], 200),
+        ]);
+
+        $this->artisan('endpoints:refresh', [
+            '--force' => true,
+            '--id' => '00000000-0000-0000-0000-000000000002',
+        ])->assertSuccessful();
+
+        $items = json_decode(file_get_contents($this->dataPath), true);
+
+        $this->assertSame(['old' => true], $items[0]['response']);
+        $this->assertNull($items[0]['checked_at'] ?? null);
+        $this->assertSame(['fresh' => true], $items[1]['response']['data']);
+        $this->assertNotNull($items[1]['checked_at']);
+        $this->assertNotNull($items[1]['last_ok_at']);
+    }
+
+    public function test_refresh_one_unknown_id_fails(): void
+    {
+        Http::fake();
+
+        $this->artisan('endpoints:refresh', [
+            '--force' => true,
+            '--id' => '00000000-0000-0000-0000-000000000099',
+        ])->assertExitCode(1);
+
+        Http::assertNothingSent();
     }
 }

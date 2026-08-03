@@ -13,11 +13,12 @@ use Illuminate\Support\Str;
 class RefreshEndpointsCommand extends Command
 {
     protected $signature = 'endpoints:refresh
-        {--timeout=10 : Per-request timeout in seconds}
+        {--timeout=30 : Per-request timeout in seconds}
         {--dry-run : Fetch live data but do not write data.json}
-        {--force : Run even outside the 08:00-21:59 window}';
+        {--force : Run even outside the 08:00-21:59 window}
+        {--id= : Only refresh the endpoint with this id}';
 
-    protected $description = 'Refresh status-200 endpoints in data.json in parallel from NOVACITY_BASE_URL';
+    protected $description = 'Refresh all endpoints in data.json in parallel from NOVACITY_BASE_URL';
 
     private const RETRY_KEY = 'endpoints:refresh:retry_pending';
 
@@ -59,14 +60,29 @@ class RefreshEndpointsCommand extends Command
 
         $indexes = [];
 
+        $onlyId = (string) $this->option('id');
+
         foreach ($items as $i => $item) {
-            if ((int) ($item['status'] ?? -1) === 200) {
-                $indexes[] = $i;
+            if ($onlyId !== '') {
+                if ((string) ($item['id'] ?? '') === $onlyId) {
+                    $indexes[] = $i;
+                    break;
+                }
+
+                continue;
             }
+
+            $indexes[] = $i;
+        }
+
+        if ($onlyId !== '' && $indexes === []) {
+            $this->error("No endpoint found with id {$onlyId}.");
+
+            return self::FAILURE;
         }
 
         if ($indexes === []) {
-            $this->warn('No status-200 endpoints to refresh.');
+            $this->warn('No endpoints to refresh.');
 
             return self::SUCCESS;
         }
@@ -156,6 +172,7 @@ class RefreshEndpointsCommand extends Command
                 $ok++;
             } else {
                 $items[$index]['last_error'] = mb_substr((string) $result['error'], 0, 500);
+                $items[$index]['status'] = $result['status'] ?? 500;
                 $failed[] = [
                     'name' => (string) ($items[$index]['name'] ?? ''),
                     'endpoint' => $urls[$pos],
@@ -349,17 +366,17 @@ class RefreshEndpointsCommand extends Command
     /**
      * Inspect a pool response: true on HTTP 200 + API success, else error message.
      *
-     * @return array{ok: bool, data: mixed, error: ?string}
+     * @return array{ok: bool, data: mixed, error: ?string, status: ?int}
      */
     private function fetchResult(mixed $response): array
     {
         try {
             if ($response instanceof ConnectionException) {
-                return ['ok' => false, 'data' => null, 'error' => $response->getMessage()];
+                return ['ok' => false, 'data' => null, 'error' => $response->getMessage(), 'status' => null];
             }
 
             if (! $response instanceof Response) {
-                return ['ok' => false, 'data' => null, 'error' => 'No response returned for this endpoint'];
+                return ['ok' => false, 'data' => null, 'error' => 'No response returned for this endpoint', 'status' => null];
             }
 
             if ($response->failed()) {
@@ -376,6 +393,7 @@ class RefreshEndpointsCommand extends Command
                 return [
                     'ok' => false,
                     'data' => null,
+                    'status' => $status,
                     'error' => "HTTP {$status}".($body !== '' ? ': '.mb_substr($body, 0, 500) : ''),
                 ];
             }
@@ -390,13 +408,14 @@ class RefreshEndpointsCommand extends Command
                 return [
                     'ok' => false,
                     'data' => null,
+                    'status' => $response->status(),
                     'error' => 'API success:false'.($detail ? ": {$detail}" : ''),
                 ];
             }
 
-            return ['ok' => true, 'data' => $decoded ?? $response->body(), 'error' => null];
+            return ['ok' => true, 'data' => $decoded ?? $response->body(), 'error' => null, 'status' => $response->status()];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'data' => null, 'error' => $e->getMessage()];
+            return ['ok' => false, 'data' => null, 'error' => $e->getMessage(), 'status' => null];
         }
     }
 

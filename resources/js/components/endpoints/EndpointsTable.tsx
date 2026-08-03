@@ -4,6 +4,7 @@ import {
     Copy,
     Eye,
     Pencil,
+    RefreshCw,
     Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -118,6 +119,8 @@ export function EndpointsTable({
     onEdit,
     onDuplicate,
     onDelete,
+    onRefreshOne,
+    refreshingId,
     page,
     perPage,
     total,
@@ -130,6 +133,8 @@ export function EndpointsTable({
     onEdit: (item: EndpointSummary) => void;
     onDuplicate: (item: EndpointSummary) => void;
     onDelete: (item: EndpointSummary) => void;
+    onRefreshOne: (item: EndpointSummary) => void;
+    refreshingId: string | null;
     page: number;
     perPage: number;
     total: number;
@@ -240,6 +245,25 @@ export function EndpointsTable({
                                     </td>
                                     <td className="px-3 text-right">
                                         <div className="flex items-center justify-end gap-1">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 w-7 p-0"
+                                                title="Refresh this endpoint now"
+                                                disabled={refreshingId === item.id}
+                                                onClick={() =>
+                                                    onRefreshOne(item)
+                                                }
+                                            >
+                                                <RefreshCw
+                                                    className={cn(
+                                                        'h-3 w-3',
+                                                        refreshingId ===
+                                                            item.id &&
+                                                            'animate-spin',
+                                                    )}
+                                                />
+                                            </Button>
                                             <Button
                                                 size="sm"
                                                 variant="ghost"

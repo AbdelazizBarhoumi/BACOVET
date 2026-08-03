@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import {
     fetchEndpoints,
     fetchHealth,
+    triggerEndpointRefresh,
     triggerRefresh,
     type EndpointHealth,
     type EndpointSummary,
@@ -53,6 +54,7 @@ export function RefreshHealthPanel({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [running, setRunning] = useState(false);
+    const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -102,6 +104,36 @@ export function RefreshHealthPanel({
             setRunning(false);
         }
     }, [load, onRefreshed]);
+
+    const handleRefreshOne = useCallback(
+        async (item: EndpointSummary) => {
+            setRefreshingId(item.id);
+            try {
+                const result = await triggerEndpointRefresh(item.id);
+                if (result.success) {
+                    const entry = result.entry;
+                    toast.success(
+                        entry?.last_error
+                            ? `Refresh failed for "${entry.name}": ${entry.last_error}`
+                            : `"${entry?.name ?? item.name}" refreshed`,
+                    );
+                } else {
+                    toast.error(
+                        `Refresh failed for "${item.name}" (exit code ${result.exit_code})`,
+                    );
+                }
+                await load();
+                onRefreshed();
+            } catch (err) {
+                toast.error(
+                    err instanceof Error ? err.message : 'Refresh failed',
+                );
+            } finally {
+                setRefreshingId(null);
+            }
+        },
+        [load, onRefreshed],
+    );
 
     const meta = health?.meta;
     const lastErrorCount = items.filter((item) => item.last_error).length;
@@ -259,17 +291,41 @@ export function RefreshHealthPanel({
                                             </span>
                                         </td>
                                         <td className="py-2 text-right">
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-6 w-6 p-0"
-                                                title="View entry"
-                                                onClick={() =>
-                                                    onOpenEntry(item.id)
-                                                }
-                                            >
-                                                <Eye className="h-3.5 w-3.5" />
-                                            </Button>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-6 w-6 p-0"
+                                                    title="Refresh this endpoint now"
+                                                    disabled={
+                                                        refreshingId ===
+                                                        item.id
+                                                    }
+                                                    onClick={() =>
+                                                        handleRefreshOne(item)
+                                                    }
+                                                >
+                                                    <RefreshCw
+                                                        className={cn(
+                                                            'h-3.5 w-3.5',
+                                                            refreshingId ===
+                                                                item.id &&
+                                                                'animate-spin',
+                                                        )}
+                                                    />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-6 w-6 p-0"
+                                                    title="View entry"
+                                                    onClick={() =>
+                                                        onOpenEntry(item.id)
+                                                    }
+                                                >
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

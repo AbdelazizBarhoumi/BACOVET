@@ -350,6 +350,20 @@ export const triggerRefresh = async (): Promise<{
     });
 };
 
+export const triggerEndpointRefresh = async (id: string): Promise<{
+    success: boolean;
+    exit_code: number;
+    output: string;
+    meta: RefreshMeta | null;
+    entry?: EndpointSummary;
+}> => {
+    clearEndpointCaches();
+    return fetchWithToken(
+        `${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}/refresh`,
+        { method: 'POST' },
+    );
+};
+
 // ── Mutations ────────────────────────────────────────────────────────────
 
 export const createEndpoint = async (

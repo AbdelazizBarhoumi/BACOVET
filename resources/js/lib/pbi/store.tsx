@@ -475,6 +475,7 @@ function cartesianStyleDefaults(): Partial<Visual> {
             show: false,
             applyTo: 'all',
             position: 'auto',
+            content: 'value',
             displayUnits: 'auto',
             decimals: 1,
         },

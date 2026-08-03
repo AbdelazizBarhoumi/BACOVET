@@ -145,6 +145,61 @@ class NovacityEndpointsHealthTest extends TestCase
     }
 
     /** @test */
+    public function refresh_one_refreshes_only_the_targeted_endpoint()
+    {
+        file_put_contents($this->dataPath, json_encode([
+            [
+                'id' => '00000000-0000-0000-0000-000000000001',
+                'name' => 'List A',
+                'method' => 'GET',
+                'endpoint' => 'https://novacity.test/api/data/a',
+                'status' => 200,
+                'response' => ['success' => true, 'data' => [['x' => 1]]],
+            ],
+            [
+                'id' => '00000000-0000-0000-0000-000000000002',
+                'name' => 'List B',
+                'method' => 'GET',
+                'endpoint' => 'https://novacity.test/api/data/b',
+                'status' => 200,
+                'response' => ['success' => true, 'data' => [['old' => true]]],
+            ],
+        ], JSON_PRETTY_PRINT));
+        NovacityEndpointsController::flushCache();
+
+        Http::fake([
+            'https://novacity.test/*' => Http::response(['success' => true, 'data' => ['fresh' => true]], 200),
+        ]);
+
+        $this->postJson('/novacity-endpoints/00000000-0000-0000-0000-000000000002/refresh')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('exit_code', 0)
+            ->assertJsonPath('meta.ok', 1)
+            ->assertJsonPath('meta.failed', 0)
+            ->assertJsonPath('entry.id', '00000000-0000-0000-0000-000000000002');
+
+        $items = json_decode(file_get_contents($this->dataPath), true);
+        $this->assertSame(['success' => true, 'data' => [['x' => 1]]], $items[0]['response']);
+        $this->assertNull($items[0]['checked_at'] ?? null);
+        $this->assertSame(['success' => true, 'data' => ['fresh' => true]], $items[1]['response']);
+        $this->assertNotNull($items[1]['checked_at']);
+        $this->assertNotNull($items[1]['last_ok_at']);
+    }
+
+    /** @test */
+    public function refresh_one_returns_404_for_unknown_id()
+    {
+        Http::fake();
+
+        $this->postJson('/novacity-endpoints/00000000-0000-0000-0000-000000000099/refresh')
+            ->assertStatus(404)
+            ->assertJsonPath('success', false);
+
+        Http::assertNothingSent();
+    }
+
+    /** @test */
     public function unauthenticated_and_non_it_requests_are_rejected()
     {
         auth()->logout();

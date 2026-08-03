@@ -26,6 +26,7 @@ import { useEndpoints } from '@/hooks/use-endpoints';
 import { inferEntryKeys } from '@/lib/relationship-utils';
 import {
     fetchEndpoint,
+    triggerEndpointRefresh,
     type EndpointEntry,
     type EndpointFilters,
     type EndpointPayload,
@@ -100,6 +101,7 @@ export default function EndpointsPage() {
         null,
     );
     const [saving, setSaving] = useState(false);
+    const [refreshingId, setRefreshingId] = useState<string | null>(null);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const rootTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const editAbortRef = useRef<AbortController | null>(null);
@@ -327,6 +329,37 @@ export default function EndpointsPage() {
         [duplicate, error],
     );
 
+    const handleRefreshOne = useCallback(
+        async (summary: EndpointSummary) => {
+            setRefreshingId(summary.id);
+            try {
+                const result = await triggerEndpointRefresh(summary.id);
+                if (result.success) {
+                    const entry = result.entry;
+                    toast.success(
+                        entry?.last_error
+                            ? `Refresh failed for "${entry.name}": ${entry.last_error}`
+                            : `"${entry?.name ?? summary.name}" refreshed`,
+                    );
+                } else {
+                    toast.error(
+                        `Refresh failed for "${summary.name}" (exit code ${result.exit_code})`,
+                    );
+                }
+                applyFilters(toFilters(toolbar));
+            } catch (err) {
+                toast.error(
+                    err instanceof Error
+                        ? err.message
+                        : `Refresh failed for "${summary.name}"`,
+                );
+            } finally {
+                setRefreshingId(null);
+            }
+        },
+        [applyFilters, toolbar],
+    );
+
     const sources = Object.keys(stats?.by_source ?? {});
 
     const detailKeys = useMemo(
@@ -404,6 +437,8 @@ export default function EndpointsPage() {
                                 onEdit={handleEdit}
                                 onDuplicate={handleDuplicate}
                                 onDelete={handleDelete}
+                                onRefreshOne={handleRefreshOne}
+                                refreshingId={refreshingId}
                                 page={page}
                                 perPage={perPage}
                                 total={total}

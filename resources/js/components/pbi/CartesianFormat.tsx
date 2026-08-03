@@ -12,6 +12,7 @@ import {
     normalizePlotAreaStyle,
     type AxisStyle,
     type BarStyle,
+    type DataLabelContent,
     type DataLabelPosition,
     type DataLabelSeriesOverride,
     type DataLabelStyle,
@@ -60,6 +61,16 @@ const LABEL_POSITIONS: {
     { value: 'outsideEnd', label: 'Outside end' },
     { value: 'insideCenter', label: 'Inside center' },
     { value: 'insideBase', label: 'Inside base' },
+];
+
+const DATA_LABEL_CONTENTS: { value: DataLabelContent; label: string }[] = [
+    { value: 'category', label: 'Category' },
+    { value: 'value', label: 'Data value' },
+    { value: 'percentOfTotal', label: 'Percent of total' },
+    { value: 'categoryValue', label: 'Category + value' },
+    { value: 'categoryPercent', label: 'Category + percent' },
+    { value: 'valuePercent', label: 'Value + percent' },
+    { value: 'all', label: 'All details' },
 ];
 
 const GRIDLINE_STYLES: { value: GridlineStyle; label: string }[] = [
@@ -466,6 +477,16 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                             onChange={(v) =>
                                 patchDataLabels({
                                     position: v as DataLabelPosition,
+                                })
+                            }
+                        />
+                        <Select
+                            label="Content"
+                            value={dataLabels.content ?? 'value'}
+                            options={DATA_LABEL_CONTENTS}
+                            onChange={(v) =>
+                                patchDataLabels({
+                                    content: v as DataLabelContent,
                                 })
                             }
                         />

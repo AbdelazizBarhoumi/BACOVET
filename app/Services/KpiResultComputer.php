@@ -176,7 +176,7 @@ class KpiResultComputer
         // Build lookup from first variable
         $lookup = [];
         foreach ($variableRaws[0] as $row) {
-            $key = trim((string) ($row[$joinKey] ?? ''));
+            $key = trim($this->stringValue($row[$joinKey] ?? ''));
             if ($key !== '') {
                 $lookup[$key] = $row;
             }
@@ -186,7 +186,7 @@ class KpiResultComputer
         $results = [];
         $lastRaw = end($variableRaws);
         foreach ($lastRaw as $row) {
-            $key = trim((string) ($row[$joinKey] ?? ''));
+            $key = trim($this->stringValue($row[$joinKey] ?? ''));
             if (! isset($lookup[$key])) {
                 continue;
             }
@@ -203,7 +203,7 @@ class KpiResultComputer
             $rowResult = $this->computeFormulaScalar($formulaItems, $rowValues);
 
             // Build record: joinKey first, then other shared keys, then value
-            $record = [$joinKey => trim((string) ($match[$joinKey] ?? $key))];
+            $record = [$joinKey => trim($this->stringValue($match[$joinKey] ?? $key))];
             foreach ($sharedKeys as $sk) {
                 if ($sk === $joinKey) {
                     continue;
@@ -422,7 +422,18 @@ class KpiResultComputer
                 $fk = $var['filter_key'];
                 $raw = $variableRaws[$i] ?? [];
                 if (! empty($raw) && isset($raw[0][$fk])) {
-                    $vals = array_unique(array_map(fn ($r) => trim((string) ($r[$fk] ?? '')), $raw));
+                    $vals = [];
+                    foreach ($raw as $r) {
+                        $v = $r[$fk] ?? '';
+                        if (! is_scalar($v) && $v !== null) {
+                            continue;
+                        }
+                        $val = trim((string) $v);
+                        if ($val !== '') {
+                            $vals[] = $val;
+                        }
+                    }
+                    $vals = array_unique($vals);
                     $vals = array_filter($vals);
                     sort($vals);
                     if (! isset($options[$fk])) {
@@ -465,7 +476,7 @@ class KpiResultComputer
             if (! is_array($row)) {
                 continue;
             }
-            $label = trim((string) ($row[$labelKey] ?? ''));
+            $label = trim($this->stringValue($row[$labelKey] ?? ''));
             if ($label === '') {
                 continue;
             }
@@ -493,5 +504,18 @@ class KpiResultComputer
         }
 
         return $rows;
+    }
+
+    /**
+     * Safely stringify a value for grouping/keys, JSON-encoding non-scalars
+     * instead of raising "Array to string conversion".
+     */
+    private function stringValue(mixed $value): string
+    {
+        if (is_scalar($value) || $value === null) {
+            return (string) $value;
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE) ?: '';
     }
 }

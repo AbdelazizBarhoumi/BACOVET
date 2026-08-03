@@ -347,6 +347,10 @@ class EndpointSchemaAnalyzer
      */
     private function valueKey(mixed $value): string
     {
+        if (is_array($value) || is_object($value)) {
+            return gettype($value).':'.md5(serialize($value));
+        }
+
         return gettype($value).':'.(string) $value;
     }
 
