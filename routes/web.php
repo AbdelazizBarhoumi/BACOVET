@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\MethodesController;
 use App\Http\Controllers\Api\NovacityEndpointsController;
 use App\Http\Controllers\Api\ProductionController;
 use App\Http\Controllers\Api\QualityController;
+use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\V4AuthController;
 use App\Http\Controllers\Api\V5AuthController;
 use App\Http\Controllers\Api\V6AuthController;
@@ -267,6 +268,11 @@ Route::middleware('v6.auth')->group(function () {
 });
 
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
+
+// ── SCHEDULE WEBHOOK ─────────────────────────────────────────────────
+// GET webhook that runs `php artisan schedule:run` (token-protected).
+// Public route on purpose: hit from a cron URL (no session needed).
+Route::get('/schedule/run', [ScheduleController::class, 'run']);
 
 // Settings routes — public (used by standalone data page auth)
 Route::post('/api/settings', [App\Http\Controllers\Api\SettingController::class, 'store']);
