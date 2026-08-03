@@ -2,11 +2,9 @@ import {
     DISPLAY_UNITS,
     normalizeCalloutStyle,
     normalizeCategoryLabelStyle,
-    normalizeTitleStyle,
     type CalloutStyle,
     type CategoryLabelStyle,
     type DisplayUnit,
-    type TitleStyle,
     type Visual,
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
@@ -18,6 +16,7 @@ import {
     Section,
     Select,
     TextInput,
+    TitleSection,
     Toggle,
     FONT_OPTIONS,
 } from './formatControls';
@@ -32,26 +31,11 @@ const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
     currency: 'Currency ($)',
 };
 
-const HEADINGS: { value: TitleStyle['heading']; label: string }[] = [
-    { value: 'none', label: 'None' },
-    { value: 'h1', label: 'H1' },
-    { value: 'h2', label: 'H2' },
-    { value: 'h3', label: 'H3' },
-    { value: 'h4', label: 'H4' },
-];
-
-const ALIGNS: { value: 'left' | 'center' | 'right'; label: string }[] = [
-    { value: 'left', label: 'Left' },
-    { value: 'center', label: 'Center' },
-    { value: 'right', label: 'Right' },
-];
-
 /** The format tab for card / kpi / gauge: callout, label, title, general. */
 export function SingleValueFormat({ visual }: { visual: Visual }) {
     const { updateVisual } = usePbi();
     const callout = normalizeCalloutStyle(visual.callout);
     const category = normalizeCategoryLabelStyle(visual.categoryLabel);
-    const title = normalizeTitleStyle(visual.titleStyle);
 
     const patchCallout = (patch: Partial<CalloutStyle>) =>
         updateVisual(visual.id, {
@@ -61,8 +45,6 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
         updateVisual(visual.id, {
             categoryLabel: { ...category, ...patch },
         });
-    const patchTitle = (patch: Partial<TitleStyle>) =>
-        updateVisual(visual.id, { titleStyle: { ...title, ...patch } });
 
     return (
         <div className="space-y-3 text-[11px]">
@@ -150,16 +132,12 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                                 min={8}
                                 max={48}
                                 value={category.fontSize ?? 11}
-                                onChange={(v) =>
-                                    patchCategory({ fontSize: v })
-                                }
+                                onChange={(v) => patchCategory({ fontSize: v })}
                             />
                             <ColorInput
                                 label="Color"
                                 value={category.color}
-                                onChange={(v) =>
-                                    patchCategory({ color: v })
-                                }
+                                onChange={(v) => patchCategory({ color: v })}
                             />
                         </div>
                         <Biu
@@ -173,80 +151,16 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                 )}
             </Section>
 
-            <Section title="Title">
-                <TextInput
-                    label="Text"
-                    value={visual.title}
-                    onChange={(v) => updateVisual(visual.id, { title: v })}
-                />
-                <Select
-                    label="Heading style"
-                    value={title.heading}
-                    options={HEADINGS}
-                    onChange={(v) =>
-                        patchTitle({ heading: v as TitleStyle['heading'] })
-                    }
-                />
-                <Select
-                    label="Font family"
-                    value={visual.fontFamily ?? ''}
-                    options={FONT_OPTIONS}
-                    onChange={(v) =>
-                        updateVisual(visual.id, {
-                            fontFamily: v || undefined,
-                        })
-                    }
-                />
-                <Biu
-                    label="Font style"
-                    bold={title.bold}
-                    italic={title.italic}
-                    underline={title.underline}
-                    onChange={(p) => patchTitle(p)}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                    <ColorInput
-                        label="Text color"
-                        value={title.color}
-                        onChange={(v) => patchTitle({ color: v })}
-                    />
-                    <ColorInput
-                        label="Background color"
-                        value={title.background}
-                        onChange={(v) => patchTitle({ background: v })}
-                    />
-                </div>
-                <Select
-                    label="Horizontal alignment"
-                    value={title.align ?? 'center'}
-                    options={ALIGNS}
-                    onChange={(v) =>
-                        patchTitle({
-                            align: v as 'left' | 'center' | 'right',
-                        })
-                    }
-                />
-                <Toggle
-                    label="Text wrap"
-                    checked={title.textWrap ?? false}
-                    onChange={(v) => patchTitle({ textWrap: v })}
-                />
-                <Toggle
-                    label="Show title"
-                    checked={visual.showTitle}
-                    onChange={(v) =>
-                        updateVisual(visual.id, { showTitle: v })
-                    }
-                />
-            </Section>
+            <TitleSection
+                visual={visual}
+                onPatch={(p) => updateVisual(visual.id, p)}
+            />
 
             <Section title="General">
                 <ColorInput
                     label="Background"
                     value={visual.background}
-                    onChange={(v) =>
-                        updateVisual(visual.id, { background: v })
-                    }
+                    onChange={(v) => updateVisual(visual.id, { background: v })}
                 />
                 <Toggle
                     label="Border"

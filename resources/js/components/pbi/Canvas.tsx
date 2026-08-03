@@ -13,41 +13,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
 import {
     isSlicerVisual,
-    normalizeTitleStyle,
     visualTable,
+    visualTitleStyle,
     type Interaction,
-    type Visual,
 } from '@/lib/pbi/model';
-import { defaultDropWell, usePbi, visualDataTable, visualTypeLabel } from '@/lib/pbi/store';
-import { isSingleValueType } from '@/lib/pbi/visualConfig';
+import {
+    defaultDropWell,
+    usePbi,
+    visualDataTable,
+    visualTypeLabel,
+} from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 import { VisualExportButton } from './VisualExportButton';
 import { VisualView } from './VisualView';
 
 const GRID = 8;
-
-const HEADING_SIZES: Record<string, number | undefined> = {
-    h1: 28,
-    h2: 22,
-    h3: 18,
-    h4: 14,
-};
-
-/** Power BI-style title styling for single-value visuals. */
-function titleStyleFor(v: Visual) {
-    const t = normalizeTitleStyle(v.titleStyle);
-    return {
-        fontFamily: v.fontFamily || undefined,
-        fontSize: HEADING_SIZES[t.heading] ?? v.fontSize,
-        color: t.color ?? v.fontColor,
-        fontWeight: t.bold ? 700 : 600,
-        fontStyle: t.italic ? 'italic' : undefined,
-        textDecoration: t.underline ? 'underline' : undefined,
-        backgroundColor: t.background || undefined,
-        textAlign: t.align,
-        whiteSpace: t.textWrap ? 'normal' : 'nowrap',
-    } as const;
-}
 
 type DragState = {
     id: string;
@@ -251,7 +231,10 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
 
     return (
         <div className="flex min-h-full w-full p-6">
-            <div className="mx-auto" style={{ width: width * scale, height: height * scale }}>
+            <div
+                className="mx-auto"
+                style={{ width: width * scale, height: height * scale }}
+            >
                 <div
                     ref={ref}
                     onMouseMove={readOnly ? undefined : onMouseMove}
@@ -309,8 +292,9 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                         if (v.hidden) return null;
                         const dataTable = visualDataTable(v, measures);
                         const vRows = isSlicerVisual(v)
-                            ? tables.find((t) => t.name === dataTable)?.rows ?? rows
-                            : tableRows[dataTable] ?? rows;
+                            ? (tables.find((t) => t.name === dataTable)?.rows ??
+                              rows)
+                            : (tableRows[dataTable] ?? rows);
                         const isSel = selected?.id === v.id;
                         const interactionTarget =
                             !readOnly &&
@@ -355,7 +339,11 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                                 payload.table,
                                             );
                                     } catch {
-                                        dropField(v.id, defaultDropWell(v.type), raw);
+                                        dropField(
+                                            v.id,
+                                            defaultDropWell(v.type),
+                                            raw,
+                                        );
                                     }
                                 }}
                                 className={cn(
@@ -376,7 +364,9 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                         v.type === 'shape'
                                             ? 'transparent'
                                             : v.background,
-                                    ...(v.border && v.borderColor && v.type !== 'shape'
+                                    ...(v.border &&
+                                    v.borderColor &&
+                                    v.type !== 'shape'
                                         ? { borderColor: v.borderColor }
                                         : {}),
                                     ...(v.borderWidth && v.type !== 'shape'
@@ -410,29 +400,25 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                                   })
                                     }
                                     className={cn(
-                                        'flex items-center justify-between pb-1',
+                                        'relative flex items-center justify-between pb-1',
                                         !readOnly && 'cursor-move',
                                     )}
                                 >
                                     <span
-                                        className={cn(
-                                            'text-[11px] font-semibold text-foreground',
-                                            !isSingleValueType(v.type) &&
-                                                'truncate',
-                                        )}
-                                        style={titleStyleFor(v)}
+                                        className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
+                                        style={visualTitleStyle(v)}
                                     >
                                         {v.showTitle
                                             ? v.title || visualTypeLabel(v.type)
                                             : ''}
                                     </span>
                                     {readOnly && (
-                                        <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                                        <span className="absolute top-1/2 right-0 flex -translate-y-1/2 items-center bg-white opacity-0 transition-opacity group-hover:opacity-100">
                                             <VisualExportButton visual={v} />
                                         </span>
                                     )}
                                     {!readOnly && (
-                                        <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                                        <span className="absolute top-1/2 right-0 flex -translate-y-1/2 items-center gap-1 bg-white opacity-0 transition-opacity group-hover:opacity-100">
                                             {v.drillFields.length > 1 && (
                                                 <>
                                                     <button
@@ -493,9 +479,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                 {interactionTarget && (
                                     <div
                                         className="absolute top-1 right-1 z-10 flex gap-1 rounded bg-popover/95 p-1 shadow"
-                                        onMouseDown={(e) =>
-                                            e.stopPropagation()
-                                        }
+                                        onMouseDown={(e) => e.stopPropagation()}
                                     >
                                         {(
                                             [
@@ -655,9 +639,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                             ).rows.slice(0, 100);
                             const keys = [
                                 ...new Set(
-                                    recordsRows.flatMap((r) =>
-                                        Object.keys(r),
-                                    ),
+                                    recordsRows.flatMap((r) => Object.keys(r)),
                                 ),
                             ];
                             return (

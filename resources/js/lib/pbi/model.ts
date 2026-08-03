@@ -84,11 +84,17 @@ export const NUMBER_FORMATS: NumberFormat[] = [
 ];
 
 export function isNumberFormat(value: unknown): value is NumberFormat {
-    return typeof value === 'string' && NUMBER_FORMATS.includes(value as NumberFormat);
+    return (
+        typeof value === 'string' &&
+        NUMBER_FORMATS.includes(value as NumberFormat)
+    );
 }
 
 /** Converts drag metadata and legacy persisted values into a physical field reference. */
-export function parseFieldReference(input: unknown, fallbackTable?: string): FieldReference | null {
+export function parseFieldReference(
+    input: unknown,
+    fallbackTable?: string,
+): FieldReference | null {
     if (typeof input === 'string') {
         const value = input.trim();
         if (!value) return null;
@@ -108,23 +114,37 @@ export function parseFieldReference(input: unknown, fallbackTable?: string): Fie
     const value = input as Record<string, unknown>;
     const name = parseFieldReference(value.name, fallbackTable);
     if (!name) return null;
-    const table = typeof value.table === 'string' && value.table.trim()
-        ? value.table.trim()
-        : name.table || fallbackTable;
+    const table =
+        typeof value.table === 'string' && value.table.trim()
+            ? value.table.trim()
+            : name.table || fallbackTable;
     return { name: name.name, table: table || undefined };
 }
 
-export function normalizeWellField(input: unknown, fallbackTable?: string): WellField | null {
+export function normalizeWellField(
+    input: unknown,
+    fallbackTable?: string,
+): WellField | null {
     if (!input || typeof input !== 'object') {
         const reference = parseFieldReference(input, fallbackTable);
-        return reference ? { table: reference.table ?? '', name: reference.name, agg: 'sum' } : null;
+        return reference
+            ? { table: reference.table ?? '', name: reference.name, agg: 'sum' }
+            : null;
     }
 
     const value = input as Record<string, unknown>;
-    const reference = parseFieldReference(value.name, typeof value.table === 'string' ? value.table : fallbackTable);
+    const reference = parseFieldReference(
+        value.name,
+        typeof value.table === 'string' ? value.table : fallbackTable,
+    );
     if (!reference) return null;
-    const agg = AGGREGATIONS.includes(value.agg as Agg) ? (value.agg as Agg) : 'sum';
-    const label = typeof value.label === 'string' && value.label.trim() ? value.label.trim() : undefined;
+    const agg = AGGREGATIONS.includes(value.agg as Agg)
+        ? (value.agg as Agg)
+        : 'sum';
+    const label =
+        typeof value.label === 'string' && value.label.trim()
+            ? value.label.trim()
+            : undefined;
     const format = isNumberFormat(value.format) ? value.format : undefined;
     const valueAggregation = isValueAggregationMode(value.valueAggregation)
         ? value.valueAggregation
@@ -214,7 +234,14 @@ export type AnalyticsLine = {
 export type CfStyle = 'none' | 'gradient' | 'rules' | 'fieldValue';
 
 /** How the based-on field is summarized into a number per category. */
-export type CfAgg = 'none' | 'sum' | 'average' | 'min' | 'max' | 'count' | 'first';
+export type CfAgg =
+    | 'none'
+    | 'sum'
+    | 'average'
+    | 'min'
+    | 'max'
+    | 'count'
+    | 'first';
 
 /** Lower/upper bound of a gradient or a rule threshold. */
 export type CfBoundType =
@@ -277,12 +304,7 @@ export type ConditionalFormat = {
     showDataBars: boolean;
 };
 
-export const CF_STYLES: CfStyle[] = [
-    'none',
-    'gradient',
-    'rules',
-    'fieldValue',
-];
+export const CF_STYLES: CfStyle[] = ['none', 'gradient', 'rules', 'fieldValue'];
 
 export const CF_AGGS: CfAgg[] = [
     'none',
@@ -303,7 +325,11 @@ export const CF_BOUND_TYPES: CfBoundType[] = [
     'percentile',
 ];
 
-export const CF_VALUE_TYPES: CfValueType[] = ['number', 'percent', 'percentile'];
+export const CF_VALUE_TYPES: CfValueType[] = [
+    'number',
+    'percent',
+    'percentile',
+];
 
 export const CF_COMPARATORS: CfComparator[] = [
     'between',
@@ -375,13 +401,9 @@ export function normalizeConditionalFormat(input: unknown): ConditionalFormat {
     if (value.mode === 'colorScale') {
         out.style = 'gradient';
         out.min.color =
-            typeof value.minColor === 'string'
-                ? value.minColor
-                : out.min.color;
+            typeof value.minColor === 'string' ? value.minColor : out.min.color;
         out.max.color =
-            typeof value.maxColor === 'string'
-                ? value.maxColor
-                : out.max.color;
+            typeof value.maxColor === 'string' ? value.maxColor : out.max.color;
     }
     if (CF_STYLES.includes(value.style as CfStyle))
         out.style = value.style as CfStyle;
@@ -392,13 +414,19 @@ export function normalizeConditionalFormat(input: unknown): ConditionalFormat {
     if (typeof value.diverging === 'boolean') out.diverging = value.diverging;
     if (value.min) out.min = normalizeCfBound(value.min, out.min, false);
     if (value.max) out.max = normalizeCfBound(value.max, out.max, false);
-    if (value.center) out.center = normalizeCfBound(value.center, out.center, true);
+    if (value.center)
+        out.center = normalizeCfBound(value.center, out.center, true);
     if (Array.isArray(value.rules)) {
         out.rules = value.rules
-            .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+            .filter(
+                (r): r is Record<string, unknown> =>
+                    !!r && typeof r === 'object',
+            )
             .map((r): CfRule | null => {
                 const c = r as Record<string, unknown>;
-                if (!CF_RULE_CONDITIONS.includes(c.condition as CfRuleCondition))
+                if (
+                    !CF_RULE_CONDITIONS.includes(c.condition as CfRuleCondition)
+                )
                     return null;
                 const comparator = CF_COMPARATORS.includes(
                     c.comparator as CfComparator,
@@ -415,7 +443,9 @@ export function normalizeConditionalFormat(input: unknown): ConditionalFormat {
                     ...(typeof c.value2 === 'number' && isFinite(c.value2)
                         ? { value2: c.value2 }
                         : {}),
-                    valueType: CF_VALUE_TYPES.includes(c.valueType as CfValueType)
+                    valueType: CF_VALUE_TYPES.includes(
+                        c.valueType as CfValueType,
+                    )
                         ? (c.valueType as CfValueType)
                         : 'number',
                     color:
@@ -441,7 +471,8 @@ export function normalizeConditionalFormat(input: unknown): ConditionalFormat {
 export function conditionalFormatFromFx(
     fx: FxFormat | undefined,
 ): ConditionalFormat | null {
-    if (!fx?.enabled || !Array.isArray(fx.rules) || !fx.rules.length) return null;
+    if (!fx?.enabled || !Array.isArray(fx.rules) || !fx.rules.length)
+        return null;
     const cmp = (op: FxOp): CfComparator =>
         op === '>'
             ? 'greaterThan'
@@ -550,6 +581,8 @@ export type CategoryLabelStyle = {
 /** Power BI-style title formatting for single-value visuals. */
 export type TitleStyle = {
     heading: 'none' | 'h1' | 'h2' | 'h3' | 'h4';
+    /** Explicit title font size; overrides the heading preset when set. */
+    fontSize?: number;
     bold?: boolean;
     italic?: boolean;
     underline?: boolean;
@@ -870,8 +903,9 @@ export const MEASURE_IMPL: Record<string, MeasureImpl> = {
 function numericValues(rows: Row[], col: string): number[] {
     return rows
         .map((row) => row[col])
-        .filter((value): value is number | string =>
-            value !== null && value !== undefined && value !== '',
+        .filter(
+            (value): value is number | string =>
+                value !== null && value !== undefined && value !== '',
         )
         .map(Number)
         .filter(Number.isFinite);
@@ -928,13 +962,28 @@ type MeasureNode =
     | { kind: 'num'; value: number }
     | { kind: 'col'; table?: string; column: string }
     | { kind: 'func'; name: string; args: MeasureNode[] }
-    | { kind: 'binop'; op: '+' | '-' | '*' | '/'; left: MeasureNode; right: MeasureNode }
+    | {
+          kind: 'binop';
+          op: '+' | '-' | '*' | '/';
+          left: MeasureNode;
+          right: MeasureNode;
+      }
     | { kind: 'ref'; name: string }
     | { kind: 'table'; name: string };
 
 const AGGREGATION_FUNCS = new Set([
-    'SUM', 'AVERAGE', 'AVERAGEA', 'AVG', 'COUNT', 'COUNTA',
-    'DISTINCTCOUNT', 'MIN', 'MAX', 'MEDIAN', 'PRODUCT', 'COUNTROWS',
+    'SUM',
+    'AVERAGE',
+    'AVERAGEA',
+    'AVG',
+    'COUNT',
+    'COUNTA',
+    'DISTINCTCOUNT',
+    'MIN',
+    'MAX',
+    'MEDIAN',
+    'PRODUCT',
+    'COUNTROWS',
 ]);
 
 type Token =
@@ -951,19 +1000,39 @@ function tokenize(src: string): Token[] {
     let i = 0;
     while (i < src.length) {
         const c = src[i]!;
-        if (/\s/.test(c)) { i += 1; continue; }
+        if (/\s/.test(c)) {
+            i += 1;
+            continue;
+        }
         if (c === '[') {
             const end = src.indexOf(']', i + 1);
             if (end < 0) throw new MeasureSyntaxError('Crochet non fermé');
-            tokens.push({ type: 'bracket', value: src.slice(i + 1, end).trim() });
+            tokens.push({
+                type: 'bracket',
+                value: src.slice(i + 1, end).trim(),
+            });
             i = end + 1;
             continue;
         }
-        if (c === '(') { tokens.push({ type: 'lparen' }); i += 1; continue; }
-        if (c === ')') { tokens.push({ type: 'rparen' }); i += 1; continue; }
-        if (c === ',') { tokens.push({ type: 'comma' }); i += 1; continue; }
+        if (c === '(') {
+            tokens.push({ type: 'lparen' });
+            i += 1;
+            continue;
+        }
+        if (c === ')') {
+            tokens.push({ type: 'rparen' });
+            i += 1;
+            continue;
+        }
+        if (c === ',') {
+            tokens.push({ type: 'comma' });
+            i += 1;
+            continue;
+        }
         if (c === '+' || c === '-' || c === '*' || c === '/') {
-            tokens.push({ type: 'op', value: c }); i += 1; continue;
+            tokens.push({ type: 'op', value: c });
+            i += 1;
+            continue;
         }
         if (c === "'") {
             const end = src.indexOf("'", i + 1);
@@ -974,7 +1043,8 @@ function tokenize(src: string): Token[] {
         }
         if (c === '<') {
             const end = src.indexOf('>', i + 1);
-            if (end < 0) throw new MeasureSyntaxError('Balise « < » non fermée');
+            if (end < 0)
+                throw new MeasureSyntaxError('Balise « < » non fermée');
             tokens.push({ type: 'table', value: src.slice(i + 1, end).trim() });
             i = end + 1;
             continue;
@@ -1010,7 +1080,8 @@ function takeToken(t: ParseState): Token | undefined {
 
 function expectToken(t: ParseState, type: Token['type']): Token {
     const tok = takeToken(t);
-    if (!tok || tok.type !== type) throw new MeasureSyntaxError(`« ${type} » attendu`);
+    if (!tok || tok.type !== type)
+        throw new MeasureSyntaxError(`« ${type} » attendu`);
     return tok;
 }
 
@@ -1046,7 +1117,12 @@ function parseFactor(t: ParseState): MeasureNode {
     if (tok.type === 'num') return { kind: 'num', value: tok.value };
     if (tok.type === 'op' && tok.value === '-') {
         const inner = parseFactor(t);
-        return { kind: 'binop', op: '-', left: { kind: 'num', value: 0 }, right: inner };
+        return {
+            kind: 'binop',
+            op: '-',
+            left: { kind: 'num', value: 0 },
+            right: inner,
+        };
     }
     if (tok.type === 'lparen') {
         const inner = parseExpr(t);
@@ -1106,13 +1182,19 @@ function tryCompile(
         const state: ParseState = { tokens, pos: 0 };
         const node = parseExpr(state);
         if (state.pos < tokens.length) {
-            return { ok: false, error: `Caractère inattendu à la fin de l'expression.` };
+            return {
+                ok: false,
+                error: `Caractère inattendu à la fin de l'expression.`,
+            };
         }
         return { ok: true, node };
     } catch (e) {
         return {
             ok: false,
-            error: e instanceof MeasureSyntaxError ? e.message : 'Expression invalide.',
+            error:
+                e instanceof MeasureSyntaxError
+                    ? e.message
+                    : 'Expression invalide.',
         };
     }
 }
@@ -1133,8 +1215,7 @@ function resolveColumn(
     const sample = rows[0];
     const present = !!sample && column in sample;
     if (!present) {
-        const candidates: string[] =
-            table && table !== '' ? [table] : [];
+        const candidates: string[] = table && table !== '' ? [table] : [];
         if (!candidates.length) {
             const found = findTableForField(column);
             if (found) candidates.push(found);
@@ -1168,14 +1249,20 @@ function columnNameOf(node: MeasureNode): string {
     throw new MeasureSyntaxError('Une colonne est attendue en argument.');
 }
 
-function evalFunction(node: Extract<MeasureNode, { kind: 'func' }>, rows: Row[], ctx: EvalCtx): number {
+function evalFunction(
+    node: Extract<MeasureNode, { kind: 'func' }>,
+    rows: Row[],
+    ctx: EvalCtx,
+): number {
     const name = node.name.toUpperCase();
     const arg = node.args[0];
 
     if (name === 'COUNTROWS') return rows.length;
 
     if (!AGGREGATION_FUNCS.has(name)) {
-        throw new MeasureSyntaxError(`Fonction « ${node.name} » non supportée.`);
+        throw new MeasureSyntaxError(
+            `Fonction « ${node.name} » non supportée.`,
+        );
     }
     if (!arg) throw new MeasureSyntaxError(`${name}() attend une colonne.`);
 
@@ -1190,14 +1277,20 @@ function evalFunction(node: Extract<MeasureNode, { kind: 'func' }>, rows: Row[],
         case 'AVERAGEA':
         case 'AVG': {
             const nums = numericOf(values);
-            return nums.length ? nums.reduce((total, value) => total + value, 0) / nums.length : 0;
+            return nums.length
+                ? nums.reduce((total, value) => total + value, 0) / nums.length
+                : 0;
         }
         case 'COUNT':
-            return values.filter((v) => v !== null && v !== undefined && v !== '').length;
+            return values.filter(
+                (v) => v !== null && v !== undefined && v !== '',
+            ).length;
         case 'COUNTA':
             return values.filter((v) => v !== null && v !== undefined).length;
         case 'DISTINCTCOUNT':
-            return new Set(values.filter((v) => v !== null && v !== undefined && v !== '')).size;
+            return new Set(
+                values.filter((v) => v !== null && v !== undefined && v !== ''),
+            ).size;
         case 'MIN': {
             const nums = numericOf(values);
             return nums.length ? Math.min(...nums) : 0;
@@ -1210,7 +1303,9 @@ function evalFunction(node: Extract<MeasureNode, { kind: 'func' }>, rows: Row[],
             const nums = numericOf(values).sort((a, b) => a - b);
             if (!nums.length) return 0;
             const mid = Math.floor(nums.length / 2);
-            return nums.length % 2 ? nums[mid]! : (nums[mid - 1]! + nums[mid]!) / 2;
+            return nums.length % 2
+                ? nums[mid]!
+                : (nums[mid - 1]! + nums[mid]!) / 2;
         }
         case 'PRODUCT':
             return numericOf(values).reduce((total, value) => total * value, 1);
@@ -1224,10 +1319,9 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
         case 'num':
             return node.value;
         case 'col':
-            return numericOf(resolveColumn(node.column, rows, ctx, node.table)).reduce(
-                (total, value) => total + value,
-                0,
-            );
+            return numericOf(
+                resolveColumn(node.column, rows, ctx, node.table),
+            ).reduce((total, value) => total + value, 0);
         case 'ref': {
             const known = ctx.measures;
             const fn =
@@ -1240,7 +1334,12 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
                 return fn(rows, { ...ctx, depth: depth + 1 }) ?? 0;
             }
             return numericOf(
-                resolveColumn(node.name, rows, ctx, findTableForField(node.name) || undefined),
+                resolveColumn(
+                    node.name,
+                    rows,
+                    ctx,
+                    findTableForField(node.name) || undefined,
+                ),
             ).reduce((total, value) => total + value, 0);
         }
         case 'table':
@@ -1292,7 +1391,8 @@ export function measureColumnRefs(
     if (!compiled.ok) return [];
     const refs: { table?: string; column: string }[] = [];
     walkNode(compiled.node, (node) => {
-        if (node.kind === 'col') refs.push({ table: node.table, column: node.column });
+        if (node.kind === 'col')
+            refs.push({ table: node.table, column: node.column });
         else if (node.kind === 'ref') refs.push({ column: node.name });
     });
     return refs;
@@ -1313,15 +1413,26 @@ export function validateMeasureExpression(
     const compiled = tryCompile(expression);
     if (!compiled.ok) return compiled;
 
-    const knownColumns = new Set((columns ?? []).map((c) => c.trim().toLowerCase()));
-    const knownMeasures = new Set((measures ?? []).map((m) => m.trim().toLowerCase()));
+    const knownColumns = new Set(
+        (columns ?? []).map((c) => c.trim().toLowerCase()),
+    );
+    const knownMeasures = new Set(
+        (measures ?? []).map((m) => m.trim().toLowerCase()),
+    );
 
     let missing: string | null = null;
     walkNode(compiled.node, (node) => {
         if (missing) return;
-        if (node.kind === 'func' && !AGGREGATION_FUNCS.has(node.name.toUpperCase())) {
+        if (
+            node.kind === 'func' &&
+            !AGGREGATION_FUNCS.has(node.name.toUpperCase())
+        ) {
             missing = `Fonction « ${node.name} » non supportée.`;
-        } else if (node.kind === 'col' && knownColumns.size > 0 && node.column) {
+        } else if (
+            node.kind === 'col' &&
+            knownColumns.size > 0 &&
+            node.column
+        ) {
             if (!knownColumns.has(node.column.trim().toLowerCase())) {
                 missing = `Colonne « ${node.column} » introuvable.`;
             }
@@ -1490,16 +1601,14 @@ export function aggregate(rows: Row[], wf: WellField): number {
                       values.length
                 : 0;
         }
-        case 'min':
-            {
-                const values = numericValues(rows, col);
-                return values.length ? Math.min(...values) : 0;
-            }
-        case 'max':
-            {
-                const values = numericValues(rows, col);
-                return values.length ? Math.max(...values) : 0;
-            }
+        case 'min': {
+            const values = numericValues(rows, col);
+            return values.length ? Math.min(...values) : 0;
+        }
+        case 'max': {
+            const values = numericValues(rows, col);
+            return values.length ? Math.max(...values) : 0;
+        }
         default:
             return sum(rows, col);
     }
@@ -1528,8 +1637,7 @@ export function singleValue(
     const cells = rows
         .map((row) => row[wf.name])
         .filter((v) => v !== null && v !== undefined && v !== '');
-    const value =
-        aggregation === 'latest' ? cells[cells.length - 1] : cells[0];
+    const value = aggregation === 'latest' ? cells[cells.length - 1] : cells[0];
     return value === undefined ? null : value;
 }
 
@@ -1606,7 +1714,10 @@ export function buildChartData(
         return null;
     };
 
-    const withTooltips = (item: Record<string, string | number>, groupRows: Row[]) => {
+    const withTooltips = (
+        item: Record<string, string | number>,
+        groupRows: Row[],
+    ) => {
         for (const t of tooltips) {
             item[`tt:${t.name}`] = aggregate(groupRows, t);
         }
@@ -1641,12 +1752,8 @@ export function buildChartData(
 
     if (capped) {
         entries.sort((a, b) => {
-            const av = values[0]
-                ? aggregate(a[1], values[0])
-                : a[1].length;
-            const bv = values[0]
-                ? aggregate(b[1], values[0])
-                : b[1].length;
+            const av = values[0] ? aggregate(a[1], values[0]) : a[1].length;
+            const bv = values[0] ? aggregate(b[1], values[0]) : b[1].length;
             return Number(bv) - Number(av);
         });
     }
@@ -1654,30 +1761,32 @@ export function buildChartData(
     const kept = capped ? entries.slice(0, cap) : entries;
 
     const seriesSet = new Set<string>();
-    const data: Record<string, string | number>[] = kept.map(([key, groupRows]) => {
-        const item: Record<string, string | number> = { category: key };
-        if (legendCol) {
-            const byLegend = new Map<string, Row[]>();
-            for (const r of groupRows) {
-                const lk = String(r[legendCol]);
-                const arr = byLegend.get(lk);
-                if (arr) arr.push(r);
-                else byLegend.set(lk, [r]);
+    const data: Record<string, string | number>[] = kept.map(
+        ([key, groupRows]) => {
+            const item: Record<string, string | number> = { category: key };
+            if (legendCol) {
+                const byLegend = new Map<string, Row[]>();
+                for (const r of groupRows) {
+                    const lk = String(r[legendCol]);
+                    const arr = byLegend.get(lk);
+                    if (arr) arr.push(r);
+                    else byLegend.set(lk, [r]);
+                }
+                for (const [lk, lrows] of byLegend) {
+                    seriesSet.add(lk);
+                    item[lk] = values[0]
+                        ? aggregate(lrows, values[0])
+                        : lrows.length;
+                }
+            } else {
+                values.forEach((v) => {
+                    seriesSet.add(measureLabel(v));
+                    item[measureLabel(v)] = aggregate(groupRows, v);
+                });
             }
-            for (const [lk, lrows] of byLegend) {
-                seriesSet.add(lk);
-                item[lk] = values[0]
-                    ? aggregate(lrows, values[0])
-                    : lrows.length;
-            }
-        } else {
-            values.forEach((v) => {
-                seriesSet.add(measureLabel(v));
-                item[measureLabel(v)] = aggregate(groupRows, v);
-            });
-        }
-        return withTooltips(item, groupRows);
-    });
+            return withTooltips(item, groupRows);
+        },
+    );
 
     if (capped) {
         const rest = entries.slice(cap);
@@ -1901,7 +2010,8 @@ export function formatNumberPattern(n: number, pattern: string): string {
         const ch = section[i]!;
         if (ch === '"') {
             const end = section.indexOf('"', i + 1);
-            const lit = end === -1 ? section.slice(i + 1) : section.slice(i + 1, end);
+            const lit =
+                end === -1 ? section.slice(i + 1) : section.slice(i + 1, end);
             if (intBlock || readingFrac) suffix += lit;
             else prefix += lit;
             if (end === -1) break;
@@ -1942,7 +2052,8 @@ export function formatNumberPattern(n: number, pattern: string): string {
         else prefix += ch;
     }
 
-    if (!intBlock && !fracBlock) return `${prefix}${negative ? '-' : ''}${suffix}`;
+    if (!intBlock && !fracBlock)
+        return `${prefix}${negative ? '-' : ''}${suffix}`;
 
     let v = abs;
     if (percent) v *= 100;
@@ -2064,7 +2175,9 @@ export function formatDisplayUnitValue(
     if (!isFinite(n)) return '—';
     const unit = isDisplayUnit(displayUnits) ? displayUnits : 'auto';
     const d =
-        typeof decimals === 'number' && isFinite(decimals) ? decimals : undefined;
+        typeof decimals === 'number' && isFinite(decimals)
+            ? decimals
+            : undefined;
     const fixed = (value: number, dp: number | undefined) =>
         value.toLocaleString('en-US', {
             minimumFractionDigits: dp ?? 0,
@@ -2104,7 +2217,8 @@ export function formatCallout(
         return formatValue(value, type);
     const n = value;
     if (!isFinite(n)) return '—';
-    if (wf?.format && wf.format !== 'auto') return formatNumberWith(n, wf.format);
+    if (wf?.format && wf.format !== 'auto')
+        return formatNumberWith(n, wf.format);
     const unit = isDisplayUnit(style.displayUnits)
         ? style.displayUnits
         : 'auto';
@@ -2241,7 +2355,35 @@ export function normalizeTitleStyle(input: unknown): TitleStyle {
     if (typeof value.background === 'string' && value.background.trim())
         style.background = value.background.trim();
     if (typeof value.textWrap === 'boolean') style.textWrap = value.textWrap;
+    if (typeof value.fontSize === 'number' && isFinite(value.fontSize))
+        style.fontSize = value.fontSize;
     return style;
+}
+
+const TITLE_HEADING_SIZES: Record<string, number | undefined> = {
+    h1: 28,
+    h2: 22,
+    h3: 18,
+    h4: 14,
+};
+
+/** Power BI-style title CSS props. An explicit title font size wins over the
+ * heading preset, which in turn wins over the visual's general font size. */
+export function visualTitleStyle(
+    v: Pick<Visual, 'fontFamily' | 'fontSize' | 'fontColor' | 'titleStyle'>,
+) {
+    const t = normalizeTitleStyle(v.titleStyle);
+    return {
+        fontFamily: v.fontFamily || undefined,
+        fontSize: t.fontSize ?? TITLE_HEADING_SIZES[t.heading] ?? v.fontSize,
+        color: t.color ?? v.fontColor,
+        fontWeight: t.bold ? 700 : 600,
+        fontStyle: t.italic ? 'italic' : undefined,
+        textDecoration: t.underline ? 'underline' : undefined,
+        backgroundColor: t.background || undefined,
+        textAlign: t.align,
+        whiteSpace: t.textWrap ? 'normal' : 'nowrap',
+    } as const;
 }
 
 export function normalizeFontStyle(input: unknown): FontStyle | undefined {
@@ -2311,11 +2453,11 @@ export function normalizeBarStyle(input: unknown): BarStyle {
     if (!input || typeof input !== 'object') return { ...DEFAULT_BAR_STYLE };
     const value = input as Record<string, unknown>;
     const style: BarStyle = {
-        applyTo:
-            value.applyTo === 'perCategory' ? 'perCategory' : 'all',
+        applyTo: value.applyTo === 'perCategory' ? 'perCategory' : 'all',
         categoryColors: {},
         transparency:
-            typeof value.transparency === 'number' && isFinite(value.transparency)
+            typeof value.transparency === 'number' &&
+            isFinite(value.transparency)
                 ? Math.max(0, Math.min(100, value.transparency))
                 : DEFAULT_BAR_STYLE.transparency,
     };
@@ -2343,8 +2485,7 @@ const DATA_LABEL_POSITIONS: DataLabelPosition[] = [
 ];
 
 export function normalizeDataLabelStyle(input: unknown): DataLabelStyle {
-    if (!input || typeof input !== 'object')
-        return { ...DEFAULT_DATA_LABELS };
+    if (!input || typeof input !== 'object') return { ...DEFAULT_DATA_LABELS };
     const value = input as Record<string, unknown>;
     const style: DataLabelStyle = {
         show: typeof value.show === 'boolean' ? value.show : false,
@@ -2383,12 +2524,7 @@ export function normalizeDataLabelStyle(input: unknown): DataLabelStyle {
     return style;
 }
 
-const LEGEND_POSITIONS: LegendPosition[] = [
-    'top',
-    'bottom',
-    'left',
-    'right',
-];
+const LEGEND_POSITIONS: LegendPosition[] = ['top', 'bottom', 'left', 'right'];
 
 export function normalizeLegendStyle(input: unknown): LegendStyle {
     if (!input || typeof input !== 'object') return { ...DEFAULT_LEGEND };
@@ -2506,7 +2642,8 @@ function normalizeGaugeLabel(
         out.color = value.color.trim();
     if (typeof value.decimals === 'number' && isFinite(value.decimals))
         out.decimals = value.decimals;
-    if (value.fx !== undefined) out.fx = value.fx as ConditionalFormat | boolean;
+    if (value.fx !== undefined)
+        out.fx = value.fx as ConditionalFormat | boolean;
     return out;
 }
 
@@ -2552,10 +2689,7 @@ export function normalizeGaugeStyle(input: unknown): GaugeStyle {
     return out;
 }
 
-export function formatValue(
-    value: unknown,
-    type: FieldType = 'text',
-): string {
+export function formatValue(value: unknown, type: FieldType = 'text'): string {
     if (value === null || value === undefined) return '—';
     if (type === 'number' && typeof value === 'number')
         return formatNumber(value);

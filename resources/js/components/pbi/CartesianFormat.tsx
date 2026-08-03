@@ -10,7 +10,6 @@ import {
     normalizeGridlinesStyle,
     normalizeLegendStyle,
     normalizePlotAreaStyle,
-    normalizeTitleStyle,
     type AxisStyle,
     type BarStyle,
     type DataLabelPosition,
@@ -22,7 +21,6 @@ import {
     type LegendPosition,
     type LegendStyle,
     type PlotAreaStyle,
-    type TitleStyle,
     type Visual,
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
@@ -32,9 +30,11 @@ import {
     ColorInput,
     FontStyleControls,
     NumberInput,
+    OptionalNumberInput,
     Section,
     Select,
     TextInput,
+    TitleSection,
     Toggle,
 } from './formatControls';
 
@@ -50,20 +50,6 @@ const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
     percent: 'Percent (%)',
     currency: 'Currency ($)',
 };
-
-const HEADINGS: { value: TitleStyle['heading']; label: string }[] = [
-    { value: 'none', label: 'None' },
-    { value: 'h1', label: 'H1' },
-    { value: 'h2', label: 'H2' },
-    { value: 'h3', label: 'H3' },
-    { value: 'h4', label: 'H4' },
-];
-
-const ALIGNS: { value: 'left' | 'center' | 'right'; label: string }[] = [
-    { value: 'left', label: 'Left' },
-    { value: 'center', label: 'Center' },
-    { value: 'right', label: 'Right' },
-];
 
 const LABEL_POSITIONS: {
     value: DataLabelPosition;
@@ -88,35 +74,6 @@ const LEGEND_POSITIONS: { value: LegendPosition; label: string }[] = [
     { value: 'left', label: 'Left' },
     { value: 'right', label: 'Right' },
 ];
-
-/** Number input that maps an empty field to `undefined` (for "auto" ranges). */
-function OptionalNumberInput({
-    label,
-    value,
-    onChange,
-}: {
-    label: string;
-    value?: number;
-    onChange: (v: number | undefined) => void;
-}) {
-    return (
-        <label className="block">
-            <span className="mb-1 block text-muted-foreground">{label}</span>
-            <input
-                type="number"
-                value={value ?? ''}
-                onChange={(e) =>
-                    onChange(
-                        e.target.value === ''
-                            ? undefined
-                            : Number(e.target.value),
-                    )
-                }
-                className="w-full rounded border border-border bg-background px-2 py-1"
-            />
-        </label>
-    );
-}
 
 /** One axis section. Numeric-axis-only controls (units, range) render only
  * when the axis is the value axis. */
@@ -208,10 +165,11 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
     const dataLabels = normalizeDataLabelStyle(visual.dataLabels);
     const legend = normalizeLegendStyle(visual.legendStyle);
     const plotArea = normalizePlotAreaStyle(visual.plotArea);
-    const title = normalizeTitleStyle(visual.titleStyle);
 
     const patchAxis = (key: 'xAxis' | 'yAxis', patch: Partial<AxisStyle>) =>
-        updateVisual(visual.id, { [key]: { ...(key === 'xAxis' ? xAxis : yAxis), ...patch } });
+        updateVisual(visual.id, {
+            [key]: { ...(key === 'xAxis' ? xAxis : yAxis), ...patch },
+        });
     const patchGridlines = (patch: Partial<GridlinesStyle>) =>
         updateVisual(visual.id, {
             gridlines: { ...gridlines, ...patch },
@@ -226,8 +184,6 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
         updateVisual(visual.id, { legendStyle: { ...legend, ...patch } });
     const patchPlotArea = (patch: Partial<PlotAreaStyle>) =>
         updateVisual(visual.id, { plotArea: { ...plotArea, ...patch } });
-    const patchTitle = (patch: Partial<TitleStyle>) =>
-        updateVisual(visual.id, { titleStyle: { ...title, ...patch } });
 
     /** Distinct category values from the visual's axis field. */
     const categories = useMemo(() => {
@@ -258,75 +214,10 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
 
     return (
         <div className="space-y-3 text-[11px]">
-            <Section title="Title" defaultOpen>
-                <TextInput
-                    label="Text"
-                    value={visual.title}
-                    onChange={(v) => updateVisual(visual.id, { title: v })}
-                />
-                <Select
-                    label="Heading style"
-                    value={title.heading}
-                    options={HEADINGS}
-                    onChange={(v) =>
-                        patchTitle({ heading: v as TitleStyle['heading'] })
-                    }
-                />
-                <Select
-                    label="Font family"
-                    value={visual.fontFamily ?? ''}
-                    options={[
-                        { value: '', label: 'Report font' },
-                        { value: 'ui-sans-serif, system-ui, sans-serif', label: 'Sans-serif' },
-                        { value: "Georgia, 'Times New Roman', serif", label: 'Serif' },
-                        { value: 'ui-monospace, monospace', label: 'Monospace' },
-                    ]}
-                    onChange={(v) =>
-                        updateVisual(visual.id, {
-                            fontFamily: v || undefined,
-                        })
-                    }
-                />
-                <Biu
-                    label="Font style"
-                    bold={title.bold}
-                    italic={title.italic}
-                    underline={title.underline}
-                    onChange={(p) => patchTitle(p)}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                    <ColorInput
-                        label="Text color"
-                        value={title.color}
-                        onChange={(v) => patchTitle({ color: v })}
-                    />
-                    <ColorInput
-                        label="Background color"
-                        value={title.background}
-                        onChange={(v) => patchTitle({ background: v })}
-                    />
-                </div>
-                <Select
-                    label="Horizontal alignment"
-                    value={title.align ?? 'center'}
-                    options={ALIGNS}
-                    onChange={(v) =>
-                        patchTitle({ align: v as 'left' | 'center' | 'right' })
-                    }
-                />
-                <Toggle
-                    label="Text wrap"
-                    checked={title.textWrap ?? false}
-                    onChange={(v) => patchTitle({ textWrap: v })}
-                />
-                <Toggle
-                    label="Show title"
-                    checked={visual.showTitle}
-                    onChange={(v) =>
-                        updateVisual(visual.id, { showTitle: v })
-                    }
-                />
-            </Section>
+            <TitleSection
+                visual={visual}
+                onPatch={(p) => updateVisual(visual.id, p)}
+            />
 
             <AxisSection
                 title="X-axis"
@@ -399,10 +290,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                             </p>
                         )}
                         {categories.map((cat) => (
-                            <div
-                                key={cat}
-                                className="flex items-center gap-2"
-                            >
+                            <div key={cat} className="flex items-center gap-2">
                                 <span className="min-w-0 flex-1 truncate">
                                     {cat}
                                 </span>
@@ -435,7 +323,9 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         value={[bars.transparency]}
                         max={100}
                         step={1}
-                        onValueChange={([v]) => patchBars({ transparency: v ?? 0 })}
+                        onValueChange={([v]) =>
+                            patchBars({ transparency: v ?? 0 })
+                        }
                         aria-label="Bar transparency"
                     />
                 </div>
@@ -515,8 +405,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                                 <ColorInput
                                                     value={
                                                         ov.color ??
-                                                        dataLabels.font
-                                                            ?.color
+                                                        dataLabels.font?.color
                                                     }
                                                     onChange={(v) =>
                                                         patch({ color: v })
@@ -662,18 +551,14 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         <ColorInput
                             label="Border color"
                             value={plotArea.borderColor}
-                            onChange={(v) =>
-                                patchPlotArea({ borderColor: v })
-                            }
+                            onChange={(v) => patchPlotArea({ borderColor: v })}
                         />
                         <NumberInput
                             label="Border width"
                             min={1}
                             max={8}
                             value={plotArea.borderWidth ?? 1}
-                            onChange={(v) =>
-                                patchPlotArea({ borderWidth: v })
-                            }
+                            onChange={(v) => patchPlotArea({ borderWidth: v })}
                         />
                     </div>
                 )}
@@ -683,9 +568,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 <ColorInput
                     label="Background"
                     value={visual.background}
-                    onChange={(v) =>
-                        updateVisual(visual.id, { background: v })
-                    }
+                    onChange={(v) => updateVisual(visual.id, { background: v })}
                 />
                 <Toggle
                     label="Border"

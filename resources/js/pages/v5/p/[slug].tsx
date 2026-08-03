@@ -15,15 +15,14 @@ import {
     Save,
     Smartphone,
     Table2,
+    Undo2,
+    Redo2,
     ZoomIn,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Canvas, PageTabs } from '@/components/pbi/Canvas';
-import {
-    DaxDialog,
-    ManageMeasuresDialog,
-} from '@/components/pbi/Dialogs';
+import { DaxDialog, ManageMeasuresDialog } from '@/components/pbi/Dialogs';
 import { ExportMenu } from '@/components/pbi/ExportMenu';
 import {
     BookmarksPane,
@@ -47,11 +46,7 @@ import type { Interaction } from '@/lib/pbi/model';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
 import { cn } from '@/lib/utils';
-import {
-    getV5CsrfToken,
-    handleV5Error,
-    statusOfError,
-} from '@/lib/v5-session';
+import { getV5CsrfToken, handleV5Error, statusOfError } from '@/lib/v5-session';
 import { fetchV5Schema } from '@/services/endpointManagerApi';
 
 type PageProps = {
@@ -81,8 +76,14 @@ function formatDraftTime(value: string): string {
 
 export default function V5PageView() {
     const { props } = usePage();
-    const { pageId, slug, pageName, layout, layoutDraft, layoutDraftUpdatedAt } =
-        props as unknown as PageProps;
+    const {
+        pageId,
+        slug,
+        pageName,
+        layout,
+        layoutDraft,
+        layoutDraftUpdatedAt,
+    } = props as unknown as PageProps;
 
     const initialState = useMemo(() => parseInitialState(layout), [layout]);
     const [dirty, setDirty] = useState(false);
@@ -123,7 +124,10 @@ export default function V5PageView() {
             openPanes: s.openPanes,
             editInteractions: s.editInteractions,
         });
-        if (JSON.stringify(persistent(next)) !== JSON.stringify(persistent(prev))) {
+        if (
+            JSON.stringify(persistent(next)) !==
+            JSON.stringify(persistent(prev))
+        ) {
             setDirty(true);
             setEditTick((t) => t + 1);
         }
@@ -264,7 +268,7 @@ function Shell({
     layoutDraft?: PageProps['layoutDraft'];
     layoutDraftUpdatedAt?: string | null;
 }) {
-    const { state, setState } = usePbi();
+    const { state, setState, undo, redo, canUndo, canRedo } = usePbi();
     const [mode, setMode] = useState<'view' | 'edit'>('view');
     const savingRef = useRef(false);
     const draftSavingRef = useRef(false);
@@ -412,6 +416,35 @@ function Shell({
         setShowDraftBanner(false);
     };
 
+    // Undo/Redo keyboard shortcuts, active only while editing. Text editing
+    // (inputs / textareas / contentEditable) keeps the browser's native undo.
+    useEffect(() => {
+        if (mode !== 'edit') return;
+        const handler = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null;
+            if (
+                target &&
+                (target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.isContentEditable)
+            )
+                return;
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) redo();
+                else undo();
+            } else if (
+                (e.ctrlKey || e.metaKey) &&
+                e.key.toLowerCase() === 'y'
+            ) {
+                e.preventDefault();
+                redo();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [mode, undo, redo]);
+
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border bg-panel px-3">
@@ -437,6 +470,26 @@ function Shell({
                 <div className="flex shrink-0 items-center gap-2">
                     {mode === 'edit' ? (
                         <>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0"
+                                onClick={undo}
+                                disabled={!canUndo}
+                                title="Annuler (Ctrl+Z)"
+                            >
+                                <Undo2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0"
+                                onClick={redo}
+                                disabled={!canRedo}
+                                title="Rétablir (Ctrl+Shift+Z)"
+                            >
+                                <Redo2 className="h-3.5 w-3.5" />
+                            </Button>
                             <Button
                                 size="sm"
                                 onClick={save}
@@ -499,7 +552,7 @@ function Shell({
                 </div>
             )}
 
-            {mode === 'view' ? <ViewBody /> : <EditBody /> }
+            {mode === 'view' ? <ViewBody /> : <EditBody />}
         </div>
     );
 }
@@ -553,7 +606,7 @@ function PaneShell({
                 <button
                     onClick={onToggle}
                     title={`Expand ${title}`}
-                    className="mt-2 rounded px-1 py-1 font-bold text-[15px] leading-none text-muted-foreground hover:bg-accent [writing-mode:vertical-rl]"
+                    className="mt-2 rounded px-1 py-1 text-[15px] leading-none font-bold text-muted-foreground [writing-mode:vertical-rl] hover:bg-accent"
                 >
                     {title}
                 </button>
@@ -600,17 +653,17 @@ function EditBody() {
     } = usePbi();
     const [dax, setDax] = useState(false);
     const [manage, setManage] = useState(false);
-    const [paneCollapsed, setPaneCollapsed] = useState<
-        Record<string, boolean>
-    >({
-        selection: false,
-        bookmarks: false,
-        syncSlicers: false,
-        filters: false,
-        visualizations: false,
-        fields: false,
-        themes: false,
-    });
+    const [paneCollapsed, setPaneCollapsed] = useState<Record<string, boolean>>(
+        {
+            selection: false,
+            bookmarks: false,
+            syncSlicers: false,
+            filters: false,
+            visualizations: false,
+            fields: false,
+            themes: false,
+        },
+    );
     const togglePaneCollapsed = (key: string) =>
         setPaneCollapsed((p) => ({ ...p, [key]: !p[key] }));
 
@@ -636,22 +689,22 @@ function EditBody() {
                     </span>
                     <div className="flex items-center gap-1">
                         <span className="text-muted-foreground">Default:</span>
-                        {(
-                            ['filter', 'highlight', 'none'] as Interaction[]
-                        ).map((m) => (
-                            <button
-                                key={m}
-                                onClick={() => setDefaultInteraction(m)}
-                                className={cn(
-                                    'rounded px-1.5 py-0.5 capitalize',
-                                    defaultInteraction === m
-                                        ? 'bg-brand text-brand-foreground'
-                                        : 'hover:bg-accent',
-                                )}
-                            >
-                                {m}
-                            </button>
-                        ))}
+                        {(['filter', 'highlight', 'none'] as Interaction[]).map(
+                            (m) => (
+                                <button
+                                    key={m}
+                                    onClick={() => setDefaultInteraction(m)}
+                                    className={cn(
+                                        'rounded px-1.5 py-0.5 capitalize',
+                                        defaultInteraction === m
+                                            ? 'bg-brand text-brand-foreground'
+                                            : 'hover:bg-accent',
+                                    )}
+                                >
+                                    {m}
+                                </button>
+                            ),
+                        )}
                     </div>
                     <button
                         onClick={clearInteractions}
@@ -688,10 +741,7 @@ function EditBody() {
                 </div>
             )}
 
-            <main
-                className="flex min-h-0 flex-1"
-                style={themeStyle}
-            >
+            <main className="flex min-h-0 flex-1" style={themeStyle}>
                 <section className="min-h-0 flex-1 overflow-auto bg-muted">
                     <h1 className="sr-only">Interactive report canvas</h1>
                     <Canvas />
@@ -781,51 +831,49 @@ function EditBody() {
                     collapsed={paneCollapsed.fields}
                     onToggle={() => togglePaneCollapsed('fields')}
                 >
-                    <FieldsPane onCollapse={() => togglePaneCollapsed('fields')} />
+                    <FieldsPane
+                        onCollapse={() => togglePaneCollapsed('fields')}
+                    />
                 </PaneShell>
             </main>
 
             <PageTabs />
-                    <footer className="flex items-center justify-between gap-4 border-t border-border bg-panel px-3 py-1 text-[10px] text-muted-foreground">
-                        <span>
-                            {page.visuals.length} visuals ·{' '}
-                            {rows.length.toLocaleString()} of{' '}
-                            {tables
-                                .reduce((t, td) => t + td.rows.length, 0)
-                                .toLocaleString()}{' '}
-                            rows in context · {filters.length} report filters
-                        </span>
-                        <span className="flex items-center gap-2">
-                            <button
-                                onClick={() =>
-                                    setState((s) => ({
-                                        ...s,
-                                        mobileView: !s.mobileView,
-                                    }))
-                                }
-                                className={
-                                    mobileView ? 'text-brand-foreground' : ''
-                                }
-                                aria-label="Mobile layout"
-                            >
-                                <Smartphone className="size-3.5" />
-                            </button>
-                            <ZoomIn className="size-3.5" />
-                            <input
-                                type="range"
-                                min={30}
-                                max={200}
-                                step={5}
-                                value={zoom}
-                                onChange={(e) =>
-                                    setZoom(Number(e.target.value))
-                                }
-                                className="w-32 accent-[var(--brand)]"
-                                aria-label="Zoom"
-                            />
-                            <span className="w-9 tabular-nums">{zoom}%</span>
-                        </span>
-                    </footer>
+            <footer className="flex items-center justify-between gap-4 border-t border-border bg-panel px-3 py-1 text-[10px] text-muted-foreground">
+                <span>
+                    {page.visuals.length} visuals ·{' '}
+                    {rows.length.toLocaleString()} of{' '}
+                    {tables
+                        .reduce((t, td) => t + td.rows.length, 0)
+                        .toLocaleString()}{' '}
+                    rows in context · {filters.length} report filters
+                </span>
+                <span className="flex items-center gap-2">
+                    <button
+                        onClick={() =>
+                            setState((s) => ({
+                                ...s,
+                                mobileView: !s.mobileView,
+                            }))
+                        }
+                        className={mobileView ? 'text-brand-foreground' : ''}
+                        aria-label="Mobile layout"
+                    >
+                        <Smartphone className="size-3.5" />
+                    </button>
+                    <ZoomIn className="size-3.5" />
+                    <input
+                        type="range"
+                        min={30}
+                        max={200}
+                        step={5}
+                        value={zoom}
+                        onChange={(e) => setZoom(Number(e.target.value))}
+                        className="w-32 accent-[var(--brand)]"
+                        aria-label="Zoom"
+                    />
+                    <span className="w-9 tabular-nums">{zoom}%</span>
+                </span>
+            </footer>
 
             {dax && <DaxDialog onClose={() => setDax(false)} />}
             {manage && (

@@ -94,7 +94,7 @@ import { cn } from '@/lib/utils';
 import { CartesianFormat } from './CartesianFormat';
 import { ConditionalFormatControl } from './ConditionalFormatDialog';
 import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
-import { ColorInput, resolveColor } from './formatControls';
+import { ColorInput, resolveColor, TitleSection } from './formatControls';
 import { GaugeFormat } from './GaugeFormat';
 import { SingleValueFormat } from './SingleValueFormat';
 
@@ -291,13 +291,15 @@ function PaneHeader({
 
 /* ---------------------------- Fields pane ---------------------------- */
 
-export function FieldsPane({
-    onCollapse,
-}: {
-    onCollapse?: () => void;
-}) {
-    const { addFilter, selected, toggleField, tables, measures, removeMeasure } =
-        usePbi();
+export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
+    const {
+        addFilter,
+        selected,
+        toggleField,
+        tables,
+        measures,
+        removeMeasure,
+    } = usePbi();
     const [query, setQuery] = useState('');
     const [open, setOpen] = useState<Record<string, boolean>>({});
     const [folderOpen, setFolderOpen] = useState<Record<string, boolean>>({});
@@ -310,9 +312,7 @@ export function FieldsPane({
     const custom = useMemo(() => measures ?? [], [measures]);
     const measureFields = useMemo(
         () => [
-            ...MEASURES.filter(
-                (m) => !custom.some((c) => c.name === m.name),
-            ),
+            ...MEASURES.filter((m) => !custom.some((c) => c.name === m.name)),
             ...custom,
         ],
         [custom],
@@ -417,14 +417,11 @@ export function FieldsPane({
                         {open.Measures &&
                             measureFolders.map(([folder, list]) => {
                                 const visible = list.filter((f) =>
-                                    [
-                                        f.name,
-                                        folder,
-                                        f.expression ?? '',
-                                    ].some((value) =>
-                                        value
-                                            .toLowerCase()
-                                            .includes(query.toLowerCase()),
+                                    [f.name, folder, f.expression ?? ''].some(
+                                        (value) =>
+                                            value
+                                                .toLowerCase()
+                                                .includes(query.toLowerCase()),
                                     ),
                                 );
                                 if (!visible.length) return null;
@@ -471,14 +468,13 @@ export function FieldsPane({
                                                             ) => {
                                                                 e.dataTransfer.setData(
                                                                     'text/plain',
-                                                                JSON.stringify(
-                                                                    {
-                                                                        table:
-                                                                            'Measures',
-                                                                        name: f.name,
-                                                                        measure: true,
-                                                                    },
-                                                                ),
+                                                                    JSON.stringify(
+                                                                        {
+                                                                            table: 'Measures',
+                                                                            name: f.name,
+                                                                            measure: true,
+                                                                        },
+                                                                    ),
                                                                 );
                                                                 e.dataTransfer.effectAllowed =
                                                                     e.ctrlKey
@@ -532,16 +528,17 @@ export function FieldsPane({
                                                         >
                                                             <MoreHorizontal className="size-3.5" />
                                                         </button>
-                                                        {menuFor ===
-                                                            f.name && (
-                                                            <div className="absolute right-6 top-0 z-20 w-40 rounded border border-border bg-card py-1 text-[11px] shadow-xl">
+                                                        {menuFor === f.name && (
+                                                            <div className="absolute top-0 right-6 z-20 w-40 rounded border border-border bg-card py-1 text-[11px] shadow-xl">
                                                                 {confirmDelete ===
                                                                 f.name ? (
                                                                     <div className="px-2 py-1">
                                                                         <p className="mb-1 text-muted-foreground">
                                                                             Delete{' '}
                                                                             <span className="font-mono">
-                                                                                {f.name}
+                                                                                {
+                                                                                    f.name
+                                                                                }
                                                                             </span>
                                                                             ?
                                                                         </p>
@@ -721,9 +718,7 @@ export function FieldsPane({
                 })}
             </div>
             {manageOpen && (
-                <ManageMeasuresDialog
-                    onClose={() => setManageOpen(false)}
-                />
+                <ManageMeasuresDialog onClose={() => setManageOpen(false)} />
             )}
             {editTarget && (
                 <DaxDialog
@@ -745,7 +740,11 @@ const VISUAL_GROUPS: {
     {
         group: 'Comparison',
         items: [
-            { type: 'column', label: 'Clustered column', Icon: DataBarVerticalRegular },
+            {
+                type: 'column',
+                label: 'Clustered column',
+                Icon: DataBarVerticalRegular,
+            },
             {
                 type: 'stackedColumn',
                 label: 'Stacked column',
@@ -756,7 +755,11 @@ const VISUAL_GROUPS: {
                 label: '100% stacked column',
                 Icon: IconStacked100Column,
             },
-            { type: 'bar', label: 'Clustered bar', Icon: DataBarHorizontalRegular },
+            {
+                type: 'bar',
+                label: 'Clustered bar',
+                Icon: DataBarHorizontalRegular,
+            },
             { type: 'stackedBar', label: 'Stacked bar', Icon: IconStackedBar },
             {
                 type: 'stacked100Bar',
@@ -785,7 +788,11 @@ const VISUAL_GROUPS: {
             { type: 'treemap', label: 'Treemap', Icon: DataTreemapRegular },
             { type: 'funnel', label: 'Funnel', Icon: DataFunnelRegular },
             { type: 'ribbon', label: 'Ribbon', Icon: IconRibbon },
-            { type: 'waterfall', label: 'Waterfall', Icon: DataWaterfallRegular },
+            {
+                type: 'waterfall',
+                label: 'Waterfall',
+                Icon: DataWaterfallRegular,
+            },
             { type: 'scatter', label: 'Scatter', Icon: DataScatterRegular },
             { type: 'bubble', label: 'Bubble', Icon: BubbleMultipleRegular },
         ],
@@ -866,9 +873,7 @@ function BoundValueInput({
     placeholder?: string;
     onCommit: (value: number | undefined) => void;
 }) {
-    const [text, setText] = useState(
-        value === undefined ? '' : String(value),
-    );
+    const [text, setText] = useState(value === undefined ? '' : String(value));
     const [prevValue, setPrevValue] = useState(value);
     if (value !== prevValue) {
         setPrevValue(value);
@@ -895,8 +900,7 @@ function BoundValueInput({
             onChange={(e) => setText(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => {
-                if (e.key === 'Enter')
-                    (e.target as HTMLInputElement).blur();
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
             className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] outline-none focus:border-brand"
         />
@@ -943,203 +947,222 @@ export function VisualizationsPane({
             </div>
             {(() => {
                 const boundInput =
-                    ((selected?.type === 'gauge' &&
+                    (selected?.type === 'gauge' &&
                         (name === 'minimum' ||
                             name === 'maximum' ||
                             name === 'target')) ||
-                        (selected?.type === 'card' && name === 'target'))
-                        ? ({
-                              minimum: {
-                                  key: 'minimumValue',
-                                  value: selected.minimumValue,
-                              },
-                              maximum: {
-                                  key: 'maximumValue',
-                                  value: selected.maximumValue,
-                              },
-                              target: {
-                                  key: 'targetValue',
-                                  value: selected.targetValue,
-                              },
-                          } as const)[name]
+                    (selected?.type === 'card' && name === 'target')
+                        ? (
+                              {
+                                  minimum: {
+                                      key: 'minimumValue',
+                                      value: selected.minimumValue,
+                                  },
+                                  maximum: {
+                                      key: 'maximumValue',
+                                      value: selected.maximumValue,
+                                  },
+                                  target: {
+                                      key: 'targetValue',
+                                      value: selected.targetValue,
+                                  },
+                              } as const
+                          )[name]
                         : null;
                 return (
-            <div
-                onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                }}
-                onDragEnter={(e) => {
-                    e.preventDefault();
-                    setDragOverWell(name);
-                }}
-                onDragLeave={(e) => {
-                    if (e.currentTarget.contains(e.relatedTarget as Node))
-                        return;
-                    setDragOverWell(null);
-                }}
-                onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOverWell(null);
-                    if (!selected) return;
-                    const raw = e.dataTransfer.getData('text/plain');
-                    try {
-                        const payload = JSON.parse(raw);
-                        if (payload?.fromWell && payload.fromWell !== name) {
-                            moveWellField(
-                                selected.id,
-                                payload.fromWell as WellName,
-                                payload.fromIndex as number,
-                                name,
-                            );
-                            return;
-                        }
-                        if (payload?.name)
-                            dropField(
-                                selected.id,
-                                name,
-                                payload.name,
-                                payload.table,
-                            );
-                    } catch {
-                        dropField(selected.id, name, raw);
-                    }
-                }}
-                className={cn(
-                    'min-h-9 rounded border border-dashed border-border bg-background p-1 transition-colors',
-                    dragOverWell === name &&
-                        'border-brand bg-brand/5 ring-1 ring-brand',
-                )}
-            >
-                {selected?.[name].length ? (
-                    selected[name].map((f, i) => {
-                        const issue =
-                            name === 'values' &&
-                            config?.format !== 'singleValue'
-                                ? fieldNumericIssue(f) ?? fieldIssue(f)
-                                : fieldIssue(f);
-                        const numericField =
-                            ['values', 'minimum', 'maximum', 'target'].includes(
-                                name,
-                            ) &&
-                            fieldType(f.name, f.table) === 'number' &&
-                            !isMeasure(f.name);
-                        return (
-                            <div
-                                key={`${f.name}-${i}`}
-                                draggable
-                                onDragStart={(e) => {
-                                    e.dataTransfer.setData(
-                                        'text/plain',
-                                        JSON.stringify({
-                                            table: f.table,
-                                            name: f.name,
-                                            measure: isMeasure(f.name),
-                                            fromWell: name,
-                                            fromIndex: i,
-                                        }),
+                    <div
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDragEnter={(e) => {
+                            e.preventDefault();
+                            setDragOverWell(name);
+                        }}
+                        onDragLeave={(e) => {
+                            if (
+                                e.currentTarget.contains(
+                                    e.relatedTarget as Node,
+                                )
+                            )
+                                return;
+                            setDragOverWell(null);
+                        }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            setDragOverWell(null);
+                            if (!selected) return;
+                            const raw = e.dataTransfer.getData('text/plain');
+                            try {
+                                const payload = JSON.parse(raw);
+                                if (
+                                    payload?.fromWell &&
+                                    payload.fromWell !== name
+                                ) {
+                                    moveWellField(
+                                        selected.id,
+                                        payload.fromWell as WellName,
+                                        payload.fromIndex as number,
+                                        name,
                                     );
-                                    e.dataTransfer.effectAllowed = 'move';
-                                }}
-                                className="mb-1 flex cursor-grab items-center gap-1 rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
-                            >
-                                {issue && (
-                                    <TriangleAlert
-                                        className="size-3 shrink-0 text-warning"
-                                        aria-label={issue}
-                                    />
-                                )}
-                                <span className="flex-1 truncate">
-                                    {numericField
-                                        ? measureLabel(f)
-                                        : fieldLabel(f)}
-                                </span>
-                                {numericField && (
-                                    <select
-                                        value={f.agg}
-                                        onChange={(e) =>
-                                            setWellAgg(
-                                                selected.id,
-                                                name,
-                                                i,
-                                                e.target.value as Agg,
-                                            )
-                                        }
-                                        className="rounded border border-border bg-background text-[10px]"
+                                    return;
+                                }
+                                if (payload?.name)
+                                    dropField(
+                                        selected.id,
+                                        name,
+                                        payload.name,
+                                        payload.table,
+                                    );
+                            } catch {
+                                dropField(selected.id, name, raw);
+                            }
+                        }}
+                        className={cn(
+                            'min-h-9 rounded border border-dashed border-border bg-background p-1 transition-colors',
+                            dragOverWell === name &&
+                                'border-brand bg-brand/5 ring-1 ring-brand',
+                        )}
+                    >
+                        {selected?.[name].length ? (
+                            selected[name].map((f, i) => {
+                                const issue =
+                                    name === 'values' &&
+                                    config?.format !== 'singleValue'
+                                        ? (fieldNumericIssue(f) ??
+                                          fieldIssue(f))
+                                        : fieldIssue(f);
+                                const numericField =
+                                    [
+                                        'values',
+                                        'minimum',
+                                        'maximum',
+                                        'target',
+                                    ].includes(name) &&
+                                    fieldType(f.name, f.table) === 'number' &&
+                                    !isMeasure(f.name);
+                                return (
+                                    <div
+                                        key={`${f.name}-${i}`}
+                                        draggable
+                                        onDragStart={(e) => {
+                                            e.dataTransfer.setData(
+                                                'text/plain',
+                                                JSON.stringify({
+                                                    table: f.table,
+                                                    name: f.name,
+                                                    measure: isMeasure(f.name),
+                                                    fromWell: name,
+                                                    fromIndex: i,
+                                                }),
+                                            );
+                                            e.dataTransfer.effectAllowed =
+                                                'move';
+                                        }}
+                                        className="mb-1 flex cursor-grab items-center gap-1 rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
                                     >
-                                        {AGGS.map((a) => (
-                                            <option key={a} value={a}>
-                                                {a}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                                {name === 'values' &&
-                                    !numericField &&
-                                    !isMeasure(f.name) && (
-                                        <select
-                                            value={
-                                                f.valueAggregation ?? 'first'
-                                            }
-                                            onChange={(e) =>
-                                                setWellValueAgg(
+                                        {issue && (
+                                            <TriangleAlert
+                                                className="size-3 shrink-0 text-warning"
+                                                aria-label={issue}
+                                            />
+                                        )}
+                                        <span className="flex-1 truncate">
+                                            {numericField
+                                                ? measureLabel(f)
+                                                : fieldLabel(f)}
+                                        </span>
+                                        {numericField && (
+                                            <select
+                                                value={f.agg}
+                                                onChange={(e) =>
+                                                    setWellAgg(
+                                                        selected.id,
+                                                        name,
+                                                        i,
+                                                        e.target.value as Agg,
+                                                    )
+                                                }
+                                                className="rounded border border-border bg-background text-[10px]"
+                                            >
+                                                {AGGS.map((a) => (
+                                                    <option key={a} value={a}>
+                                                        {a}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        {name === 'values' &&
+                                            !numericField &&
+                                            !isMeasure(f.name) && (
+                                                <select
+                                                    value={
+                                                        f.valueAggregation ??
+                                                        'first'
+                                                    }
+                                                    onChange={(e) =>
+                                                        setWellValueAgg(
+                                                            selected.id,
+                                                            name,
+                                                            i,
+                                                            e.target
+                                                                .value as ValueAggregationMode,
+                                                        )
+                                                    }
+                                                    className="rounded border border-border bg-background text-[10px]"
+                                                >
+                                                    {VALUE_AGGREGATION_MODES.map(
+                                                        (m) => (
+                                                            <option
+                                                                key={m}
+                                                                value={m}
+                                                            >
+                                                                {
+                                                                    VALUE_AGGREGATION_LABELS[
+                                                                        m
+                                                                    ]
+                                                                }
+                                                            </option>
+                                                        ),
+                                                    )}
+                                                </select>
+                                            )}
+                                        {issue && (
+                                            <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
+                                                {issue}
+                                            </span>
+                                        )}
+                                        <button
+                                            onClick={() =>
+                                                removeWellField(
                                                     selected.id,
                                                     name,
                                                     i,
-                                                    e.target
-                                                        .value as ValueAggregationMode,
                                                 )
                                             }
-                                            className="rounded border border-border bg-background text-[10px]"
                                         >
-                                            {VALUE_AGGREGATION_MODES.map(
-                                                (m) => (
-                                                    <option
-                                                        key={m}
-                                                        value={m}
-                                                    >
-                                                        {
-                                                            VALUE_AGGREGATION_LABELS[
-                                                                m
-                                                            ]
-                                                        }
-                                                    </option>
-                                                ),
-                                            )}
-                                        </select>
-                                    )}
-                                {issue && (
-                                    <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
-                                        {issue}
-                                    </span>
-                                )}
-                                <button
-                                    onClick={() =>
-                                        removeWellField(selected.id, name, i)
-                                    }
-                                >
-                                    <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                </button>
+                                            <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                        </button>
+                                    </div>
+                                );
+                            })
+                        ) : boundInput ? (
+                            <BoundValueInput
+                                value={boundInput.value}
+                                placeholder="Enter a value"
+                                onCommit={(v) => {
+                                    if (selected)
+                                        updateVisual(selected.id, {
+                                            [boundInput.key]: v,
+                                        });
+                                }}
+                            />
+                        ) : (
+                            <div className="px-1 py-1 text-[11px] text-muted-foreground">
+                                Add data fields here
                             </div>
-                        );
-                    })
-                ) : boundInput ? (
-                    <BoundValueInput
-                        value={boundInput.value}
-                        placeholder="Enter a value"
-                        onCommit={(v) => {
-                            if (selected)
-                                updateVisual(selected.id, {
-                                    [boundInput.key]: v,
-                                });
-                        }}
-                    />
-                ) : (
-                    <div className="px-1 py-1 text-[11px] text-muted-foreground">
-                        Add data fields here
+                        )}
                     </div>
-                )}
-                </div>
                 );
             })()}
         </div>
@@ -1322,19 +1345,21 @@ export function VisualizationsPane({
                     <div className="flex-1 overflow-auto p-3">
                         {activeTab === 'fields' && config && (
                             <>
-                                {config.build.map(({ well: wellName, label }) => (
-                                    <Fragment key={wellName}>
-                                        {well(
-                                            wellName,
-                                            wellName === 'axis' &&
-                                                selected.type
-                                                    .toLowerCase()
-                                                    .includes('slicer')
-                                                ? 'Field'
-                                                : label,
-                                        )}
-                                    </Fragment>
-                                ))}
+                                {config.build.map(
+                                    ({ well: wellName, label }) => (
+                                        <Fragment key={wellName}>
+                                            {well(
+                                                wellName,
+                                                wellName === 'axis' &&
+                                                    selected.type
+                                                        .toLowerCase()
+                                                        .includes('slicer')
+                                                    ? 'Field'
+                                                    : label,
+                                            )}
+                                        </Fragment>
+                                    ),
+                                )}
                                 {config.build.some(
                                     (w) => w.well === 'tooltips',
                                 ) && (
@@ -1343,9 +1368,7 @@ export function VisualizationsPane({
                                             Tooltip page
                                         </span>
                                         <select
-                                            value={
-                                                selected.tooltipPageId ?? ''
-                                            }
+                                            value={selected.tooltipPageId ?? ''}
                                             onChange={(e) =>
                                                 updateVisual(selected.id, {
                                                     tooltipPageId:
@@ -1357,10 +1380,7 @@ export function VisualizationsPane({
                                         >
                                             <option value="">Default</option>
                                             {pages.map((p) => (
-                                                <option
-                                                    key={p.id}
-                                                    value={p.id}
-                                                >
+                                                <option key={p.id} value={p.id}>
                                                     {p.name}
                                                 </option>
                                             ))}
@@ -1370,8 +1390,8 @@ export function VisualizationsPane({
                             </>
                         )}
 
-                        {activeTab === 'format' && (
-                            config?.format === 'singleValue' ? (
+                        {activeTab === 'format' &&
+                            (config?.format === 'singleValue' ? (
                                 <SingleValueFormat visual={selected} />
                             ) : config?.format === 'cartesian' ? (
                                 <CartesianFormat visual={selected} />
@@ -1379,8 +1399,7 @@ export function VisualizationsPane({
                                 <GaugeFormat visual={selected} />
                             ) : (
                                 <GenericFormat visual={selected} />
-                            )
-                        )}
+                            ))}
 
                         {activeTab === 'analytics' && config?.showAnalytics && (
                             <div className="space-y-2 text-[11px]">
@@ -1396,10 +1415,7 @@ export function VisualizationsPane({
                                                 (a) => a.kind === k,
                                             )}
                                             onChange={() =>
-                                                toggleAnalytics(
-                                                    selected.id,
-                                                    k,
-                                                )
+                                                toggleAnalytics(selected.id, k)
                                             }
                                             className="accent-[var(--brand)]"
                                         />
@@ -1436,456 +1452,407 @@ function GenericFormat({ visual }: { visual: Visual }) {
     };
 
     return (
-                            <div className="space-y-3 text-[11px]">
-                                <label className="block">
-                                    <span className="mb-1 block text-muted-foreground">
-                                        Title
-                                    </span>
-                                    <input
-                                        value={selected.title}
-                                        onChange={(e) =>
-                                            updateVisual(selected.id, {
-                                                title: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded border border-border bg-background px-2 py-1"
-                                    />
-                                </label>
-                                {CONDITIONAL_FORMAT_TYPES.has(
-                                    selected.type,
-                                ) && <ConditionalFormatControl visual={selected} />}
-                                {(selected.type === 'text' ||
-                                    selected.type === 'button') && (
-                                    <label className="block">
-                                        <span className="mb-1 block text-muted-foreground">
-                                            Text
-                                        </span>
-                                        <textarea
-                                            value={selected.text ?? ''}
-                                            onChange={(e) =>
-                                                updateVisual(selected.id, {
-                                                    text: e.target.value,
-                                                })
-                                            }
-                                            className="h-20 w-full rounded border border-border bg-background px-2 py-1"
-                                        />
-                                    </label>
-                                )}
-                                {selected.type === 'image' && (
-                                    <>
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Image URL
-                                            </span>
-                                            <input
-                                                value={selected.imageUrl ?? ''}
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        imageUrl: e.target.value,
-                                                    })
-                                                }
-                                                className="w-full rounded border border-border bg-background px-2 py-1"
-                                            />
-                                        </label>
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Upload image
-                                            </span>
-                                            <input
-                                                ref={fileInputRef}
-                                                type="file"
-                                                accept="image/jpeg,image/png,image/gif,image/webp"
-                                                className="hidden"
-                                                onChange={(e) => {
-                                                    const file =
-                                                        e.target.files?.[0];
-                                                    if (file)
-                                                        uploadImage(file);
-                                                    e.target.value = '';
-                                                }}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    fileInputRef.current?.click()
-                                                }
-                                                className="flex w-full items-center justify-center gap-1 rounded border border-border bg-background px-2 py-1 text-sm text-foreground hover:bg-accent"
-                                            >
-                                                <Upload className="size-3.5" />
-                                                Choose file…
-                                            </button>
-                                        </label>
-                                        {selected.imageUrl && (
-                                            <div className="flex items-center justify-center rounded border border-border bg-background p-1">
-                                                <img
-                                                    src={selected.imageUrl}
-                                                    alt="Preview"
-                                                    className="max-h-24 object-contain"
-                                                />
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                                {selected.type === 'shape' && (
-                                    <>
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Shape
-                                            </span>
-                                            <select
-                                                value={selected.shape ?? 'rectangle'}
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        shape: e.target
-                                                            .value as ShapeKind,
-                                                    })
-                                                }
-                                                className="w-full rounded border border-border bg-background px-2 py-1"
-                                            >
-                                                {SHAPE_KINDS.map((k) => (
-                                                    <option key={k} value={k}>
-                                                        {SHAPES[k].label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </label>
-                                        <ColorInput
-                                            label="Outline color"
-                                            value={selected.background}
-                                            onChange={(v) =>
-                                                updateVisual(selected.id, {
-                                                    background: v,
-                                                })
-                                            }
-                                        />
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Rotation (deg)
-                                            </span>
-                                            <input
-                                                type="number"
-                                                min={-180}
-                                                max={180}
-                                                value={selected.rotation ?? 0}
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        rotation: Number(
-                                                            e.target.value,
-                                                        ),
-                                                    })
-                                                }
-                                                className="w-full rounded border border-border bg-background px-2 py-1"
-                                            />
-                                        </label>
-                                        {selected.shape !== 'line' && (
-                                            <label className="block">
-                                                <span className="mb-1 block text-muted-foreground">
-                                                    Corner radius
-                                                </span>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    max={40}
-                                                    value={
-                                                        selected.radius ?? 0
-                                                    }
-                                                    onChange={(e) =>
-                                                        updateVisual(
-                                                            selected.id,
-                                                            {
-                                                                radius: Number(
-                                                                    e.target
-                                                                        .value,
-                                                                ),
-                                                            },
-                                                        )
-                                                    }
-                                                    className="w-full rounded border border-border bg-background px-2 py-1"
-                                                />
-                                            </label>
-                                        )}
-                                    </>
-                                )}
-                                {(
-                                    [
-                                        ['showTitle', 'Show title'],
-                                        ['showLegend', 'Show legend'],
-                                        ['showLabels', 'Data labels'],
-                                        ['border', 'Border'],
-                                        ['shadow', 'Shadow'],
-                                        ['subtotals', 'Totals / subtotals'],
-                                    ] as const
-                                )
-                                    .filter(
-                                        ([key]) =>
-                                            selected.type !== 'shape' ||
-                                            key === 'border' ||
-                                            key === 'shadow',
-                                    )
-                                    .map(([key, label]) => (
-                                        <label
-                                            key={key}
-                                            className="flex items-center justify-between"
-                                        >
-                                            <span>{label}</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={Boolean(selected[key])}
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        [key]: e.target.checked,
-                                                    })
-                                                }
-                                                className="accent-[var(--brand)]"
-                                            />
-                                        </label>
-                                    ))}
-                                {selected.type !== 'shape' && (
-                                    <ColorInput
-                                        label="Background"
-                                        value={selected.background}
-                                        onChange={(v) =>
-                                            updateVisual(selected.id, {
-                                                background: v,
-                                            })
-                                        }
-                                    />
-                                )}
-                                {selected.type !== 'shape' && (
-                                    <>
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Font
-                                            </span>
-                                            <select
-                                                value={selected.fontFamily ?? ''}
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        fontFamily:
-                                                            e.target.value ||
-                                                            undefined,
-                                                    })
-                                                }
-                                                className="w-full rounded border border-border bg-background px-2 py-1"
-                                            >
-                                                <option value="">Report font</option>
-                                                <option value="ui-sans-serif, system-ui, sans-serif">
-                                                    Sans-serif
-                                                </option>
-                                                <option value="Georgia, 'Times New Roman', serif">
-                                                    Serif
-                                                </option>
-                                                <option value="ui-monospace, monospace">
-                                                    Monospace
-                                                </option>
-                                            </select>
-                                            <div className="mt-2 grid grid-cols-2 gap-2">
-                                                <label className="block">
-                                                    <span className="mb-1 block text-muted-foreground">
-                                                        Size
-                                                    </span>
-                                                    <input
-                                                        type="number"
-                                                        min={8}
-                                                        max={24}
-                                                        value={
-                                                            selected.fontSize ?? 10
-                                                        }
-                                                        onChange={(e) =>
-                                                            updateVisual(
-                                                                selected.id,
-                                                                {
-                                                                    fontSize:
-                                                                        Number(
-                                                                            e.target
-                                                                                .value,
-                                                                        ),
-                                                                },
-                                                            )
-                                                        }
-                                                        className="w-full rounded border border-border bg-background px-2 py-1"
-                                                    />
-                                                </label>
-                                                <ColorInput
-                                                    label="Color"
-                                                    value={selected.fontColor}
-                                                    onChange={(v) =>
-                                                        updateVisual(
-                                                            selected.id,
-                                                            {
-                                                                fontColor: v,
-                                                            },
-                                                        )
-                                                    }
-                                                />
-                                            </div>
-                                        </label>
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Number format
-                                            </span>
-                                            <select
-                                                value={
-                                                    selected.numberFormat ?? 'auto'
-                                                }
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        numberFormat:
-                                                            (e.target
-                                                                .value as NumberFormat) ||
-                                                            undefined,
-                                                    })
-                                                }
-                                                className="w-full rounded border border-border bg-background px-2 py-1"
-                                            >
-                                                {NUMBER_FORMATS.map((f) => (
-                                                    <option key={f} value={f}>
-                                                        {f}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </label>
-                                    </>
-                                )}
-                                {selected.border && (
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <ColorInput
-                                            label="Border"
-                                            value={selected.borderColor}
-                                            onChange={(v) =>
-                                                updateVisual(selected.id, {
-                                                    borderColor: v,
-                                                })
-                                            }
-                                        />
-                                        <label className="block">
-                                            <span className="mb-1 block text-muted-foreground">
-                                                Width
-                                            </span>
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                max={8}
-                                                value={selected.borderWidth ?? 1}
-                                                onChange={(e) =>
-                                                    updateVisual(selected.id, {
-                                                        borderWidth: Number(
-                                                            e.target.value,
-                                                        ),
-                                                    })
-                                                }
-                                                className="w-full rounded border border-border bg-background px-2 py-1"
-                                            />
-                                        </label>
-                                        {selected.type !== 'shape' && (
-                                            <label className="block">
-                                                <span className="mb-1 block text-muted-foreground">
-                                                    Radius
-                                                </span>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    max={24}
-                                                    value={selected.radius ?? 0}
-                                                    onChange={(e) =>
-                                                        updateVisual(selected.id, {
-                                                            radius: Number(
-                                                                e.target.value,
-                                                            ),
-                                                        })
-                                                    }
-                                                    className="w-full rounded border border-border bg-background px-2 py-1"
-                                                />
-                                            </label>
-                                        )}
-                                    </div>
-                                )}
-                                <label className="block">
-                                    <span className="mb-1 block text-muted-foreground">
-                                        Data colors (palette offset)
-                                    </span>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={7}
-                                        value={selected.colorIndex ?? 0}
-                                        onChange={(e) =>
-                                            updateVisual(selected.id, {
-                                                colorIndex: Number(
-                                                    e.target.value,
-                                                ),
-                                            })
-                                        }
-                                        className="w-full accent-[var(--brand)]"
-                                    />p
-                                </label>
-                                <label className="block">
-                                    <span className="mb-1 block text-muted-foreground">
-                                        Alt text (accessibility)
-                                    </span>
-                                    <input
-                                        value={selected.altText ?? ''}
-                                        onChange={(e) =>
-                                            updateVisual(selected.id, {
-                                                altText: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded border border-border bg-background px-2 py-1"
-                                    />
-                                </label>
-                                {!['card', 'table', 'matrix', 'scatter', 'bubble', 'text', 'image', 'button', 'shape'].includes(selected.type) && (
-                                    <label className="block">
-                                        <span className="mb-1 block text-muted-foreground">
-                                            Max categories (extra rolled into "Other")
-                                        </span>
-                                        <input
-                                            type="number"
-                                            min={2}
-                                            value={selected.maxCategories}
-                                            onChange={(e) =>
-                                                updateVisual(selected.id, {
-                                                    maxCategories: Number(
-                                                        e.target.value,
-                                                    ),
-                                                })
-                                            }
-                                            className="w-full rounded border border-border bg-background px-2 py-1"
-                                        />
-                                    </label>
-                                )}
-                                <div className="grid grid-cols-2 gap-2">
-                                    {(['x', 'y', 'w', 'h'] as const).map(
-                                        (k) => (
-                                            <label key={k}>
-                                                <span className="mb-1 block text-muted-foreground">
-                                                    {k === 'w'
-                                                        ? 'Width'
-                                                        : k === 'h'
-                                                          ? 'Height'
-                                                          : k.toUpperCase()}{' '}
-                                                    px
-                                                </span>
-                                                <input
-                                                    type="number"
-                                                    value={selected[k]}
-                                                    onChange={(e) =>
-                                                        updateVisual(
-                                                            selected.id,
-                                                            {
-                                                                [k]: Number(
-                                                                    e.target
-                                                                        .value,
-                                                                ),
-                                                            },
-                                                        )
-                                                    }
-                                                    className="w-full rounded border border-border bg-background px-2 py-1"
-                                                />
-                                            </label>
-                                        ),
-                                    )}
-                                </div>
-                            </div>
+        <div className="space-y-3 text-[11px]">
+            <TitleSection
+                visual={selected}
+                onPatch={(p) => updateVisual(selected.id, p)}
+            />
+            {CONDITIONAL_FORMAT_TYPES.has(selected.type) && (
+                <ConditionalFormatControl visual={selected} />
+            )}
+            {(selected.type === 'text' || selected.type === 'button') && (
+                <label className="block">
+                    <span className="mb-1 block text-muted-foreground">
+                        Text
+                    </span>
+                    <textarea
+                        value={selected.text ?? ''}
+                        onChange={(e) =>
+                            updateVisual(selected.id, {
+                                text: e.target.value,
+                            })
+                        }
+                        className="h-20 w-full rounded border border-border bg-background px-2 py-1"
+                    />
+                </label>
+            )}
+            {selected.type === 'image' && (
+                <>
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Image URL
+                        </span>
+                        <input
+                            value={selected.imageUrl ?? ''}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    imageUrl: e.target.value,
+                                })
+                            }
+                            className="w-full rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Upload image
+                        </span>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) uploadImage(file);
+                                e.target.value = '';
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex w-full items-center justify-center gap-1 rounded border border-border bg-background px-2 py-1 text-sm text-foreground hover:bg-accent"
+                        >
+                            <Upload className="size-3.5" />
+                            Choose file…
+                        </button>
+                    </label>
+                    {selected.imageUrl && (
+                        <div className="flex items-center justify-center rounded border border-border bg-background p-1">
+                            <img
+                                src={selected.imageUrl}
+                                alt="Preview"
+                                className="max-h-24 object-contain"
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+            {selected.type === 'shape' && (
+                <>
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Shape
+                        </span>
+                        <select
+                            value={selected.shape ?? 'rectangle'}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    shape: e.target.value as ShapeKind,
+                                })
+                            }
+                            className="w-full rounded border border-border bg-background px-2 py-1"
+                        >
+                            {SHAPE_KINDS.map((k) => (
+                                <option key={k} value={k}>
+                                    {SHAPES[k].label}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    <ColorInput
+                        label="Outline color"
+                        value={selected.background}
+                        onChange={(v) =>
+                            updateVisual(selected.id, {
+                                background: v,
+                            })
+                        }
+                    />
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Rotation (deg)
+                        </span>
+                        <input
+                            type="number"
+                            min={-180}
+                            max={180}
+                            value={selected.rotation ?? 0}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    rotation: Number(e.target.value),
+                                })
+                            }
+                            className="w-full rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                    {selected.shape !== 'line' && (
+                        <label className="block">
+                            <span className="mb-1 block text-muted-foreground">
+                                Corner radius
+                            </span>
+                            <input
+                                type="number"
+                                min={0}
+                                max={40}
+                                value={selected.radius ?? 0}
+                                onChange={(e) =>
+                                    updateVisual(selected.id, {
+                                        radius: Number(e.target.value),
+                                    })
+                                }
+                                className="w-full rounded border border-border bg-background px-2 py-1"
+                            />
+                        </label>
+                    )}
+                </>
+            )}
+            {(
+                [
+                    ['showLegend', 'Show legend'],
+                    ['showLabels', 'Data labels'],
+                    ['border', 'Border'],
+                    ['shadow', 'Shadow'],
+                    ['subtotals', 'Totals / subtotals'],
+                ] as const
+            )
+                .filter(
+                    ([key]) =>
+                        selected.type !== 'shape' ||
+                        key === 'border' ||
+                        key === 'shadow',
+                )
+                .map(([key, label]) => (
+                    <label
+                        key={key}
+                        className="flex items-center justify-between"
+                    >
+                        <span>{label}</span>
+                        <input
+                            type="checkbox"
+                            checked={Boolean(selected[key])}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    [key]: e.target.checked,
+                                })
+                            }
+                            className="accent-[var(--brand)]"
+                        />
+                    </label>
+                ))}
+            {selected.type !== 'shape' && (
+                <ColorInput
+                    label="Background"
+                    value={selected.background}
+                    onChange={(v) =>
+                        updateVisual(selected.id, {
+                            background: v,
+                        })
+                    }
+                />
+            )}
+            {selected.type !== 'shape' && (
+                <>
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Font
+                        </span>
+                        <select
+                            value={selected.fontFamily ?? ''}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    fontFamily: e.target.value || undefined,
+                                })
+                            }
+                            className="w-full rounded border border-border bg-background px-2 py-1"
+                        >
+                            <option value="">Report font</option>
+                            <option value="ui-sans-serif, system-ui, sans-serif">
+                                Sans-serif
+                            </option>
+                            <option value="Georgia, 'Times New Roman', serif">
+                                Serif
+                            </option>
+                            <option value="ui-monospace, monospace">
+                                Monospace
+                            </option>
+                        </select>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                            <label className="block">
+                                <span className="mb-1 block text-muted-foreground">
+                                    Size
+                                </span>
+                                <input
+                                    type="number"
+                                    min={8}
+                                    max={24}
+                                    value={selected.fontSize ?? 10}
+                                    onChange={(e) =>
+                                        updateVisual(selected.id, {
+                                            fontSize: Number(e.target.value),
+                                        })
+                                    }
+                                    className="w-full rounded border border-border bg-background px-2 py-1"
+                                />
+                            </label>
+                            <ColorInput
+                                label="Color"
+                                value={selected.fontColor}
+                                onChange={(v) =>
+                                    updateVisual(selected.id, {
+                                        fontColor: v,
+                                    })
+                                }
+                            />
+                        </div>
+                    </label>
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Number format
+                        </span>
+                        <select
+                            value={selected.numberFormat ?? 'auto'}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    numberFormat:
+                                        (e.target.value as NumberFormat) ||
+                                        undefined,
+                                })
+                            }
+                            className="w-full rounded border border-border bg-background px-2 py-1"
+                        >
+                            {NUMBER_FORMATS.map((f) => (
+                                <option key={f} value={f}>
+                                    {f}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                </>
+            )}
+            {selected.border && (
+                <div className="grid grid-cols-3 gap-2">
+                    <ColorInput
+                        label="Border"
+                        value={selected.borderColor}
+                        onChange={(v) =>
+                            updateVisual(selected.id, {
+                                borderColor: v,
+                            })
+                        }
+                    />
+                    <label className="block">
+                        <span className="mb-1 block text-muted-foreground">
+                            Width
+                        </span>
+                        <input
+                            type="number"
+                            min={1}
+                            max={8}
+                            value={selected.borderWidth ?? 1}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    borderWidth: Number(e.target.value),
+                                })
+                            }
+                            className="w-full rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                    {selected.type !== 'shape' && (
+                        <label className="block">
+                            <span className="mb-1 block text-muted-foreground">
+                                Radius
+                            </span>
+                            <input
+                                type="number"
+                                min={0}
+                                max={24}
+                                value={selected.radius ?? 0}
+                                onChange={(e) =>
+                                    updateVisual(selected.id, {
+                                        radius: Number(e.target.value),
+                                    })
+                                }
+                                className="w-full rounded border border-border bg-background px-2 py-1"
+                            />
+                        </label>
+                    )}
+                </div>
+            )}
+            <label className="block">
+                <span className="mb-1 block text-muted-foreground">
+                    Data colors (palette offset)
+                </span>
+                <input
+                    type="range"
+                    min={0}
+                    max={7}
+                    value={selected.colorIndex ?? 0}
+                    onChange={(e) =>
+                        updateVisual(selected.id, {
+                            colorIndex: Number(e.target.value),
+                        })
+                    }
+                    className="w-full accent-[var(--brand)]"
+                />
+                p
+            </label>
+            <label className="block">
+                <span className="mb-1 block text-muted-foreground">
+                    Alt text (accessibility)
+                </span>
+                <input
+                    value={selected.altText ?? ''}
+                    onChange={(e) =>
+                        updateVisual(selected.id, {
+                            altText: e.target.value,
+                        })
+                    }
+                    className="w-full rounded border border-border bg-background px-2 py-1"
+                />
+            </label>
+            {![
+                'card',
+                'table',
+                'matrix',
+                'scatter',
+                'bubble',
+                'text',
+                'image',
+                'button',
+                'shape',
+            ].includes(selected.type) && (
+                <label className="block">
+                    <span className="mb-1 block text-muted-foreground">
+                        Max categories (extra rolled into "Other")
+                    </span>
+                    <input
+                        type="number"
+                        min={2}
+                        value={selected.maxCategories}
+                        onChange={(e) =>
+                            updateVisual(selected.id, {
+                                maxCategories: Number(e.target.value),
+                            })
+                        }
+                        className="w-full rounded border border-border bg-background px-2 py-1"
+                    />
+                </label>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+                {(['x', 'y', 'w', 'h'] as const).map((k) => (
+                    <label key={k}>
+                        <span className="mb-1 block text-muted-foreground">
+                            {k === 'w'
+                                ? 'Width'
+                                : k === 'h'
+                                  ? 'Height'
+                                  : k.toUpperCase()}{' '}
+                            px
+                        </span>
+                        <input
+                            type="number"
+                            value={selected[k]}
+                            onChange={(e) =>
+                                updateVisual(selected.id, {
+                                    [k]: Number(e.target.value),
+                                })
+                            }
+                            className="w-full rounded border border-border bg-background px-2 py-1"
+                        />
+                    </label>
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -2012,7 +1979,9 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
                             saveTheme(name, active.palette, active.fontFamily);
                             setName('');
                         }}
-                        disabled={!name.trim() || !isValidPalette(active.palette)}
+                        disabled={
+                            !name.trim() || !isValidPalette(active.palette)
+                        }
                         className="mt-2 flex w-full items-center justify-center gap-1 rounded bg-[var(--brand)] py-1 text-background disabled:opacity-50"
                     >
                         <Plus className="size-3" /> Save theme
@@ -2025,11 +1994,7 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
 
 /* ---------------------------- Filters pane ---------------------------- */
 
-export function FiltersPane({
-    onCollapse,
-}: {
-    onCollapse?: () => void;
-}) {
+export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
     const {
         filters,
         addFilter,
@@ -2120,8 +2085,7 @@ export function FiltersPane({
             <div
                 className={cn(
                     'flex-1 space-y-2 overflow-auto px-3 pb-3',
-                    dragOver &&
-                        'ring-2 ring-brand ring-inset bg-brand/5',
+                    dragOver && 'bg-brand/5 ring-2 ring-brand ring-inset',
                 )}
                 onDragOver={(e) => {
                     e.preventDefault();
@@ -2151,8 +2115,8 @@ export function FiltersPane({
             >
                 {!filters.length && (
                     <p className="text-[11px] text-muted-foreground">
-                        Filters on all pages. Drag a field here or
-                        double-click one in the Data pane to add it.
+                        Filters on all pages. Drag a field here or double-click
+                        one in the Data pane to add it.
                     </p>
                 )}
                 {filters.map((f) => (
@@ -2171,8 +2135,7 @@ export function FiltersPane({
                                           ? `Top ${f.topN}`
                                           : f.type === 'relativeDate'
                                             ? (relativePresets.find(
-                                                  (p) =>
-                                                      p.value === f.relative,
+                                                  (p) => p.value === f.relative,
                                               )?.label ?? 'Relative date')
                                             : f.type === 'dateRange'
                                               ? `${f.from ?? '…'} → ${f.to ?? '…'}`
@@ -2252,9 +2215,7 @@ export function FiltersPane({
                                     }
                                     className="w-full rounded border border-border bg-background px-1 py-0.5"
                                 />
-                                <span className="text-muted-foreground">
-                                    →
-                                </span>
+                                <span className="text-muted-foreground">→</span>
                                 <input
                                     type="date"
                                     value={f.to ?? ''}
@@ -2321,8 +2282,7 @@ export function FiltersPane({
                                                     numericColumns[0]?.name ??
                                                     '',
                                                 agg: 'sum',
-                                                table:
-                                                    numericColumns[0]?.table,
+                                                table: numericColumns[0]?.table,
                                             },
                                         );
                                     }}
@@ -2378,9 +2338,7 @@ export function FiltersPane({
                                         }}
                                         className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
                                     >
-                                        <option value="__all__">
-                                            (All)
-                                        </option>
+                                        <option value="__all__">(All)</option>
                                         {distinctValues(
                                             f.column,
                                             rowsFor(f),
@@ -2430,11 +2388,7 @@ export function FiltersPane({
 
 /* --------------------------- Selection pane --------------------------- */
 
-export function SelectionPane({
-    onCollapse,
-}: {
-    onCollapse?: () => void;
-}) {
+export function SelectionPane({ onCollapse }: { onCollapse?: () => void }) {
     const {
         page,
         selected,
@@ -2520,11 +2474,7 @@ export function SelectionPane({
 
 /* --------------------------- Bookmarks pane --------------------------- */
 
-export function BookmarksPane({
-    onCollapse,
-}: {
-    onCollapse?: () => void;
-}) {
+export function BookmarksPane({ onCollapse }: { onCollapse?: () => void }) {
     const {
         bookmarks,
         addBookmark,
@@ -2590,11 +2540,7 @@ export function BookmarksPane({
 
 /* -------------------------- Sync slicers pane -------------------------- */
 
-export function SyncSlicersPane({
-    onCollapse,
-}: {
-    onCollapse?: () => void;
-}) {
+export function SyncSlicersPane({ onCollapse }: { onCollapse?: () => void }) {
     const { page, pages, slicerSync, setSlicerSync, togglePane } = usePbi();
     const slicers = page.visuals.filter((v) =>
         v.type.toLowerCase().includes('slicer'),

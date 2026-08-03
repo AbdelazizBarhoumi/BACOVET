@@ -27,6 +27,7 @@ import {
     singleValueLabel,
     unregisterMeasure,
     validateMeasureExpression,
+    visualTitleStyle,
     type FxOp,
     type FxRule,
     type TableDef,
@@ -52,11 +53,15 @@ describe('PBI field references', () => {
             name: 'WIP_Chaine',
             table: 'wip_chaine',
         });
-        expect(parseFieldReference({ table: 'wip_chaine', name: 'WIP_Chaine' })).toEqual({
+        expect(
+            parseFieldReference({ table: 'wip_chaine', name: 'WIP_Chaine' }),
+        ).toEqual({
             name: 'WIP_Chaine',
             table: 'wip_chaine',
         });
-        expect(parseFieldReference('{"table":"wip_chaine","name":"WIP_Chaine"}')).toEqual({
+        expect(
+            parseFieldReference('{"table":"wip_chaine","name":"WIP_Chaine"}'),
+        ).toEqual({
             name: 'WIP_Chaine',
             table: 'wip_chaine',
         });
@@ -65,12 +70,14 @@ describe('PBI field references', () => {
     it('rejects malformed JSON-shaped values and preserves aliases', () => {
         expect(parseFieldReference('{"table":"wip_chaine"}')).toBeNull();
         expect(parseFieldReference('{bad json')).toBeNull();
-        expect(normalizeWellField({
-            table: 'wip_chaine',
-            name: '{"table":"wip_chaine","name":"WIP_Chaine"}',
-            agg: 'sum',
-            label: 'Total Sales',
-        })).toEqual({
+        expect(
+            normalizeWellField({
+                table: 'wip_chaine',
+                name: '{"table":"wip_chaine","name":"WIP_Chaine"}',
+                agg: 'sum',
+                label: 'Total Sales',
+            }),
+        ).toEqual({
             table: 'wip_chaine',
             name: 'WIP_Chaine',
             agg: 'sum',
@@ -91,7 +98,11 @@ describe('PBI slicer keys', () => {
 describe('PBI chart aggregation', () => {
     it('groups and sums the physical JSON column name', () => {
         setTables([table]);
-        const value = { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'sum' as const };
+        const value = {
+            table: 'wip_chaine',
+            name: 'WIP_Chaine',
+            agg: 'sum' as const,
+        };
         const result = buildChartData(
             table.rows,
             [{ table: 'wip_chaine', name: 'ProdGroup', agg: 'count' }],
@@ -123,7 +134,10 @@ describe('PBI chart aggregation', () => {
             { Amount: -4, DecimalAmount: null },
             { Amount: null, DecimalAmount: 2.5 },
         ];
-        const field = (name: string, agg: 'sum' | 'avg' | 'count' | 'distinct' | 'min' | 'max') => ({
+        const field = (
+            name: string,
+            agg: 'sum' | 'avg' | 'count' | 'distinct' | 'min' | 'max',
+        ) => ({
             table: 'sales',
             name,
             agg,
@@ -138,7 +152,9 @@ describe('PBI chart aggregation', () => {
         expect(measureLabel(field('Amount', 'sum'))).toBe('Sum of Amount');
         expect(measureLabel(field('Amount', 'avg'))).toBe('Average of Amount');
         expect(measureLabel(field('Amount', 'count'))).toBe('Count of Amount');
-        expect(measureLabel(field('Amount', 'distinct'))).toBe('Distinct count of Amount');
+        expect(measureLabel(field('Amount', 'distinct'))).toBe(
+            'Distinct count of Amount',
+        );
         expect(measureLabel(field('Amount', 'min'))).toBe('Min of Amount');
         expect(measureLabel(field('Amount', 'max'))).toBe('Max of Amount');
     });
@@ -154,12 +170,49 @@ describe('PBI chart aggregation', () => {
     it('supports aggregation changes and friendly aliases', () => {
         setTables([table]);
         const rows = table.rows;
-        expect(aggregate(rows, { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'avg' })).toBeCloseTo(22 / 3);
-        expect(aggregate(rows, { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'count' })).toBe(3);
-        expect(aggregate(rows, { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'distinct' })).toBe(3);
-        expect(aggregate(rows, { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'min' })).toBe(5);
-        expect(aggregate(rows, { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'max' })).toBe(10);
-        expect(measureLabel({ table: 'wip_chaine', name: 'WIP_Chaine', agg: 'sum', label: 'Total Sales' })).toBe('Total Sales');
+        expect(
+            aggregate(rows, {
+                table: 'wip_chaine',
+                name: 'WIP_Chaine',
+                agg: 'avg',
+            }),
+        ).toBeCloseTo(22 / 3);
+        expect(
+            aggregate(rows, {
+                table: 'wip_chaine',
+                name: 'WIP_Chaine',
+                agg: 'count',
+            }),
+        ).toBe(3);
+        expect(
+            aggregate(rows, {
+                table: 'wip_chaine',
+                name: 'WIP_Chaine',
+                agg: 'distinct',
+            }),
+        ).toBe(3);
+        expect(
+            aggregate(rows, {
+                table: 'wip_chaine',
+                name: 'WIP_Chaine',
+                agg: 'min',
+            }),
+        ).toBe(5);
+        expect(
+            aggregate(rows, {
+                table: 'wip_chaine',
+                name: 'WIP_Chaine',
+                agg: 'max',
+            }),
+        ).toBe(10);
+        expect(
+            measureLabel({
+                table: 'wip_chaine',
+                name: 'WIP_Chaine',
+                agg: 'sum',
+                label: 'Total Sales',
+            }),
+        ).toBe('Total Sales');
         expect(fieldLabel({ name: 'WIP_Chaine' })).toBe('WIP_Chaine');
     });
 
@@ -171,15 +224,28 @@ describe('PBI chart aggregation', () => {
             [{ table: 'wip_chaine', name: 'ProdGroup', agg: 'count' }],
             [{ table: 'wip_chaine', name: 'WIP_Chaine', agg: 'sum' }],
         );
-        expect(result.data.every((row) => !Object.keys(row).some((key) => key.startsWith('{')))).toBe(true);
+        expect(
+            result.data.every(
+                (row) => !Object.keys(row).some((key) => key.startsWith('{')),
+            ),
+        ).toBe(true);
     });
 });
 
 describe('PBI custom measures (DAX)', () => {
     it('parses DAX column references with and without a table', () => {
-        expect(parseDaxRef('Sales[Amount]')).toEqual({ table: 'Sales', column: 'Amount' });
-        expect(parseDaxRef("'Sales Data'[Amount]")).toEqual({ table: 'Sales Data', column: 'Amount' });
-        expect(parseDaxRef('Sales Data [Amount]')).toEqual({ table: 'Sales Data', column: 'Amount' });
+        expect(parseDaxRef('Sales[Amount]')).toEqual({
+            table: 'Sales',
+            column: 'Amount',
+        });
+        expect(parseDaxRef("'Sales Data'[Amount]")).toEqual({
+            table: 'Sales Data',
+            column: 'Amount',
+        });
+        expect(parseDaxRef('Sales Data [Amount]')).toEqual({
+            table: 'Sales Data',
+            column: 'Amount',
+        });
         expect(parseDaxRef('[Amount]')).toEqual({ column: 'Amount' });
         expect(parseDaxRef('Sales')).toEqual({ table: 'Sales' });
     });
@@ -187,12 +253,26 @@ describe('PBI custom measures (DAX)', () => {
     it('compiles common aggregations into row functions', () => {
         setTables([table]);
         const rows = table.rows;
-        expect(compileMeasure('Total = SUM(wip_chaine[WIP_Chaine])')(rows)).toBe(22);
-        expect(compileMeasure('Total = AVERAGE(wip_chaine[WIP_Chaine])')(rows)).toBeCloseTo(22 / 3);
-        expect(compileMeasure('Total = COUNT(wip_chaine[WIP_Chaine])')(rows)).toBe(3);
-        expect(compileMeasure('Total = DISTINCTCOUNT(wip_chaine[WIP_Chaine])')(rows)).toBe(3);
-        expect(compileMeasure('Total = MIN(wip_chaine[WIP_Chaine])')(rows)).toBe(5);
-        expect(compileMeasure('Total = MAX(wip_chaine[WIP_Chaine])')(rows)).toBe(10);
+        expect(
+            compileMeasure('Total = SUM(wip_chaine[WIP_Chaine])')(rows),
+        ).toBe(22);
+        expect(
+            compileMeasure('Total = AVERAGE(wip_chaine[WIP_Chaine])')(rows),
+        ).toBeCloseTo(22 / 3);
+        expect(
+            compileMeasure('Total = COUNT(wip_chaine[WIP_Chaine])')(rows),
+        ).toBe(3);
+        expect(
+            compileMeasure('Total = DISTINCTCOUNT(wip_chaine[WIP_Chaine])')(
+                rows,
+            ),
+        ).toBe(3);
+        expect(
+            compileMeasure('Total = MIN(wip_chaine[WIP_Chaine])')(rows),
+        ).toBe(5);
+        expect(
+            compileMeasure('Total = MAX(wip_chaine[WIP_Chaine])')(rows),
+        ).toBe(10);
         expect(compileMeasure('Total = COUNTROWS(wip_chaine)')(rows)).toBe(3);
         expect(compileMeasure('Total = 42')(rows)).toBe(42);
         expect(compileMeasure('Total = SUM(nonexistent[col])')(rows)).toBe(0);
@@ -238,9 +318,15 @@ describe('Phase 3 measure engine (simplified forms)', () => {
     });
 
     it('evaluates arithmetic with precedence and parens', () => {
-        expect(compileMeasure('SUM(Amount)+SUM(Cost)*2')(rows)).toBe(175 + 55 * 2);
-        expect(compileMeasure('(SUM(Amount)-SUM(Cost))/3')(rows)).toBeCloseTo(40);
-        expect(compileMeasure('SUM(Amount)/SUM(Cost)')(rows)).toBeCloseTo(175 / 55);
+        expect(compileMeasure('SUM(Amount)+SUM(Cost)*2')(rows)).toBe(
+            175 + 55 * 2,
+        );
+        expect(compileMeasure('(SUM(Amount)-SUM(Cost))/3')(rows)).toBeCloseTo(
+            40,
+        );
+        expect(compileMeasure('SUM(Amount)/SUM(Cost)')(rows)).toBeCloseTo(
+            175 / 55,
+        );
         expect(compileMeasure('SUM(Amount)+1')(rows)).toBe(176);
     });
 
@@ -265,7 +351,9 @@ describe('Phase 3 measure engine (simplified forms)', () => {
     it('rejects invalid formulas at validation time', () => {
         expect(validateMeasureExpression('Total = SUM(').ok).toBe(false);
         expect(validateMeasureExpression('Total = FOO(Amount)').ok).toBe(false);
-        expect(validateMeasureExpression('Total = SUM(Amount))').ok).toBe(false);
+        expect(validateMeasureExpression('Total = SUM(Amount))').ok).toBe(
+            false,
+        );
         expect(validateMeasureExpression('Total = SUM(Amount').ok).toBe(false);
         expect(validateMeasureExpression('Total = ').ok).toBe(false);
         expect(validateMeasureExpression('Total = SUM(Amount)').ok).toBe(true);
@@ -273,8 +361,12 @@ describe('Phase 3 measure engine (simplified forms)', () => {
 
     it('validates column dependencies when the dataset columns are known', () => {
         const columns = ['Customer', 'Amount', 'Cost'];
-        expect(validateMeasureExpression('Total = SUM(Amount)', columns).ok).toBe(true);
-        expect(validateMeasureExpression('Total = SUM(Gone)', columns).ok).toBe(false);
+        expect(
+            validateMeasureExpression('Total = SUM(Amount)', columns).ok,
+        ).toBe(true);
+        expect(validateMeasureExpression('Total = SUM(Gone)', columns).ok).toBe(
+            false,
+        );
         const result = validateMeasureExpression('Total = SUM(Gone)', columns);
         expect(result.ok).toBe(false);
         if (!result.ok) expect(result.error).toContain('Gone');
@@ -283,9 +375,13 @@ describe('Phase 3 measure engine (simplified forms)', () => {
     it('resolves [Name] measure references', () => {
         const total = compileMeasure('SUM(Amount)');
         const margin = compileMeasure('SUM(Amount)-SUM(Cost)');
-        const ref = evaluateMeasure('[Total Sales]', rows, { 'Total Sales': total });
+        const ref = evaluateMeasure('[Total Sales]', rows, {
+            'Total Sales': total,
+        });
         expect(ref).toEqual({ value: 175 });
-        expect(evaluateMeasure('[Margin]-10', rows, { Margin: margin })).toEqual({ value: 110 });
+        expect(
+            evaluateMeasure('[Margin]-10', rows, { Margin: margin }),
+        ).toEqual({ value: 110 });
     });
 });
 
@@ -331,7 +427,10 @@ describe('table-aware measure resolution', () => {
 
     it('supports [Other Measure] refs at eval time with a recursion guard', () => {
         setTables([table]);
-        registerMeasure('Base Total', 'Base Total = SUM(wip_chaine[WIP_Chaine])');
+        registerMeasure(
+            'Base Total',
+            'Base Total = SUM(wip_chaine[WIP_Chaine])',
+        );
         registerMeasure('Base Times 2', 'Base Times 2 = [Base Total] * 2');
         expect(compileMeasure('[Base Times 2]')(table.rows)).toBe(44);
         unregisterMeasure('Base Total');
@@ -379,29 +478,54 @@ describe('callout formatting', () => {
     it('scales by display unit', () => {
         const style = { displayUnits: 'thousands', decimals: 1 } as const;
         expect(formatCallout(12_345, style)).toBe('12.3K');
-        expect(formatCallout(12_345, { displayUnits: 'millions', decimals: 1 })).toBe('0.0M');
-        expect(formatCallout(1_200_000, { displayUnits: 'millions', decimals: 1 })).toBe('1.2M');
-        expect(formatCallout(2_000_000_000, { displayUnits: 'billions', decimals: 1 })).toBe('2.0B');
-        expect(formatCallout(4_200, { displayUnits: 'none', decimals: 2 })).toBe('4,200.00');
-        expect(formatCallout(0.5, { displayUnits: 'percent', decimals: 1 })).toBe('50.0%');
-        expect(formatCallout(2500, { displayUnits: 'currency', decimals: 0 })).toBe('$2,500');
+        expect(
+            formatCallout(12_345, { displayUnits: 'millions', decimals: 1 }),
+        ).toBe('0.0M');
+        expect(
+            formatCallout(1_200_000, { displayUnits: 'millions', decimals: 1 }),
+        ).toBe('1.2M');
+        expect(
+            formatCallout(2_000_000_000, {
+                displayUnits: 'billions',
+                decimals: 1,
+            }),
+        ).toBe('2.0B');
+        expect(
+            formatCallout(4_200, { displayUnits: 'none', decimals: 2 }),
+        ).toBe('4,200.00');
+        expect(
+            formatCallout(0.5, { displayUnits: 'percent', decimals: 1 }),
+        ).toBe('50.0%');
+        expect(
+            formatCallout(2500, { displayUnits: 'currency', decimals: 0 }),
+        ).toBe('$2,500');
     });
 
     it('honors a per-field format over the callout unit', () => {
         expect(
-            formatCallout(2500, { displayUnits: 'thousands', decimals: 1 }, { format: 'currency' }),
+            formatCallout(
+                2500,
+                { displayUnits: 'thousands', decimals: 1 },
+                { format: 'currency' },
+            ),
         ).toBe('$2,500');
     });
 
     it('backfills missing numbers with an em dash', () => {
-        expect(formatCallout(NaN, { displayUnits: 'auto', decimals: 1 })).toBe('—');
+        expect(formatCallout(NaN, { displayUnits: 'auto', decimals: 1 })).toBe(
+            '—',
+        );
     });
 
     it('formats text/date/boolean callout values through formatValue', () => {
         const style = { displayUnits: 'thousands', decimals: 1 } as const;
         expect(formatCallout('Hello', style, undefined, 'text')).toBe('Hello');
-        expect(formatCallout('2026-08-02', style, undefined, 'date')).toContain('Aug');
-        expect(formatCallout('2026-08-02', style, undefined, 'date')).toContain('2026');
+        expect(formatCallout('2026-08-02', style, undefined, 'date')).toContain(
+            'Aug',
+        );
+        expect(formatCallout('2026-08-02', style, undefined, 'date')).toContain(
+            '2026',
+        );
         expect(formatCallout(true, style, undefined, 'boolean')).toBe('Yes');
         expect(formatCallout(false, style, undefined, 'boolean')).toBe('No');
         expect(formatCallout(null, style, undefined, 'text')).toBe('—');
@@ -463,9 +587,12 @@ describe('singleValue — string/date support for single-value visuals', () => {
         expect(
             singleValue(rows, { ...text, valueAggregation: 'count' as const }),
         ).toBe(2);
-        expect(singleValueLabel({ ...text, valueAggregation: 'count' as const }, 'text')).toBe(
-            'Count of Status',
-        );
+        expect(
+            singleValueLabel(
+                { ...text, valueAggregation: 'count' as const },
+                'text',
+            ),
+        ).toBe('Count of Status');
     });
 
     it('normalizes valueAggregation on well fields', () => {
@@ -518,7 +645,10 @@ describe('single-value style normalizers', () => {
     it('applies defaults for missing config', () => {
         expect(normalizeCalloutStyle(undefined).displayUnits).toBe('auto');
         expect(normalizeCalloutStyle({}).decimals).toBe(1);
-        expect(normalizeCalloutStyle({}).fx).toEqual({ enabled: false, rules: [] });
+        expect(normalizeCalloutStyle({}).fx).toEqual({
+            enabled: false,
+            rules: [],
+        });
         expect(normalizeCategoryLabelStyle(undefined).show).toBe(true);
         expect(normalizeTitleStyle(undefined).heading).toBe('none');
     });
@@ -549,8 +679,62 @@ describe('single-value style normalizers', () => {
             normalizeCategoryLabelStyle({ show: false, fontSize: 14 }),
         ).toMatchObject({ show: false, fontSize: 14 });
         expect(
-            normalizeTitleStyle({ heading: 'h2', align: 'right', color: '#00ff00' }),
+            normalizeTitleStyle({
+                heading: 'h2',
+                align: 'right',
+                color: '#00ff00',
+            }),
         ).toMatchObject({ heading: 'h2', align: 'right', color: '#00ff00' });
+        expect(
+            normalizeTitleStyle({ heading: 'none', fontSize: 16 }).fontSize,
+        ).toBe(16);
+    });
+
+    it('visualTitleStyle resolves font size: explicit > heading preset > general', () => {
+        const base = {
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: 10,
+            fontColor: '#111111',
+        };
+        expect(
+            visualTitleStyle({ ...base, titleStyle: { heading: 'none' } })
+                .fontSize,
+        ).toBe(10);
+        expect(
+            visualTitleStyle({ ...base, titleStyle: { heading: 'h2' } })
+                .fontSize,
+        ).toBe(22);
+        expect(
+            visualTitleStyle({
+                ...base,
+                titleStyle: { heading: 'h2', fontSize: 17 },
+            }).fontSize,
+        ).toBe(17);
+        expect(
+            visualTitleStyle({
+                ...base,
+                titleStyle: { heading: 'none', fontSize: 14 },
+            }).fontSize,
+        ).toBe(14);
+    });
+
+    it('visualTitleStyle honors alignment and text wrap', () => {
+        expect(
+            visualTitleStyle({
+                fontFamily: undefined,
+                fontSize: 10,
+                fontColor: '#111111',
+                titleStyle: { heading: 'none', align: 'right', textWrap: true },
+            }),
+        ).toMatchObject({ textAlign: 'right', whiteSpace: 'normal' });
+        expect(
+            visualTitleStyle({
+                fontFamily: undefined,
+                fontSize: 10,
+                fontColor: '#111111',
+                titleStyle: { heading: 'none' },
+            }).whiteSpace,
+        ).toBe('nowrap');
     });
 });
 
@@ -590,13 +774,23 @@ describe('gauge style normalizer', () => {
 
     it('gaugeBoundValue prefers a dropped field over a typed constant', () => {
         setTables([table]);
-        const wf = { table: 'wip_chaine', name: 'WIP_Chaine', agg: 'sum' as const };
+        const wf = {
+            table: 'wip_chaine',
+            name: 'WIP_Chaine',
+            agg: 'sum' as const,
+        };
         expect(gaugeBoundValue(table.rows, wf, 5)).toBe(22);
         expect(gaugeBoundValue(table.rows, wf, undefined)).toBe(22);
         expect(gaugeBoundValue(table.rows, undefined, 7.5)).toBe(7.5);
-        expect(gaugeBoundValue(table.rows, undefined, undefined)).toBeUndefined();
-        expect(gaugeBoundValue(table.rows, undefined, Number.NaN)).toBeUndefined();
-        expect(gaugeBoundValue(table.rows, undefined, Infinity)).toBeUndefined();
+        expect(
+            gaugeBoundValue(table.rows, undefined, undefined),
+        ).toBeUndefined();
+        expect(
+            gaugeBoundValue(table.rows, undefined, Number.NaN),
+        ).toBeUndefined();
+        expect(
+            gaugeBoundValue(table.rows, undefined, Infinity),
+        ).toBeUndefined();
     });
 });
 

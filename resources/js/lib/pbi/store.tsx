@@ -68,13 +68,25 @@ export type WellName =
     | 'target';
 
 export function defaultDropWell(type: VisualType): WellName {
-    return ['slicer', 'buttonSlicer', 'dropdownSlicer', 'inputSlicer', 'dateSlicer'].includes(type)
+    return [
+        'slicer',
+        'buttonSlicer',
+        'dropdownSlicer',
+        'inputSlicer',
+        'dateSlicer',
+    ].includes(type)
         ? 'axis'
         : 'values';
 }
 
 function isSlicerType(type: VisualType): boolean {
-    return ['slicer', 'buttonSlicer', 'dropdownSlicer', 'inputSlicer', 'dateSlicer'].includes(type);
+    return [
+        'slicer',
+        'buttonSlicer',
+        'dropdownSlicer',
+        'inputSlicer',
+        'dateSlicer',
+    ].includes(type);
 }
 
 /** Converts a server-side measure record into a `Field` usable by the canvas. */
@@ -119,19 +131,33 @@ export type SlicerDateRange = {
     relative?: RelativePreset;
 };
 
-export function slicerKey(table: string | undefined, column: string, value: string) {
+export function slicerKey(
+    table: string | undefined,
+    column: string,
+    value: string,
+) {
     return JSON.stringify([table ?? '', column, value]);
 }
 
-function parseSlicerKey(key: string): { table: string; column: string; value: string } | null {
+function parseSlicerKey(
+    key: string,
+): { table: string; column: string; value: string } | null {
     try {
         const parsed: unknown = JSON.parse(key);
         if (Array.isArray(parsed) && parsed.length === 3)
-            return { table: String(parsed[0]), column: String(parsed[1]), value: String(parsed[2]) };
+            return {
+                table: String(parsed[0]),
+                column: String(parsed[1]),
+                value: String(parsed[2]),
+            };
     } catch {
         const separator = key.indexOf('::');
         if (separator >= 0)
-            return { table: '', column: key.slice(0, separator), value: key.slice(separator + 2) };
+            return {
+                table: '',
+                column: key.slice(0, separator),
+                value: key.slice(separator + 2),
+            };
     }
     return null;
 }
@@ -194,7 +220,12 @@ export function uid(prefix = 'v') {
     return `${prefix}${Date.now().toString(36)}${seq}`;
 }
 
-export function wf(name: unknown, table?: string, agg: Agg = 'sum', label?: string): WellField {
+export function wf(
+    name: unknown,
+    table?: string,
+    agg: Agg = 'sum',
+    label?: string,
+): WellField {
     const reference = normalizeWellField({ name, table, agg, label }, table);
     if (!reference) throw new Error('Invalid PBI field reference');
     const resolvedName = reference.name;
@@ -270,18 +301,25 @@ function normalizeState(state: State): State {
     ] as const;
     const visuals = state.pages.flatMap((page) => page.visuals);
     const slicerSelections = Object.fromEntries(
-        Object.entries(state.slicerSelections ?? {}).map(([visualId, selections]) => {
-            const table = visuals.find((visual) => visual.id === visualId)?.axis[0]?.table;
-            return [
-                visualId,
-                selections.map((selection) => {
-                    const parsed = parseSlicerKey(selection);
-                    return parsed
-                        ? slicerKey(parsed.table || table, parsed.column, parsed.value)
-                        : selection;
-                }),
-            ];
-        }),
+        Object.entries(state.slicerSelections ?? {}).map(
+            ([visualId, selections]) => {
+                const table = visuals.find((visual) => visual.id === visualId)
+                    ?.axis[0]?.table;
+                return [
+                    visualId,
+                    selections.map((selection) => {
+                        const parsed = parseSlicerKey(selection);
+                        return parsed
+                            ? slicerKey(
+                                  parsed.table || table,
+                                  parsed.column,
+                                  parsed.value,
+                              )
+                            : selection;
+                    }),
+                ];
+            },
+        ),
     );
     return {
         ...state,
@@ -297,16 +335,26 @@ function normalizeState(state: State): State {
         slicerDateRanges: state.slicerDateRanges ?? {},
         measures: state.measures ?? [],
         theme: state.theme ?? 'default',
-        customThemes: Array.isArray(state.customThemes) ? state.customThemes : [],
-        filters: (state.filters ?? []).map((f) => ({ ...f, type: f.type ?? 'list' })),
+        customThemes: Array.isArray(state.customThemes)
+            ? state.customThemes
+            : [],
+        filters: (state.filters ?? []).map((f) => ({
+            ...f,
+            type: f.type ?? 'list',
+        })),
         slicerSelections,
         pages: state.pages.map((page) => ({
             ...page,
             visuals: page.visuals.map((visual) => {
                 const next = { ...visual };
-                if ((next as { type: string }).type === 'listSlicer') next.type = 'slicer';
-                if ((next as { type: string }).type === 'kpi') next.type = 'card';
-                if (next.maxCategories === undefined || next.maxCategories === null)
+                if ((next as { type: string }).type === 'listSlicer')
+                    next.type = 'slicer';
+                if ((next as { type: string }).type === 'kpi')
+                    next.type = 'card';
+                if (
+                    next.maxCategories === undefined ||
+                    next.maxCategories === null
+                )
                     next.maxCategories = 200;
                 if (next.fontSize === undefined || next.fontSize === null)
                     next.fontSize = 10;
@@ -553,6 +601,103 @@ const defaultState = (tables: TableDef[] = []): State => ({
     measures: [],
 });
 
+/**
+ * Fields whose changes are tracked by undo/redo. Transient view state
+ * (selection, zoom, panes, ribbon, cross-filter, drillthrough, hover) and
+ * navigation (activePageId) are deliberately excluded so Ctrl+Z only steps
+ * through content edits. Measures are shared with the server-side library but
+ * are included on purpose so measure edits are also undoable locally.
+ */
+const HISTORY_KEYS = [
+    'pages',
+    'filters',
+    'slicerSelections',
+    'slicerDateRanges',
+    'slicerSync',
+    'interactions',
+    'defaultInteraction',
+    'bookmarks',
+    'theme',
+    'customThemes',
+    'showGridlines',
+    'snapToGrid',
+    'measures',
+] as const;
+
+type HistoryEntry = Pick<State, (typeof HISTORY_KEYS)[number]>;
+
+const HISTORY_LIMIT = 100;
+
+/** Continuous gestures on the same visual (drag/resize) coalesce within this window. */
+const GESTURE_WINDOW_MS = 1200;
+
+function historySubset(state: State): HistoryEntry {
+    return {
+        pages: state.pages,
+        filters: state.filters,
+        slicerSelections: state.slicerSelections,
+        slicerDateRanges: state.slicerDateRanges,
+        slicerSync: state.slicerSync,
+        interactions: state.interactions,
+        defaultInteraction: state.defaultInteraction,
+        bookmarks: state.bookmarks,
+        theme: state.theme,
+        customThemes: state.customThemes,
+        showGridlines: state.showGridlines,
+        snapToGrid: state.snapToGrid,
+        measures: state.measures,
+    };
+}
+
+function historyChanged(a: State, b: State): boolean {
+    for (const key of HISTORY_KEYS) {
+        if (a[key] !== b[key]) return true;
+    }
+    return false;
+}
+
+/**
+ * Returns the id of the single visual that changed between two states, or
+ * null when the change is structural (visual added/removed, page change, …)
+ * or touches several visuals. Used to coalesce drag/resize gestures.
+ */
+function singleChangedVisual(a: State, b: State): string | null {
+    if (a.pages === b.pages) return null;
+    if (a.pages.length !== b.pages.length) return null;
+    let result: string | null = null;
+    for (let i = 0; i < a.pages.length; i++) {
+        const pa = a.pages[i]!;
+        const pb = b.pages[i]!;
+        if (pa === pb) continue;
+        if (pa.visuals === pb.visuals) continue;
+        if (pa.visuals.length !== pb.visuals.length) return null;
+        for (let j = 0; j < pa.visuals.length; j++) {
+            const va = pa.visuals[j]!;
+            const vb = pb.visuals[j]!;
+            if (va === vb) continue;
+            if (result !== null && result !== va.id) return null;
+            result = va.id;
+        }
+    }
+    return result;
+}
+
+/**
+ * Keep the aggregation engine's measure registry in line with the state that
+ * undo/redo restored: register new/changed expressions, drop removed ones.
+ */
+function syncMeasureRegistry(prev: Field[], next: Field[]) {
+    const prevByName = new Map(prev.map((m) => [m.name, m.expression]));
+    const nextByName = new Map(next.map((m) => [m.name, m.expression]));
+    for (const [name, expression] of nextByName) {
+        if (prevByName.get(name) !== expression)
+            registerMeasure(name, expression ?? '');
+    }
+    for (const [name] of prevByName) {
+        if (!nextByName.has(name)) unregisterMeasure(name);
+    }
+}
+
 type Ctx = State & {
     page: Page;
     selected: Visual | null;
@@ -614,11 +759,20 @@ type Ctx = State & {
     setPageFormat: (id: string, patch: Partial<PageFormat>) => void;
     setActivePage: (id: string) => void;
     toggleSlicer: (visualId: string, column: string, value: string) => void;
-    setSlicerSelection: (visualId: string, column: string, value: string | null) => void;
+    setSlicerSelection: (
+        visualId: string,
+        column: string,
+        value: string | null,
+    ) => void;
     setSlicerDateRange: (visualId: string, range: SlicerDateRange) => void;
     clearSlicer: (visualId: string) => void;
     setSlicerSync: (visualId: string, pageId: string) => void;
-    applyCrossFilter: (sourceId: string, column: string, value: string, table?: string) => void;
+    applyCrossFilter: (
+        sourceId: string,
+        column: string,
+        value: string,
+        table?: string,
+    ) => void;
     clearCrossFilter: () => void;
     setTooltipHover: (hover: TooltipHover | null) => void;
     setInteraction: (
@@ -635,15 +789,27 @@ type Ctx = State & {
         scope?: 'page' | 'report',
     ) => void;
     toggleFilterValue: (column: string, value: string, table?: string) => void;
-    setFilterValues: (column: string, table: string | undefined, values: string[]) => void;
-    setFilterScope: (column: string, table: string | undefined, scope: 'page' | 'report') => void;
+    setFilterValues: (
+        column: string,
+        table: string | undefined,
+        values: string[],
+    ) => void;
+    setFilterScope: (
+        column: string,
+        table: string | undefined,
+        scope: 'page' | 'report',
+    ) => void;
     removeFilter: (column: string, table?: string) => void;
     setFilterType: (
         column: string,
         table: string | undefined,
         type: FilterType,
     ) => void;
-    setFilterQuery: (column: string, table: string | undefined, query: string) => void;
+    setFilterQuery: (
+        column: string,
+        table: string | undefined,
+        query: string,
+    ) => void;
     setFilterRange: (
         column: string,
         table: string | undefined,
@@ -693,6 +859,10 @@ type Ctx = State & {
     setZoom: (z: number) => void;
     openDrillthrough: (column: string, value: string) => void;
     clearDrillthrough: () => void;
+    undo: () => void;
+    redo: () => void;
+    canUndo: boolean;
+    canRedo: boolean;
 };
 
 const PbiContext = createContext<Ctx | null>(null);
@@ -736,6 +906,62 @@ export function PbiProvider({
         rawStateRef.current = rawState;
     }, [rawState]);
 
+    // Undo/redo stacks store the history-relevant subset of the state. All
+    // mutations funnel through the wrapped setState below, so history is
+    // recorded centrally rather than inside each action.
+    const pastRef = useRef<HistoryEntry[]>([]);
+    const futureRef = useRef<HistoryEntry[]>([]);
+    const historyLockRef = useRef(false);
+    const lastGestureRef = useRef<{ id: string; at: number } | null>(null);
+    const [canUndo, setCanUndo] = useState(false);
+    const [canRedo, setCanRedo] = useState(false);
+
+    const applySnapshot = useCallback(
+        (snapshot: HistoryEntry) => {
+            historyLockRef.current = true;
+            lastGestureRef.current = null;
+            const current = rawStateRef.current;
+            syncMeasureRegistry(
+                current.measures ?? [],
+                snapshot.measures ?? [],
+            );
+            const next = { ...current, ...snapshot };
+            rawStateRef.current = next;
+            setRawState(next);
+            onChange?.(next);
+            historyLockRef.current = false;
+        },
+        [onChange],
+    );
+
+    const undo = useCallback(() => {
+        const past = pastRef.current;
+        if (!past.length) return;
+        const snapshot = past[past.length - 1]!;
+        pastRef.current = past.slice(0, -1);
+        futureRef.current = [
+            ...futureRef.current,
+            historySubset(rawStateRef.current),
+        ];
+        setCanUndo(pastRef.current.length > 0);
+        setCanRedo(true);
+        applySnapshot(snapshot);
+    }, [applySnapshot]);
+
+    const redo = useCallback(() => {
+        const future = futureRef.current;
+        if (!future.length) return;
+        const snapshot = future[future.length - 1]!;
+        futureRef.current = future.slice(0, -1);
+        pastRef.current = [
+            ...pastRef.current,
+            historySubset(rawStateRef.current),
+        ].slice(-HISTORY_LIMIT);
+        setCanRedo(futureRef.current.length > 0);
+        setCanUndo(true);
+        applySnapshot(snapshot);
+    }, [applySnapshot]);
+
     // Emit the initial normalized state once so consumers can seed their
     // persistence baseline; the first real change is then compared against
     // this instead of being mistaken for the baseline itself.
@@ -768,7 +994,8 @@ export function PbiProvider({
                 const existing = new Set(library.map((m) => m.name));
                 const migrated: Field[] = [];
                 for (const legacy of legacyMeasures.current) {
-                    if (!legacy.expression || existing.has(legacy.name)) continue;
+                    if (!legacy.expression || existing.has(legacy.name))
+                        continue;
                     try {
                         const record = await apiCreateMeasure({
                             name: legacy.name.trim(),
@@ -807,6 +1034,32 @@ export function PbiProvider({
             // No-op updates (e.g. mount-time tooltip cleanup that returns the
             // same state) must not notify the parent persistence logic.
             if (next === prev) return;
+            if (!historyLockRef.current && historyChanged(prev, next)) {
+                const now = Date.now();
+                const vid = singleChangedVisual(prev, next);
+                const last = lastGestureRef.current;
+                // A continuous gesture on the same visual (drag/resize) is a
+                // single undo step: the top snapshot already captures the
+                // pre-gesture state, so keep updating its timestamp instead of
+                // pushing a new entry for every mousemove.
+                if (
+                    vid !== null &&
+                    last?.id === vid &&
+                    now - last.at < GESTURE_WINDOW_MS
+                ) {
+                    lastGestureRef.current = { id: vid, at: now };
+                } else {
+                    pastRef.current = [
+                        ...pastRef.current,
+                        historySubset(prev),
+                    ].slice(-HISTORY_LIMIT);
+                    futureRef.current = [];
+                    lastGestureRef.current =
+                        vid !== null ? { id: vid, at: now } : null;
+                    setCanUndo(true);
+                    setCanRedo(false);
+                }
+            }
             rawStateRef.current = next;
             setRawState(next);
             onChange?.(next);
@@ -850,17 +1103,32 @@ export function PbiProvider({
                     if (next.w !== undefined) next.w = Math.max(80, next.w);
                     if (next.h !== undefined) next.h = Math.max(60, next.h);
                     if (next.colorIndex !== undefined)
-                        next.colorIndex = Math.max(0, Math.min(7, Math.round(next.colorIndex)));
+                        next.colorIndex = Math.max(
+                            0,
+                            Math.min(7, Math.round(next.colorIndex)),
+                        );
                     if (next.maxCategories !== undefined)
-                        next.maxCategories = Math.max(2, Math.min(5000, Math.round(next.maxCategories)));
+                        next.maxCategories = Math.max(
+                            2,
+                            Math.min(5000, Math.round(next.maxCategories)),
+                        );
                     const result = { ...v, ...next };
                     if (next.type && next.type !== v.type) {
-                        if (isSlicerType(next.type) && !result.axis.length && result.values.length) {
+                        if (
+                            isSlicerType(next.type) &&
+                            !result.axis.length &&
+                            result.values.length
+                        ) {
                             result.axis = [result.values[0]!];
                             result.values = result.values.slice(1);
-                        } else if (!isSlicerType(next.type) && !result.values.length) {
+                        } else if (
+                            !isSlicerType(next.type) &&
+                            !result.values.length
+                        ) {
                             const numericAxis = result.axis.find(
-                                (field) => fieldType(field.name, field.table) === 'number',
+                                (field) =>
+                                    fieldType(field.name, field.table) ===
+                                    'number',
                             );
                             if (numericAxis) result.values = [numericAxis];
                         }
@@ -873,10 +1141,7 @@ export function PbiProvider({
 
     const addVisual = useCallback(
         (type: VisualType): string => {
-            const big =
-                type === 'card' ||
-                type === 'text' ||
-                type === 'button';
+            const big = type === 'card' || type === 'text' || type === 'button';
             const v = mkVisual(
                 type,
                 40,
@@ -923,8 +1188,20 @@ export function PbiProvider({
                     if (v.id !== visualId) return v;
                     const field = normalizeWellField({ name, table }, table);
                     if (!field) return v;
-                    const normalized = wf(field.name, field.table, field.agg, field.label);
-                    if (v[well].some((f) => f.name === normalized.name && f.table === normalized.table)) return v;
+                    const normalized = wf(
+                        field.name,
+                        field.table,
+                        field.agg,
+                        field.label,
+                    );
+                    if (
+                        v[well].some(
+                            (f) =>
+                                f.name === normalized.name &&
+                                f.table === normalized.table,
+                        )
+                    )
+                        return v;
                     const next = [...v[well], normalized];
                     const single =
                         well === 'axis' ||
@@ -1014,21 +1291,32 @@ export function PbiProvider({
                     activePageId: state.activePageId,
                 });
             }
-            for (const [visualId, range] of Object.entries(state.slicerDateRanges)) {
+            for (const [visualId, range] of Object.entries(
+                state.slicerDateRanges,
+            )) {
                 const mode = range.mode ?? 'between';
                 if (mode === 'relative') {
                     if (!range.relative) continue;
                 } else if (!range.from && !range.to) continue;
                 const onPage = page.visuals.some((v) => v.id === visualId);
-                const synced = (state.slicerSync[visualId] ?? []).includes(state.activePageId);
+                const synced = (state.slicerSync[visualId] ?? []).includes(
+                    state.activePageId,
+                );
                 if (!onPage && !synced) continue;
                 const slicer = state.pages
                     .flatMap((p) => p.visuals)
                     .find((v) => v.id === visualId);
                 const field = slicer?.axis[0];
-                if (!field || (field.table && field.table !== t.name) || !hasColumn(t, field.name)) continue;
+                if (
+                    !field ||
+                    (field.table && field.table !== t.name) ||
+                    !hasColumn(t, field.name)
+                )
+                    continue;
                 if (mode === 'relative') {
-                    const rr = relativeDateRange(range.relative ?? 'last30days');
+                    const rr = relativeDateRange(
+                        range.relative ?? 'last30days',
+                    );
                     out = out.filter((r) => {
                         const day = String(r[field.name] ?? '').slice(0, 10);
                         return !!day && day >= rr.from && day <= rr.to;
@@ -1046,7 +1334,11 @@ export function PbiProvider({
                 } else {
                     out = out.filter((r) => {
                         const day = String(r[field.name] ?? '').slice(0, 10);
-                        return !!day && (!range.from || day >= range.from) && (!range.to || day <= range.to);
+                        return (
+                            !!day &&
+                            (!range.from || day >= range.from) &&
+                            (!range.to || day <= range.to)
+                        );
                     });
                 }
             }
@@ -1062,8 +1354,12 @@ export function PbiProvider({
                 const byCol = new Map<string, string[]>();
                 for (const s of sel) {
                     const parsed = parseSlicerKey(s);
-                    if (!parsed || (parsed.table && parsed.table !== t.name)) continue;
-                    byCol.set(parsed.column, [...(byCol.get(parsed.column) ?? []), parsed.value]);
+                    if (!parsed || (parsed.table && parsed.table !== t.name))
+                        continue;
+                    byCol.set(parsed.column, [
+                        ...(byCol.get(parsed.column) ?? []),
+                        parsed.value,
+                    ]);
                 }
                 for (const [c, vals] of byCol) {
                     if (!hasColumn(t, c)) continue;
@@ -1114,6 +1410,10 @@ export function PbiProvider({
         highlightValue: state.crossFilter,
         state,
         setState,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
         select: (id) => setState((s) => ({ ...s, selectedId: id })),
         addVisual,
         addShape,
@@ -1202,8 +1502,7 @@ export function PbiProvider({
                     );
                     const single = toWell === 'axis' || toWell === 'legend';
                     const already = v[toWell].some(
-                        (f) =>
-                            f.name === field.name && f.table === field.table,
+                        (f) => f.name === field.name && f.table === field.table,
                     );
                     const target = single
                         ? [field]
@@ -1335,10 +1634,12 @@ export function PbiProvider({
                               format: {
                                   ...p.format,
                                   ...patch,
-                                  ...(patch.width !== undefined && Number.isFinite(patch.width)
+                                  ...(patch.width !== undefined &&
+                                  Number.isFinite(patch.width)
                                       ? { width: Math.max(320, patch.width) }
                                       : {}),
-                                  ...(patch.height !== undefined && Number.isFinite(patch.height)
+                                  ...(patch.height !== undefined &&
+                                  Number.isFinite(patch.height)
                                       ? { height: Math.max(240, patch.height) }
                                       : {}),
                               },
@@ -1371,9 +1672,10 @@ export function PbiProvider({
                 const visual = s.pages
                     .flatMap((p) => p.visuals)
                     .find((v) => v.id === visualId);
-                const next = value === null
-                    ? []
-                    : [slicerKey(visual?.axis[0]?.table, column, value)];
+                const next =
+                    value === null
+                        ? []
+                        : [slicerKey(visual?.axis[0]?.table, column, value)];
                 return {
                     ...s,
                     slicerSelections: {
@@ -1419,7 +1721,9 @@ export function PbiProvider({
                     s.crossFilter?.table === table;
                 return {
                     ...s,
-                    crossFilter: same ? null : { sourceId, column, value, table },
+                    crossFilter: same
+                        ? null
+                        : { sourceId, column, value, table },
                 };
             }),
         clearCrossFilter: () => setState((s) => ({ ...s, crossFilter: null })),
@@ -1448,8 +1752,7 @@ export function PbiProvider({
             })),
         setDefaultInteraction: (mode) =>
             setState((s) => ({ ...s, defaultInteraction: mode })),
-        clearInteractions: () =>
-            setState((s) => ({ ...s, interactions: {} })),
+        clearInteractions: () => setState((s) => ({ ...s, interactions: {} })),
         interactionFor,
         addFilter: (column, table, scope = 'report') =>
             setState((s) =>
@@ -1504,7 +1807,8 @@ export function PbiProvider({
                         ? {
                               ...f,
                               scope,
-                              pageId: scope === 'page' ? s.activePageId : undefined,
+                              pageId:
+                                  scope === 'page' ? s.activePageId : undefined,
                           }
                         : f,
                 ),
@@ -1700,7 +2004,8 @@ export function PbiProvider({
                     ...s.customThemes,
                     {
                         id: uid('theme'),
-                        name: name.trim() || `Theme ${s.customThemes.length + 1}`,
+                        name:
+                            name.trim() || `Theme ${s.customThemes.length + 1}`,
                         palette,
                         ...(fontFamily ? { fontFamily } : {}),
                     },
@@ -1738,9 +2043,7 @@ export function PbiProvider({
         resetConditionalFormat: (visualId) =>
             mapVisuals((vs) =>
                 vs.map((v) =>
-                    v.id === visualId
-                        ? { ...v, conditionalFormat: false }
-                        : v,
+                    v.id === visualId ? { ...v, conditionalFormat: false } : v,
                 ),
             ),
         setRibbonTab: (ribbonTab) => setState((s) => ({ ...s, ribbonTab })),

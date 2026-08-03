@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { isSlicerVisual, type Page } from '@/lib/pbi/model';
+import { isSlicerVisual, visualTitleStyle, type Page } from '@/lib/pbi/model';
 import { usePbi, visualDataTable, visualTypeLabel } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
 import { cn } from '@/lib/utils';
@@ -16,8 +16,7 @@ export function ExportSurface({
     pages: Page[];
     ref?: React.Ref<HTMLDivElement>;
 }) {
-    const { rows, tableRows, tables, theme, customThemes, measures } =
-        usePbi();
+    const { rows, tableRows, tables, theme, customThemes, measures } = usePbi();
     const activeTheme =
         customThemes.find((t) => t.id === theme) ?? themeById(theme);
     const style = useMemo(
@@ -55,15 +54,18 @@ export function ExportSurface({
                             if (v.hidden) return null;
                             const dataTable = visualDataTable(v, measures);
                             const vRows = isSlicerVisual(v)
-                                ? tables.find((t) => t.name === dataTable)?.rows ?? rows
-                                : tableRows[dataTable] ?? rows;
+                                ? (tables.find((t) => t.name === dataTable)
+                                      ?.rows ?? rows)
+                                : (tableRows[dataTable] ?? rows);
                             return (
                                 <div
                                     key={v.id}
                                     data-export-visual={v.name || v.id}
                                     className={cn(
                                         'absolute flex flex-col rounded p-2',
-                                        v.border && v.type !== 'shape' && 'border',
+                                        v.border &&
+                                            v.type !== 'shape' &&
+                                            'border',
                                         v.shadow && 'shadow-md',
                                     )}
                                     style={{
@@ -96,15 +98,8 @@ export function ExportSurface({
                                 >
                                     <div className="flex items-center justify-between pb-1">
                                         <span
-                                            className="truncate text-[11px] font-semibold text-foreground"
-                                            style={{
-                                                ...(v.fontColor
-                                                    ? { color: v.fontColor }
-                                                    : {}),
-                                                ...(v.fontSize
-                                                    ? { fontSize: v.fontSize }
-                                                    : {}),
-                                            }}
+                                            className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
+                                            style={visualTitleStyle(v)}
                                         >
                                             {v.showTitle
                                                 ? v.title ||

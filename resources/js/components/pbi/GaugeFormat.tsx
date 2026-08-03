@@ -3,12 +3,10 @@ import {
     fieldLabel,
     normalizeConditionalFormat,
     normalizeGaugeStyle,
-    normalizeTitleStyle,
     type DisplayUnit,
     type GaugeBoundStyle,
     type GaugeLabelStyle,
     type GaugeStyle,
-    type TitleStyle,
     type Visual,
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
@@ -23,6 +21,7 @@ import {
     Section,
     Select,
     TextInput,
+    TitleSection,
     Toggle,
     ToggleGroup,
 } from './formatControls';
@@ -36,20 +35,6 @@ const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
     percent: 'Percent (%)',
     currency: 'Currency ($)',
 };
-
-const HEADINGS: { value: TitleStyle['heading']; label: string }[] = [
-    { value: 'none', label: 'None' },
-    { value: 'h1', label: 'H1' },
-    { value: 'h2', label: 'H2' },
-    { value: 'h3', label: 'H3' },
-    { value: 'h4', label: 'H4' },
-];
-
-const ALIGNS: { value: 'left' | 'center' | 'right'; label: string }[] = [
-    { value: 'left', label: 'Left' },
-    { value: 'center', label: 'Center' },
-    { value: 'right', label: 'Right' },
-];
 
 type GaugeBoundKey = 'min' | 'max' | 'target';
 type GaugeLabelKey = 'values' | 'targetLabel' | 'callout';
@@ -191,7 +176,6 @@ function GaugeLabelSection({
 export function GaugeFormat({ visual }: { visual: Visual }) {
     const { updateVisual } = usePbi();
     const gauge = normalizeGaugeStyle(visual.gauge);
-    const title = normalizeTitleStyle(visual.titleStyle);
 
     const patchGauge = (patch: Partial<GaugeStyle>) =>
         updateVisual(visual.id, { gauge: { ...gauge, ...patch } });
@@ -206,75 +190,13 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                 [key]: { ...gauge.dataLabels[key], ...patch },
             },
         });
-    const patchTitle = (patch: Partial<TitleStyle>) =>
-        updateVisual(visual.id, { titleStyle: { ...title, ...patch } });
 
     return (
         <div className="space-y-3 text-[11px]">
-            <Section title="Title" defaultOpen>
-                <TextInput
-                    label="Text"
-                    value={visual.title}
-                    onChange={(v) => updateVisual(visual.id, { title: v })}
-                />
-                <Select
-                    label="Heading style"
-                    value={title.heading}
-                    options={HEADINGS}
-                    onChange={(v) =>
-                        patchTitle({ heading: v as TitleStyle['heading'] })
-                    }
-                />
-                <Select
-                    label="Font family"
-                    value={visual.fontFamily ?? ''}
-                    options={FONT_OPTIONS}
-                    onChange={(v) =>
-                        updateVisual(visual.id, {
-                            fontFamily: v || undefined,
-                        })
-                    }
-                />
-                <Biu
-                    label="Font style"
-                    bold={title.bold}
-                    italic={title.italic}
-                    underline={title.underline}
-                    onChange={(p) => patchTitle(p)}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                    <ColorInput
-                        label="Text color"
-                        value={title.color}
-                        onChange={(v) => patchTitle({ color: v })}
-                    />
-                    <ColorInput
-                        label="Background color"
-                        value={title.background}
-                        onChange={(v) => patchTitle({ background: v })}
-                    />
-                </div>
-                <Select
-                    label="Horizontal alignment"
-                    value={title.align ?? 'center'}
-                    options={ALIGNS}
-                    onChange={(v) =>
-                        patchTitle({ align: v as 'left' | 'center' | 'right' })
-                    }
-                />
-                <Toggle
-                    label="Text wrap"
-                    checked={title.textWrap ?? false}
-                    onChange={(v) => patchTitle({ textWrap: v })}
-                />
-                <Toggle
-                    label="Show title"
-                    checked={visual.showTitle}
-                    onChange={(v) =>
-                        updateVisual(visual.id, { showTitle: v })
-                    }
-                />
-            </Section>
+            <TitleSection
+                visual={visual}
+                onPatch={(p) => updateVisual(visual.id, p)}
+            />
 
             <Section title="Gauge axis" defaultOpen>
                 <div className="text-muted-foreground">
@@ -306,17 +228,19 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                             constant: visual.targetValue,
                         },
                     ] as const
-                ).map(({ key, title: rowTitle, wellLabel, field, constant }) => (
-                    <GaugeBoundRow
-                        key={key}
-                        title={rowTitle}
-                        wellLabel={wellLabel}
-                        field={field}
-                        style={gauge.axis[key]}
-                        hasValue={Boolean(field || constant)}
-                        onPatch={(p) => patchBound(key, p)}
-                    />
-                ))}
+                ).map(
+                    ({ key, title: rowTitle, wellLabel, field, constant }) => (
+                        <GaugeBoundRow
+                            key={key}
+                            title={rowTitle}
+                            wellLabel={wellLabel}
+                            field={field}
+                            style={gauge.axis[key]}
+                            hasValue={Boolean(field || constant)}
+                            onPatch={(p) => patchBound(key, p)}
+                        />
+                    ),
+                )}
             </Section>
 
             <Section title="Colors">

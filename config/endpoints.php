@@ -1199,7 +1199,7 @@ return [
             [
                 'variable_key' => 'WIP_Chaine',
                 'variable_type' => 'Complex',
-                'is_filtered' => false,
+                'is_filtered' => true,
                 'filter_key' => 'ProdGroup',
                 'filter_value' => null,
                 'has_function' => false,

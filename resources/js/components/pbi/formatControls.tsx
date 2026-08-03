@@ -6,7 +6,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { type Visual } from '@/lib/pbi/model';
+import {
+    normalizeTitleStyle,
+    type TitleStyle,
+    type Visual,
+} from '@/lib/pbi/model';
 import { cn } from '@/lib/utils';
 
 export const FONT_OPTIONS = [
@@ -14,6 +18,20 @@ export const FONT_OPTIONS = [
     { value: 'ui-sans-serif, system-ui, sans-serif', label: 'Sans-serif' },
     { value: "Georgia, 'Times New Roman', serif", label: 'Serif' },
     { value: 'ui-monospace, monospace', label: 'Monospace' },
+];
+
+export const HEADINGS: { value: TitleStyle['heading']; label: string }[] = [
+    { value: 'none', label: 'None' },
+    { value: 'h1', label: 'H1' },
+    { value: 'h2', label: 'H2' },
+    { value: 'h3', label: 'H3' },
+    { value: 'h4', label: 'H4' },
+];
+
+export const ALIGNS: { value: 'left' | 'center' | 'right'; label: string }[] = [
+    { value: 'left', label: 'Left' },
+    { value: 'center', label: 'Center' },
+    { value: 'right', label: 'Right' },
 ];
 
 export const HEX_FALLBACK = '#000000';
@@ -35,7 +53,9 @@ function cssColorToHex(color: string): string | null {
         const hex = [r, g, b]
             .map((n) => n.toString(16).padStart(2, '0'))
             .join('');
-        return a < 255 ? `#${hex}${a.toString(16).padStart(2, '0')}` : `#${hex}`;
+        return a < 255
+            ? `#${hex}${a.toString(16).padStart(2, '0')}`
+            : `#${hex}`;
     } catch {
         return null;
     }
@@ -288,9 +308,11 @@ export function Biu({
     bold?: boolean;
     italic?: boolean;
     underline?: boolean;
-    onChange: (
-        patch: { bold?: boolean; italic?: boolean; underline?: boolean },
-    ) => void;
+    onChange: (patch: {
+        bold?: boolean;
+        italic?: boolean;
+        underline?: boolean;
+    }) => void;
 }) {
     return (
         <div>
@@ -343,16 +365,14 @@ export function FontStyleControls({
         underline?: boolean;
         color?: string;
     };
-    onChange: (
-        patch: {
-            fontFamily?: string;
-            fontSize?: number;
-            bold?: boolean;
-            italic?: boolean;
-            underline?: boolean;
-            color?: string;
-        },
-    ) => void;
+    onChange: (patch: {
+        fontFamily?: string;
+        fontSize?: number;
+        bold?: boolean;
+        italic?: boolean;
+        underline?: boolean;
+        color?: string;
+    }) => void;
 }) {
     return (
         <div className="rounded border border-border p-2">
@@ -491,6 +511,114 @@ export function GeneralSection({
                     />
                 ))}
             </div>
+        </Section>
+    );
+}
+
+/** Number input that maps an empty field to `undefined` (for "auto" values). */
+export function OptionalNumberInput({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value?: number;
+    onChange: (v: number | undefined) => void;
+}) {
+    return (
+        <label className="block">
+            <span className="mb-1 block text-muted-foreground">{label}</span>
+            <input
+                type="number"
+                value={value ?? ''}
+                onChange={(e) =>
+                    onChange(
+                        e.target.value === ''
+                            ? undefined
+                            : Number(e.target.value),
+                    )
+                }
+                className="w-full rounded border border-border bg-background px-2 py-1"
+            />
+        </label>
+    );
+}
+
+/** The shared "Title" format section (text, heading, font, colors, font size,
+ * alignment, wrap, visibility) used by every format pane. */
+export function TitleSection({
+    visual,
+    onPatch,
+}: {
+    visual: Visual;
+    onPatch: (patch: Partial<Visual>) => void;
+}) {
+    const title = normalizeTitleStyle(visual.titleStyle);
+    const patchTitle = (patch: Partial<TitleStyle>) =>
+        onPatch({ titleStyle: { ...title, ...patch } });
+    return (
+        <Section title="Title" defaultOpen>
+            <TextInput
+                label="Text"
+                value={visual.title}
+                onChange={(v) => onPatch({ title: v })}
+            />
+            <Select
+                label="Heading style"
+                value={title.heading}
+                options={HEADINGS}
+                onChange={(v) =>
+                    patchTitle({ heading: v as TitleStyle['heading'] })
+                }
+            />
+            <Select
+                label="Font family"
+                value={visual.fontFamily ?? ''}
+                options={FONT_OPTIONS}
+                onChange={(v) => onPatch({ fontFamily: v || undefined })}
+            />
+            <Biu
+                label="Font style"
+                bold={title.bold}
+                italic={title.italic}
+                underline={title.underline}
+                onChange={(p) => patchTitle(p)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+                <ColorInput
+                    label="Text color"
+                    value={title.color}
+                    onChange={(v) => patchTitle({ color: v })}
+                />
+                <ColorInput
+                    label="Background color"
+                    value={title.background}
+                    onChange={(v) => patchTitle({ background: v })}
+                />
+            </div>
+            <OptionalNumberInput
+                label="Font size"
+                value={title.fontSize}
+                onChange={(v) => patchTitle({ fontSize: v })}
+            />
+            <Select
+                label="Horizontal alignment"
+                value={title.align ?? 'center'}
+                options={ALIGNS}
+                onChange={(v) =>
+                    patchTitle({ align: v as 'left' | 'center' | 'right' })
+                }
+            />
+            <Toggle
+                label="Text wrap"
+                checked={title.textWrap ?? false}
+                onChange={(v) => patchTitle({ textWrap: v })}
+            />
+            <Toggle
+                label="Show title"
+                checked={visual.showTitle}
+                onChange={(v) => onPatch({ showTitle: v })}
+            />
         </Section>
     );
 }
