@@ -14,6 +14,7 @@ import MeasureV5Controller from './MeasureV5Controller'
 import V6AuthController from './V6AuthController'
 import BuilderPageV6Controller from './BuilderPageV6Controller'
 import MeasureLibraryV6Controller from './MeasureLibraryV6Controller'
+import KanbanController from './KanbanController'
 import ScheduleController from './ScheduleController'
 import SettingController from './SettingController'
 import NovacityProxyController from './NovacityProxyController'
@@ -49,6 +50,7 @@ MeasureV5Controller: Object.assign(MeasureV5Controller, MeasureV5Controller),
 V6AuthController: Object.assign(V6AuthController, V6AuthController),
 BuilderPageV6Controller: Object.assign(BuilderPageV6Controller, BuilderPageV6Controller),
 MeasureLibraryV6Controller: Object.assign(MeasureLibraryV6Controller, MeasureLibraryV6Controller),
+KanbanController: Object.assign(KanbanController, KanbanController),
 ScheduleController: Object.assign(ScheduleController, ScheduleController),
 SettingController: Object.assign(SettingController, SettingController),
 NovacityProxyController: Object.assign(NovacityProxyController, NovacityProxyController),

@@ -267,6 +267,29 @@ Route::middleware('v6.auth')->group(function () {
     Route::delete('/api/v6/measures/{id}', [App\Http\Controllers\Api\MeasureLibraryV6Controller::class, 'destroy']);
 });
 
+// ── KANBAN (public, no auth) ─────────────────────────────────────────────
+Route::prefix('api/kanban')->group(function () {
+    Route::get('/boards', [App\Http\Controllers\Api\KanbanController::class, 'index']);
+    Route::post('/boards', [App\Http\Controllers\Api\KanbanController::class, 'store']);
+    Route::get('/boards/{id}', [App\Http\Controllers\Api\KanbanController::class, 'show']);
+    Route::put('/boards/{id}', [App\Http\Controllers\Api\KanbanController::class, 'update']);
+    Route::delete('/boards/{id}', [App\Http\Controllers\Api\KanbanController::class, 'destroy']);
+
+    Route::put('/columns/reorder', [App\Http\Controllers\Api\KanbanController::class, 'reorderColumns']);
+    Route::post('/boards/{id}/columns', [App\Http\Controllers\Api\KanbanController::class, 'storeColumn']);
+    Route::put('/columns/{id}', [App\Http\Controllers\Api\KanbanController::class, 'updateColumn']);
+    Route::delete('/columns/{id}', [App\Http\Controllers\Api\KanbanController::class, 'destroyColumn']);
+
+    Route::post('/columns/{id}/cards', [App\Http\Controllers\Api\KanbanController::class, 'storeCard']);
+    Route::put('/cards/{id}', [App\Http\Controllers\Api\KanbanController::class, 'updateCard']);
+    Route::delete('/cards/{id}', [App\Http\Controllers\Api\KanbanController::class, 'destroyCard']);
+    Route::post('/cards/{id}/move', [App\Http\Controllers\Api\KanbanController::class, 'moveCard']);
+    Route::post('/cards/{id}/images', [App\Http\Controllers\Api\KanbanController::class, 'uploadImage']);
+    Route::get('/cards/{id}/images/{filename}', [App\Http\Controllers\Api\KanbanController::class, 'showImage'])->name('kanban.image');
+});
+
+Route::get('/kanban', fn () => Inertia::render('kanban'))->name('kanban');
+
 Route::post('/browser-log', [BrowserLogController::class, 'store']);
 
 // ── SCHEDULE WEBHOOK ─────────────────────────────────────────────────

@@ -1534,3 +1534,74 @@ v6.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
     
     v6.form = v6Form
+/**
+ * @see routes/web.php:291
+ * @route '/kanban'
+ */
+export const kanban = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: kanban.url(options),
+    method: 'get',
+})
+
+kanban.definition = {
+    methods: ["get","head"],
+    url: '/kanban',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+ * @see routes/web.php:291
+ * @route '/kanban'
+ */
+kanban.url = (options?: RouteQueryOptions) => {
+    return kanban.definition.url + queryParams(options)
+}
+
+/**
+ * @see routes/web.php:291
+ * @route '/kanban'
+ */
+kanban.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: kanban.url(options),
+    method: 'get',
+})
+/**
+ * @see routes/web.php:291
+ * @route '/kanban'
+ */
+kanban.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: kanban.url(options),
+    method: 'head',
+})
+
+    /**
+ * @see routes/web.php:291
+ * @route '/kanban'
+ */
+    const kanbanForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: kanban.url(options),
+        method: 'get',
+    })
+
+            /**
+ * @see routes/web.php:291
+ * @route '/kanban'
+ */
+        kanbanForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: kanban.url(options),
+            method: 'get',
+        })
+            /**
+ * @see routes/web.php:291
+ * @route '/kanban'
+ */
+        kanbanForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: kanban.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    kanban.form = kanbanForm
