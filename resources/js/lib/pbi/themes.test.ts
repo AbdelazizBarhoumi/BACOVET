@@ -83,6 +83,44 @@ describe('normalizeConditionalFormat', () => {
         expect(cfg.min.color).toBe('#e11d48');
         expect(cfg.max.color).toBe('#16a34a');
     });
+
+    it('normalizes an icons style with an icon set and per-rule icons', () => {
+        const cfg = normalizeConditionalFormat({
+            style: 'icons',
+            iconSet: 'traffic-rimmed',
+            rules: [
+                {
+                    condition: 'is',
+                    comparator: 'greaterThan',
+                    value: 80,
+                    valueType: 'number',
+                    color: '#ff0000',
+                    icon: 'go',
+                },
+            ],
+        });
+        expect(cfg.style).toBe('icons');
+        expect(cfg.iconSet).toBe('traffic-rimmed');
+        expect(cfg.rules[0]?.icon).toBe('go');
+    });
+
+    it('defaults iconSet to empty and keeps legacy rules compatible', () => {
+        const cfg = normalizeConditionalFormat({
+            style: 'rules',
+            rules: [
+                {
+                    condition: 'is',
+                    comparator: 'greaterThan',
+                    value: 10,
+                    valueType: 'number',
+                    color: '#123456',
+                },
+            ],
+        });
+        expect(cfg.iconSet).toBe('');
+        expect(cfg.rules[0]?.icon).toBeUndefined();
+        expect(cfg.rules[0]?.color).toBe('#123456');
+    });
 });
 
 describe('themeById', () => {

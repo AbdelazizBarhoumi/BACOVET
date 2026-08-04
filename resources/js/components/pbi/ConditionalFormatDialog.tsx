@@ -2,6 +2,14 @@ import { Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { isColor } from '@/lib/pbi/conditionalFormat';
 import {
+    CF_ICON_SETS,
+    bindRulesToSet,
+    defaultIconSet,
+    iconForRule,
+    iconSetOf,
+    type CFIconSet,
+} from '@/lib/pbi/icons';
+import {
     CF_BOUND_TYPES,
     CF_COMPARATORS,
     CF_RULE_CONDITIONS,
@@ -21,12 +29,14 @@ import {
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
+import { CfIcon } from './CfIcon';
 import { ColorInput } from './formatControls';
 
 const STYLE_OPTIONS: { value: ConditionalFormat['style']; label: string }[] = [
     { value: 'none', label: 'None' },
     { value: 'gradient', label: 'Gradient' },
     { value: 'rules', label: 'Rules' },
+    { value: 'icons', label: 'Icons' },
     { value: 'fieldValue', label: 'Field value' },
 ];
 
@@ -240,19 +250,60 @@ export function ConditionalFormatDialog({
             rules: d.rules.filter((_, idx) => idx !== i),
         }));
     const addRule = () =>
-        setDraft((d) => ({
-            ...d,
-            rules: [
-                ...d.rules,
-                {
-                    condition: 'is',
-                    comparator: 'greaterThan',
-                    value: 0,
-                    valueType: 'number',
-                    color: '#4c78d0',
-                },
-            ],
-        }));
+        setDraft((d) => {
+            const set = iconSetOf(d.iconSet) ?? defaultIconSet();
+            return {
+                ...d,
+                rules: [
+                    ...d.rules,
+                    {
+                        condition: 'is',
+                        comparator: 'greaterThan',
+                        value: 0,
+                        valueType: 'number',
+                        color: '#4c78d0',
+                        icon: set.icons[0]?.id,
+                    },
+                ],
+            };
+        });
+    const seedIconRules = (set: CFIconSet): CfRule[] => {
+        const n = set.icons.length;
+        return set.icons.map((ic, idx) => {
+            const high = (100 * (n - idx)) / n;
+            const low = (100 * (n - idx - 1)) / n;
+            return {
+                condition: 'is' as const,
+                comparator:
+                    idx === 0
+                        ? ('greaterThan' as const)
+                        : idx === n - 1
+                          ? ('lessThanOrEqual' as const)
+                          : ('between' as const),
+                value: idx === 0 ? low : idx === n - 1 ? high : low,
+                ...(idx === 0 || idx === n - 1 ? {} : { value2: high }),
+                valueType: 'percentile' as const,
+                color: '#4c78d0',
+                icon: ic.id,
+            };
+        });
+    };
+    const changeIconSet = (id: string) =>
+        setDraft((d) => {
+            const set = iconSetOf(id) ?? defaultIconSet();
+            return {
+                ...d,
+                iconSet: set.id,
+                rules: d.rules.length ? bindRulesToSet(set, d.rules) : seedIconRules(set),
+            };
+        });
+    const changeStyle = (style: ConditionalFormat['style']) =>
+        setDraft((d) => {
+            if (style !== 'icons') return { ...d, style };
+            const set = iconSetOf(d.iconSet) ?? defaultIconSet();
+            if (d.rules.length) return { ...d, style, iconSet: set.id };
+            return { ...d, style, iconSet: set.id, rules: seedIconRules(set) };
+        });
 
     const fields = (() => {
         const seen = new Set<string>();
@@ -377,9 +428,7 @@ export function ConditionalFormatDialog({
                                 : STYLE_OPTIONS
                         }
                         onChange={(v) =>
-                            patch({
-                                style: v as ConditionalFormat['style'],
-                            })
+                            changeStyle(v as ConditionalFormat['style'])
                         }
                     />
 
@@ -466,6 +515,28 @@ export function ConditionalFormatDialog({
                                     />
                                 )}
                             </div>
+                        </>
+                    )}
+
+                    {draft.style === 'icons' && (
+                        <>
+                            <Select
+                                label="Icon set"
+                                value={
+                                    (iconSetOf(draft.iconSet) ??
+                                        defaultIconSet()).id
+                                }
+                                options={CF_ICON_SETS.map((s) => ({
+                                    value: s.id,
+                                    label: `${s.category} · ${s.label}`,
+                                }))}
+                                onChange={changeIconSet}
+                            />
+                            <p className="text-muted-foreground">
+                                Les icônes sont attribuées par règle. Les
+                                règles non configurées utilisent la première
+                                icône du jeu.
+                            </p>
                         </>
                     )}
 
@@ -593,6 +664,151 @@ export function ConditionalFormatDialog({
                         </div>
                     )}
 
+                    {draft.style === 'icons' && (
+                        <div className="space-y-2">
+                            {draft.rules.map((rule, i) => {
+                                const set =
+                                    iconSetOf(draft.iconSet) ??
+                                    defaultIconSet();
+                                const icon = iconForRule(set, rule);
+                                return (
+                                    <div
+                                        key={i}
+                                        className="space-y-2 rounded border border-border p-2"
+                                    >
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="w-24">
+                                                <Select
+                                                    value={rule.condition}
+                                                    options={CF_RULE_CONDITIONS.map(
+                                                        (c) => ({
+                                                            value: c,
+                                                            label: CONDITION_LABELS[
+                                                                c
+                                                            ],
+                                                        }),
+                                                    )}
+                                                    onChange={(v) =>
+                                                        patchRule(i, {
+                                                            condition:
+                                                                v as CfRuleCondition,
+                                                        })
+                                                    }
+                                                />
+                                            </div>
+                                            {rule.condition === 'is' && (
+                                                <>
+                                                    <div className="w-40">
+                                                        <Select
+                                                            value={
+                                                                rule.comparator
+                                                            }
+                                                            options={CF_COMPARATORS.map(
+                                                                (c) => ({
+                                                                    value: c,
+                                                                    label: COMPARATOR_LABELS[
+                                                                        c
+                                                                    ],
+                                                                }),
+                                                            )}
+                                                            onChange={(v) =>
+                                                                patchRule(i, {
+                                                                    comparator:
+                                                                        v as CfComparator,
+                                                                })
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="w-20">
+                                                        <NumberInput
+                                                            value={rule.value}
+                                                            onChange={(v) =>
+                                                                patchRule(i, {
+                                                                    value: v,
+                                                                })
+                                                            }
+                                                        />
+                                                    </div>
+                                                    {rule.comparator ===
+                                                        'between' && (
+                                                        <div className="w-20">
+                                                            <NumberInput
+                                                                value={
+                                                                    rule.value2 ??
+                                                                    rule.value
+                                                                }
+                                                                onChange={(v) =>
+                                                                    patchRule(i, {
+                                                                        value2: v,
+                                                                    })
+                                                                }
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div className="w-24">
+                                                        <Select
+                                                            value={rule.valueType}
+                                                            options={CF_VALUE_TYPES.map(
+                                                                (t) => ({
+                                                                    value: t,
+                                                                    label: VALUE_TYPE_LABELS[
+                                                                        t
+                                                                    ],
+                                                                }),
+                                                            )}
+                                                            onChange={(v) =>
+                                                                patchRule(i, {
+                                                                    valueType:
+                                                                        v as CfValueType,
+                                                                })
+                                                            }
+                                                        />
+                                                    </div>
+                                                </>
+                                            )}
+                                            <div className="w-28">
+                                                <Select
+                                                    label="Icon"
+                                                    value={icon?.id ?? ''}
+                                                    options={set.icons.map(
+                                                        (ic) => ({
+                                                            value: ic.id,
+                                                            label: ic.label,
+                                                        }),
+                                                    )}
+                                                    onChange={(v) =>
+                                                        patchRule(i, { icon: v })
+                                                    }
+                                                />
+                                            </div>
+                                            <span className="flex items-center gap-1">
+                                                <CfIcon
+                                                    icon={icon}
+                                                    size={14}
+                                                />
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeRule(i)}
+                                                className="rounded p-1 text-muted-foreground hover:text-destructive"
+                                                aria-label="Delete rule"
+                                            >
+                                                <Trash2 className="size-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <button
+                                type="button"
+                                onClick={addRule}
+                                className="flex items-center gap-1 rounded border border-border bg-background px-2 py-1 hover:bg-accent"
+                            >
+                                <Plus className="size-3" /> New rule
+                            </button>
+                        </div>
+                    )}
+
                     {draft.style === 'fieldValue' && (
                         <>
                             <Select
@@ -663,6 +879,7 @@ const STYLE_LABELS: Record<ConditionalFormat['style'], string> = {
     none: 'None',
     gradient: 'Gradient',
     rules: 'Rules',
+    icons: 'Icons',
     fieldValue: 'Field value',
 };
 

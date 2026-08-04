@@ -250,7 +250,12 @@ export type AnalyticsLine = {
 };
 
 /** Format style for a visual's conditional formatting (Power BI-style). */
-export type CfStyle = 'none' | 'gradient' | 'rules' | 'fieldValue';
+export type CfStyle =
+    | 'none'
+    | 'gradient'
+    | 'rules'
+    | 'fieldValue'
+    | 'icons';
 
 /** How the based-on field is summarized into a number per category. */
 export type CfAgg =
@@ -297,6 +302,8 @@ export type CfRule = {
     value2?: number;
     valueType: CfValueType;
     color: string;
+    /** Icon id within the active icon set (used when `style === 'icons'`). */
+    icon?: string;
 };
 
 /**
@@ -319,11 +326,19 @@ export type ConditionalFormat = {
     /** Color column used when `style === 'fieldValue'`. */
     fieldValue: string;
     fieldValueTable?: string;
+    /** Icon set id used when `style === 'icons'`. */
+    iconSet: string;
     /** Table/matrix only: render data bars behind cells. */
     showDataBars: boolean;
 };
 
-export const CF_STYLES: CfStyle[] = ['none', 'gradient', 'rules', 'fieldValue'];
+export const CF_STYLES: CfStyle[] = [
+    'none',
+    'gradient',
+    'rules',
+    'fieldValue',
+    'icons',
+];
 
 export const CF_AGGS: CfAgg[] = [
     'none',
@@ -376,6 +391,7 @@ export function defaultConditionalFormat(): ConditionalFormat {
         center: { type: 'none', color: '#f59e0b' },
         rules: [],
         fieldValue: '',
+        iconSet: '',
         showDataBars: false,
     };
 }
@@ -471,6 +487,9 @@ export function normalizeConditionalFormat(input: unknown): ConditionalFormat {
                         typeof c.color === 'string' && c.color.trim()
                             ? c.color.trim()
                             : '#4c78d0',
+                    ...(typeof c.icon === 'string' && c.icon.trim()
+                        ? { icon: c.icon.trim() }
+                        : {}),
                 };
             })
             .filter((r): r is CfRule => r !== null);
@@ -478,6 +497,8 @@ export function normalizeConditionalFormat(input: unknown): ConditionalFormat {
     if (typeof value.fieldValue === 'string') out.fieldValue = value.fieldValue;
     if (typeof value.fieldValueTable === 'string')
         out.fieldValueTable = value.fieldValueTable;
+    if (typeof value.iconSet === 'string' && value.iconSet.trim())
+        out.iconSet = value.iconSet.trim();
     if (typeof value.showDataBars === 'boolean')
         out.showDataBars = value.showDataBars;
     return out;

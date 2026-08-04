@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     cfAggToAgg,
     conditionalColor,
+    conditionalIcon,
     gaugeFxColor,
     gradientColor,
     hexToRgb,
@@ -257,6 +258,69 @@ describe('conditionalColor', () => {
         });
         expect(conditionalColor(cf, 200, [200])).toBe('#ff0000');
         expect(conditionalColor(cf, 50, [50])).toBeNull();
+    });
+});
+
+describe('conditionalIcon', () => {
+    function iconCf(partial: Partial<ConditionalFormat> = {}): ConditionalFormat {
+        return normalizeConditionalFormat({
+            style: 'icons',
+            iconSet: 'directional-colored',
+            rules: [
+                rule({
+                    comparator: 'greaterThan',
+                    value: 100,
+                    icon: 'up',
+                }),
+                rule({
+                    comparator: 'lessThanOrEqual',
+                    value: 100,
+                    icon: 'down',
+                }),
+            ],
+            ...partial,
+        });
+    }
+
+    it('returns the first matching rule icon (top-to-bottom)', () => {
+        const cf = iconCf();
+        expect(conditionalIcon(cf, 150, [])).toBe('up');
+        expect(conditionalIcon(cf, 100, [])).toBe('down');
+        expect(conditionalIcon(cf, 50, [])).toBe('down');
+    });
+
+    it('returns null when no rule matches', () => {
+        const cf = iconCf({
+            rules: [rule({ comparator: 'greaterThan', value: 10, icon: 'up' })],
+        });
+        expect(conditionalIcon(cf, 5, [])).toBeNull();
+    });
+
+    it('supports between comparators and blank conditions', () => {
+        const cf = iconCf({
+            rules: [
+                rule({ condition: 'isBlank', icon: 'side' }),
+                rule({ comparator: 'between', value: 10, value2: 20, icon: 'up' }),
+            ],
+        });
+        expect(conditionalIcon(cf, null, [])).toBe('side');
+        expect(conditionalIcon(cf, 15, [])).toBe('up');
+        expect(conditionalIcon(cf, 9, [])).toBeNull();
+    });
+
+    it('is inert for non-icons styles', () => {
+        const rules = normalizeConditionalFormat({
+            style: 'rules',
+            rules: [rule({ comparator: 'greaterThan', value: 10, icon: 'up' })],
+        });
+        expect(conditionalIcon(rules, 200, [])).toBeNull();
+    });
+
+    it('treats a missing rule icon as no icon', () => {
+        const cf = iconCf({
+            rules: [rule({ comparator: 'greaterThan', value: 10 })],
+        });
+        expect(conditionalIcon(cf, 200, [])).toBeNull();
     });
 });
 

@@ -35,9 +35,11 @@ import { Slider } from '@/components/ui/slider';
 import {
     cfAggToAgg,
     conditionalColor,
+    conditionalIcon,
     parseColorCell,
 } from '@/lib/pbi/conditionalFormat';
 import type { RelativePreset } from '@/lib/pbi/filters';
+import { iconById } from '@/lib/pbi/icons';
 import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
 import {
     aggregate,
@@ -68,6 +70,7 @@ import {
     visualTable,
     wellForReference,
     type AxisStyle,
+    type ConditionalFormat,
     type DataLabelPosition,
     type FieldType,
     type Row,
@@ -77,6 +80,7 @@ import {
 import { ShapeGlyph } from '@/lib/pbi/shapes';
 import { slicerKey, usePbi, type SlicerDateMode } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
+import { CfIcon } from './CfIcon';
 import { GaugeVisual } from './GaugeVisual';
 
 const PALETTE = [
@@ -543,6 +547,14 @@ function CalloutValue({
         cf.style !== 'none'
             ? conditionalColor(cf, value, n !== null ? [n] : [], value)
             : undefined;
+    const iconId =
+        cf.style === 'icons'
+            ? conditionalIcon(cf, n, n !== null ? [n] : [])
+            : null;
+    const icon =
+        iconId !== null
+            ? iconById(cf.iconSet, iconId)
+            : undefined;
     return (
         <div
             className="font-semibold tracking-tight"
@@ -557,6 +569,11 @@ function CalloutValue({
                 textAlign: 'center',
             }}
         >
+            {icon && (
+                <span className="mr-1 inline-block align-middle">
+                    <CfIcon icon={icon} size={(callout.fontSize ?? 24) * 0.8} />
+                </span>
+            )}
             {formatCallout(value, callout, wf, type)}
         </div>
     );
@@ -1925,6 +1942,34 @@ function analyticsLines(
 
 /* --------------------------------- Table -------------------------------- */
 
+/**
+ * Resolves + renders the icon for a data point when the format is an icon style.
+ * Returns null when nothing matches so the cell keeps a plain value.
+ */
+function CfCellIcon({
+    cf,
+    value,
+    values,
+}: {
+    cf: ConditionalFormat;
+    value: unknown;
+    values: number[];
+}) {
+    const n =
+        typeof value === 'number' && isFinite(value)
+            ? value
+            : typeof value === 'string' &&
+                value.trim() !== '' &&
+                isFinite(Number(value))
+              ? Number(value)
+              : null;
+    const id = conditionalIcon(cf, n, values);
+    if (!id) return null;
+    const icon = iconById(cf.iconSet, id);
+    if (!icon) return null;
+    return <CfIcon icon={icon} size={14} />;
+}
+
 function TableVisual({
     visual,
     rows,
@@ -2049,7 +2094,16 @@ function TableVisual({
                                                 }}
                                             />
                                         )}
-                                        <span className="relative">
+                                        <span className="relative flex items-center justify-end gap-1">
+                                            {cf.style === 'icons' && (
+                                                <CfCellIcon
+                                                    cf={cf}
+                                                    value={
+                                                        d['_cf'] ?? null
+                                                    }
+                                                    values={cfValues}
+                                                />
+                                            )}
                                             {visualFmt(
                                                 val,
                                                 visual,

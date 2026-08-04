@@ -180,16 +180,39 @@ function ruleMatches(
     return false;
 }
 
+/** First matching rule (rules evaluate top-to-bottom). */
+export function matchingRule(
+    cf: ConditionalFormat,
+    value: number | null,
+    values: number[],
+): CfRule | null {
+    for (const rule of cf.rules) {
+        if (ruleMatches(rule, value, values)) return rule;
+    }
+    return null;
+}
+
 /** First matching rule's color (rules evaluate top-to-bottom). */
 export function ruleColor(
     cf: ConditionalFormat,
     value: number | null,
     values: number[],
 ): string | null {
-    for (const rule of cf.rules) {
-        if (ruleMatches(rule, value, values)) return rule.color;
-    }
-    return null;
+    return matchingRule(cf, value, values)?.color ?? null;
+}
+
+/**
+ * First matching rule's icon id for `style === 'icons'`, or null when the
+ * format isn't an icon style, the value matches no rule, or the matching rule
+ * has no icon configured.
+ */
+export function conditionalIcon(
+    cf: ConditionalFormat,
+    value: number | null,
+    values: number[] = [],
+): string | null {
+    if (cf.style !== 'icons') return null;
+    return matchingRule(cf, value, values)?.icon ?? null;
 }
 
 /**
@@ -204,7 +227,7 @@ export function conditionalColor(
     values: number[] = [],
     cell?: unknown,
 ): string | null {
-    if (cf.style === 'none') return null;
+    if (cf.style === 'none' || cf.style === 'icons') return null;
     if (cf.style === 'fieldValue')
         return parseColorCell(cell !== undefined ? cell : value);
     const n =
@@ -234,7 +257,12 @@ export function gaugeFxColor(
     min: number,
     max: number,
 ): string | null {
-    if (cf.style === 'none' || cf.style === 'fieldValue') return null;
+    if (
+        cf.style === 'none' ||
+        cf.style === 'fieldValue' ||
+        cf.style === 'icons'
+    )
+        return null;
     if (!Number.isFinite(value)) return null;
     const scale = [min, max, value];
     return conditionalColor(cf, value, scale, value);
