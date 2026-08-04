@@ -477,8 +477,8 @@ return [
             [
                 'variable_key' => 'TempsPresence_Min',
                 'variable_type' => 'Complex',
-                'is_filtered' => true,
-                'filter_key' => 'EmployeeNo',
+                'is_filtered' => false,
+                'filter_key' => 'TempsPresence_Min',
                 'filter_value' => null,
                 'has_function' => false,
                 'fn' => 'Latest',
@@ -560,8 +560,8 @@ return [
             [
                 'variable_key' => 'MinuteProduite',
                 'variable_type' => 'Complex',
-                'is_filtered' => true,
-                'filter_key' => 'EmployeeNo',
+                'is_filtered' => false,
+                'filter_key' => 'MinuteProduite',
                 'filter_value' => null,
                 'has_function' => false,
                 'fn' => 'Latest',

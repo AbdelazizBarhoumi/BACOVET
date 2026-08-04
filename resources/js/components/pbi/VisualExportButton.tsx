@@ -19,8 +19,17 @@ import { usePbi, visualDataTable } from '@/lib/pbi/store';
 
 /** Hover action on a visual (view mode) to download its data as CSV or Excel. */
 export function VisualExportButton({ visual }: { visual: Visual }) {
-    const { rows, tableRows, tables, joins, crossFilter, interactionFor, measures } =
-        usePbi();
+    const {
+        rows,
+        tableRows,
+        tables,
+        joins,
+        crossFilter,
+        interactionFor,
+        measures,
+        graph,
+        smartNetwork,
+    } = usePbi();
     const [busy, setBusy] = useState(false);
 
     const measureExpressions = useMemo(
@@ -35,14 +44,16 @@ export function VisualExportButton({ visual }: { visual: Visual }) {
     const deps: ExportDeps = {
         tables,
         joins,
+        graph,
+        smartNetwork,
         crossFilter,
         interactionFor,
         measureExpressions,
     };
     const dataTable = visualDataTable(visual, measures);
     const base = isSlicerVisual(visual)
-        ? tables.find((t) => t.name === dataTable)?.rows ?? rows
-        : tableRows[dataTable] ?? rows;
+        ? (tables.find((t) => t.name === dataTable)?.rows ?? rows)
+        : (tableRows[dataTable] ?? rows);
 
     const run = async (kind: 'csv' | 'xlsx') => {
         if (busy) return;
@@ -73,7 +84,10 @@ export function VisualExportButton({ visual }: { visual: Visual }) {
                 const XLSX = await import('xlsx');
                 XLSX.writeFile(
                     wb,
-                    exportFilename(visual.name || visual.title || 'visual', 'xlsx'),
+                    exportFilename(
+                        visual.name || visual.title || 'visual',
+                        'xlsx',
+                    ),
                 );
             }
             toast.success('Export terminé');

@@ -434,7 +434,7 @@ function CustomTooltip({
     const rows: { label: string; value: string; strong?: boolean }[] = [];
 
     if (label !== undefined && label !== '') {
-        rows.push({ label: 'Category', value: String(label) });
+        rows.push({ label: 'Catégorie', value: String(label) });
     }
 
     for (const p of payload) {
@@ -517,7 +517,7 @@ function EmptyVisual({ label, hint }: { label: string; hint?: string }) {
     return (
         <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-[11px] text-muted-foreground">
             <span className="font-medium">{label}</span>
-            <span>{hint ?? 'Drag data fields here'}</span>
+            <span>{hint ?? 'Glissez des champs de données ici'}</span>
         </div>
     );
 }
@@ -601,7 +601,8 @@ function ShapeVisual({ visual }: { visual: Visual }) {
 
 /** Applies cross-filter / cross-highlight coming from another visual. */
 function useInteractiveRows(visual: Visual, rows: Row[]) {
-    const { crossFilter, interactionFor, joins } = usePbi();
+    const { crossFilter, interactionFor, joins, tables, graph, smartNetwork } =
+        usePbi();
     return useMemo(() => {
         const mode = interactionFor(crossFilter?.sourceId ?? '', visual.id);
         return crossFilterRows(
@@ -612,8 +613,20 @@ function useInteractiveRows(visual: Visual, rows: Row[]) {
             visual.axis.some((f) => f.name === crossFilter?.column),
             mode,
             joins,
+            tables,
+            graph,
+            smartNetwork,
         );
-    }, [crossFilter, interactionFor, joins, rows, visual]);
+    }, [
+        crossFilter,
+        interactionFor,
+        joins,
+        tables,
+        graph,
+        smartNetwork,
+        rows,
+        visual,
+    ]);
 }
 
 export function VisualView({
@@ -643,7 +656,7 @@ export function VisualView({
 
     const cells = distinctValues(sm, rows);
     if (!cells.length)
-        return <EmptyVisual label="No data for Small multiples" />;
+        return <EmptyVisual label="Aucune donnée pour les petits multiples" />;
 
     return (
         <div className="grid h-full w-full grid-cols-2 gap-1 overflow-auto p-1 lg:grid-cols-3">
@@ -1083,7 +1096,7 @@ function ChartBody({
         case 'button':
             return (
                 <button className="m-auto rounded bg-brand px-4 py-2 text-[12px] font-medium text-brand-foreground">
-                    {visual.text || 'Button'}
+                    {visual.text || 'Bouton'}
                 </button>
             );
         case 'slicer':
@@ -1132,8 +1145,8 @@ function ChartBody({
     if (!rows.length)
         return (
             <EmptyVisual
-                label="No data"
-                hint="No data matches the current filters"
+                label="Aucune donnée"
+                hint="Aucune donnée ne correspond aux filtres actuels"
             />
         );
 
@@ -1182,12 +1195,12 @@ function ChartBody({
                                 />
                                 {visual.axis[0] && (
                                     <div className="text-[10px] text-muted-foreground">
-                                        by {fieldLabel(visual.axis[0])}
+                                        par {fieldLabel(visual.axis[0])}
                                     </div>
                                 )}
                                 {numeric && hasGoal && (
                                     <div className="text-[10px] text-muted-foreground">
-                                        Goal {visualFmt(goal, visual, v)}
+                                        Objectif {visualFmt(goal, visual, v)}
                                     </div>
                                 )}
                             </div>
@@ -1634,11 +1647,7 @@ function ChartBody({
             };
             return plotWrap(
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        data={bdata}
-                        layout="vertical"
-                        margin={barMargin}
-                    >
+                    <BarChart data={bdata} layout="vertical" margin={barMargin}>
                         <CartesianGrid
                             stroke={gridlines.color}
                             horizontal={gridlines.vertical}
@@ -1875,27 +1884,27 @@ function analyticsLines(
             return statLine(
                 avg,
                 'var(--chart-4)',
-                `Average ${visualFmt(avg, visual, visual.values[0])}`,
+                `Moyenne ${visualFmt(avg, visual, visual.values[0])}`,
             );
         if (a.kind === 'constant')
-            return statLine(a.value ?? max * 0.8, 'var(--chart-5)', 'Target');
+            return statLine(a.value ?? max * 0.8, 'var(--chart-5)', 'Objectif');
         if (a.kind === 'min')
             return statLine(
                 min,
                 'var(--chart-6)',
-                `Min ${visualFmt(min, visual, visual.values[0])}`,
+                `Minimum ${visualFmt(min, visual, visual.values[0])}`,
             );
         if (a.kind === 'max')
             return statLine(
                 max,
                 'var(--chart-6)',
-                `Max ${visualFmt(max, visual, visual.values[0])}`,
+                `Maximum ${visualFmt(max, visual, visual.values[0])}`,
             );
         if (a.kind === 'median')
             return statLine(
                 median,
                 'var(--chart-6)',
-                `Median ${visualFmt(median, visual, visual.values[0])}`,
+                `Médiane ${visualFmt(median, visual, visual.values[0])}`,
             );
         if (a.kind === 'trend' || a.kind === 'forecast')
             return (
@@ -2086,7 +2095,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const [open, setOpen] = useState(false);
     const col = visual.axis[0]?.name;
     const selection = slicerSelections[visual.id] ?? [];
-    if (!col) return <EmptyVisual label="Slicer" />;
+    if (!col) return <EmptyVisual label="Segmenteur" />;
     const allValues = distinctValues(col, rows);
     const values = allValues.filter((v) =>
         v.toLowerCase().includes(q.toLowerCase()),
@@ -2104,9 +2113,9 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             className="flex w-full items-center gap-1.5 rounded border border-border bg-background px-2 py-1.5 text-left text-[11px] hover:bg-accent"
                             onClick={() => setOpen((o) => !o)}
                         >
-                            <span className="min-w-0 flex-1 truncate">
-                                {selectedValue ?? 'All'}
-                            </span>
+<span className="min-w-0 flex-1 truncate">
+    {selectedValue ?? 'Tous'}
+</span>
                             <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
                         </button>
                     </PopoverTrigger>
@@ -2118,7 +2127,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             <input
                                 value={q}
                                 onChange={(e) => setQ(e.target.value)}
-                                placeholder="Search…"
+                                placeholder="Rechercher"
                                 className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-1 text-[11px] focus:outline-none"
                             />
                             {selectedValue && (
@@ -2126,7 +2135,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                                     onClick={() =>
                                         setSlicerSelection(visual.id, col, null)
                                     }
-                                    aria-label="Clear slicer"
+                                    aria-label="Effacer le segment"
                                     className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                                 >
                                     <X className="size-3" />
@@ -2152,7 +2161,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             ))}
                             {!values.length && (
                                 <div className="px-1.5 py-1 text-[10px] text-muted-foreground">
-                                    No values
+                                    Aucune valeur
                                 </div>
                             )}
                         </div>
@@ -2167,7 +2176,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                 <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder={`Type to filter ${col}…`}
+                    placeholder={`Tapez pour filtrer ${col}…`}
                     className="rounded border border-border bg-background px-2 py-1 text-[11px]"
                 />
                 <div className="flex-1 overflow-auto">
@@ -2204,21 +2213,21 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         };
         const STEP = 86_400_000;
         const MODES: { value: SlicerDateMode; label: string }[] = [
-            { value: 'between', label: 'Between' },
-            { value: 'before', label: 'Before' },
-            { value: 'after', label: 'After' },
+            { value: 'between', label: 'Entre' },
+            { value: 'before', label: 'Avant' },
+            { value: 'after', label: 'Après' },
             { value: 'relative', label: 'Relative' },
         ];
         const RELATIVE_PRESETS: { key: RelativePreset; label: string }[] = [
-            { key: 'today', label: 'Today' },
-            { key: 'yesterday', label: 'Yesterday' },
-            { key: 'last7days', label: 'Last 7 days' },
-            { key: 'last30days', label: 'Last 30 days' },
-            { key: 'last90days', label: 'Last 90 days' },
-            { key: 'thisMonth', label: 'This month' },
-            { key: 'lastMonth', label: 'Last month' },
-            { key: 'thisYear', label: 'This year' },
-            { key: 'lastYear', label: 'Last year' },
+            { key: 'today', label: 'Aujourd’hui' },
+            { key: 'yesterday', label: 'Hier' },
+            { key: 'last7days', label: '7 derniers jours' },
+            { key: 'last30days', label: '30 derniers jours' },
+            { key: 'last90days', label: '90 derniers jours' },
+            { key: 'thisMonth', label: 'Ce mois-ci' },
+            { key: 'lastMonth', label: 'Le mois dernier' },
+            { key: 'thisYear', label: 'Cette année' },
+            { key: 'lastYear', label: 'L’année dernière' },
             { key: 'ytd', label: 'YTD' },
         ];
         const set = (patch: Partial<typeof range>) =>
@@ -2277,7 +2286,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         />
                     )}
                     <label className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">To</span>
+                        <span className="text-muted-foreground">Au</span>
                         <input
                             type="date"
                             value={range.to ?? ''}
@@ -2318,7 +2327,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         />
                     )}
                     <label className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">From</span>
+                        <span className="text-muted-foreground">Du</span>
                         <input
                             type="date"
                             value={range.from ?? ''}
@@ -2362,7 +2371,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         />
                     )}
                     <label className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">From</span>
+                        <span className="text-muted-foreground">Du</span>
                         <input
                             type="date"
                             value={range.from ?? ''}
@@ -2376,7 +2385,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         />
                     </label>
                     <label className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">To</span>
+                        <span className="text-muted-foreground">Au</span>
                         <input
                             type="date"
                             value={range.to ?? ''}
@@ -2416,7 +2425,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         onClick={() => setSlicerDateRange(visual.id, {})}
                         className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
                     >
-                        Clear
+                        Effacer
                     </button>
                 </div>
                 {body}
@@ -2450,7 +2459,7 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                 onClick={() => clearSlicer(visual.id)}
                 className="self-end text-[10px] text-muted-foreground hover:text-foreground"
             >
-                Clear
+                Effacer
             </button>
             <div className="mt-1 flex-1 overflow-auto pr-1">
                 {values.map((v) => (
@@ -2488,7 +2497,7 @@ function SmartNarrative({
     const key = series[0];
     if (!key || !data.length)
         return (
-            <EmptyVisual label="Smart narrative — add a category and a measure" />
+            <EmptyVisual label="Récit intelligent — ajoutez une catégorie et une mesure" />
         );
     const sorted = [...data].sort((a, b) => Number(b[key]) - Number(a[key]));
     const top = sorted[0]!;
@@ -2648,14 +2657,14 @@ function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         [],
         visual.values.length
             ? visual.values
-            : [{ table: 'Measures', name: 'Row Count', agg: 'sum' }],
+            : [{ table: 'Measures', name: 'Nombre de lignes', agg: 'sum' }],
     );
     return (
         <div className="flex h-full flex-col gap-1">
             <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Ask a question about your data"
+                placeholder="Posez une question sur vos données"
                 className="rounded border border-border bg-background px-2 py-1 text-[11px]"
             />
             <div className="min-h-0 flex-1">

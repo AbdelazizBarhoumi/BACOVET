@@ -64,12 +64,12 @@ export function PowerQueryDialog({
     onClose: () => void;
 }) {
     const { tables } = usePbi();
-    const [tab, setTab] = useState('Home');
+    const [tab, setTab] = useState('Accueil');
     const [table, setTable] = useState('');
     const [steps, setSteps] = useState<Step[]>([
         { label: 'Source' },
         { label: 'Navigation' },
-        { label: 'Changed Type' },
+        { label: 'Type modifié' },
     ]);
     const [hidden, setHidden] = useState<string[]>([]);
     const [sortCol, setSortCol] = useState<string | null>(null);
@@ -91,95 +91,95 @@ export function PowerQueryDialog({
 
     const addStep = (label: string) => {
         setSteps((s) => [...s, { label }]);
-        toast.success(`Applied step: ${label}`);
+        toast.success(`Étape appliquée : ${label}`);
     };
 
     const RIBBON: Record<string, { label: string; run: () => void }[]> = {
-        Home: [
+        Accueil: [
             {
-                label: 'Refresh preview',
-                run: () => addStep('Refreshed Preview'),
+                label: 'Actualiser l’aperçu',
+                run: () => addStep('Aperçu actualisé'),
             },
             {
-                label: 'Choose columns',
-                run: () => addStep('Removed Other Columns'),
+                label: 'Choisir les colonnes',
+                run: () => addStep('Autres colonnes supprimées'),
             },
             {
-                label: 'Remove columns',
+                label: 'Supprimer les colonnes',
                 run: () => {
                     const last = columns[columns.length - 1];
                     if (last) {
                         setHidden((h) => [...h, last]);
-                        addStep(`Removed Columns (${last})`);
+                        addStep(`Colonnes supprimées (${last})`);
                     }
                 },
             },
-            { label: 'Keep rows', run: () => addStep('Kept First Rows') },
-            { label: 'Merge queries', run: () => addStep('Merged Queries') },
-            { label: 'Append queries', run: () => addStep('Appended Query') },
+            { label: 'Conserver les lignes', run: () => addStep('Premières lignes conservées') },
+            { label: 'Fusionner les requêtes', run: () => addStep('Requêtes fusionnées') },
+            { label: 'Ajouter des requêtes', run: () => addStep('Requête ajoutée') },
         ],
-        Transform: [
-            { label: 'Group by', run: () => addStep('Grouped Rows') },
+        Transformer: [
+            { label: 'Grouper par', run: () => addStep('Lignes groupées') },
             {
-                label: 'Use first row as headers',
-                run: () => addStep('Promoted Headers'),
+                label: 'Utiliser la 1re ligne comme en-têtes',
+                run: () => addStep('En-têtes promus'),
             },
-            { label: 'Transpose', run: () => addStep('Transposed Table') },
-            { label: 'Pivot column', run: () => addStep('Pivoted Column') },
+            { label: 'Transposer', run: () => addStep('Tableau transposé') },
+            { label: 'Faire pivoter la colonne', run: () => addStep('Colonne pivotée') },
             {
-                label: 'Unpivot columns',
-                run: () => addStep('Unpivoted Columns'),
+                label: 'Dépivoter les colonnes',
+                run: () => addStep('Colonnes dépivotées'),
             },
-            { label: 'Replace values', run: () => addStep('Replaced Value') },
+            { label: 'Remplacer les valeurs', run: () => addStep('Valeur remplacée') },
             {
-                label: 'Split column',
-                run: () => addStep('Split Column by Delimiter'),
+                label: 'Fractionner la colonne',
+                run: () => addStep('Colonne fractionnée par délimiteur'),
             },
         ],
-        'Add Column': [
-            { label: 'Custom column', run: () => addStep('Added Custom') },
+        'Ajouter une colonne': [
+            { label: 'Colonne personnalisée', run: () => addStep('Colonne personnalisée ajoutée') },
             {
-                label: 'Conditional column',
-                run: () => addStep('Added Conditional Column'),
+                label: 'Colonne conditionnelle',
+                run: () => addStep('Colonne conditionnelle ajoutée'),
             },
-            { label: 'Index column', run: () => addStep('Added Index') },
+            { label: 'Colonne d’index', run: () => addStep('Index ajouté') },
             {
-                label: 'Duplicate column',
-                run: () => addStep('Duplicated Column'),
+                label: 'Dupliquer la colonne',
+                run: () => addStep('Colonne dupliquée'),
             },
-            { label: 'Extract year', run: () => addStep('Inserted Year') },
+            { label: 'Extraire l’année', run: () => addStep('Année insérée') },
         ],
-        View: [
+        Affichage: [
             {
-                label: 'Formula bar',
-                run: () => toast.info('Formula bar toggled'),
+                label: 'Barre de formule',
+                run: () => toast.info('Barre de formule activée/désactivée'),
             },
             {
-                label: 'Advanced editor',
+                label: 'Éditeur avancé',
                 run: () =>
                     toast.info(
-                        `let Source = ${def?.name ?? 'Query'} in Source`,
+                        `let Source = ${def?.name ?? 'Requête'} in Source`,
                     ),
             },
             {
-                label: 'Query dependencies',
+                label: 'Dépendances des requêtes',
                 run: () =>
                     toast.info(
-                        tables.map((t) => t.name).join(' → ') || 'No queries',
+                        tables.map((t) => t.name).join(' → ') || 'Aucune requête',
                     ),
             },
         ],
-        Tools: [
+        Outils: [
             {
-                label: 'Query diagnostics',
-                run: () => toast.info('Diagnostics session started'),
+                label: 'Diagnostics de requête',
+                run: () => toast.info('Session de diagnostics démarrée'),
             },
-            { label: 'Options', run: () => toast.info('Query options') },
+            { label: 'Options', run: () => toast.info('Options de requête') },
         ],
     };
 
     return (
-        <Modal open={open} onClose={onClose} title="Power Query Editor" wide>
+        <Modal open={open} onClose={onClose} title="Éditeur Power Query" wide>
             <div className="flex flex-col">
                 <div className="flex border-b border-border bg-panel px-2 text-[12px]">
                     {Object.keys(RIBBON).map((t) => (
@@ -211,7 +211,7 @@ export function PowerQueryDialog({
                 <div className="grid grid-cols-[150px_1fr_210px]">
                     <div className="border-r border-border p-2">
                         <div className="mb-1 text-[11px] font-semibold">
-                            Queries
+                            Requêtes
                         </div>
                         {tables.map((t) => (
                             <button
@@ -227,14 +227,14 @@ export function PowerQueryDialog({
                         ))}
                         {!tables.length && (
                             <p className="text-[11px] text-muted-foreground">
-                                No datasets loaded.
+                                Aucun jeu de données chargé.
                             </p>
                         )}
                     </div>
                     <div className="max-h-[45vh] overflow-auto">
                         {!def ? (
                             <p className="p-3 text-[11px] text-muted-foreground">
-                                No data to preview.
+                                Aucune donnée à prévisualiser.
                             </p>
                         ) : (
                             <table className="w-full border-collapse text-[11px]">
@@ -275,7 +275,7 @@ export function PowerQueryDialog({
                     </div>
                     <div className="border-l border-border p-2">
                         <div className="mb-1 text-[11px] font-semibold">
-                            Applied steps
+                            Étapes appliquées
                         </div>
                         {steps.map((s, i) => (
                             <div
@@ -304,16 +304,16 @@ export function PowerQueryDialog({
                         onClick={onClose}
                         className="rounded border border-border px-3 py-1 text-[12px]"
                     >
-                        Cancel
+                        Annuler
                     </button>
                     <button
                         onClick={() => {
-                            toast.success('Changes applied to the model');
+                            toast.success('Modifications appliquées au modèle');
                             onClose();
                         }}
                         className="rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground"
                     >
-                        Close &amp; Apply
+                        Fermer et appliquer
                     </button>
                 </div>
             </div>
@@ -434,14 +434,14 @@ export function DaxDialog({
             const formula = edit.expression.replace(/^\s*[^=]+=\s*/, '');
             return `${edit.name} = ${formula}`;
         }
-        return 'New Measure = ';
+        return 'Nouvelle mesure = ';
     });
     const [cursor, setCursor] = useState(() => {
         if (edit?.expression) {
             const formula = edit.expression.replace(/^\s*[^=]+=\s*/, '');
             return `${edit.name} = ${formula}`.length;
         }
-        return 'New Measure = '.length;
+        return 'Nouvelle mesure = '.length;
     });
     const [category, setCategory] = useState(edit?.category ?? '');
     const [description, setDescription] = useState(edit?.description ?? '');
@@ -566,11 +566,11 @@ export function DaxDialog({
         const name = (eq >= 0 ? expr.slice(0, eq) : expr).trim();
         const formula = (eq >= 0 ? expr.slice(eq + 1) : expr).trim();
         if (!name) {
-            toast.error('Enter a measure name before the = sign');
+            toast.error('Saisissez un nom de mesure avant le signe =');
             return;
         }
         if (!formula) {
-            toast.error('Enter a DAX formula after the = sign');
+            toast.error('Saisissez une formule DAX après le signe =');
             return;
         }
         if (
@@ -580,7 +580,7 @@ export function DaxDialog({
                     (edit == null || String(m.id) !== String(edit.id)),
             )
         ) {
-            toast.error(`Measure "${name}" already exists`);
+            toast.error(`La mesure « ${name} » existe déjà`);
             return;
         }
         if (validation) {
@@ -592,30 +592,30 @@ export function DaxDialog({
             const full = `${name} = ${formula}`;
             if (edit) {
                 await updateMeasure(edit.id!, name, full, category, description);
-                toast.success('Measure updated', {
+                toast.success('Mesure mise à jour', {
                     description: `${name} = ${formula}`,
                 });
             } else {
                 await addMeasure(name, full, category, description);
-                toast.success('Measure created', {
+                toast.success('Mesure créée', {
                     description: `${name} = ${formula}`,
                 });
             }
             onClose();
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Failed to save measure');
+            toast.error(e instanceof Error ? e.message : 'Échec de l’enregistrement de la mesure');
         } finally {
             setSaving(false);
         }
     };
 
     return (
-        <Modal open onClose={onClose} title={editing ? 'Edit measure' : 'New measure'} wide>
+        <Modal open onClose={onClose} title={editing ? 'Modifier la mesure' : 'Nouvelle mesure'} wide>
             <div className="space-y-3 p-4">
                 {!editing && (
                     <div className="flex flex-wrap gap-1 text-[11px]">
                         <span className="py-0.5 text-muted-foreground">
-                            Quick start:
+                            Démarrage rapide :
                         </span>
                         {[
                             'SUM(',
@@ -627,15 +627,15 @@ export function DaxDialog({
                                 <button
                                     key={snippet}
                                     onClick={() => {
-                                        setExpr(`New Measure = ${snippet}`);
-                                        setCursor(`New Measure = ${snippet}`.length - 1);
+                                        setExpr(`Nouvelle mesure = ${snippet}`);
+                                        setCursor(`Nouvelle mesure = ${snippet}`.length - 1);
                                         setVisible(true);
                                         requestAnimationFrame(() => {
                                             taRef.current?.focus();
                                             taRef.current?.setSelectionRange(
-                                                `New Measure = ${snippet}`.length -
+                                                `Nouvelle mesure = ${snippet}`.length -
                                                     1,
-                                                `New Measure = ${snippet}`.length -
+                                                `Nouvelle mesure = ${snippet}`.length -
                                                     1,
                                             );
                                         });
@@ -741,11 +741,11 @@ export function DaxDialog({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     <label className="block text-[11px] text-muted-foreground">
-                        Folder (category)
+                        Dossier (catégorie)
                         <input
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
-                            placeholder="Finance, Operations…"
+                            placeholder="Finance, Opérations…"
                             className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-brand"
                         />
                     </label>
@@ -754,13 +754,13 @@ export function DaxDialog({
                         <input
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Optional"
+                            placeholder="Facultatif"
                             className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-brand"
                         />
                     </label>
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                    Existing measures:
+                    Mesures existantes :
                     <ul className="mt-1 max-h-24 space-y-0.5 overflow-auto font-mono">
                         {measures.map((m) => (
                             <li key={m.name}>{m.expression}</li>
@@ -772,14 +772,14 @@ export function DaxDialog({
                         onClick={onClose}
                         className="rounded border border-border px-3 py-1 text-[12px]"
                     >
-                        Cancel
+                        Annuler
                     </button>
                     <button
                         onClick={commit}
                         disabled={saving}
                         className="rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground disabled:opacity-50"
                     >
-                        {editing ? 'Save changes' : 'Commit'}
+                        {editing ? 'Enregistrer les modifications' : 'Valider'}
                     </button>
                 </div>
             </div>
@@ -813,7 +813,7 @@ export function ManageMeasuresDialog({
     const folders = useMemo(() => {
         const map = new Map<string, Field[]>();
         for (const m of items) {
-            const key = m.category?.trim() || 'Uncategorized';
+            const key = m.category?.trim() || 'Sans catégorie';
             const arr = map.get(key) ?? [];
             arr.push(m);
             map.set(key, arr);
@@ -826,11 +826,11 @@ export function ManageMeasuresDialog({
         setBusy(true);
         try {
             await removeMeasure(m.id);
-            toast.success(`Measure "${m.name}" deleted`);
+            toast.success(`Mesure « ${m.name} » supprimée`);
             setConfirm(null);
         } catch (e) {
             toast.error(
-                e instanceof Error ? e.message : 'Failed to delete measure',
+                e instanceof Error ? e.message : 'Échec de la suppression de la mesure',
             );
         } finally {
             setBusy(false);
@@ -838,17 +838,18 @@ export function ManageMeasuresDialog({
     };
 
     return (
-        <Modal open onClose={onClose} title="Manage measures" wide>
+        <Modal open onClose={onClose} title="Gérer les mesures" wide>
             <div className="p-4">
                 <div className="mb-3 flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground">
-                        Shared measure library — usable on every page.
+                        Bibliothèque de mesures partagée — utilisable sur
+                        chaque page.
                     </span>
                     <button
                         onClick={() => setCreateOpen(true)}
                         className="flex items-center gap-1 rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground"
                     >
-                        <Plus className="size-3.5" /> New measure
+                        <Plus className="size-3.5" /> Nouvelle mesure
                     </button>
                 </div>
                 {folders.map(([folder, list]) => (
@@ -905,7 +906,7 @@ export function ManageMeasuresDialog({
                                                     onClick={() =>
                                                         setEditTarget(m)
                                                     }
-                                                    title="Edit measure"
+                                                    title="Modifier la mesure"
                                                     className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                                                 >
                                                     <Pencil className="size-3.5" />
@@ -914,7 +915,7 @@ export function ManageMeasuresDialog({
                                                     onClick={() =>
                                                         setConfirm(m)
                                                     }
-                                                    title="Delete measure"
+                                                    title="Supprimer la mesure"
                                                     className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
                                                 >
                                                     <Trash2 className="size-3.5" />
@@ -929,7 +930,8 @@ export function ManageMeasuresDialog({
                 ))}
                 {!items.length && (
                     <p className="py-6 text-center text-[12px] text-muted-foreground">
-                        No measures yet — create one with “New measure”.
+                        Aucune mesure pour l’instant — créez-en une avec
+                        « Nouvelle mesure ».
                     </p>
                 )}
             </div>
@@ -947,30 +949,31 @@ export function ManageMeasuresDialog({
                 <Modal
                     open
                     onClose={() => setConfirm(null)}
-                    title="Delete measure"
+                    title="Supprimer la mesure"
                 >
                     <div className="p-4 text-[12px]">
                         <p>
-                            Delete{' '}
+                            Supprimer{' '}
                             <strong className="font-mono">
                                 {confirm.name}
                             </strong>
-                            ? Visuals using it will stop resolving until they
-                            are re-linked to another field.
+                            ? Les visuels qui l’utilisent cesseront de se
+                            résoudre tant qu’ils ne seront pas reliés à un
+                            autre champ.
                         </p>
                         <div className="mt-4 flex justify-end gap-2">
                             <button
                                 onClick={() => setConfirm(null)}
                                 className="rounded border border-border px-3 py-1 text-[12px]"
                             >
-                                Cancel
+                                Annuler
                             </button>
                             <button
                                 onClick={() => del(confirm)}
                                 disabled={busy}
                                 className="rounded bg-red-600 px-3 py-1 text-[12px] font-medium text-white disabled:opacity-50"
                             >
-                                Delete
+                                Supprimer
                             </button>
                         </div>
                     </div>
@@ -981,7 +984,6 @@ export function ManageMeasuresDialog({
 }
 
 /* ----------------------- Performance analyzer ----------------------- */
-
 export function PerformanceDialog({
     open,
     onClose,
@@ -991,15 +993,15 @@ export function PerformanceDialog({
 }) {
     const { page } = usePbi();
     return (
-        <Modal open={open} onClose={onClose} title="Performance analyzer">
+        <Modal open={open} onClose={onClose} title="Analyseur de performances">
             <div className="p-4 text-[12px]">
                 <table className="w-full text-left">
                     <thead className="text-muted-foreground">
                         <tr>
-                            <th className="py-1">Visual</th>
-                            <th>DAX query</th>
-                            <th>Render</th>
-                            <th>Other</th>
+                            <th className="py-1">Visuel</th>
+                            <th>Requête DAX</th>
+                            <th>Rendu</th>
+                            <th>Autre</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1040,16 +1042,16 @@ export function QnaDialog({
     const suggestions =
         suggestBy && suggestVal
             ? [
-                  `${suggestVal} by ${suggestBy}`,
-                  `sum of ${suggestVal} by ${suggestBy}`,
-                  `average of ${suggestVal} by ${suggestBy}`,
-                  `count of ${suggestBy}`,
+                  `${suggestVal} par ${suggestBy}`,
+                  `somme de ${suggestVal} par ${suggestBy}`,
+                  `moyenne de ${suggestVal} par ${suggestBy}`,
+                  `nombre de ${suggestBy}`,
               ]
             : [];
 
     const run = () => {
         if (!primary || !suggestBy || !suggestVal) {
-            toast.error('No datasets loaded');
+            toast.error('Aucun jeu de données chargé');
             return;
         }
         const text = q.toLowerCase();
@@ -1067,7 +1069,7 @@ export function QnaDialog({
                   : 'column';
 
         const visual = mkVisual(type, 0, 0, 6, 4, {
-            title: `${measure} by ${by}`,
+            title: `${measure} par ${by}`,
             axis: [wf(by, primary.name)],
             values: [wf(measure, primary.name)],
         });
@@ -1080,8 +1082,8 @@ export function QnaDialog({
             ),
             selectedId: visual.id,
         }));
-        toast.success('Q&A visual created', {
-            description: `${measure} by ${by}`,
+        toast.success('Visuel Q&A créé', {
+            description: `${measure} par ${by}`,
         });
         onClose();
     };
@@ -1090,7 +1092,7 @@ export function QnaDialog({
         <Modal
             open={open}
             onClose={onClose}
-            title="Q&A — ask a question about your data"
+            title="Q&A — posez une question sur vos données"
         >
             <div className="space-y-3 p-4">
                 <input
@@ -1099,8 +1101,8 @@ export function QnaDialog({
                     className="w-full rounded border border-border bg-background px-3 py-2 text-[13px]"
                     placeholder={
                         suggestBy && suggestVal
-                            ? `e.g. ${suggestVal} by ${suggestBy}`
-                            : 'No datasets loaded'
+                            ? `p. ex. ${suggestVal} par ${suggestBy}`
+                            : 'Aucun jeu de données chargé'
                     }
                 />
                 <div className="flex flex-wrap gap-1 text-[11px]">
@@ -1119,7 +1121,7 @@ export function QnaDialog({
                         onClick={run}
                         className="rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground"
                     >
-                        Create visual
+                        Créer le visuel
                     </button>
                 </div>
             </div>

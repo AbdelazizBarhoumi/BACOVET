@@ -1,9 +1,7 @@
 import {
-    DISPLAY_UNITS,
     fieldLabel,
     normalizeConditionalFormat,
     normalizeGaugeStyle,
-    type DisplayUnit,
     type GaugeBoundStyle,
     type GaugeLabelStyle,
     type GaugeStyle,
@@ -24,17 +22,8 @@ import {
     TitleSection,
     Toggle,
     ToggleGroup,
+    ValueFormatControl,
 } from './formatControls';
-
-const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
-    auto: 'Auto',
-    none: 'None',
-    thousands: 'Thousands (K)',
-    millions: 'Millions (M)',
-    billions: 'Billions (B)',
-    percent: 'Percent (%)',
-    currency: 'Currency ($)',
-};
 
 type GaugeBoundKey = 'min' | 'max' | 'target';
 type GaugeLabelKey = 'values' | 'targetLabel' | 'callout';
@@ -141,23 +130,10 @@ function GaugeLabelSection({
                         underline={style.underline}
                         onChange={(p) => onPatch(p)}
                     />
-                    <Select
-                        label="Display units"
-                        value={style.displayUnits}
-                        options={DISPLAY_UNITS.map((u) => ({
-                            value: u,
-                            label: DISPLAY_UNIT_LABELS[u],
-                        }))}
-                        onChange={(v) =>
-                            onPatch({ displayUnits: v as DisplayUnit })
-                        }
-                    />
-                    <NumberInput
-                        label="Value decimal places"
-                        min={0}
-                        max={10}
-                        value={style.decimals ?? 1}
-                        onChange={(v) => onPatch({ decimals: v })}
+                    <ValueFormatControl
+                        label="Number format"
+                        value={style.valueFormat ?? { auto: true }}
+                        onChange={(vf) => onPatch({ valueFormat: vf })}
                     />
                     <ConditionalFormatControl
                         visual={visual}

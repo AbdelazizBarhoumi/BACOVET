@@ -38,6 +38,16 @@ const CENTER_TOL = 4;
 
 type ResizeDir = 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
 
+type LiveGeo = { x: number; y: number; w: number; h: number };
+
+type DragMember = {
+    id: string;
+    ox: number;
+    oy: number;
+    ow: number;
+    oh: number;
+};
+
 type DragState = {
     id: string;
     mode: 'move' | 'resize';
@@ -48,6 +58,7 @@ type DragState = {
     oy: number;
     ow: number;
     oh: number;
+    group?: DragMember[];
 };
 
 const POPUP_WIDTH = 280;
@@ -143,6 +154,8 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         tables,
         joins,
         selected,
+        selectedIds,
+        setSelectedIds,
         select,
         updateVisual,
         removeVisual,
@@ -165,14 +178,18 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         clearCrossFilter,
         crossFilter,
         measures,
+        graph,
+        smartNetwork,
     } = usePbi();
 
     const [drag, setDrag] = useState<DragState | null>(null);
-    const [live, setLive] = useState<{
+    const [live, setLive] = useState<Record<string, LiveGeo> | null>(null);
+    const [marquee, setMarquee] = useState<{
+        x0: number;
+        y0: number;
         x: number;
         y: number;
-        w: number;
-        h: number;
+        ctrl: boolean;
     } | null>(null);
     const [menu, setMenu] = useState<{
         id: string;
@@ -182,12 +199,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     const [records, setRecords] = useState<string | null>(null);
     const scale = zoom / 100;
     const ref = useRef<HTMLDivElement>(null);
-    const latestLiveRef = useRef<{
-        x: number;
-        y: number;
-        w: number;
-        h: number;
-    } | null>(null);
+    const latestLiveRef = useRef<Record<string, LiveGeo> | null>(null);
     const rafRef = useRef<number | null>(null);
     const { pageId } = usePage().props as unknown as { pageId: number };
 
@@ -209,17 +221,96 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         }
         const g = latestLiveRef.current;
         latestLiveRef.current = null;
-        if (drag && g) {
-            updateVisual(drag.id, {
-                x: g.x,
-                y: g.y,
-                w: g.w,
-                h: g.h,
-            });
+        if (g) {
+            for (const [id, geo] of Object.entries(g)) {
+                updateVisual(id, {
+                    x: geo.x,
+                    y: geo.y,
+                    w: geo.w,
+                    h: geo.h,
+                });
+            }
         }
         setLive(null);
         setDrag(null);
-    }, [drag, updateVisual]);
+    }, [updateVisual]);
+
+    const startMarquee = (e: React.MouseEvent) => {
+        const rect = ref.current?.getBoundingClientRect();
+        if (!rect) return;
+        const x = (e.clientX - rect.left) / scale;
+        const y = (e.clientY - rect.top) / scale;
+        setMarquee({
+            x0: x,
+            y0: y,
+            x,
+            y,
+            ctrl: e.ctrlKey || e.metaKey,
+        });
+    };
+
+    const endGesture = (_e: React.MouseEvent) => {
+        if (marquee) {
+            const m = marquee;
+            const l = Math.min(m.x0, m.x);
+            const t = Math.min(m.y0, m.y);
+            const r = Math.max(m.x0, m.x);
+            const b = Math.max(m.y0, m.y);
+            const hits = page.visuals
+                .filter((v) => !v.hidden)
+                .filter(
+                    (v) =>
+                        !(v.x > r || v.x + v.w < l || v.y > b || v.y + v.h < t),
+                )
+                .map((v) => v.id);
+            if (hits.length) {
+                setSelectedIds(
+                    m.ctrl
+                        ? Array.from(new Set([...selectedIds, ...hits]))
+                        : hits,
+                );
+            }
+            setMarquee(null);
+            return;
+        }
+        endDrag();
+    };
+
+    const startMove = (v: Visual, e: React.MouseEvent) => {
+        e.preventDefault();
+        const inSel = selectedIds.includes(v.id);
+        const toggle = e.ctrlKey || e.metaKey;
+        let ids: string[];
+        if (toggle) {
+            ids = inSel
+                ? selectedIds.filter((x) => x !== v.id)
+                : [...selectedIds, v.id];
+        } else if (inSel) {
+            ids = selectedIds;
+        } else {
+            ids = [v.id];
+        }
+        if (!ids.length) return;
+        const members = ids
+            .map((id) => {
+                const s = page.visuals.find((x) => x.id === id);
+                return s
+                    ? { id, ox: s.x, oy: s.y, ow: s.w, oh: s.h }
+                    : null;
+            })
+            .filter((x): x is DragMember => x !== null);
+        setDrag({
+            id: v.id,
+            mode: 'move',
+            startX: e.clientX,
+            startY: e.clientY,
+            ox: v.x,
+            oy: v.y,
+            ow: v.w,
+            oh: v.h,
+            group: members,
+        });
+    };
 
     const uploadImage = async (id: string, file: File) => {
         try {
@@ -251,16 +342,44 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     );
 
     const onMouseMove = (e: React.MouseEvent) => {
+        if (marquee) {
+            const rect = ref.current?.getBoundingClientRect();
+            if (rect) {
+                setMarquee({
+                    ...marquee,
+                    x: (e.clientX - rect.left) / scale,
+                    y: (e.clientY - rect.top) / scale,
+                });
+            }
+            return;
+        }
         if (!drag) return;
         const dx = (e.clientX - drag.startX) / scale;
         const dy = (e.clientY - drag.startY) / scale;
         if (drag.mode === 'move') {
-            latestLiveRef.current = {
-                x: Math.max(0, snap(drag.ox + dx)),
-                y: Math.max(0, snap(drag.oy + dy)),
-                w: drag.ow,
-                h: drag.oh,
-            };
+            const newX = Math.max(0, snap(drag.ox + dx));
+            const newY = Math.max(0, snap(drag.oy + dy));
+            const ddx = newX - drag.ox;
+            const ddy = newY - drag.oy;
+            const members = drag.group ?? [
+                {
+                    id: drag.id,
+                    ox: drag.ox,
+                    oy: drag.oy,
+                    ow: drag.ow,
+                    oh: drag.oh,
+                },
+            ];
+            const record: Record<string, LiveGeo> = {};
+            for (const m of members) {
+                record[m.id] = {
+                    x: Math.max(0, snap(m.ox + ddx)),
+                    y: Math.max(0, snap(m.oy + ddy)),
+                    w: m.ow,
+                    h: m.oh,
+                };
+            }
+            latestLiveRef.current = record;
             scheduleLive();
             return;
         }
@@ -291,7 +410,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         }
         x = Math.max(0, x);
         y = Math.max(0, y);
-        latestLiveRef.current = { x, y, w, h };
+        latestLiveRef.current = { [drag.id]: { x, y, w, h } };
         scheduleLive();
     };
 
@@ -308,6 +427,10 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         [],
     );
 
+    const liveMaxX =
+        drag && live ? Math.max(0, ...Object.values(live).map((g) => g.x + g.w)) : 0;
+    const liveMaxY =
+        drag && live ? Math.max(0, ...Object.values(live).map((g) => g.y + g.h)) : 0;
     const width = mobileView
         ? 360
         : Math.max(
@@ -317,7 +440,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                       page.format.width,
                   ),
               ),
-              drag && live ? Math.ceil(live.x + live.w) : 0,
+              liveMaxX,
           );
     const height = mobileView
         ? 740
@@ -328,14 +451,14 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                       page.format.height,
                   ),
               ),
-              drag && live ? Math.ceil(live.y + live.h) : 0,
+              liveMaxY,
           );
 
     const ordered = [...page.visuals].sort((a, b) => a.z - b.z);
     const menuVisual = page.visuals.find((v) => v.id === menu?.id) ?? null;
     const showBoundary = !readOnly && !mobileView;
 
-    const dragGeo = drag && live ? live : null;
+    const dragGeo = drag && live ? (live[drag.id] ?? null) : null;
     const pageW = page.format.width;
     const pageH = page.format.height;
     const tileCols = Math.max(1, Math.floor(width / pageW));
@@ -376,9 +499,13 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
             >
                 <div
                     ref={ref}
+                    onMouseDown={(e) => {
+                        if (readOnly) return;
+                        if (e.target === e.currentTarget) startMarquee(e);
+                    }}
                     onMouseMove={readOnly ? undefined : onMouseMove}
-                    onMouseUp={readOnly ? undefined : endDrag}
-                    onMouseLeave={readOnly ? undefined : endDrag}
+                    onMouseUp={readOnly ? undefined : endGesture}
+                    onMouseLeave={readOnly ? undefined : endGesture}
                     onClick={(e) =>
                         !readOnly &&
                         e.target === e.currentTarget &&
@@ -409,7 +536,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                     }}
                     className={cn(
                         'relative origin-top-left overflow-hidden shadow-lg ring-1 ring-border',
-                        drag && 'select-none',
+                        (drag || marquee) && 'select-none',
                         showGridlines &&
                             !readOnly &&
                             'bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:24px_24px]',
@@ -423,8 +550,8 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                 >
                     {!page.visuals.length && (
                         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                            Blank page — add a visual from the Visualizations
-                            pane.
+                            Page vide — ajoutez un visuel à partir du panneau
+                            Visualisations.
                         </div>
                     )}
 
@@ -435,7 +562,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                             ? (tables.find((t) => t.name === dataTable)?.rows ??
                               rows)
                             : (tableRows[dataTable] ?? rows);
-                        const isSel = selected?.id === v.id;
+                        const isSel = (selectedIds ?? []).includes(v.id);
                         const isElement =
                             v.type === 'text' || v.type === 'image';
                         const interactionTarget =
@@ -446,11 +573,16 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                         const mode: Interaction = selected
                             ? interactionFor(selected.id, v.id)
                             : 'filter';
-                        const isLive = drag?.id === v.id && live !== null;
+                        const liveGeo = drag && live ? live[v.id] : null;
                         return (
                             <div
                                 key={v.id}
-                                onMouseDown={() => !readOnly && select(v.id)}
+                                onMouseDown={(e) => {
+                                    if (readOnly) return;
+                                    select(v.id, {
+                                        toggle: e.ctrlKey || e.metaKey,
+                                    });
+                                }}
                                 onContextMenu={(e) => {
                                     if (readOnly) return;
                                     e.preventDefault();
@@ -507,10 +639,10 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                         'outline outline-2 outline-brand',
                                 )}
                                 style={{
-                                    left: isLive && live ? live.x : v.x,
-                                    top: isLive && live ? live.y : v.y,
-                                    width: isLive && live ? live.w : v.w,
-                                    height: isLive && live ? live.h : v.h,
+                                    left: liveGeo ? liveGeo.x : v.x,
+                                    top: liveGeo ? liveGeo.y : v.y,
+                                    width: liveGeo ? liveGeo.w : v.w,
+                                    height: liveGeo ? liveGeo.h : v.h,
                                     zIndex: v.z,
                                     backgroundColor:
                                         v.type === 'shape'
@@ -536,97 +668,88 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                 aria-label={v.altText || v.name}
                             >
                                 {!readOnly || !isElement ? (
-                                <div
-                                    onMouseDown={
-                                        readOnly
-                                            ? undefined
-                                            : (e) => {
-                                                  e.preventDefault();
-                                                  setDrag({
-                                                      id: v.id,
-                                                      mode: 'move',
-                                                      startX: e.clientX,
-                                                      startY: e.clientY,
-                                                      ox: v.x,
-                                                      oy: v.y,
-                                                      ow: v.w,
-                                                      oh: v.h,
-                                                  });
-                                              }
-                                    }
-                                    className={cn(
-                                        'relative flex items-center justify-between pb-1',
-                                        !readOnly && 'cursor-move',
-                                    )}
-                                >
-                                    <span
-                                        className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
-                                        style={visualTitleStyle(v)}
+                                    <div
+                                        onMouseDown={
+                                            readOnly
+                                                ? undefined
+                                                : (e) => startMove(v, e)
+                                        }
+                                        className={cn(
+                                            'relative flex items-center justify-between pb-1',
+                                            !readOnly && 'cursor-move',
+                                        )}
                                     >
-                                        {v.showTitle && !isElement
-                                            ? v.title || visualTypeLabel(v.type)
-                                            : ''}
-                                    </span>
-                                    {readOnly && (
-                                        <span className="absolute top-1/2 right-0 flex -translate-y-1/2 items-center bg-white opacity-0 transition-opacity group-hover:opacity-100">
-                                            <VisualExportButton visual={v} />
+                                        <span
+                                            className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
+                                            style={visualTitleStyle(v)}
+                                        >
+                                            {v.showTitle && !isElement
+                                                ? v.title ||
+                                                  visualTypeLabel(v.type)
+                                                : ''}
                                         </span>
-                                    )}
-                                    {!readOnly && (
-                                        <span className="absolute top-1/2 right-0 flex -translate-y-1/2 items-center gap-1 bg-white opacity-0 transition-opacity group-hover:opacity-100">
-                                            {v.drillFields.length > 1 && (
-                                                <>
-                                                    <button
-                                                        onClick={() =>
-                                                            drill(v.id, -1)
-                                                        }
-                                                        aria-label="Drill up"
-                                                    >
-                                                        <ChevronUp className="size-3 text-muted-foreground hover:text-foreground" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() =>
-                                                            drill(v.id, 1)
-                                                        }
-                                                        aria-label="Drill down"
-                                                    >
-                                                        <ChevronDown className="size-3 text-muted-foreground hover:text-foreground" />
-                                                    </button>
-                                                </>
-                                            )}
-                                            <FilterIcon className="size-3 text-muted-foreground" />
-                                            <button
-                                                onClick={() =>
-                                                    duplicateVisual(v.id)
-                                                }
-                                                aria-label="Duplicate visual"
-                                            >
-                                                <Copy className="size-3 text-muted-foreground hover:text-foreground" />
-                                            </button>
-                                            <button
-                                                onClick={() =>
-                                                    removeVisual(v.id)
-                                                }
-                                                aria-label="Delete visual"
-                                            >
-                                                <Trash2 className="size-3 text-muted-foreground hover:text-destructive" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setMenu({
-                                                        id: v.id,
-                                                        x: e.clientX,
-                                                        y: e.clientY,
-                                                    });
-                                                }}
-                                                aria-label="More options"
-                                            >
-                                                <MoreHorizontal className="size-3 text-muted-foreground" />
-                                            </button>
-                                        </span>
-                                    )}
-                                </div>
+                                        {readOnly && (
+                                            <span className="absolute top-1/2 right-0 flex -translate-y-1/2 items-center bg-white opacity-0 transition-opacity group-hover:opacity-100">
+                                                <VisualExportButton
+                                                    visual={v}
+                                                />
+                                            </span>
+                                        )}
+                                        {!readOnly && (
+                                            <span className="absolute top-1/2 right-0 flex -translate-y-1/2 items-center gap-1 bg-white opacity-0 transition-opacity group-hover:opacity-100">
+                                                {v.drillFields.length > 1 && (
+                                                    <>
+                                                        <button
+                                                            onClick={() =>
+                                                                drill(v.id, -1)
+                                                            }
+                                                            aria-label="Remonter"
+                                                        >
+                                                            <ChevronUp className="size-3 text-muted-foreground hover:text-foreground" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                drill(v.id, 1)
+                                                            }
+                                                            aria-label="Descendre"
+                                                        >
+                                                            <ChevronDown className="size-3 text-muted-foreground hover:text-foreground" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <FilterIcon className="size-3 text-muted-foreground" />
+                                                <button
+                                                    onClick={() =>
+                                                        duplicateVisual(v.id)
+                                                    }
+                                                    aria-label="Dupliquer le visuel"
+                                                >
+                                                    <Copy className="size-3 text-muted-foreground hover:text-foreground" />
+                                                </button>
+                                                <button
+                                                    onClick={() =>
+                                                        removeVisual(v.id)
+                                                    }
+                                                    aria-label="Supprimer le visuel"
+                                                >
+                                                    <Trash2 className="size-3 text-muted-foreground hover:text-destructive" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setMenu({
+                                                            id: v.id,
+                                                            x: e.clientX,
+                                                            y: e.clientY,
+                                                        });
+                                                    }}
+                                                    aria-label="Plus d'options"
+                                                >
+                                                    <MoreHorizontal className="size-3 text-muted-foreground" />
+                                                </button>
+                                            </span>
+                                        )}
+                                    </div>
                                 ) : null}
                                 <div className="min-h-0 flex-1">
                                     <VisualView visual={v} rows={vRows} />
@@ -643,8 +766,8 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                         >
                                             <Upload className="size-3.5" />
                                             {v.imageUrl
-                                                ? 'Replace image'
-                                                : 'Add image'}
+                                                ? "Remplacer l'image"
+                                                : "Ajouter une image"}
                                             <input
                                                 type="file"
                                                 accept="image/jpeg,image/png,image/gif,image/webp"
@@ -696,7 +819,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     </div>
                                 )}
 
-                                {!readOnly && isSel && (
+                                {!readOnly && isSel && selected?.id === v.id && (
                                     <>
                                         <ResizeHandle
                                             dir="n"
@@ -765,6 +888,18 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                             style={{ top: guideY, left: 0, width }}
                         />
                     )}
+
+                    {marquee && (
+                        <div
+                            className="pointer-events-none absolute z-40 border border-brand/80 bg-brand/10"
+                            style={{
+                                left: Math.min(marquee.x0, marquee.x),
+                                top: Math.min(marquee.y0, marquee.y),
+                                width: Math.abs(marquee.x - marquee.x0),
+                                height: Math.abs(marquee.y - marquee.y0),
+                            }}
+                        />
+                    )}
                 </div>
             </div>
 
@@ -775,20 +910,20 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                     onClick={(e) => e.stopPropagation()}
                 >
                     <MenuItem
-                        label="Bring forward"
+                        label="Mettre au premier plan"
                         onClick={() => bringForward(menuVisual.id)}
                     />
                     <MenuItem
-                        label="Send backward"
+                        label="Envoyer à l'arrière-plan"
                         onClick={() => sendBackward(menuVisual.id)}
                     />
                     <MenuItem
-                        label={menuVisual.hidden ? 'Show' : 'Hide'}
+                        label={menuVisual.hidden ? 'Afficher' : 'Masquer'}
                         icon={menuVisual.hidden ? Eye : EyeOff}
                         onClick={() => toggleVisualHidden(menuVisual.id)}
                     />
                     <MenuItem
-                        label="See records"
+                        label="Voir les enregistrements"
                         icon={Focus}
                         onClick={() => {
                             setRecords(menuVisual.id);
@@ -796,7 +931,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                         }}
                     />
                     <MenuItem
-                        label="Drill through to detail"
+                        label="Explorer jusqu'au détail"
                         onClick={() => {
                             const col = menuVisual.axis[0]?.name;
                             const vRows =
@@ -809,15 +944,15 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                         }}
                     />
                     <MenuItem
-                        label="Clear cross-filter"
+                        label="Effacer le filtre croisé"
                         onClick={clearCrossFilter}
                     />
                     <MenuItem
-                        label="Duplicate"
+                        label="Dupliquer"
                         onClick={() => duplicateVisual(menuVisual.id)}
                     />
                     <MenuItem
-                        label="Remove"
+                        label="Supprimer"
                         onClick={() => removeVisual(menuVisual.id)}
                     />
                 </div>
@@ -833,7 +968,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h3 className="mb-2 text-sm font-semibold">
-                            Data point records
+                            Enregistrements du point de données
                         </h3>
                         {(() => {
                             const recordsVisual = page.visuals.find(
@@ -869,6 +1004,9 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                                     recordsVisual.id,
                                 ),
                                 joins,
+                                tables,
+                                graph,
+                                smartNetwork,
                             ).rows.slice(0, 100);
                             const keys = [
                                 ...new Set(
@@ -918,18 +1056,39 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     );
 }
 
-const HANDLE_POS: Record<
-    ResizeDir,
-    { className: string; cursor: string }
-> = {
-    n: { className: 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-6', cursor: 'cursor-n-resize' },
-    s: { className: 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-2 w-6', cursor: 'cursor-s-resize' },
-    e: { className: 'top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-2 h-6', cursor: 'cursor-e-resize' },
-    w: { className: 'top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-2 h-6', cursor: 'cursor-w-resize' },
-    nw: { className: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2 size-3', cursor: 'cursor-nwse-resize' },
-    ne: { className: 'top-0 right-0 translate-x-1/2 -translate-y-1/2 size-3', cursor: 'cursor-nesw-resize' },
-    sw: { className: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 size-3', cursor: 'cursor-nesw-resize' },
-    se: { className: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2 size-3', cursor: 'cursor-nwse-resize' },
+const HANDLE_POS: Record<ResizeDir, { className: string; cursor: string }> = {
+    n: {
+        className: 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-6',
+        cursor: 'cursor-n-resize',
+    },
+    s: {
+        className: 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-2 w-6',
+        cursor: 'cursor-s-resize',
+    },
+    e: {
+        className: 'top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-2 h-6',
+        cursor: 'cursor-e-resize',
+    },
+    w: {
+        className: 'top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-2 h-6',
+        cursor: 'cursor-w-resize',
+    },
+    nw: {
+        className: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2 size-3',
+        cursor: 'cursor-nwse-resize',
+    },
+    ne: {
+        className: 'top-0 right-0 translate-x-1/2 -translate-y-1/2 size-3',
+        cursor: 'cursor-nesw-resize',
+    },
+    sw: {
+        className: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 size-3',
+        cursor: 'cursor-nesw-resize',
+    },
+    se: {
+        className: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2 size-3',
+        cursor: 'cursor-nwse-resize',
+    },
 };
 
 function ResizeHandle({
@@ -1016,7 +1175,7 @@ function PageBoundaryOverlay({
                 style={{ left: 1, top: Math.max(1, pageHeight - 17) }}
             />
             <div
-                className={`${edge} h-4 w-4 border-b-2 border-r-2`}
+                className={`${edge} h-4 w-4 border-r-2 border-b-2`}
                 style={{
                     left: Math.max(1, pageWidth - 17),
                     top: Math.max(1, pageHeight - 17),
@@ -1034,7 +1193,8 @@ function MenuItem({
     label: string;
     onClick: () => void;
     icon?: React.ElementType;
-}) {    return (
+}) {
+    return (
         <button
             onClick={onClick}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-accent"
@@ -1096,7 +1256,7 @@ export function PageTabs({ readOnly = false }: { readOnly?: boolean }) {
                 <button
                     onClick={addPage}
                     className="rounded px-2 py-1 text-[13px] text-muted-foreground hover:bg-accent"
-                    aria-label="New page"
+                    aria-label="Nouvelle page"
                 >
                     +
                 </button>
@@ -1109,25 +1269,25 @@ export function PageTabs({ readOnly = false }: { readOnly?: boolean }) {
                     onClick={(e) => e.stopPropagation()}
                 >
                     <MenuItem
-                        label="Duplicate page"
+                        label="Dupliquer la page"
                         onClick={() => duplicatePage(menu.id)}
                     />
                     <MenuItem
-                        label="Rename page"
+                        label="Renommer la page"
                         onClick={() => {
                             const cur =
                                 pages.find((p) => p.id === menu.id)?.name ?? '';
-                            const name = window.prompt('Rename page', cur);
+                            const name = window.prompt('Renommer la page', cur);
                             if (name) renamePage(menu.id, name);
                             setMenu(null);
                         }}
                     />
                     <MenuItem
-                        label="Hide / show page"
+                        label="Masquer / afficher la page"
                         onClick={() => togglePageHidden(menu.id)}
                     />
                     <MenuItem
-                        label="Delete page"
+                        label="Supprimer la page"
                         onClick={() => removePage(menu.id)}
                     />
                 </div>

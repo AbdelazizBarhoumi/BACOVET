@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SchemaAnalysis } from '@/services/endpointManagerApi';
+import type { RelationGraph } from './graph';
 import {
     buildJoinRegistry,
     canonical,
     crossFilterRows,
     enrichRows,
     findJoin,
+    networkCrossFilter,
     resolveJoinField,
 } from './joins';
 import { aggregate, setTables, type TableDef, type Visual } from './model';
@@ -172,10 +174,18 @@ describe('joins', () => {
             expect(out).not.toBe(sales.rows);
             expect(out[0]).toEqual({ ProdGroup: 'A', Amount: 10, Target: 100 });
             expect(out[2]).toEqual({ ProdGroup: 'B', Amount: 30, Target: 200 });
-            expect(out[3]).toEqual({ ProdGroup: 'X', Amount: 40, Target: null });
-            expect(aggregate(out, { table: 'Targets', name: 'Target', agg: 'sum' })).toBe(
-                400,
-            );
+            expect(out[3]).toEqual({
+                ProdGroup: 'X',
+                Amount: 40,
+                Target: null,
+            });
+            expect(
+                aggregate(out, {
+                    table: 'Targets',
+                    name: 'Target',
+                    agg: 'sum',
+                }),
+            ).toBe(400);
         });
 
         it('leaves existing columns untouched', () => {
@@ -208,7 +218,11 @@ describe('joins', () => {
 
             expect(out[0]).toEqual({ ProdGroup: 'A', Amount: 10, Target: 100 });
             expect(out[2]).toEqual({ ProdGroup: 'B', Amount: 30, Target: 200 });
-            expect(out[3]).toEqual({ ProdGroup: 'X', Amount: 40, Target: null });
+            expect(out[3]).toEqual({
+                ProdGroup: 'X',
+                Amount: 40,
+                Target: null,
+            });
         });
 
         it('resolves bare measure refs to the first table exposing the column', () => {
@@ -227,7 +241,9 @@ describe('joins', () => {
         it('leaves rows unchanged when the measure references an unrelated table', () => {
             const visual = makeVisual({
                 axis: [{ table: 'Sales', name: 'ProdGroup', agg: 'sum' }],
-                values: [{ table: 'Measures', name: 'Unrelated Sum', agg: 'sum' }],
+                values: [
+                    { table: 'Measures', name: 'Unrelated Sum', agg: 'sum' },
+                ],
             });
             const out = enrichRows(visual, sales.rows, [sales, targets], reg, {
                 'Unrelated Sum': 'SUM(Unrelated[Label])',
@@ -241,7 +257,17 @@ describe('joins', () => {
         const reg = buildJoinRegistry(schema, [sales, targets]);
 
         it('returns rows unchanged without a cross-filter', () => {
-            expect(crossFilterRows(sales.rows, null, 'v1', 'Sales', true, 'filter', reg)).toEqual({
+            expect(
+                crossFilterRows(
+                    sales.rows,
+                    null,
+                    'v1',
+                    'Sales',
+                    true,
+                    'filter',
+                    reg,
+                ),
+            ).toEqual({
                 rows: sales.rows,
                 dim: false,
                 match: null,
@@ -249,8 +275,23 @@ describe('joins', () => {
         });
 
         it('ignores its own emitted filter', () => {
-            const cf = { sourceId: 'v1', column: 'ProdGroup', value: 'A', table: 'Sales' };
-            expect(crossFilterRows(sales.rows, cf, 'v1', 'Sales', true, 'filter', reg)).toEqual({
+            const cf = {
+                sourceId: 'v1',
+                column: 'ProdGroup',
+                value: 'A',
+                table: 'Sales',
+            };
+            expect(
+                crossFilterRows(
+                    sales.rows,
+                    cf,
+                    'v1',
+                    'Sales',
+                    true,
+                    'filter',
+                    reg,
+                ),
+            ).toEqual({
                 rows: sales.rows,
                 dim: false,
                 match: null,
@@ -258,8 +299,21 @@ describe('joins', () => {
         });
 
         it('filters same-table rows in filter mode', () => {
-            const cf = { sourceId: 'v2', column: 'ProdGroup', value: 'A', table: 'Sales' };
-            const { rows } = crossFilterRows(sales.rows, cf, 'v1', 'Sales', true, 'filter', reg);
+            const cf = {
+                sourceId: 'v2',
+                column: 'ProdGroup',
+                value: 'A',
+                table: 'Sales',
+            };
+            const { rows } = crossFilterRows(
+                sales.rows,
+                cf,
+                'v1',
+                'Sales',
+                true,
+                'filter',
+                reg,
+            );
             expect(rows).toEqual([
                 { ProdGroup: 'A', Amount: 10 },
                 { ProdGroup: 'A', Amount: 20 },
@@ -267,20 +321,59 @@ describe('joins', () => {
         });
 
         it('propagates to a related table through the shared join column', () => {
-            const cf = { sourceId: 'v2', column: 'ProdGroup', value: 'A', table: 'Sales' };
-            const { rows } = crossFilterRows(targets.rows, cf, 'v1', 'Targets', true, 'filter', reg);
+            const cf = {
+                sourceId: 'v2',
+                column: 'ProdGroup',
+                value: 'A',
+                table: 'Sales',
+            };
+            const { rows } = crossFilterRows(
+                targets.rows,
+                cf,
+                'v1',
+                'Targets',
+                true,
+                'filter',
+                reg,
+            );
             expect(rows).toEqual([{ prodgroup: 'A', Target: 100 }]);
         });
 
         it('ignores cross-table filters when the column is not a shared join', () => {
-            const cf = { sourceId: 'v2', column: 'Amount', value: '10', table: 'Sales' };
-            const { rows } = crossFilterRows(targets.rows, cf, 'v1', 'Targets', true, 'filter', reg);
+            const cf = {
+                sourceId: 'v2',
+                column: 'Amount',
+                value: '10',
+                table: 'Sales',
+            };
+            const { rows } = crossFilterRows(
+                targets.rows,
+                cf,
+                'v1',
+                'Targets',
+                true,
+                'filter',
+                reg,
+            );
             expect(rows).toBe(targets.rows);
         });
 
         it('keeps all rows and returns a match predicate in highlight mode', () => {
-            const cf = { sourceId: 'v2', column: 'ProdGroup', value: 'A', table: 'Sales' };
-            const { rows, match } = crossFilterRows(sales.rows, cf, 'v1', 'Sales', true, 'highlight', reg);
+            const cf = {
+                sourceId: 'v2',
+                column: 'ProdGroup',
+                value: 'A',
+                table: 'Sales',
+            };
+            const { rows, match } = crossFilterRows(
+                sales.rows,
+                cf,
+                'v1',
+                'Sales',
+                true,
+                'highlight',
+                reg,
+            );
             expect(rows).toBe(sales.rows);
             expect(match).not.toBeNull();
             expect(sales.rows.filter(match!)).toEqual([
@@ -290,20 +383,166 @@ describe('joins', () => {
         });
 
         it('returns rows unchanged in none mode', () => {
-            const cf = { sourceId: 'v2', column: 'ProdGroup', value: 'A', table: 'Sales' };
-            const { rows } = crossFilterRows(sales.rows, cf, 'v1', 'Sales', true, 'none', reg);
+            const cf = {
+                sourceId: 'v2',
+                column: 'ProdGroup',
+                value: 'A',
+                table: 'Sales',
+            };
+            const { rows } = crossFilterRows(
+                sales.rows,
+                cf,
+                'v1',
+                'Sales',
+                true,
+                'none',
+                reg,
+            );
             expect(rows).toBe(sales.rows);
         });
 
         it('guards the legacy table-less filter with the axis-column flag', () => {
             const cf = { sourceId: 'v2', column: 'ProdGroup', value: 'A' };
-            expect(crossFilterRows(sales.rows, cf, 'v1', 'Sales', false, 'filter', reg)).toEqual({
+            expect(
+                crossFilterRows(
+                    sales.rows,
+                    cf,
+                    'v1',
+                    'Sales',
+                    false,
+                    'filter',
+                    reg,
+                ),
+            ).toEqual({
                 rows: sales.rows,
                 dim: false,
                 match: null,
             });
-            const { rows } = crossFilterRows(sales.rows, cf, 'v1', 'Sales', true, 'filter', reg);
+            const { rows } = crossFilterRows(
+                sales.rows,
+                cf,
+                'v1',
+                'Sales',
+                true,
+                'filter',
+                reg,
+            );
             expect(rows).toHaveLength(2);
+        });
+    });
+
+    describe('networkCrossFilter', () => {
+        const products: TableDef = {
+            name: 'Products',
+            fields: [{ table: 'Products', name: 'Id', type: 'text' }],
+            rows: [{ Id: 'P1' }, { Id: 'P2' }],
+        };
+        const orders: TableDef = {
+            name: 'Orders',
+            fields: [{ table: 'Orders', name: 'ProductRef', type: 'text' }],
+            rows: [
+                { ProductRef: 'P1' },
+                { ProductRef: 'P1' },
+                { ProductRef: 'P2' },
+            ],
+        };
+        const graph: RelationGraph = {
+            edges: [
+                {
+                    a: 'Orders',
+                    colA: 'ProductRef',
+                    b: 'Products',
+                    colB: 'Id',
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+            ],
+        };
+        const cf = {
+            sourceId: 'v2',
+            column: 'Id',
+            value: 'P1',
+            table: 'Products',
+        };
+
+        it('is a no-op when the graph is empty', () => {
+            const res = networkCrossFilter(
+                orders.rows,
+                [products, orders],
+                { edges: [] },
+                cf,
+                'Orders',
+                'filter',
+            );
+            expect(res).toEqual({ rows: orders.rows, dim: false, match: null });
+        });
+
+        it('in filter mode returns the target rows reachable from the seed', () => {
+            const { rows } = networkCrossFilter(
+                orders.rows,
+                [products, orders],
+                graph,
+                cf,
+                'Orders',
+                'filter',
+            );
+            expect(rows).toEqual([{ ProductRef: 'P1' }, { ProductRef: 'P1' }]);
+        });
+
+        it('in highlight mode returns all rows plus a value-based match', () => {
+            const { rows, match } = networkCrossFilter(
+                orders.rows,
+                [products, orders],
+                graph,
+                cf,
+                'Orders',
+                'highlight',
+            );
+            expect(rows).toBe(orders.rows);
+            expect(orders.rows.filter(match!)).toEqual([
+                { ProductRef: 'P1' },
+                { ProductRef: 'P1' },
+            ]);
+        });
+
+        it('empties the fact table when the seed matches nothing (orphan)', () => {
+            const { rows } = networkCrossFilter(
+                orders.rows,
+                [products, orders],
+                graph,
+                { ...cf, value: 'P9' },
+                'Orders',
+                'filter',
+            );
+            expect(rows).toEqual([]);
+        });
+
+        it('is a no-op when the source table is unknown', () => {
+            const res = networkCrossFilter(
+                orders.rows,
+                [products, orders],
+                graph,
+                { ...cf, table: 'Nope' },
+                'Orders',
+                'filter',
+            );
+            expect(res).toEqual({ rows: orders.rows, dim: false, match: null });
+        });
+
+        it('gets wired as the crossFilterRows fallback when no shared join resolves', () => {
+            const { rows } = crossFilterRows(
+                orders.rows,
+                cf,
+                'v1',
+                'Orders',
+                false,
+                'filter',
+                {},
+                [products, orders],
+                graph,
+                true,
+            );
+            expect(rows).toEqual([{ ProductRef: 'P1' }, { ProductRef: 'P1' }]);
         });
     });
 });

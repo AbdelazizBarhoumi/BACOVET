@@ -290,7 +290,7 @@ function PaneHeader({
                 {onCollapse && (
                     <button
                         onClick={onCollapse}
-                        title="Collapse"
+                        title="Réduire"
                         className="rounded p-0.5 text-muted-foreground hover:bg-accent"
                     >
                         <ChevronsRight className="size-3.5" />
@@ -347,12 +347,14 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
         setBusy(true);
         try {
             await removeMeasure(target.id);
-            toast.success(`Measure "${name}" deleted`);
+            toast.success(`Mesure « ${name} » supprimée`);
             setConfirmDelete(null);
             setMenuFor(null);
         } catch (e) {
             toast.error(
-                e instanceof Error ? e.message : 'Failed to delete measure',
+                e instanceof Error
+                    ? e.message
+                    : 'Échec de la suppression de la mesure',
             );
         } finally {
             setBusy(false);
@@ -384,14 +386,14 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
 
     return (
         <div className="flex h-full flex-col">
-            <PaneHeader title="Data" onCollapse={onCollapse} />
+            <PaneHeader title="Données" onCollapse={onCollapse} />
             <div className="px-2 pb-2">
                 <div className="flex items-center gap-1 rounded border border-border bg-background px-2">
                     <Search className="size-3 text-muted-foreground" />
                     <input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search"
+                        placeholder="Rechercher"
                         className="w-full bg-transparent py-1 text-[11px] outline-none"
                     />
                 </div>
@@ -416,11 +418,11 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                     )}
                                 />
                                 <Sigma className="size-3 text-muted-foreground" />
-                                <span className="truncate">Measures</span>
+                                <span className="truncate">Mesures</span>
                             </button>
                             <button
                                 onClick={() => setManageOpen(true)}
-                                title="Manage measures"
+                                title="Gérer les mesures"
                                 className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent"
                             >
                                 <MoreHorizontal className="size-3.5" />
@@ -535,7 +537,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                         : f.name,
                                                                 )
                                                             }
-                                                            title="Measure actions"
+                                                            title="Actions de la mesure"
                                                             className="absolute top-1 right-1 z-10 rounded p-0.5 text-muted-foreground hover:bg-accent"
                                                         >
                                                             <MoreHorizontal className="size-3.5" />
@@ -546,12 +548,12 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                 f.name ? (
                                                                     <div className="px-2 py-1">
                                                                         <p className="mb-1 text-muted-foreground">
-                                                                            Delete{' '}
+                                                                            Supprimer{' '}
                                                                             <span className="font-mono">
                                                                                 {
                                                                                     f.name
                                                                                 }
-                                                                            </span>
+                                                                            </span>{' '}
                                                                             ?
                                                                         </p>
                                                                         <div className="flex justify-end gap-1">
@@ -563,7 +565,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                                 }
                                                                                 className="rounded border border-border px-2 py-0.5"
                                                                             >
-                                                                                No
+                                                                                Non
                                                                             </button>
                                                                             <button
                                                                                 onClick={() =>
@@ -576,7 +578,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                                 }
                                                                                 className="rounded bg-red-600 px-2 py-0.5 text-white disabled:opacity-50"
                                                                             >
-                                                                                Yes
+                                                                                Oui
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -594,7 +596,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                             className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
                                                                         >
                                                                             <Pencil className="size-3" />
-                                                                            Edit
+                                                                            Modifier
                                                                         </button>
                                                                         <button
                                                                             onClick={() =>
@@ -605,7 +607,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                             className="flex w-full items-center gap-2 px-2 py-1 text-red-500 hover:bg-accent"
                                                                         >
                                                                             <Trash2 className="size-3" />
-                                                                            Delete
+                                                                            Supprimer
                                                                         </button>
                                                                     </>
                                                                 )}
@@ -750,129 +752,190 @@ const VISUAL_GROUPS: {
     items: { type: VisualType; label: string; Icon: IconComponent }[];
 }[] = [
     {
-        group: 'Comparison',
+        group: 'Comparaison',
         items: [
             {
                 type: 'column',
-                label: 'Clustered column',
+                label: 'Histogramme groupé',
                 Icon: DataBarVerticalRegular,
             },
             {
                 type: 'stackedColumn',
-                label: 'Stacked column',
+                label: 'Histogramme empilé',
                 Icon: IconStackedColumn,
             },
             {
                 type: 'stacked100Column',
-                label: '100% stacked column',
+                label: 'Histogramme empilé 100 %',
                 Icon: IconStacked100Column,
             },
             {
                 type: 'bar',
-                label: 'Clustered bar',
+                label: 'Barres groupées',
                 Icon: DataBarHorizontalRegular,
             },
-            { type: 'stackedBar', label: 'Stacked bar', Icon: IconStackedBar },
+            {
+                type: 'stackedBar',
+                label: 'Barres empilées',
+                Icon: IconStackedBar,
+            },
             {
                 type: 'stacked100Bar',
-                label: '100% stacked bar',
+                label: 'Barres empilées 100 %',
                 Icon: IconStacked100Bar,
             },
-            { type: 'line', label: 'Line', Icon: DataLineRegular },
-            { type: 'area', label: 'Area', Icon: DataAreaRegular },
+            { type: 'line', label: 'Courbe', Icon: DataLineRegular },
+            { type: 'area', label: 'Aire', Icon: DataAreaRegular },
             {
                 type: 'stackedArea',
-                label: 'Stacked area',
+                label: 'Aire empilée',
                 Icon: IconStackedArea,
             },
             {
                 type: 'combo',
-                label: 'Line and stacked column',
+                label: 'Courbe et histogramme empilé',
                 Icon: ChartMultipleRegular,
             },
         ],
     },
     {
-        group: 'Part to whole & distribution',
+        group: 'Part du tout et distribution',
         items: [
-            { type: 'pie', label: 'Pie', Icon: DataPieRegular },
-            { type: 'donut', label: 'Donut', Icon: IconDonut },
-            { type: 'treemap', label: 'Treemap', Icon: DataTreemapRegular },
-            { type: 'funnel', label: 'Funnel', Icon: DataFunnelRegular },
-            { type: 'ribbon', label: 'Ribbon', Icon: IconRibbon },
+            { type: 'pie', label: 'Secteurs', Icon: DataPieRegular },
+            { type: 'donut', label: 'Anneau', Icon: IconDonut },
+            {
+                type: 'treemap',
+                label: 'Treemap',
+                Icon: DataTreemapRegular,
+            },
+            { type: 'funnel', label: 'Entonnoir', Icon: DataFunnelRegular },
+            { type: 'ribbon', label: 'Ruban', Icon: IconRibbon },
             {
                 type: 'waterfall',
-                label: 'Waterfall',
+                label: 'Cascade',
                 Icon: DataWaterfallRegular,
             },
-            { type: 'scatter', label: 'Scatter', Icon: DataScatterRegular },
-            { type: 'bubble', label: 'Bubble', Icon: BubbleMultipleRegular },
+            {
+                type: 'scatter',
+                label: 'Nuage de points',
+                Icon: DataScatterRegular,
+            },
+            {
+                type: 'bubble',
+                label: 'Nuage de points (bulles)',
+                Icon: BubbleMultipleRegular,
+            },
         ],
     },
     {
-        group: 'Single value & tabular',
+        group: 'Valeur unique et tabulaire',
         items: [
-            { type: 'card', label: 'Card', Icon: CardUiRegular },
-            { type: 'gauge', label: 'Gauge', Icon: GaugeRegular },
-            { type: 'table', label: 'Table', Icon: TableRegular },
-            { type: 'matrix', label: 'Matrix', Icon: GridRegular },
+            { type: 'card', label: 'Carte', Icon: CardUiRegular },
+            { type: 'gauge', label: 'Jauge', Icon: GaugeRegular },
+            { type: 'table', label: 'Tableau', Icon: TableRegular },
+            { type: 'matrix', label: 'Matrice', Icon: GridRegular },
         ],
     },
     {
-        group: 'Maps',
+        group: 'Cartes',
         items: [
-            { type: 'map', label: 'Map', Icon: MapRegular },
-            { type: 'filledMap', label: 'Filled map', Icon: IconFilledMap },
-            { type: 'shapeMap', label: 'Shape map', Icon: IconShapeMap },
+            { type: 'map', label: 'Carte', Icon: MapRegular },
+            {
+                type: 'filledMap',
+                label: 'Carte remplie',
+                Icon: IconFilledMap,
+            },
+            {
+                type: 'shapeMap',
+                label: 'Carte de formes',
+                Icon: IconShapeMap,
+            },
         ],
     },
     {
-        group: 'Slicers',
+        group: 'Segmenteurs',
         items: [
             {
                 type: 'slicer',
-                label: 'Slicer (checkbox)',
+                label: 'Segmenteur (cases à cocher)',
                 Icon: CheckboxCheckedRegular,
             },
             {
                 type: 'buttonSlicer',
-                label: 'Button slicer',
+                label: 'Segmenteur de boutons',
                 Icon: ToggleLeftRegular,
             },
             {
                 type: 'dropdownSlicer',
-                label: 'Dropdown slicer',
+                label: 'Segmenteur déroulant',
                 Icon: ChevronDownRegular,
             },
             {
                 type: 'inputSlicer',
-                label: 'Input slicer',
+                label: 'Segmenteur de saisie',
                 Icon: IconInputSlicer,
             },
             {
                 type: 'dateSlicer',
-                label: 'Date picker slicer',
+                label: 'Segmenteur de dates',
                 Icon: CalendarLtrRegular,
             },
         ],
     },
     {
-        group: 'Elements',
+        group: 'Éléments',
         items: [
-            { type: 'text', label: 'Text box', Icon: TextboxRegular },
+            {
+                type: 'text',
+                label: 'Zone de texte',
+                Icon: TextboxRegular,
+            },
             { type: 'image', label: 'Image', Icon: ImageRegular },
-            { type: 'button', label: 'Button', Icon: ButtonRegular },
+            { type: 'button', label: 'Bouton', Icon: ButtonRegular },
         ],
     },
 ];
 
-const AGGS: Agg[] = ['sum', 'avg', 'count', 'distinct', 'min', 'max'];
+const AGGS: Agg[] = [
+    'sum',
+    'avg',
+    'count',
+    'distinct',
+    'min',
+    'max',
+    'first',
+    'latest',
+    'raw',
+];
+
+const AGG_LABELS: Record<Agg, string> = {
+    sum: 'Somme',
+    avg: 'Moyenne',
+    count: 'Nombre',
+    distinct: 'Nombre distinct',
+    min: 'Min',
+    max: 'Max',
+    first: 'Premier',
+    latest: 'Dernier',
+    raw: 'Valeur réelle',
+};
 
 const VALUE_AGGREGATION_LABELS: Record<ValueAggregationMode, string> = {
-    first: 'First',
-    latest: 'Latest',
-    count: 'Count',
+    first: 'Premier',
+    latest: 'Dernier',
+    count: 'Nombre',
 };
+
+/** Wells that collapse a column to a single displayed value (rather than
+ * enumerate the distinct categories). A non-numeric field in one of these
+ * offers a First / Latest / Count selector. */
+const SINGLE_VALUE_WELLS: ReadonlySet<WellName> = new Set([
+    'values',
+    'target',
+    'minimum',
+    'maximum',
+    'tooltips',
+]);
 
 /** Number entry used by bound wells (gauge Min/Max/Target, card Target) when
  * no field is dropped; commits a finite number or `undefined` on blur/Enter. */
@@ -1100,12 +1163,12 @@ export function VisualizationsPane({
                                             >
                                                 {AGGS.map((a) => (
                                                     <option key={a} value={a}>
-                                                        {a}
+                                                        {AGG_LABELS[a]}
                                                     </option>
                                                 ))}
                                             </select>
                                         )}
-                                        {name === 'values' &&
+                                        {SINGLE_VALUE_WELLS.has(name) &&
                                             !numericField &&
                                             !isMeasure(f.name) && (
                                                 <select
@@ -1162,7 +1225,7 @@ export function VisualizationsPane({
                         ) : boundInput ? (
                             <BoundValueInput
                                 value={boundInput.value}
-                                placeholder="Enter a value"
+                                placeholder="Saisir une valeur"
                                 onCommit={(v) => {
                                     if (selected)
                                         updateVisual(selected.id, {
@@ -1172,7 +1235,7 @@ export function VisualizationsPane({
                             />
                         ) : (
                             <div className="px-1 py-1 text-[11px] text-muted-foreground">
-                                Add data fields here
+                                Ajouter des champs de données ici
                             </div>
                         )}
                     </div>
@@ -1183,12 +1246,12 @@ export function VisualizationsPane({
 
     return (
         <div className="flex h-full flex-col">
-            <PaneHeader title="Visualizations" onCollapse={onCollapse} />
+            <PaneHeader title="Visualisations" onCollapse={onCollapse} />
             <button
                 onClick={() => setListOpen((o) => !o)}
                 className="flex w-full items-center justify-between border-b border-border px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase hover:bg-accent"
             >
-                <span>Visual types</span>
+                <span>Types de visuels</span>
                 <ChevronDown
                     className={cn(
                         'size-3 transition-transform',
@@ -1233,11 +1296,11 @@ export function VisualizationsPane({
             {!selected ? (
                 <div className="flex-1 overflow-auto p-3 text-[11px]">
                     <div className="mb-2 font-semibold">
-                        Format page — {page.name}
+                        Format de la page — {page.name}
                     </div>
                     <label className="mb-2 block">
                         <span className="mb-1 block text-muted-foreground">
-                            Canvas size
+                            Taille de la zone de dessin
                         </span>
                         <select
                             value={page.format.preset}
@@ -1262,7 +1325,7 @@ export function VisualizationsPane({
                     <div className="mb-2 grid grid-cols-2 gap-2">
                         <label>
                             <span className="mb-1 block text-muted-foreground">
-                                Width px
+                                Largeur (px)
                             </span>
                             <input
                                 type="number"
@@ -1278,7 +1341,7 @@ export function VisualizationsPane({
                         </label>
                         <label>
                             <span className="mb-1 block text-muted-foreground">
-                                Height px
+                                Hauteur (px)
                             </span>
                             <input
                                 type="number"
@@ -1294,7 +1357,7 @@ export function VisualizationsPane({
                         </label>
                     </div>
                     <ColorInput
-                        label="Page background"
+                        label="Arrière-plan de la page"
                         value={page.format.background}
                         onChange={(v) =>
                             setPageFormat(page.id, {
@@ -1303,7 +1366,7 @@ export function VisualizationsPane({
                         }
                     />
                     <label className="mb-2 flex items-center justify-between">
-                        <span>Use as tooltip page</span>
+                        <span>Utiliser comme page d’info-bulle</span>
                         <input
                             type="checkbox"
                             checked={page.format.tooltip}
@@ -1316,7 +1379,7 @@ export function VisualizationsPane({
                         />
                     </label>
                     <label className="flex items-center justify-between">
-                        <span>Hide page</span>
+                        <span>Masquer la page</span>
                         <input
                             type="checkbox"
                             checked={page.format.hidden}
@@ -1329,8 +1392,8 @@ export function VisualizationsPane({
                         />
                     </label>
                     <p className="mt-3 text-muted-foreground">
-                        Select a visual on the canvas to edit its fields, format
-                        and analytics.
+                        Sélectionnez un visuel sur la zone de dessin pour
+                        modifier ses champs, son formatage et ses analyses.
                     </p>
                 </div>
             ) : (
@@ -1348,10 +1411,10 @@ export function VisualizationsPane({
                                 )}
                             >
                                 {t === 'fields'
-                                    ? 'Build visual'
+                                    ? 'Créer le visuel'
                                     : t === 'format'
-                                      ? 'Format'
-                                      : 'Analytics'}
+                                      ? 'Formatage'
+                                      : 'Analyses'}
                             </button>
                         ))}
                     </div>
@@ -1367,7 +1430,7 @@ export function VisualizationsPane({
                                                     selected.type
                                                         .toLowerCase()
                                                         .includes('slicer')
-                                                    ? 'Field'
+                                                    ? 'Champ'
                                                     : label,
                                             )}
                                         </Fragment>
@@ -1378,7 +1441,7 @@ export function VisualizationsPane({
                                 ) && (
                                     <label className="block text-[11px]">
                                         <span className="mb-1 block text-muted-foreground">
-                                            Tooltip page
+                                            Page d’info-bulle
                                         </span>
                                         <select
                                             value={selected.tooltipPageId ?? ''}
@@ -1391,7 +1454,7 @@ export function VisualizationsPane({
                                             }
                                             className="w-full rounded border border-border bg-background px-2 py-1"
                                         >
-                                            <option value="">Default</option>
+                                            <option value="">Par défaut</option>
                                             {pages.map((p) => (
                                                 <option key={p.id} value={p.id}>
                                                     {p.name}
@@ -1423,7 +1486,7 @@ export function VisualizationsPane({
                                         key={k}
                                         className="flex items-center justify-between capitalize"
                                     >
-                                        <span>{k} line</span>
+                                        <span>{k} ligne</span>
                                         <input
                                             type="checkbox"
                                             checked={selected.analytics.some(
@@ -1450,28 +1513,28 @@ export function VisualizationsPane({
 function ElementGeneral({ visual }: { visual: Visual }) {
     const { updateVisual } = usePbi();
     return (
-        <Section title="General" defaultOpen>
+        <Section title="Général" defaultOpen>
             <ColorInput
-                label="Background"
+                label="Arrière-plan"
                 value={visual.background}
                 onChange={(v) => updateVisual(visual.id, { background: v })}
             />
             <Toggle
-                label="Border"
+                label="Bordure"
                 checked={visual.border}
                 onChange={(v) => updateVisual(visual.id, { border: v })}
             />
             {visual.border && (
                 <div className="grid grid-cols-3 gap-2">
                     <ColorInput
-                        label="Color"
+                        label="Couleur"
                         value={visual.borderColor}
                         onChange={(v) =>
                             updateVisual(visual.id, { borderColor: v })
                         }
                     />
                     <NumberInput
-                        label="Width"
+                        label="Largeur"
                         min={1}
                         max={8}
                         value={visual.borderWidth ?? 1}
@@ -1480,18 +1543,16 @@ function ElementGeneral({ visual }: { visual: Visual }) {
                         }
                     />
                     <NumberInput
-                        label="Radius"
+                        label="Rayon"
                         min={0}
                         max={24}
                         value={visual.radius ?? 0}
-                        onChange={(v) =>
-                            updateVisual(visual.id, { radius: v })
-                        }
+                        onChange={(v) => updateVisual(visual.id, { radius: v })}
                     />
                 </div>
             )}
             <Toggle
-                label="Shadow"
+                label="Ombre"
                 checked={visual.shadow}
                 onChange={(v) => updateVisual(visual.id, { shadow: v })}
             />
@@ -1501,9 +1562,9 @@ function ElementGeneral({ visual }: { visual: Visual }) {
                         key={k}
                         label={
                             k === 'w'
-                                ? 'Width'
+                                ? 'Largeur'
                                 : k === 'h'
-                                  ? 'Height'
+                                  ? 'Hauteur'
                                   : `${k.toUpperCase()} px`
                         }
                         value={visual[k]}
@@ -1535,7 +1596,7 @@ function TextImageFormat({ visual }: { visual: Visual }) {
         <div className="space-y-3 text-[11px]">
             {visual.type === 'text' && (
                 <>
-                    <Section title="Text" defaultOpen>
+                    <Section title="Texte" defaultOpen>
                         <label className="block">
                             <span className="mb-1 block text-muted-foreground">
                                 Content
@@ -2122,7 +2183,7 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
                         onChange(next);
                     }}
                     className="h-5 w-full"
-                    ariaLabel={`${t.name} color ${i + 1}`}
+                    ariaLabel={`Couleur ${i + 1} de ${t.name}`}
                 />
             ))}
         </div>
@@ -2143,11 +2204,11 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
     return (
         <div className="flex h-full flex-col">
             <PaneHeader
-                title="Themes"
+                title="Thèmes"
                 right={
                     <button
                         onClick={() => togglePane('themes')}
-                        aria-label="Close themes pane"
+                        aria-label="Fermer le volet des thèmes"
                     >
                         <X className="size-3 text-muted-foreground" />
                     </button>
@@ -2156,7 +2217,7 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
             />
             <div className="flex-1 space-y-3 overflow-auto px-3 pb-3 text-[11px]">
                 <div className="text-muted-foreground">
-                    Colors apply instantly to every visual.
+                    Les couleurs s’appliquent instantanément à chaque visuel.
                 </div>
                 {allThemes.map((t) => {
                     const isActive = active?.id === t.id;
@@ -2178,7 +2239,7 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
                                             : 'text-muted-foreground'
                                     }
                                 >
-                                    {isActive ? 'Active' : 'Apply'}
+                                    {isActive ? 'Active' : 'Appliquer'}
                                 </span>
                             </button>
                             <div className="mt-2">
@@ -2193,18 +2254,20 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
                                     onClick={() => removeTheme(t.id)}
                                     className="mt-2 flex items-center gap-1 text-destructive"
                                 >
-                                    <Trash2 className="size-3" /> Delete
+                                    <Trash2 className="size-3" /> Supprimer
                                 </button>
                             )}
                         </div>
                     );
                 })}
                 <div className="rounded border border-border p-2">
-                    <div className="mb-1 font-medium">Save current theme</div>
+                    <div className="mb-1 font-medium">
+                        Enregistrer le thème actuel
+                    </div>
                     <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="Theme name"
+                        placeholder="Nom du thème"
                         className="w-full rounded border border-border bg-background px-2 py-1"
                     />
                     <button
@@ -2218,7 +2281,7 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
                         }
                         className="mt-2 flex w-full items-center justify-center gap-1 rounded bg-[var(--brand)] py-1 text-background disabled:opacity-50"
                     >
-                        <Plus className="size-3" /> Save theme
+                        <Plus className="size-3" /> Enregistrer le thème
                     </button>
                 </div>
             </div>
@@ -2268,31 +2331,31 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         (f.table && tableRows[f.table]) || [];
 
     const filterTypes: { value: FilterType; label: string }[] = [
-        { value: 'list', label: 'List' },
-        { value: 'dropdown', label: 'Dropdown' },
-        { value: 'search', label: 'Search' },
-        { value: 'dateRange', label: 'Date range' },
-        { value: 'relativeDate', label: 'Relative date' },
-        { value: 'topN', label: 'Top N' },
+        { value: 'list', label: 'Liste' },
+        { value: 'dropdown', label: 'Liste déroulante' },
+        { value: 'search', label: 'Recherche' },
+        { value: 'dateRange', label: 'Période' },
+        { value: 'relativeDate', label: 'Période relative' },
+        { value: 'topN', label: 'N premiers' },
     ];
 
     const relativePresets: { value: RelativePreset; label: string }[] = [
-        { value: 'today', label: 'Today' },
-        { value: 'yesterday', label: 'Yesterday' },
-        { value: 'last7days', label: 'Last 7 days' },
-        { value: 'last30days', label: 'Last 30 days' },
-        { value: 'last90days', label: 'Last 90 days' },
-        { value: 'thisMonth', label: 'This month' },
-        { value: 'lastMonth', label: 'Last month' },
-        { value: 'thisYear', label: 'This year' },
-        { value: 'lastYear', label: 'Last year' },
-        { value: 'ytd', label: 'Year to date' },
+        { value: 'today', label: "Aujourd'hui" },
+        { value: 'yesterday', label: 'Hier' },
+        { value: 'last7days', label: '7 derniers jours' },
+        { value: 'last30days', label: '30 derniers jours' },
+        { value: 'last90days', label: '90 derniers jours' },
+        { value: 'thisMonth', label: 'Ce mois-ci' },
+        { value: 'lastMonth', label: 'Le mois dernier' },
+        { value: 'thisYear', label: 'Cette année' },
+        { value: 'lastYear', label: "L'année dernière" },
+        { value: 'ytd', label: 'Depuis le début de l’année' },
     ];
 
     return (
         <div className="flex h-full flex-col">
             <PaneHeader
-                title="Filters"
+                title="Filtres"
                 right={<Filter className="size-3 text-muted-foreground" />}
                 onCollapse={onCollapse}
             />
@@ -2305,7 +2368,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                     }}
                     className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
                 >
-                    <option value="">Add a filter field…</option>
+                    <option value="">Ajouter un champ de filtre…</option>
                     {columns.map((c) => (
                         <option
                             key={`${c.table}::${c.name}`}
@@ -2349,8 +2412,9 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
             >
                 {!filters.length && (
                     <p className="text-[11px] text-muted-foreground">
-                        Filters on all pages. Drag a field here or double-click
-                        one in the Data pane to add it.
+                        Filtres sur toutes les pages. Glissez un champ ici ou
+                        double-cliquez sur un champ du volet Données pour
+                        l’ajouter.
                     </p>
                 )}
                 {filters.map((f) => (
@@ -2360,22 +2424,22 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                     >
                         <div className="mb-1 flex items-center justify-between text-[11px] font-medium">
                             <span>
-                                {f.column}{' '}
+                                {f.column}
                                 <span className="text-muted-foreground">
-                                    is{' '}
+                                    {' '}
                                     {f.type === 'search' && f.query
                                         ? `“${f.query}”`
                                         : f.type === 'topN'
-                                          ? `Top ${f.topN}`
+                                          ? `N premiers : ${f.topN}`
                                           : f.type === 'relativeDate'
                                             ? (relativePresets.find(
                                                   (p) => p.value === f.relative,
-                                              )?.label ?? 'Relative date')
+                                              )?.label ?? 'Période relative')
                                             : f.type === 'dateRange'
                                               ? `${f.from ?? '…'} → ${f.to ?? '…'}`
                                               : f.values.length
                                                 ? f.values.join(', ')
-                                                : '(All)'}
+                                                : '(Tous)'}
                                 </span>
                             </span>
                             <button
@@ -2385,7 +2449,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                             </button>
                         </div>
                         <select
-                            aria-label={`Filter type for ${f.column}`}
+                            aria-label={`Type de filtre pour ${f.column}`}
                             value={f.type}
                             onChange={(e) =>
                                 setFilterType(
@@ -2403,7 +2467,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                             ))}
                         </select>
                         <select
-                            aria-label={`Filter scope for ${f.column}`}
+                            aria-label={`Portée du filtre pour ${f.column}`}
                             value={f.scope}
                             onChange={(e) =>
                                 setFilterScope(
@@ -2414,8 +2478,8 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                             }
                             className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
                         >
-                            <option value="report">All pages</option>
-                            <option value="page">Current page</option>
+                            <option value="report">Toutes les pages</option>
+                            <option value="page">Page actuelle</option>
                         </select>
 
                         {f.type === 'search' && (
@@ -2429,7 +2493,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                         e.target.value,
                                     )
                                 }
-                                placeholder={`Search ${f.column}…`}
+                                placeholder={`Rechercher ${f.column}…`}
                                 className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
                             />
                         )}
@@ -2523,7 +2587,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                     className="w-14 rounded border border-border bg-background px-1 py-0.5"
                                 />
                                 <select
-                                    aria-label={`Top N measure for ${f.column}`}
+                                    aria-label={`Mesure pour le N premiers de ${f.column}`}
                                     value={f.topNBy?.name ?? ''}
                                     onChange={(e) =>
                                         setFilterTopN(
@@ -2556,7 +2620,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                             <div className="max-h-36 overflow-auto">
                                 {f.type === 'dropdown' && (
                                     <select
-                                        aria-label={`Dropdown value for ${f.column}`}
+                                        aria-label={`Valeur de la liste déroulante pour ${f.column}`}
                                         value={
                                             f.values.length
                                                 ? f.values[0]
@@ -2572,7 +2636,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                         }}
                                         className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
                                     >
-                                        <option value="__all__">(All)</option>
+                                        <option value="__all__">(Tous)</option>
                                         {distinctValues(
                                             f.column,
                                             rowsFor(f),
@@ -2636,11 +2700,11 @@ export function SelectionPane({ onCollapse }: { onCollapse?: () => void }) {
     return (
         <div className="flex h-full flex-col">
             <PaneHeader
-                title="Selection"
+                title="Sélection"
                 right={
                     <button
                         onClick={() => togglePane('selection')}
-                        aria-label="Close selection pane"
+                        aria-label="Fermer le volet de sélection"
                     >
                         <X className="size-3 text-muted-foreground" />
                     </button>
@@ -2648,7 +2712,7 @@ export function SelectionPane({ onCollapse }: { onCollapse?: () => void }) {
                 onCollapse={onCollapse}
             />
             <p className="px-3 pb-1 text-[10px] text-muted-foreground">
-                Layer order (front to back) · tab order
+                Ordre des couches (avant → arrière) · ordre des onglets
             </p>
             <div className="flex-1 overflow-auto px-2 pb-2">
                 {ordered.map((v, i) => (
@@ -2698,7 +2762,7 @@ export function SelectionPane({ onCollapse }: { onCollapse?: () => void }) {
                 ))}
                 {!ordered.length && (
                     <p className="px-1 text-[11px] text-muted-foreground">
-                        No objects on this page.
+                        Aucun objet sur cette page.
                     </p>
                 )}
             </div>
@@ -2719,11 +2783,11 @@ export function BookmarksPane({ onCollapse }: { onCollapse?: () => void }) {
     return (
         <div className="flex h-full flex-col">
             <PaneHeader
-                title="Bookmarks"
+                title="Signets"
                 right={
                     <button
                         onClick={() => togglePane('bookmarks')}
-                        aria-label="Close bookmarks pane"
+                        aria-label="Fermer le volet des signets"
                     >
                         <X className="size-3 text-muted-foreground" />
                     </button>
@@ -2733,18 +2797,19 @@ export function BookmarksPane({ onCollapse }: { onCollapse?: () => void }) {
             <div className="px-3 pb-2">
                 <button
                     onClick={() =>
-                        addBookmark(window.prompt('Bookmark name') ?? '')
+                        addBookmark(window.prompt('Nom du signet') ?? '')
                     }
                     className="flex w-full items-center justify-center gap-1 rounded border border-border py-1 text-[11px] hover:bg-accent"
                 >
-                    <Plus className="size-3" /> Add bookmark
+                    <Plus className="size-3" /> Ajouter un signet
                 </button>
             </div>
             <div className="flex-1 overflow-auto px-2 pb-2">
                 {!bookmarks.length && (
                     <p className="px-1 text-[11px] text-muted-foreground">
-                        Bookmarks capture filters, slicer selections,
-                        cross-filtering and visual visibility.
+                        Les signets capturent les filtres, les sélections des
+                        segments, les filtres croisés et la visibilité des
+                        visuels.
                     </p>
                 )}
                 {bookmarks.map((b) => (
@@ -2761,7 +2826,7 @@ export function BookmarksPane({ onCollapse }: { onCollapse?: () => void }) {
                         </button>
                         <button
                             onClick={() => removeBookmark(b.id)}
-                            aria-label="Delete bookmark"
+                            aria-label="Supprimer le signet"
                         >
                             <X className="size-3 text-muted-foreground hover:text-destructive" />
                         </button>
@@ -2782,11 +2847,11 @@ export function SyncSlicersPane({ onCollapse }: { onCollapse?: () => void }) {
     return (
         <div className="flex h-full flex-col">
             <PaneHeader
-                title="Sync slicers"
+                title="Synchroniser les segments"
                 right={
                     <button
                         onClick={() => togglePane('syncSlicers')}
-                        aria-label="Close sync slicers pane"
+                        aria-label="Fermer le volet de synchronisation des segments"
                     >
                         <X className="size-3 text-muted-foreground" />
                     </button>
@@ -2796,7 +2861,7 @@ export function SyncSlicersPane({ onCollapse }: { onCollapse?: () => void }) {
             <div className="flex-1 overflow-auto px-3 pb-3 text-[11px]">
                 {!slicers.length && (
                     <p className="text-muted-foreground">
-                        Add a slicer to this page to sync it.
+                        Ajoutez un segment à cette page pour le synchroniser.
                     </p>
                 )}
                 {slicers.map((s) => (

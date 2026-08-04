@@ -7,6 +7,7 @@
 // use (`formatWellValue`), which keeps number formatting intact in the file.
 
 import type { WorkBook } from 'xlsx';
+import type { RelationGraph } from './graph';
 import { crossFilterRows, enrichRows, type JoinRegistry } from './joins';
 import {
     buildChartData,
@@ -29,6 +30,8 @@ import {
 export type ExportDeps = {
     tables: TableDef[];
     joins: JoinRegistry;
+    graph?: RelationGraph;
+    smartNetwork?: boolean;
     crossFilter: CrossFilter;
     interactionFor: (sourceId: string, targetId: string) => Interaction;
     /** measure name -> expression, used to enrich measure-referenced columns. */
@@ -107,6 +110,9 @@ export function currentViewRows(
         visual.axis.some((f) => f.name === deps.crossFilter?.column),
         mode,
         deps.joins,
+        deps.tables,
+        deps.graph,
+        deps.smartNetwork,
     ).rows;
 }
 
@@ -138,8 +144,8 @@ export function visualExportData(
     if (SINGLE_VALUE.includes(visual.type)) {
         if (!visual.values.length) return null;
         return {
-            title: visual.name || 'Card',
-            columns: ['Measure', 'Value'],
+            title: visual.name || 'Carte',
+            columns: ['Mesure', 'Valeur'],
             rows: visual.values.map((v) => {
                 const type = fieldType(v.name, v.table);
                 const raw = singleValue(view, v);
@@ -157,7 +163,7 @@ export function visualExportData(
         const axis = visual.axis[0];
         if (!axis) return null;
         return {
-            title: visual.name || 'Slicer',
+            title: visual.name || 'Segmenteur',
             columns: [fieldLabel(axis)],
             rows: distinctValues(axis.name, view).map((v) => [String(v)]),
         };
@@ -173,12 +179,12 @@ export function visualExportData(
     );
     if (!series.length) return null;
 
-    const columns = ['Category', ...series];
+    const columns = ['Catégorie', ...series];
     const body = data.map((d) => [
         String(d['category'] ?? ''),
         ...series.map((s) => formatCell(d[s], visual, s, data)),
     ]);
-    return { title: visual.name || 'Visual', columns, rows: body };
+    return { title: visual.name || 'Visuel', columns, rows: body };
 }
 
 /** Gathers datasets for every visible visual on a page. */
@@ -229,7 +235,10 @@ export function datasetsToCsv(datasets: ExportDataset[]): string {
 /* ------------------------------ Excel ------------------------------ */
 
 function sanitizeSheetName(name: string): string {
-    const clean = name.replace(/[[\]:*?/\\]/g, ' ').slice(0, 31).trim();
+    const clean = name
+        .replace(/[[\]:*?/\\]/g, ' ')
+        .slice(0, 31)
+        .trim();
     return clean || 'Data';
 }
 

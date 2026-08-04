@@ -9,6 +9,7 @@ import {
 import {
     normalizeTitleStyle,
     type TitleStyle,
+    type ValueFormat,
     type Visual,
 } from '@/lib/pbi/model';
 import { cn } from '@/lib/utils';
@@ -153,6 +154,46 @@ export function TextInput({
                 className="w-full rounded border border-border bg-background px-2 py-1"
             />
         </label>
+    );
+}
+
+/** Auto/custom number formatting, mirroring the Gauge bound-row pattern: an
+ * Auto checkbox and, when off, a Power BI style format string. */
+export function ValueFormatControl({
+    label = 'Format',
+    value,
+    onChange,
+}: {
+    label?: string;
+    value: ValueFormat;
+    onChange: (v: ValueFormat) => void;
+}) {
+    const active = !value.auto && Boolean(value.format);
+    return (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">{label}</span>
+                <label className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+                    Auto
+                    <input
+                        type="checkbox"
+                        checked={value.auto}
+                        onChange={(e) =>
+                            onChange({ ...value, auto: e.target.checked })
+                        }
+                        className="accent-[var(--brand)]"
+                    />
+                </label>
+            </div>
+            {active && (
+                <TextInput
+                    label="Format string"
+                    value={value.format ?? ''}
+                    placeholder="$#,##0"
+                    onChange={(format) => onChange({ ...value, format })}
+                />
+            )}
+        </div>
     );
 }
 

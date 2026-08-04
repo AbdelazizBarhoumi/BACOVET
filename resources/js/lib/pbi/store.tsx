@@ -17,11 +17,13 @@ import {
 } from '@/services/measureApi';
 import {
     applyFilter,
+    propagateNetwork,
     relativeDateRange,
     type FilterType,
     type RelativePreset,
     type ReportFilter,
 } from './filters';
+import { EMPTY_GRAPH, type RelationGraph } from './graph';
 import type { JoinRegistry } from './joins';
 import { defaultGaugeStyle } from './model';
 import {
@@ -175,7 +177,10 @@ export type PaneName =
 export type State = {
     pages: Page[];
     activePageId: string;
+    /** primary selection id (last of selectedIds) */
     selectedId: string | null;
+    /** ordered multi-selection; last entry is the primary selection */
+    selectedIds: string[];
     filters: ReportFilter[];
     slicerSelections: Record<string, string[]>;
     slicerDateRanges: Record<string, SlicerDateRange>;
@@ -499,11 +504,57 @@ function gaugeStyleDefaults(): Partial<Visual> {
 }
 
 export function visualTypeLabel(type: VisualType) {
-    return type
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, (c) => c.toUpperCase())
-        .trim();
+    return (
+        VISUAL_TYPE_LABELS[type] ??
+        type
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, (c) => c.toUpperCase())
+            .trim()
+    );
 }
+
+export const VISUAL_TYPE_LABELS: Record<string, string> = {
+    column: 'Histogramme groupé',
+    stackedColumn: 'Histogramme empilé',
+    stacked100Column: 'Histogramme empilé 100 %',
+    bar: 'Barres groupées',
+    stackedBar: 'Barres empilées',
+    stacked100Bar: 'Barres empilées 100 %',
+    line: 'Courbe',
+    area: 'Aire',
+    stackedArea: 'Aire empilée',
+    combo: 'Courbe et histogramme empilé',
+    ribbon: 'Ruban',
+    waterfall: 'Cascade',
+    pie: 'Secteurs',
+    donut: 'Anneau',
+    treemap: 'Treemap',
+    funnel: 'Entonnoir',
+    scatter: 'Nuage de points',
+    bubble: 'Nuage de points (bulles)',
+    card: 'Carte',
+    gauge: 'Jauge',
+    table: 'Tableau',
+    matrix: 'Matrice',
+    slicer: 'Segmenteur (cases à cocher)',
+    buttonSlicer: 'Segmenteur de boutons',
+    dropdownSlicer: 'Segmenteur déroulant',
+    inputSlicer: 'Segmenteur de saisie',
+    dateSlicer: 'Segmenteur de dates',
+    map: 'Carte',
+    filledMap: 'Carte remplie',
+    shapeMap: 'Carte de formes',
+    decompositionTree: 'Arbre de décomposition',
+    keyInfluencers: 'Facteurs d’influence',
+    smartNarrative: 'Récit dynamique',
+    qna: 'Q&A',
+    rVisual: 'Visuel R',
+    pythonVisual: 'Visuel Python',
+    text: 'Zone de texte',
+    image: 'Image',
+    button: 'Bouton',
+    shape: 'Forme',
+};
 
 const defaultVisuals = (tables: TableDef[]): Visual[] => {
     const primary = tables[0];
@@ -520,16 +571,16 @@ const defaultVisuals = (tables: TableDef[]): Visual[] => {
             mkVisual('card', 16, 16, 250, 120, {
                 values: [wf(val, primary.name)],
                 title: val,
-                name: `Card — ${val}`,
+                name: `Carte — ${val}`,
                 z: 1,
             }),
         );
     }
     out.push(
         mkVisual('card', 278, 16, 250, 120, {
-            values: [wf('Row Count')],
-            title: 'Row Count',
-            name: 'Card — Row Count',
+            values: [wf('Nombre de lignes')],
+            title: 'Nombre de lignes',
+            name: 'Carte — Nombre de lignes',
             z: 2,
         }),
     );
@@ -538,8 +589,8 @@ const defaultVisuals = (tables: TableDef[]): Visual[] => {
             mkVisual('column', 16, 148, 512, 260, {
                 axis: [wf(by, primary.name)],
                 values: [wf(val, primary.name)],
-                title: `${val} by ${by}`,
-                name: `Column — ${val} by ${by}`,
+                title: `${val} par ${by}`,
+                name: `Histogramme — ${val} par ${by}`,
                 z: 3,
             }),
         );
@@ -547,7 +598,7 @@ const defaultVisuals = (tables: TableDef[]): Visual[] => {
             mkVisual('buttonSlicer', 540, 16, 460, 120, {
                 axis: [wf(by, primary.name)],
                 title: by,
-                name: `Slicer — ${by}`,
+                name: `Segmenteur — ${by}`,
                 z: 4,
             }),
         );
@@ -566,11 +617,12 @@ const mkPage = (id: string, name: string, visuals: Visual[] = []): Page => ({
 
 const defaultState = (tables: TableDef[] = []): State => ({
     pages: [
-        mkPage('p1', 'Overview', defaultVisuals(tables)),
-        mkPage('p2', 'Detail'),
+        mkPage('p1', 'Vue d’ensemble', defaultVisuals(tables)),
+        mkPage('p2', 'Détail'),
     ],
     activePageId: 'p1',
     selectedId: null,
+    selectedIds: [],
     filters: [],
     slicerSelections: {},
     slicerDateRanges: {},
@@ -587,7 +639,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
     snapToGrid: true,
     zoom: 100,
     mobileView: false,
-    ribbonTab: 'Insert',
+    ribbonTab: 'Insertion',
     openPanes: {
         filters: true,
         visualizations: true,
@@ -706,10 +758,14 @@ type Ctx = State & {
     tables: TableDef[];
     tableRows: Record<string, Row[]>;
     joins: JoinRegistry;
+    graph: RelationGraph;
+    smartNetwork: boolean;
+    setSmartNetworkFilter: (v: boolean) => void;
     highlightValue: CrossFilter;
     state: State;
     setState: React.Dispatch<React.SetStateAction<State>>;
-    select: (id: string | null) => void;
+    select: (id: string | null, options?: { toggle?: boolean }) => void;
+    setSelectedIds: (ids: string[]) => void;
     addVisual: (type: VisualType) => string;
     addShape: (kind: ShapeKind) => void;
     updateVisual: (id: string, patch: Partial<Visual>) => void;
@@ -874,15 +930,23 @@ export function PbiProvider({
     onChange,
     tables: tablesProp = [],
     joins: joinsProp = {},
+    graph: graphProp = EMPTY_GRAPH,
 }: {
     children: ReactNode;
     initialState?: State;
     onChange?: (state: State) => void;
     tables?: TableDef[];
     joins?: JoinRegistry;
+    graph?: RelationGraph;
 }) {
     const tables = tablesProp;
     const joins = joinsProp;
+    const graph = graphProp;
+
+    // Runtime preference (default ON): network propagation is a safe no-op
+    // when nothing is reduced, so it never wipes visuals. Kept out of the
+    // undo history and out of the persisted layout (see HISTORY_KEYS).
+    const [smartNetwork, setSmartNetwork] = useState(true);
 
     // Keep model helpers correct during the initial state construction too.
     setTables(tables);
@@ -893,7 +957,14 @@ export function PbiProvider({
 
     const [rawState, setRawState] = useState<State>(() =>
         initialState?.pages?.length
-            ? normalizeState(JSON.parse(JSON.stringify(initialState)))
+            ? {
+                  ...normalizeState(
+                      JSON.parse(JSON.stringify(initialState)),
+                  ),
+                  selectedIds:
+                      initialState.selectedIds ??
+                      (initialState.selectedId ? [initialState.selectedId] : []),
+              }
             : defaultState(tables),
     );
 
@@ -1153,14 +1224,14 @@ export function PbiProvider({
                     title: type === 'text' ? 'Text box' : '',
                     text:
                         type === 'text'
-                            ? 'Double-click to edit text'
+                            ? 'Text'
                             : type === 'button'
                               ? 'Button'
                               : undefined,
                 },
             );
             mapVisuals((vs) => [...vs, v]);
-            setState((s) => ({ ...s, selectedId: v.id }));
+            setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
             return v.id;
         },
         [mapVisuals, setState],
@@ -1177,7 +1248,7 @@ export function PbiProvider({
                 shadow: false,
             });
             mapVisuals((vs) => [...vs, v]);
-            setState((s) => ({ ...s, selectedId: v.id }));
+            setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
         },
         [mapVisuals, setState],
     );
@@ -1377,9 +1448,11 @@ export function PbiProvider({
             }
             map[t.name] = out;
         }
-        return map;
+        return propagateNetwork(tables, map, graph, smartNetwork);
     }, [
         tables,
+        graph,
+        smartNetwork,
         state.pages,
         state.filters,
         state.slicerSelections,
@@ -1408,6 +1481,9 @@ export function PbiProvider({
         tables,
         tableRows,
         joins,
+        graph,
+        smartNetwork,
+        setSmartNetworkFilter: (v) => setSmartNetwork(v),
         highlightValue: state.crossFilter,
         state,
         setState,
@@ -1415,24 +1491,63 @@ export function PbiProvider({
         redo,
         canUndo,
         canRedo,
-        select: (id) => setState((s) => ({ ...s, selectedId: id })),
+        select: (id, options) =>
+            setState((s) => {
+                if (id === null)
+                    return { ...s, selectedId: null, selectedIds: [] };
+                const prev = s.selectedIds ?? [];
+                let next: string[];
+                if (options?.toggle) {
+                    next = prev.includes(id)
+                        ? prev.filter((x) => x !== id)
+                        : [...prev, id];
+                } else if (prev.includes(id)) {
+                    next = [...prev.filter((x) => x !== id), id];
+                } else {
+                    next = [id];
+                }
+                return {
+                    ...s,
+                    selectedIds: next,
+                    selectedId: next.length
+                        ? next[next.length - 1]
+                        : null,
+                };
+            }),
+        setSelectedIds: (ids) =>
+            setState((s) => ({
+                ...s,
+                selectedIds: ids,
+                selectedId: ids.length ? ids[ids.length - 1] : null,
+            })),
         addVisual,
         addShape,
         updateVisual,
         removeVisual: (id) =>
-            setState((s) => ({
-                ...s,
-                crossFilter:
-                    s.crossFilter?.sourceId === id ? null : s.crossFilter,
-                pages: s.pages.map((p) =>
-                    p.id === s.activePageId
-                        ? {
-                              ...p,
-                              visuals: p.visuals.filter((v) => v.id !== id),
-                          }
-                        : p,
-                ),
-            })),
+            setState((s) => {
+                const selectedIds = (s.selectedIds ?? []).filter(
+                    (x) => x !== id,
+                );
+                return {
+                    ...s,
+                    crossFilter:
+                        s.crossFilter?.sourceId === id ? null : s.crossFilter,
+                    selectedId: selectedIds.length
+                        ? selectedIds[selectedIds.length - 1]
+                        : null,
+                    selectedIds,
+                    pages: s.pages.map((p) =>
+                        p.id === s.activePageId
+                            ? {
+                                  ...p,
+                                  visuals: p.visuals.filter(
+                                      (v) => v.id !== id,
+                                  ),
+                              }
+                            : p,
+                    ),
+                };
+            }),
         duplicateVisual: (id) =>
             mapVisuals((vs) => {
                 const v = vs.find((x) => x.id === id);
@@ -1446,7 +1561,7 @@ export function PbiProvider({
                         x: v.x + 24,
                         y: v.y + 24,
                         z: zTop,
-                        name: `${v.name} (copy)`,
+                        name: `${v.name} (copie)`,
                     },
                 ];
             }),
@@ -1577,6 +1692,7 @@ export function PbiProvider({
                     ],
                     activePageId: id,
                     selectedId: null,
+                    selectedIds: [],
                 };
             }),
         removePage: (id) =>
@@ -1588,6 +1704,7 @@ export function PbiProvider({
                     pages,
                     activePageId: pages[0]!.id,
                     selectedId: null,
+                    selectedIds: [],
                 };
             }),
         renamePage: (id, name) =>
@@ -1603,7 +1720,7 @@ export function PbiProvider({
                 const copy: Page = {
                     ...src,
                     id: nid,
-                    name: `${src.name} (copy)`,
+                    name: `${src.name} (copie)`,
                     visuals: src.visuals.map((v) => ({ ...v, id: uid() })),
                 };
                 return {
@@ -1611,6 +1728,7 @@ export function PbiProvider({
                     pages: [...s.pages, copy],
                     activePageId: nid,
                     selectedId: null,
+                    selectedIds: [],
                 };
             }),
         togglePageHidden: (id) =>
@@ -1649,7 +1767,12 @@ export function PbiProvider({
                 ),
             })),
         setActivePage: (id) =>
-            setState((s) => ({ ...s, activePageId: id, selectedId: null })),
+            setState((s) => ({
+                ...s,
+                activePageId: id,
+                selectedId: null,
+                selectedIds: [],
+            })),
         toggleSlicer: (visualId, column, value) =>
             setState((s) => {
                 const visual = s.pages
@@ -1880,7 +2003,7 @@ export function PbiProvider({
                         ...s.bookmarks,
                         {
                             id: uid('b'),
-                            name: name || `Bookmark ${s.bookmarks.length + 1}`,
+                            name: name || `Signet ${s.bookmarks.length + 1}`,
                             pageId: s.activePageId,
                             filters: s.filters.map((f) => ({
                                 ...f,
@@ -2005,8 +2128,8 @@ export function PbiProvider({
                     ...s.customThemes,
                     {
                         id: uid('theme'),
-                        name:
-                            name.trim() || `Theme ${s.customThemes.length + 1}`,
+                            name:
+                                name.trim() || `Thème ${s.customThemes.length + 1}`,
                         palette,
                         ...(fontFamily ? { fontFamily } : {}),
                     },
@@ -2062,6 +2185,7 @@ export function PbiProvider({
                     ...s,
                     activePageId: target.id,
                     selectedId: null,
+                    selectedIds: [],
                     drillthrough: { pageId: target.id, column, value },
                 };
             }),

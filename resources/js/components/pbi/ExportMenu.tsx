@@ -38,8 +38,17 @@ import { ExportSurface } from './ExportSurface';
 type ExportKind = 'pdf' | 'pdf-current' | 'png' | 'xlsx' | 'pptx';
 
 export function ExportMenu() {
-    const { state, tables, joins, crossFilter, interactionFor, tableRows, measures } =
-        usePbi();
+    const {
+        state,
+        tables,
+        joins,
+        crossFilter,
+        interactionFor,
+        tableRows,
+        measures,
+        graph,
+        smartNetwork,
+    } = usePbi();
     const surfaceRef = useRef<HTMLDivElement | null>(null);
     const [busy, setBusy] = useState<ExportKind | null>(null);
     const [progress, setProgress] = useState<{ done: number; total: number }>({
@@ -59,6 +68,8 @@ export function ExportMenu() {
     const deps: ExportDeps = {
         tables,
         joins,
+        graph,
+        smartNetwork,
         crossFilter,
         interactionFor,
         measureExpressions,
@@ -132,8 +143,11 @@ export function ExportMenu() {
             kind === 'pdf-current'
                 ? [nodes[currentPageIndex()] ?? nodes[0]!]
                 : nodes;
-        const pngs = await captureNodes(target, scale, 'Capture', (done, total) =>
-            setProgress({ done, total }),
+        const pngs = await captureNodes(
+            target,
+            scale,
+            'Capture',
+            (done, total) => setProgress({ done, total }),
         );
         if (kind === 'pdf' || kind === 'pdf-current') {
             await imagesToPdf(pngs, (done, total) =>
@@ -152,9 +166,7 @@ export function ExportMenu() {
                 <div className="fixed bottom-4 left-1/2 z-50 w-72 -translate-x-1/2 rounded-lg border border-border bg-panel p-3 shadow-lg">
                     <div className="mb-1 flex items-center gap-2 text-[12px]">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span className="font-medium">
-                            Export en cours…
-                        </span>
+                        <span className="font-medium">Export en cours…</span>
                         {progress.total > 0 && (
                             <span className="ml-auto text-muted-foreground">
                                 {progress.done}/{progress.total}

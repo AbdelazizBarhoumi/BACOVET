@@ -8,21 +8,23 @@ import {
     Layers,
     Link2,
     MousePointerClick,
+    Network,
     Palette,
     Shapes as ShapesIcon,
     SquareMousePointer,
     Type,
 } from 'lucide-react';
 import { useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { SHAPE_KINDS, SHAPES, ShapeGlyph } from '@/lib/pbi/shapes';
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
-const TABS = [
-    'Insert',
-    'View',
-] as const;
+const TABS = ['Insertion', 'Affichage'] as const;
 
 type Action = {
     label: string;
@@ -78,20 +80,19 @@ function ShapesMenu() {
             <PopoverTrigger asChild>
                 <button
                     className="flex h-[62px] w-[74px] flex-col items-center justify-center gap-1 rounded px-1 text-[10px] leading-tight text-foreground transition-colors hover:bg-accent"
-                    aria-label="Insert shapes"
+                    aria-label="Insérer des formes"
                 >
-                    <ShapesIcon className="size-5 text-foreground" strokeWidth={1.6} />
+                    <ShapesIcon
+                        className="size-5 text-foreground"
+                        strokeWidth={1.6}
+                    />
                     <span className="flex items-center gap-0.5">
-                        Shapes
+                        Formes
                         <ChevronDown className="size-2.5 text-muted-foreground" />
                     </span>
                 </button>
             </PopoverTrigger>
-            <PopoverContent
-                align="start"
-                sideOffset={8}
-                className="w-auto p-2"
-            >
+            <PopoverContent align="start" sideOffset={8} className="w-auto p-2">
                 <div className="grid grid-cols-3 gap-1">
                     {SHAPE_KINDS.map((kind) => (
                         <button
@@ -131,63 +132,89 @@ export function Ribbon({
         addBookmark,
         editInteractions,
         toggleEditInteractions,
+        smartNetwork,
+        setSmartNetworkFilter,
     } = usePbi();
     const [collapsed, setCollapsed] = useState(false);
 
     const groups: Record<string, Group[]> = {
-        Insert: [
+        Insertion: [
             {
-                title: 'Shapes',
+                title: 'Formes',
                 actions: [],
                 menu: <ShapesMenu />,
             },
             {
-                title: 'Elements',
+                title: 'Éléments',
                 actions: [
-                    { label: 'Text box', icon: Type, onClick: () => addVisual('text') },
-                    { label: 'Image', icon: Image, onClick: () => addVisual('image') },
-                    { label: 'Button', icon: SquareMousePointer, onClick: () => addVisual('button') },
-                    { label: 'Bookmark', icon: Bookmark, onClick: () => addBookmark('') },
+                    {
+                        label: 'Zone de texte',
+                        icon: Type,
+                        onClick: () => addVisual('text'),
+                    },
+                    {
+                        label: 'Image',
+                        icon: Image,
+                        onClick: () => addVisual('image'),
+                    },
+                    {
+                        label: 'Bouton',
+                        icon: SquareMousePointer,
+                        onClick: () => addVisual('button'),
+                    },
+                    {
+                        label: 'Signet',
+                        icon: Bookmark,
+                        onClick: () => addBookmark(''),
+                    },
                 ],
             },
             {
-                title: 'Calculations',
+                title: 'Calculs',
                 actions: [
-                    { label: 'New measure', icon: Braces, onClick: onOpenDax },
-                    { label: 'Manage measures', icon: FolderCog, onClick: onOpenManage },
+                    {
+                        label: 'Nouvelle mesure',
+                        icon: Braces,
+                        onClick: onOpenDax,
+                    },
+                    {
+                        label: 'Gérer les mesures',
+                        icon: FolderCog,
+                        onClick: onOpenManage,
+                    },
                 ],
             },
         ],
-        View: [
+        Affichage: [
             {
-                title: 'Show panes',
+                title: 'Afficher les volets',
                 actions: [
                     {
-                        label: 'Selection',
+                        label: 'Sélection',
                         icon: Layers,
                         active: openPanes.selection,
                         onClick: () => togglePane('selection'),
                     },
                     {
-                        label: 'Bookmarks',
+                        label: 'Signets',
                         icon: Bookmark,
                         active: openPanes.bookmarks,
                         onClick: () => togglePane('bookmarks'),
                     },
                     {
-                        label: 'Sync slicers',
+                        label: 'Synchroniser les segments',
                         icon: Link2,
                         active: openPanes.syncSlicers,
                         onClick: () => togglePane('syncSlicers'),
                     },
                     {
-                        label: 'Filters',
+                        label: 'Filtres',
                         icon: Columns3,
                         active: openPanes.filters,
                         onClick: () => togglePane('filters'),
                     },
                     {
-                        label: 'Themes',
+                        label: 'Thèmes',
                         icon: Palette,
                         active: openPanes.themes,
                         onClick: () => togglePane('themes'),
@@ -198,17 +225,23 @@ export function Ribbon({
                 title: 'Interactions',
                 actions: [
                     {
-                        label: 'Edit interactions',
+                        label: 'Modifier les interactions',
                         icon: MousePointerClick,
                         active: editInteractions,
                         onClick: () => toggleEditInteractions(),
+                    },
+                    {
+                        label: 'Filtrage réseau',
+                        icon: Network,
+                        active: smartNetwork,
+                        onClick: () => setSmartNetworkFilter(!smartNetwork),
                     },
                 ],
             },
         ],
     };
 
-    const active = groups[ribbonTab] ?? groups['Insert'] ?? [];
+    const active = groups[ribbonTab] ?? groups['Insertion'] ?? [];
 
     return (
         <div className="border-b border-border bg-panel">
@@ -233,11 +266,11 @@ export function Ribbon({
                     ))}
                 </div>
                 <div className="flex items-center gap-2 pr-1 text-[11px] text-muted-foreground">
-                    <span className="hidden sm:inline">Theme: {theme}</span>
+                    <span className="hidden sm:inline">Thème : {theme}</span>
                     <button
                         onClick={() => setCollapsed((c) => !c)}
                         className="rounded p-1 hover:bg-accent"
-                        aria-label="Collapse ribbon"
+                        aria-label="Réduire le ruban"
                     >
                         <ChevronDown
                             className={cn(
@@ -252,11 +285,10 @@ export function Ribbon({
                 <div className="flex h-[90px] items-stretch overflow-x-auto border-t border-border bg-ribbon">
                     {active.map((g) => (
                         <Group key={g.title} title={g.title}>
-                            {g.menu ?? (
+                            {g.menu ??
                                 g.actions.map((a) => (
                                     <RibbonButton key={a.label} {...a} />
-                                ))
-                            )}
+                                ))}
                         </Group>
                     ))}
                 </div>

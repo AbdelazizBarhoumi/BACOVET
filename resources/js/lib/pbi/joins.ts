@@ -3,6 +3,8 @@
 // and multi-table widgets "work in harmony" across related datasets.
 
 import type { SchemaAnalysis } from '@/services/endpointManagerApi';
+import { normValue, propagateNetwork } from './filters';
+import type { RelationGraph } from './graph';
 import {
     type CrossFilter,
     type Interaction,
@@ -196,6 +198,54 @@ export type InteractiveRows = {
 };
 
 /**
+ * Cross-filter fallback when the two tables share no registry join column:
+ * reduces the source table to the selected value, then propagates that
+ * reduction outward through the relationship graph. `rows` is the target
+ * visual's base rows (the fallback for when nothing can be derived). The
+ * match predicate for highlight mode compares rows by the target table's own
+ * fields, so it also works on join-enriched copies of those rows.
+ */
+export function networkCrossFilter(
+    rows: Row[],
+    tables: TableDef[],
+    graph: RelationGraph,
+    crossFilter: CrossFilter,
+    vt: string,
+    mode: Interaction,
+    smartNetwork = true,
+): InteractiveRows {
+    const noop: InteractiveRows = { rows, dim: false, match: null };
+    if (!crossFilter?.table || !crossFilter.column || crossFilter.value == null)
+        return noop;
+    const source = tables.find((t) => t.name === crossFilter.table);
+    if (!source || graph.edges.length === 0) return noop;
+    if (mode === 'none') return noop;
+
+    const want = normValue(crossFilter.value);
+    const seed = source.rows.filter(
+        (r) => normValue(r[crossFilter.column]) === want,
+    );
+    const map: Record<string, Row[]> = {};
+    for (const t of tables) map[t.name] = t.rows;
+    map[source.name] = seed;
+
+    const propagated = propagateNetwork(tables, map, graph, smartNetwork);
+    const targetRows = propagated[vt] ?? rows;
+
+    if (mode === 'highlight') {
+        const target = tables.find((t) => t.name === vt);
+        if (!target?.fields.length) return noop;
+        const keys = target.fields.map((f) => f.name);
+        const fingerprint = (r: Row) =>
+            keys.map((k) => normValue(r[k])).join('\u0001');
+        const allowed = new Set(targetRows.map(fingerprint));
+        return { rows, dim: false, match: (r) => allowed.has(fingerprint(r)) };
+    }
+
+    return { rows: targetRows, dim: false, match: null };
+}
+
+/**
  * Apply an incoming cross-filter to a visual's rows. Same-table filters work
  * as before; cross-table filters propagate through a shared join column (the
  * target's real field name is resolved from the registry). `axisHasColumn`
@@ -210,6 +260,9 @@ export function crossFilterRows(
     axisHasColumn: boolean,
     mode: Interaction,
     joins: JoinRegistry,
+    tables?: TableDef[],
+    graph?: RelationGraph,
+    smartNetwork = true,
 ): InteractiveRows {
     if (!crossFilter || crossFilter.sourceId === sourceId)
         return { rows, dim: false, match: null };
@@ -226,9 +279,21 @@ export function crossFilterRows(
             canonical(crossFilter.column),
             vt,
         );
-        if (!field) return { rows, dim: false, match: null };
-        colName = field;
-        apply = true;
+        if (field) {
+            colName = field;
+            apply = true;
+        } else if (mode !== 'none' && tables && graph) {
+            return networkCrossFilter(
+                rows,
+                tables,
+                graph,
+                crossFilter,
+                vt,
+                mode,
+                smartNetwork,
+            );
+        }
+        // No shared join and no graph: fall through and return rows unchanged.
     } else if (!crossFilter.table) {
         if (!vt || !axisHasColumn) return { rows, dim: false, match: null };
         apply = true;

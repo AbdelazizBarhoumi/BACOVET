@@ -42,6 +42,11 @@ import {
     type EndpointDataset,
     type TableDef,
 } from '@/lib/pbi/datasets';
+import {
+    buildRelationGraph,
+    EMPTY_GRAPH,
+    type RelationGraph,
+} from '@/lib/pbi/graph';
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
 import type { Interaction } from '@/lib/pbi/model';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
@@ -66,7 +71,7 @@ function parseInitialState(layout: PageProps['layout']): State | undefined {
     const pbi = layout?.pbi;
     if (!pbi || !Array.isArray(pbi.pages) || !pbi.pages.length)
         return undefined;
-    return { ...pbi, ribbonTab: 'Insert' };
+    return { ...pbi, ribbonTab: 'Insertion' };
 }
 
 function formatDraftTime(value: string): string {
@@ -160,6 +165,7 @@ export default function V5PageView() {
 
     const [tables, setTables] = useState<TableDef[]>([]);
     const [joins, setJoins] = useState<JoinRegistry>({});
+    const [graph, setGraph] = useState<RelationGraph>(EMPTY_GRAPH);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
@@ -179,10 +185,15 @@ export default function V5PageView() {
                 setTables(built);
                 try {
                     const schema = await fetchV5Schema();
-                    if (!stop) setJoins(buildJoinRegistry(schema, built));
+                    if (!stop) {
+                        const registry = buildJoinRegistry(schema, built);
+                        setJoins(registry);
+                        setGraph(buildRelationGraph(built, registry, schema));
+                    }
                 } catch {
-                    // shared join registry is best-effort; cross-table
-                    // cross-filtering simply degrades to same-table only.
+                    // shared join registry + relationship graph are
+                    // best-effort; cross-table cross-filtering simply
+                    // degrades to same-table / direct-from-graph only.
                 }
             } catch {
                 if (!stop) setFailed(true);
@@ -261,6 +272,7 @@ export default function V5PageView() {
                 onChange={onStoreChange}
                 tables={tables}
                 joins={joins}
+                graph={graph}
             >
                 <Shell
                     pageId={pageId}
@@ -439,7 +451,7 @@ function Shell({
         if (draft && Array.isArray(draft.pages) && draft.pages.length) {
             setState({
                 ...JSON.parse(JSON.stringify(draft)),
-                ribbonTab: 'Insert',
+                ribbonTab: 'Insertion',
             });
         }
         setShowDraftBanner(false);
@@ -598,9 +610,9 @@ function ViewBody() {
             <PageTabs readOnly />
             <footer className="flex items-center justify-between border-t border-border bg-panel px-3 py-1 text-[10px] text-muted-foreground">
                 <span>
-                    {page.name} · {page.visuals.length} visual(s) ·{' '}
+                    {page.name} · {page.visuals.length} visuel(s) ·{' '}
                     {tables.length} dataset(s) · {rows.length.toLocaleString()}{' '}
-                    lignes · {selected ? '1 sélectionné' : ''}
+                    lignes · {selected ? '1 sélection' : ''}
                 </span>
             </footer>
         </div>
@@ -634,14 +646,14 @@ function PaneShell({
                 </button>
                 <button
                     onClick={onToggle}
-                    title={`Expand ${title}`}
+                    title={`Déplier ${title}`}
                     className="mt-2 rounded px-1 py-1 text-[15px] leading-none font-bold text-muted-foreground [writing-mode:vertical-rl] hover:bg-accent"
                 >
                     {title}
                 </button>
                 <button
                     onClick={onToggle}
-                    title="Expand"
+                    title="Déplier"
                     className="mt-auto rounded p-1 text-muted-foreground hover:bg-accent"
                 >
                     <ChevronsRight className="size-4 rotate-180" />
@@ -713,11 +725,14 @@ function EditBody() {
             {editInteractions && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-brand/15 px-3 py-1 text-[11px] text-foreground">
                     <span>
-                        Edit interactions is on — select a source visual, then
-                        choose Filter / Highlight / None on each other visual.
+                        Les interactions sont activées — sélectionnez un visuel
+                        source, puis choisissez Filtre / Surbrillance / Aucune
+                        sur chaque autre visuel.
                     </span>
                     <div className="flex items-center gap-1">
-                        <span className="text-muted-foreground">Default:</span>
+                        <span className="text-muted-foreground">
+                            Par défaut :
+                        </span>
                         {(['filter', 'highlight', 'none'] as Interaction[]).map(
                             (m) => (
                                 <button
@@ -737,16 +752,16 @@ function EditBody() {
                     </div>
                     <button
                         onClick={clearInteractions}
-                        title="Remove every per-visual rule so the default applies to all visuals"
+                        title="Supprimer chaque règle par visuel afin que la valeur par défaut s’applique à tous les visuels"
                         className="underline hover:text-brand"
                     >
-                        Apply to all
+                        Appliquer à tous
                     </button>
                 </div>
             )}
             {crossFilter && (
                 <div className="flex items-center gap-2 bg-brand/15 px-3 py-1 text-[11px]">
-                    Cross-filtered:{' '}
+                    Filtré en croisant :{' '}
                     <span className="font-medium">
                         {crossFilter.table
                             ? `${crossFilter.table}[${crossFilter.column}]`
@@ -757,27 +772,29 @@ function EditBody() {
                         onClick={clearCrossFilter}
                         className="underline hover:text-brand"
                     >
-                        Clear
+                        Effacer
                     </button>
                 </div>
             )}
             {drillthrough && (
                 <div className="flex items-center gap-2 bg-muted px-3 py-1 text-[11px]">
-                    Drillthrough: {drillthrough.column} = {drillthrough.value}
+                    Exploration : {drillthrough.column} = {drillthrough.value}
                     <button onClick={clearDrillthrough} className="underline">
-                        Back
+                        Retour
                     </button>
                 </div>
             )}
 
             <main className="flex min-h-0 flex-1" style={themeStyle}>
                 <section className="min-h-0 flex-1 overflow-auto bg-muted">
-                    <h1 className="sr-only">Interactive report canvas</h1>
+                    <h1 className="sr-only">
+                        Rapport interactif — zone de dessin
+                    </h1>
                     <Canvas />
                 </section>
                 {openPanes.selection && (
                     <PaneShell
-                        title="Selection"
+                        title="Sélection"
                         icon={<Layers className="size-4" />}
                         width="w-56"
                         collapsed={paneCollapsed.selection}
@@ -790,7 +807,7 @@ function EditBody() {
                 )}
                 {openPanes.bookmarks && (
                     <PaneShell
-                        title="Bookmarks"
+                        title="Signets"
                         icon={<Bookmark className="size-4" />}
                         width="w-52"
                         collapsed={paneCollapsed.bookmarks}
@@ -803,7 +820,7 @@ function EditBody() {
                 )}
                 {openPanes.syncSlicers && (
                     <PaneShell
-                        title="Sync slicers"
+                        title="Synchroniser les segments"
                         icon={<Link2 className="size-4" />}
                         width="w-52"
                         collapsed={paneCollapsed.syncSlicers}
@@ -818,7 +835,7 @@ function EditBody() {
                 )}
                 {openPanes.filters && (
                     <PaneShell
-                        title="Filters"
+                        title="Filtres"
                         icon={<Filter className="size-4" />}
                         width="w-56"
                         collapsed={paneCollapsed.filters}
@@ -831,7 +848,7 @@ function EditBody() {
                 )}
                 {openPanes.themes && (
                     <PaneShell
-                        title="Themes"
+                        title="Thèmes"
                         icon={<Palette className="size-4" />}
                         width="w-64"
                         collapsed={paneCollapsed.themes}
@@ -843,7 +860,7 @@ function EditBody() {
                     </PaneShell>
                 )}
                 <PaneShell
-                    title="Visualizations"
+                    title="Visualisations"
                     icon={<BarChart3 className="size-4" />}
                     width="w-60"
                     collapsed={paneCollapsed.visualizations}
@@ -854,7 +871,7 @@ function EditBody() {
                     />
                 </PaneShell>
                 <PaneShell
-                    title="Fields"
+                    title="Champs"
                     icon={<Table2 className="size-4" />}
                     width="w-56"
                     collapsed={paneCollapsed.fields}
@@ -869,12 +886,12 @@ function EditBody() {
             <PageTabs />
             <footer className="flex items-center justify-between gap-4 border-t border-border bg-panel px-3 py-1 text-[10px] text-muted-foreground">
                 <span>
-                    {page.visuals.length} visuals ·{' '}
-                    {rows.length.toLocaleString()} of{' '}
+                    {page.visuals.length} visuels ·{' '}
+                    {rows.length.toLocaleString()} /{' '}
                     {tables
                         .reduce((t, td) => t + td.rows.length, 0)
                         .toLocaleString()}{' '}
-                    rows in context · {filters.length} report filters
+                    lignes du contexte · {filters.length} filtres du rapport
                 </span>
                 <span className="flex items-center gap-2">
                     <button
@@ -885,7 +902,7 @@ function EditBody() {
                             }))
                         }
                         className={mobileView ? 'text-brand-foreground' : ''}
-                        aria-label="Mobile layout"
+                        aria-label="Disposition mobile"
                     >
                         <Smartphone className="size-3.5" />
                     </button>

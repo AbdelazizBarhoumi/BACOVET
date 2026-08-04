@@ -16,7 +16,7 @@ export const THEME_COLOR_COUNT = 8;
 export const THEMES: ReportTheme[] = [
     {
         id: 'default',
-        name: 'Default',
+        name: 'Défaut',
         palette: [
             'oklch(0.62 0.17 70)',
             'oklch(0.62 0.17 145)',
@@ -30,7 +30,7 @@ export const THEMES: ReportTheme[] = [
     },
     {
         id: 'ocean',
-        name: 'Ocean',
+        name: 'Océan',
         palette: [
             'oklch(0.6 0.13 220)',
             'oklch(0.55 0.16 245)',
@@ -44,7 +44,7 @@ export const THEMES: ReportTheme[] = [
     },
     {
         id: 'forest',
-        name: 'Forest',
+        name: 'Forêt',
         palette: [
             'oklch(0.55 0.13 145)',
             'oklch(0.62 0.12 120)',
@@ -58,7 +58,7 @@ export const THEMES: ReportTheme[] = [
     },
     {
         id: 'sunset',
-        name: 'Sunset',
+        name: 'Coucher de soleil',
         palette: [
             'oklch(0.62 0.17 45)',
             'oklch(0.66 0.16 65)',

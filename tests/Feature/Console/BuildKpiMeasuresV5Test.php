@@ -107,7 +107,7 @@ class BuildKpiMeasuresV5Test extends TestCase
         $this->artisan('kpi:build-measures', ['--target' => 'v5'])->assertSuccessful();
 
         $measure = MeasureV5::where('name', 'arrêts non planifiés')->firstOrFail();
-        $this->assertSame('SUM(LostTimeTrx[LostTime])/SUM(LostType[LostTypeDesc])', $measure->expression);
+        $this->assertSame('LostTimeTrx[LostTime]/LostType[LostTypeDesc]', $measure->expression);
     }
 
     public function test_single_variable_kpi_qualifies_first_variable_in_v5(): void
@@ -126,7 +126,7 @@ class BuildKpiMeasuresV5Test extends TestCase
         $this->artisan('kpi:build-measures', ['--target' => 'v5'])->assertSuccessful();
 
         $measure = MeasureV5::where('name', 'arrêts non planifiés')->firstOrFail();
-        $this->assertSame('SUM(LostTimeTrx[LostTime])', $measure->expression);
+        $this->assertSame('LostTimeTrx[LostTime]', $measure->expression);
     }
 
     public function test_v6_target_keeps_bare_columns(): void
@@ -165,7 +165,7 @@ class BuildKpiMeasuresV5Test extends TestCase
             ->assertSuccessful();
 
         $measure = MeasureV5::where('name', 'KPI inconnu')->firstOrFail();
-        $this->assertSame('SUM(Temps)', $measure->expression);
+        $this->assertSame('Temps', $measure->expression);
     }
 
     public function test_v5_target_only_wipes_measures_v5(): void

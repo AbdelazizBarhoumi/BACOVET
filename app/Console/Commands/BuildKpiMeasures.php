@@ -31,6 +31,9 @@ class BuildKpiMeasures extends Command
         'First' => 'SUM',
     ];
 
+    /** Functions that explicitly aggregate a column (as opposed to direct/scalar picks). */
+    private const EXPLICIT_AGG = ['Sum', 'Average', 'Min', 'Max', 'Count'];
+
     public function handle(): int
     {
         $target = $this->option('target') === 'v5' ? 'v5' : 'v6';
@@ -257,34 +260,51 @@ class BuildKpiMeasures extends Command
     private function variableExpression(DataMapping $variable, ?array $tableNames): array
     {
         $key = $variable->variable_key;
-        $fn = $variable->has_function ? ($variable->fn ?? 'Latest') : 'Latest';
+        $explicitAgg = $variable->has_function && in_array((string) ($variable->fn ?? ''), self::EXPLICIT_AGG, true);
+        $fn = $explicitAgg ? ($variable->fn ?? 'Latest') : '';
         $agg = self::AGG_FUNCTIONS[$fn] ?? 'SUM';
 
         if ($key === null || trim((string) $key) === '') {
             $placeholder = $this->quoteColumn($variable->variable);
             $label = trim((string) $variable->variable) ?: 'Column';
+            $part = $explicitAgg ? "{$agg}({$placeholder})" : $placeholder;
 
-            return ["{$agg}({$placeholder})", "variable « {$label} » has no variable_key — placeholder column used, fix manually"];
+            return [$part, "variable « {$label} » has no variable_key — placeholder column used, fix manually"];
         }
-
-        $expression = "{$agg}({$key})";
 
         if ($tableNames !== null) {
-            $slug = $this->endpointSlug((string) $variable->endpoint);
-            $table = $slug !== '' ? ($tableNames[$slug] ?? null) : null;
-
-            if (is_string($table) && $table !== '' && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
-                return ["{$agg}({$table}[{$key}])", null];
-            }
-
-            if ($slug === '') {
-                return [$expression, "variable « {$key} » has no endpoint mapping — column left unqualified"];
-            }
-
-            return [$expression, "endpoint « {$slug} » not resolvable to a V5 table — column left unqualified"];
+            return $this->v5VariableExpression($variable, $key, $tableNames, $explicitAgg, $agg);
         }
 
-        return [$expression, null];
+        return ["{$agg}({$key})", null];
+    }
+
+    /**
+     * V5 expressions reference the owning dataset table (Table[Column]) and
+     * only wrap an aggregate when the field explicitly requests one. Direct
+     * Latest/First or undeclared fields (has_function=false) render as bare
+     * `Table[Column]` references.
+     *
+     * @param  array<string, string>  $tableNames
+     * @return array{0: string, 1: ?string}
+     */
+    private function v5VariableExpression(DataMapping $variable, string $key, array $tableNames, bool $explicitAgg, string $agg): array
+    {
+        $slug = $this->endpointSlug((string) $variable->endpoint);
+        $table = $slug !== '' ? ($tableNames[$slug] ?? null) : null;
+        $bare = $key;
+
+        if (is_string($table) && $table !== '' && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
+            $column = "{$table}[{$key}]";
+
+            return [$explicitAgg ? "{$agg}({$column})" : $column, null];
+        }
+
+        if ($slug === '') {
+            return [$explicitAgg ? "{$agg}({$bare})" : $bare, "variable « {$key} » has no endpoint mapping — column left unqualified"];
+        }
+
+        return [$explicitAgg ? "{$agg}({$bare})" : $bare, "endpoint « {$slug} » not resolvable to a V5 table — column left unqualified"];
     }
 
     /**

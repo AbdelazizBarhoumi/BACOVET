@@ -19,6 +19,7 @@ import {
     normalizeCategoryLabelStyle,
     normalizeGaugeStyle,
     normalizeTitleStyle,
+    normalizeValueFormat,
     normalizeWellField,
     parseDaxRef,
     parseFieldReference,
@@ -137,7 +138,16 @@ describe('PBI chart aggregation', () => {
         ];
         const field = (
             name: string,
-            agg: 'sum' | 'avg' | 'count' | 'distinct' | 'min' | 'max',
+            agg:
+                | 'sum'
+                | 'avg'
+                | 'count'
+                | 'distinct'
+                | 'min'
+                | 'max'
+                | 'first'
+                | 'latest'
+                | 'raw',
         ) => ({
             table: 'sales',
             name,
@@ -150,6 +160,10 @@ describe('PBI chart aggregation', () => {
         expect(aggregate(rows, field('Amount', 'distinct'))).toBe(4);
         expect(aggregate(rows, field('Amount', 'min'))).toBe(-4);
         expect(aggregate(rows, field('Amount', 'max'))).toBe(10);
+        expect(aggregate(rows, field('Amount', 'first'))).toBe(10);
+        expect(aggregate(rows, field('Amount', 'latest'))).toBe(-4);
+        expect(aggregate(rows, field('Amount', 'raw'))).toBe(10);
+        expect(measureLabel(field('Amount', 'raw'))).toBe('Amount');
         expect(measureLabel(field('Amount', 'sum'))).toBe('Sum of Amount');
         expect(measureLabel(field('Amount', 'avg'))).toBe('Average of Amount');
         expect(measureLabel(field('Amount', 'count'))).toBe('Count of Amount');
@@ -158,6 +172,12 @@ describe('PBI chart aggregation', () => {
         );
         expect(measureLabel(field('Amount', 'min'))).toBe('Min of Amount');
         expect(measureLabel(field('Amount', 'max'))).toBe('Max of Amount');
+        expect(measureLabel(field('Amount', 'first'))).toBe(
+            'First of Amount',
+        );
+        expect(measureLabel(field('Amount', 'latest'))).toBe(
+            'Latest of Amount',
+        );
     });
 
     it('infers all supported fixture field types and handles empty rows', () => {
@@ -551,6 +571,51 @@ describe('callout formatting', () => {
     it('formats auto display units without trailing zeros', () => {
         expect(formatCallout(2_500, { displayUnits: 'auto' })).toBe('2.5K');
         expect(formatCallout(250, { displayUnits: 'auto' })).toBe('250');
+    });
+
+    it('honors a custom valueFormat string over display units', () => {
+        const style = {
+            displayUnits: 'auto',
+            decimals: 1,
+            valueFormat: { auto: false, format: '$#,##0' },
+        } as const;
+        expect(formatCallout(1270, style)).toBe('$1,270');
+        expect(formatCallout(-1270, style)).toBe('-$1,270');
+    });
+
+    it('falls back to display units when valueFormat is auto', () => {
+        const style = {
+            displayUnits: 'thousands',
+            decimals: 1,
+            valueFormat: { auto: true },
+        } as const;
+        expect(formatCallout(12_000, style)).toBe('12.0K');
+    });
+
+    it('normalizes valueFormat to auto by default', () => {
+        expect(normalizeValueFormat(undefined)).toEqual({ auto: true });
+        expect(normalizeValueFormat({ auto: false })).toEqual({
+            auto: false,
+            format: undefined,
+        });
+        expect(normalizeValueFormat({ auto: false, format: ' 0.0% ' })).toEqual(
+            { auto: false, format: '0.0%' },
+        );
+    });
+
+    it('carries valueFormat through gauge label normalization', () => {
+        const style = normalizeGaugeStyle({
+            dataLabels: {
+                values: { valueFormat: { auto: false, format: '0.00' } },
+            },
+        } as unknown);
+        expect(style.dataLabels.values.valueFormat).toEqual({
+            auto: false,
+            format: '0.00',
+        });
+        expect(style.dataLabels.targetLabel.valueFormat).toEqual({
+            auto: true,
+        });
     });
 });
 

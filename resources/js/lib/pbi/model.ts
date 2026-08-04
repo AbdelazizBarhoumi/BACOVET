@@ -20,7 +20,16 @@ export type Field = {
 
 export type Row = Record<string, string | number | boolean | null>;
 
-export type Agg = 'sum' | 'avg' | 'count' | 'min' | 'max' | 'distinct';
+export type Agg =
+    | 'sum'
+    | 'avg'
+    | 'count'
+    | 'min'
+    | 'max'
+    | 'distinct'
+    | 'first'
+    | 'latest'
+    | 'raw';
 
 /** How a card/gauge shows a non-numeric field across multiple rows. */
 export type ValueAggregationMode = 'first' | 'latest' | 'count';
@@ -71,7 +80,17 @@ export type FieldReference = {
     name: string;
 };
 
-const AGGREGATIONS: Agg[] = ['sum', 'avg', 'count', 'distinct', 'min', 'max'];
+const AGGREGATIONS: Agg[] = [
+    'sum',
+    'avg',
+    'count',
+    'distinct',
+    'min',
+    'max',
+    'first',
+    'latest',
+    'raw',
+];
 
 export const NUMBER_FORMATS: NumberFormat[] = [
     'auto',
@@ -535,6 +554,26 @@ export function isDisplayUnit(value: unknown): value is DisplayUnit {
     );
 }
 
+/** Auto/custom number formatting, mirroring the Gauge bound rows: when
+ * `auto` is true the field/visual default applies; otherwise `format` is a
+ * Power BI-style format string (see `formatNumberPattern`). */
+export type ValueFormat = {
+    auto: boolean;
+    format?: string;
+};
+
+export function normalizeValueFormat(input: unknown): ValueFormat {
+    if (!input || typeof input !== 'object') return { auto: true };
+    const value = input as Record<string, unknown>;
+    return {
+        auto: typeof value.auto === 'boolean' ? value.auto : true,
+        format:
+            typeof value.format === 'string' && value.format.trim()
+                ? value.format.trim()
+                : undefined,
+    };
+}
+
 export type FxOp = '>' | '>=' | '<' | '<=' | '=' | '!=';
 
 /** One conditional-formatting rule for a callout value. */
@@ -718,6 +757,8 @@ export type GaugeLabelStyle = {
     color?: string;
     displayUnits: DisplayUnit;
     decimals?: number;
+    /** Auto/custom number formatting; overrides `displayUnits` when set. */
+    valueFormat?: ValueFormat;
     fx?: ConditionalFormat | boolean;
 };
 
@@ -863,11 +904,11 @@ export const PAGE_PRESETS: {
     { name: '4:3', width: 960, height: 720 },
     { name: 'A5', width: 559, height: 794, paper: true },
     { name: 'A4', width: 794, height: 1123, paper: true },
-    { name: 'A4 landscape', width: 1123, height: 794, paper: true },
+    { name: 'A4 paysage', width: 1123, height: 794, paper: true },
     { name: 'A3', width: 1123, height: 1587, paper: true },
-    { name: 'Letter', width: 1100, height: 850, paper: true },
-    { name: 'Tooltip', width: 320, height: 240 },
-    { name: 'Custom', width: 1280, height: 720 },
+    { name: 'Lettre', width: 1100, height: 850, paper: true },
+    { name: 'Info-bulle', width: 320, height: 240 },
+    { name: 'Personnalisé', width: 1280, height: 720 },
 ];
 
 export type Page = {
@@ -909,10 +950,10 @@ export function setTables(tables: TableDef[]): void {
 export const MEASURES: Field[] = [
     {
         table: 'Measures',
-        name: 'Row Count',
+        name: 'Nombre de lignes',
         type: 'number',
         measure: true,
-        expression: 'Row Count = COUNTROWS ( <table> )',
+        expression: 'Nombre de lignes = COUNTROWS ( <table> )',
     },
 ];
 
@@ -921,7 +962,7 @@ export const MEASURES: Field[] = [
 export type MeasureImpl = (rows: Row[], ctx?: EvalCtx) => number;
 
 export const MEASURE_IMPL: Record<string, MeasureImpl> = {
-    'Row Count': (rows) => rows.length,
+    'Nombre de lignes': (rows) => rows.length,
 };
 
 function numericValues(rows: Row[], col: string): number[] {
@@ -1633,6 +1674,22 @@ export function aggregate(rows: Row[], wf: WellField): number {
             const values = numericValues(rows, col);
             return values.length ? Math.max(...values) : 0;
         }
+        case 'first': {
+            const values = numericValues(rows, col);
+            return values.length ? values[0] : 0;
+        }
+        case 'latest': {
+            const values = numericValues(rows, col);
+            const last = values[values.length - 1];
+            return last === undefined ? 0 : last;
+        }
+        case 'raw': {
+            // Actual value mode: show the field's value as-is from the first
+            // row that has a non-null value, instead of an aggregate. For a
+            // row-unique axis this surfaces the real per-row measurement.
+            const nums = numericValues(rows, col);
+            return nums.length ? nums[0] : 0;
+        }
         default:
             return sum(rows, col);
     }
@@ -1699,21 +1756,26 @@ export function measureLabel(wf: WellField) {
     if (isMeasure(wf.name)) return wf.name;
     if (wf.label?.trim()) return wf.label.trim();
     if (fieldType(wf.name, wf.table) === 'number') {
+        if (wf.agg === 'raw') return fieldLabel(wf);
         const p =
             wf.agg === 'sum'
-                ? 'Sum of'
+                ? 'Somme de'
                 : wf.agg === 'avg'
-                  ? 'Average of'
+                  ? 'Moyenne de'
                   : wf.agg === 'count'
-                    ? 'Count of'
+                    ? 'Nombre de'
                     : wf.agg === 'distinct'
-                      ? 'Distinct count of'
-                      : wf.agg === 'min'
-                        ? 'Min of'
-                        : 'Max of';
+                      ? 'Nombre distinct de'
+                      : wf.agg === 'first'
+                        ? 'Premier de'
+                        : wf.agg === 'latest'
+                          ? 'Dernier de'
+                          : wf.agg === 'min'
+                            ? 'Min de'
+                            : 'Max de';
         return `${p} ${fieldLabel(wf)}`;
     }
-    return `Count of ${fieldLabel(wf)}`;
+    return `Nombre de ${fieldLabel(wf)}`;
 }
 
 export function buildChartData(
@@ -2017,7 +2079,7 @@ export function formatNumberPattern(n: number, pattern: string): string {
     const sections = pattern.split(';');
     const neg = sections[1] !== undefined ? sections[1]! : null;
     const section = n < 0 && neg !== null ? neg : (sections[0] ?? '');
-    const negative = n < 0 && neg !== null;
+    const negative = n < 0 && neg === null;
     const abs = Math.abs(n);
 
     let percent = false;
@@ -2077,7 +2139,7 @@ export function formatNumberPattern(n: number, pattern: string): string {
     }
 
     if (!intBlock && !fracBlock)
-        return `${prefix}${negative ? '-' : ''}${suffix}`;
+        return `${negative ? '-' : ''}${prefix}${suffix}`;
 
     let v = abs;
     if (percent) v *= 100;
@@ -2094,7 +2156,7 @@ export function formatNumberPattern(n: number, pattern: string): string {
     if (intPart.length < minInt) intPart = intPart.padStart(minInt, '0');
     if (thousands) intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     const fracOut = decimals > 0 ? `.${fracRaw}` : '';
-    return `${prefix}${negative ? '-' : ''}${intPart}${fracOut}${
+    return `${negative ? '-' : ''}${prefix}${intPart}${fracOut}${
         percent ? '%' : ''
     }${suffix}`;
 }
@@ -2251,7 +2313,11 @@ function formatAutoNumber(n: number, decimals?: number): string {
  */
 export function formatCallout(
     value: string | number | boolean | null,
-    style: Pick<CalloutStyle, 'displayUnits' | 'decimals'>,
+    style: {
+        displayUnits?: DisplayUnit;
+        decimals?: number;
+        valueFormat?: ValueFormat;
+    },
     wf?: Pick<WellField, 'format'>,
     type: FieldType = 'number',
 ): string {
@@ -2260,6 +2326,8 @@ export function formatCallout(
         return formatValue(value, type);
     const n = value;
     if (!isFinite(n)) return '—';
+    const vf = normalizeValueFormat(style.valueFormat);
+    if (!vf.auto && vf.format) return formatNumberPattern(n, vf.format);
     if (wf?.format && wf.format !== 'auto')
         return formatNumberWith(n, wf.format);
     const unit = isDisplayUnit(style.displayUnits)
@@ -2621,6 +2689,7 @@ export const DEFAULT_GAUGE_LABEL: GaugeLabelStyle = {
     show: true,
     displayUnits: 'auto',
     decimals: 1,
+    valueFormat: { auto: true },
 };
 
 export const DEFAULT_GAUGE_DATA_LABELS: GaugeDataLabelsStyle = {
@@ -2698,6 +2767,7 @@ function normalizeGaugeLabel(
         out.color = value.color.trim();
     if (typeof value.decimals === 'number' && isFinite(value.decimals))
         out.decimals = value.decimals;
+    out.valueFormat = normalizeValueFormat(value.valueFormat);
     if (value.fx !== undefined)
         out.fx = value.fx as ConditionalFormat | boolean;
     return out;

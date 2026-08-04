@@ -50,8 +50,8 @@ export const CARTESIAN_TYPES: VisualType[] = [
 
 export const SINGLE_VALUE_CONFIG: VisualConfig = {
     build: [
-        { well: 'values', label: 'Fields' },
-        { well: 'target', label: 'Target (goal)' },
+        { well: 'values', label: 'Champs' },
+        { well: 'target', label: 'Objectif (cible)' },
     ],
     showAnalytics: false,
     analyticsKinds: [],
@@ -62,11 +62,11 @@ export const SINGLE_VALUE_CONFIG: VisualConfig = {
 /** Gauge: a single-value arc visual with min/max/target bound fields. */
 export const GAUGE_CONFIG: VisualConfig = {
     build: [
-        { well: 'values', label: 'Value' },
-        { well: 'minimum', label: 'Minimum value' },
-        { well: 'maximum', label: 'Maximum value' },
-        { well: 'target', label: 'Target value' },
-        { well: 'tooltips', label: 'Tooltips' },
+        { well: 'values', label: 'Valeur' },
+        { well: 'minimum', label: 'Valeur min' },
+        { well: 'maximum', label: 'Valeur max' },
+        { well: 'target', label: 'Objectif (cible)' },
+        { well: 'tooltips', label: 'Info-bulles' },
     ],
     showAnalytics: false,
     analyticsKinds: [],
@@ -85,12 +85,12 @@ export const GAUGE_CONFIG: VisualConfig = {
  * which only make sense on line charts. */
 export const CARTESIAN_CONFIG: VisualConfig = {
     build: [
-        { well: 'axis', label: 'X-axis / Rows' },
-        { well: 'legend', label: 'Legend / Columns' },
-        { well: 'values', label: 'Values' },
-        { well: 'smallMultiples', label: 'Small multiples' },
-        { well: 'tooltips', label: 'Tooltips' },
-        { well: 'drillFields', label: 'Extraction / drill fields' },
+        { well: 'axis', label: 'Axe X / Lignes' },
+        { well: 'legend', label: 'Légende / Colonnes' },
+        { well: 'values', label: 'Valeurs' },
+        { well: 'smallMultiples', label: 'Petits multiples' },
+        { well: 'tooltips', label: 'Info-bulles' },
+        { well: 'drillFields', label: 'Extraction / champs d’exploration' },
     ],
     showAnalytics: true,
     analyticsKinds: ['constant', 'average', 'min', 'max', 'median'],
@@ -110,12 +110,12 @@ export const CARTESIAN_CONFIG: VisualConfig = {
 
 export const GENERIC_CONFIG: VisualConfig = {
     build: [
-        { well: 'axis', label: 'X-axis / Rows' },
-        { well: 'legend', label: 'Legend / Columns' },
-        { well: 'values', label: 'Values' },
-        { well: 'smallMultiples', label: 'Small multiples' },
-        { well: 'tooltips', label: 'Tooltips' },
-        { well: 'drillFields', label: 'Extraction / drill fields' },
+        { well: 'axis', label: 'Axe X / Lignes' },
+        { well: 'legend', label: 'Légende / Colonnes' },
+        { well: 'values', label: 'Valeurs' },
+        { well: 'smallMultiples', label: 'Petits multiples' },
+        { well: 'tooltips', label: 'Info-bulles' },
+        { well: 'drillFields', label: 'Extraction / champs d’exploration' },
     ],
     showAnalytics: true,
     analyticsKinds: ['constant', 'average', 'trend', 'forecast'],

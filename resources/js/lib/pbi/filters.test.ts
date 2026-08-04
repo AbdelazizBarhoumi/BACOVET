@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
     applyFilter,
+    filterTableRows,
+    propagateNetwork,
     relativeDateRange,
     topNValues,
     type ReportFilter,
 } from './filters';
+import type { RelationGraph } from './graph';
 import type { Row, TableDef } from './model';
 
 const sales: TableDef = {
@@ -42,11 +45,7 @@ describe('applyFilter — list / dropdown', () => {
     });
 
     it('filters rows to the selected values', () => {
-        const out = applyFilter(
-            sales.rows,
-            filter({ values: ['North'] }),
-            ctx,
-        );
+        const out = applyFilter(sales.rows, filter({ values: ['North'] }), ctx);
         expect(out).toHaveLength(3);
         expect(out.every((r) => r.Region === 'North')).toBe(true);
     });
@@ -71,7 +70,9 @@ describe('applyFilter — list / dropdown', () => {
     });
 
     it('returns no rows for a bogus value (invalid value)', () => {
-        expect(applyFilter(sales.rows, filter({ values: ['Nowhere'] }), ctx)).toEqual([]);
+        expect(
+            applyFilter(sales.rows, filter({ values: ['Nowhere'] }), ctx),
+        ).toEqual([]);
     });
 });
 
@@ -173,7 +174,11 @@ describe('applyFilter — date range', () => {
         expect(
             applyFilter(
                 sales.rows,
-                filter({ type: 'dateRange', column: 'Missing', from: '2026-01-01' }),
+                filter({
+                    type: 'dateRange',
+                    column: 'Missing',
+                    from: '2026-01-01',
+                }),
                 ctx,
             ),
         ).toEqual(sales.rows);
@@ -182,7 +187,12 @@ describe('applyFilter — date range', () => {
     it('non-date text column is treated as day strings', () => {
         const out = applyFilter(
             sales.rows,
-            filter({ type: 'dateRange', column: 'Category', from: 'B', to: 'C' }),
+            filter({
+                type: 'dateRange',
+                column: 'Category',
+                from: 'B',
+                to: 'C',
+            }),
             ctx,
         );
         expect(out).toHaveLength(3);
@@ -330,11 +340,7 @@ describe('large dataset filtering', () => {
         }
         const bigCtx = { table: { ...sales, rows }, activePageId: 'p1' };
         const start = performance.now();
-        const out = applyFilter(
-            rows,
-            filter({ values: ['North'] }),
-            bigCtx,
-        );
+        const out = applyFilter(rows, filter({ values: ['North'] }), bigCtx);
         const top = applyFilter(
             out,
             filter({
@@ -349,5 +355,197 @@ describe('large dataset filtering', () => {
         expect(out).toHaveLength(50_000);
         expect(new Set(top.map((r) => r.Category)).size).toBeLessThanOrEqual(5);
         expect(elapsed).toBeLessThan(1000);
+    });
+});
+
+describe('propagateNetwork', () => {
+    const products: TableDef = {
+        name: 'Products',
+        fields: [{ table: 'Products', name: 'Id', type: 'text' }],
+        rows: [{ Id: 'P1' }, { Id: 'P2' }, { Id: 'P3' }, { Id: 'P4' }],
+    };
+    const orders: TableDef = {
+        name: 'Orders',
+        fields: [
+            { table: 'Orders', name: 'ProductRef', type: 'text' },
+            { table: 'Orders', name: 'Amount', type: 'number' },
+        ],
+        rows: [
+            { ProductRef: 'P1', Amount: 10 },
+            { ProductRef: 'P1', Amount: 20 },
+            { ProductRef: 'P2', Amount: 30 },
+            { ProductRef: 'P3', Amount: 40 },
+        ],
+    };
+    const graph: RelationGraph = {
+        edges: [
+            {
+                a: 'Orders',
+                colA: 'ProductRef',
+                b: 'Products',
+                colB: 'Id',
+                kind: 'fk_pk',
+                confidence: 1,
+            },
+        ],
+    };
+
+    it('returns the same map when smartNetwork is off', () => {
+        const map = {
+            Products: [products.rows[0]],
+            Orders: orders.rows.slice(0, 2),
+        };
+        expect(propagateNetwork([products, orders], map, graph, false)).toBe(
+            map,
+        );
+    });
+
+    it('returns the same map when the graph has no edges', () => {
+        const map = {
+            Products: [products.rows[0]],
+            Orders: orders.rows.slice(0, 2),
+        };
+        expect(
+            propagateNetwork([products, orders], map, { edges: [] }, true),
+        ).toBe(map);
+    });
+
+    it('is a no-op with no reduced tables (bug: ON with no filters must not wipe)', () => {
+        const map = { Products: products.rows, Orders: orders.rows };
+        expect(propagateNetwork([products, orders], map, graph, true)).toBe(
+            map,
+        );
+    });
+
+    it('propagates a reduced seed outward to its neighbour', () => {
+        const out = propagateNetwork(
+            [products, orders],
+            { Products: [products.rows[0]], Orders: orders.rows },
+            graph,
+            true,
+        );
+        expect(out.Products).toHaveLength(1);
+        expect(out.Orders).toHaveLength(2);
+        expect(out.Orders.every((r) => r.ProductRef === 'P1')).toBe(true);
+    });
+
+    it('keeps an orphan seed and empties the unrelated fact table', () => {
+        // P4 appears in Products but in no Orders row.
+        const out = propagateNetwork(
+            [products, orders],
+            { Products: [products.rows[3]], Orders: orders.rows },
+            graph,
+            true,
+        );
+        expect(out.Products).toEqual([products.rows[3]]);
+        expect(out.Orders).toEqual([]);
+    });
+
+    it('does not constrain a seed back through a cyclic graph', () => {
+        const a: TableDef = {
+            name: 'A',
+            fields: [{ table: 'A', name: 'Id', type: 'text' }],
+            rows: [{ Id: 'x' }, { Id: 'y' }],
+        };
+        const b: TableDef = {
+            name: 'B',
+            fields: [{ table: 'B', name: 'Id', type: 'text' }],
+            rows: [{ Id: 'x' }, { Id: 'y' }, { Id: 'z' }],
+        };
+        const cyclic: RelationGraph = {
+            edges: [
+                {
+                    a: 'A',
+                    colA: 'Id',
+                    b: 'B',
+                    colB: 'Id',
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+                {
+                    a: 'B',
+                    colA: 'Id',
+                    b: 'A',
+                    colB: 'Id',
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+            ],
+        };
+        const out = propagateNetwork(
+            [a, b],
+            { A: [a.rows[0]], B: b.rows },
+            cyclic,
+            true,
+        );
+        expect(out.A).toEqual([a.rows[0]]);
+        expect(out.B).toEqual([b.rows[0]]);
+    });
+});
+
+describe('filterTableRows', () => {
+    const products: TableDef = {
+        name: 'Products',
+        fields: [{ table: 'Products', name: 'Id', type: 'text' }],
+        rows: [{ Id: 'P1' }, { Id: 'P2' }, { Id: 'P3' }],
+    };
+    const orders: TableDef = {
+        name: 'Orders',
+        fields: [
+            { table: 'Orders', name: 'ProductRef', type: 'text' },
+            { table: 'Orders', name: 'Amount', type: 'number' },
+        ],
+        rows: [
+            { ProductRef: 'P1', Amount: 10 },
+            { ProductRef: 'P2', Amount: 30 },
+        ],
+    };
+    const graph: RelationGraph = {
+        edges: [
+            {
+                a: 'Orders',
+                colA: 'ProductRef',
+                b: 'Products',
+                colB: 'Id',
+                kind: 'fk_pk',
+                confidence: 1,
+            },
+        ],
+    };
+
+    it('applies per-table filters then propagates reductions across the network', () => {
+        const out = filterTableRows(
+            [products, orders],
+            [
+                {
+                    column: 'Id',
+                    table: 'Products',
+                    values: ['P1'],
+                    scope: 'report',
+                    type: 'list',
+                },
+            ],
+            graph,
+        );
+        expect(out.Products).toHaveLength(1);
+        expect(out.Orders).toHaveLength(1);
+        expect(out.Orders[0]!.ProductRef).toBe('P1');
+    });
+
+    it('without a graph it only filters the targeted table', () => {
+        const out = filterTableRows(
+            [products, orders],
+            [
+                {
+                    column: 'Id',
+                    table: 'Products',
+                    values: ['P1'],
+                    scope: 'report',
+                    type: 'list',
+                },
+            ],
+        );
+        expect(out.Products).toHaveLength(1);
+        expect(out.Orders).toHaveLength(2);
     });
 });

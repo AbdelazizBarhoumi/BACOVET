@@ -1,6 +1,7 @@
 // Pure, unit-testable report filter engine. Row filtering for the report
 // canvas lives here so the store's `tableRows` memo stays a thin wrapper.
 
+import type { RelationGraph } from './graph';
 import {
     aggregate,
     hasColumn,
@@ -58,6 +59,12 @@ export type FilterCtx = {
     now?: Date;
 };
 
+/** Normalized (trimmed, lowercased) form of a cell value used for matching. */
+export function normValue(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    return String(v).trim().toLowerCase();
+}
+
 function iso(d: Date): string {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -100,7 +107,11 @@ export function relativeDateRange(
                 to: iso(monthEnd),
             };
         case 'lastMonth': {
-            const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const start = new Date(
+                today.getFullYear(),
+                today.getMonth() - 1,
+                1,
+            );
             const end = new Date(today.getFullYear(), today.getMonth(), 0);
             return { from: iso(start), to: iso(end) };
         }
@@ -189,9 +200,7 @@ export function applyFilter(
             if (!from && !to) return rows;
             return rows.filter((r) => {
                 const day = dayOf(r, f.column);
-                return (
-                    !!day && (!from || day >= from) && (!to || day <= to)
-                );
+                return !!day && (!from || day >= from) && (!to || day <= to);
             });
         }
         case 'relativeDate': {
@@ -213,4 +222,106 @@ export function applyFilter(
         default:
             return rows;
     }
+}
+
+/**
+ * Fixed-point semi-join propagation for network (smart) filtering.
+ *
+ * Only tables actually reduced by a filter, slicer, drillthrough or
+ * cross-filter are seeds. A seed constrains its neighbours outward through
+ * the relationship graph; a derived (shrunken) table constrains its other
+ * neighbours in turn. Seeds are never constrained back, so an explicit
+ * selection stays authoritative. Intersections are monotonic (row counts only
+ * decrease) so the process terminates; a safety cap guards against
+ * pathological graphs.
+ *
+ * With no seeds the map is returned unchanged, which makes toggling network
+ * filtering ON with zero filters a safe no-op instead of wiping every visual.
+ */
+export function propagateNetwork(
+    tables: TableDef[],
+    rows: Record<string, Row[]>,
+    graph: RelationGraph,
+    smartNetwork: boolean,
+): Record<string, Row[]> {
+    if (!smartNetwork || graph.edges.length === 0) return rows;
+
+    const seeds = new Set<string>();
+    for (const t of tables) {
+        if ((rows[t.name] ?? []).length < t.rows.length) seeds.add(t.name);
+    }
+    if (seeds.size === 0) return rows;
+
+    const current = new Map(Object.entries(rows));
+    const cap = graph.edges.length * 2 + 4;
+    const queue = [...seeds];
+    let steps = 0;
+
+    while (queue.length && steps < cap) {
+        steps += 1;
+        const t = queue.shift()!;
+        const tArr = current.get(t);
+        if (!tArr) continue;
+        for (const e of graph.edges) {
+            let neighbor: string;
+            let colSelf: string;
+            let colNeighbor: string;
+            if (e.a === t) {
+                neighbor = e.b;
+                colSelf = e.colA;
+                colNeighbor = e.colB;
+            } else if (e.b === t) {
+                neighbor = e.a;
+                colSelf = e.colB;
+                colNeighbor = e.colA;
+            } else {
+                continue;
+            }
+            if (seeds.has(neighbor)) continue;
+            const nArr = current.get(neighbor);
+            if (!nArr) continue;
+            const allowed = new Set<string>();
+            for (const r of tArr) {
+                const v = normValue(r[colSelf]);
+                if (v) allowed.add(v);
+            }
+            const next = nArr.filter((r) =>
+                allowed.has(normValue(r[colNeighbor])),
+            );
+            if (next.length < nArr.length) {
+                current.set(neighbor, next);
+                queue.push(neighbor);
+            }
+        }
+    }
+
+    return Object.fromEntries(current);
+}
+
+/**
+ * Filter every table by `filters`, then propagate reductions across the
+ * relationship network (when a graph is supplied). Keeps the store's
+ * `tableRows` derivation a thin wrapper over the pure engine.
+ */
+export function filterTableRows(
+    tables: TableDef[],
+    filters: ReportFilter[],
+    graph?: RelationGraph,
+    ctx?: FilterCtx,
+    smartNetwork = true,
+): Record<string, Row[]> {
+    const map: Record<string, Row[]> = {};
+    for (const t of tables) {
+        let out = t.rows;
+        for (const f of filters) {
+            if (f.table && f.table !== t.name) continue;
+            out = applyFilter(out, f, {
+                table: t,
+                activePageId: ctx?.activePageId ?? '',
+                ...(ctx?.now ? { now: ctx.now } : {}),
+            });
+        }
+        map[t.name] = out;
+    }
+    return graph ? propagateNetwork(tables, map, graph, smartNetwork) : map;
 }
