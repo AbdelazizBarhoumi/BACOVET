@@ -11,7 +11,14 @@ import {
     type DaxSignature,
     type DaxSuggestion,
 } from '@/lib/pbi/dax';
-import { MEASURES, formatNumber, measureError, validateMeasureExpression, type Field, type Row } from '@/lib/pbi/model';
+import {
+    MEASURES,
+    formatNumber,
+    measureError,
+    validateMeasureExpression,
+    type Field,
+    type Row,
+} from '@/lib/pbi/model';
 import { mkVisual, usePbi, wf } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
@@ -114,9 +121,18 @@ export function PowerQueryDialog({
                     }
                 },
             },
-            { label: 'Conserver les lignes', run: () => addStep('Premières lignes conservées') },
-            { label: 'Fusionner les requêtes', run: () => addStep('Requêtes fusionnées') },
-            { label: 'Ajouter des requêtes', run: () => addStep('Requête ajoutée') },
+            {
+                label: 'Conserver les lignes',
+                run: () => addStep('Premières lignes conservées'),
+            },
+            {
+                label: 'Fusionner les requêtes',
+                run: () => addStep('Requêtes fusionnées'),
+            },
+            {
+                label: 'Ajouter des requêtes',
+                run: () => addStep('Requête ajoutée'),
+            },
         ],
         Transformer: [
             { label: 'Grouper par', run: () => addStep('Lignes groupées') },
@@ -125,19 +141,28 @@ export function PowerQueryDialog({
                 run: () => addStep('En-têtes promus'),
             },
             { label: 'Transposer', run: () => addStep('Tableau transposé') },
-            { label: 'Faire pivoter la colonne', run: () => addStep('Colonne pivotée') },
+            {
+                label: 'Faire pivoter la colonne',
+                run: () => addStep('Colonne pivotée'),
+            },
             {
                 label: 'Dépivoter les colonnes',
                 run: () => addStep('Colonnes dépivotées'),
             },
-            { label: 'Remplacer les valeurs', run: () => addStep('Valeur remplacée') },
+            {
+                label: 'Remplacer les valeurs',
+                run: () => addStep('Valeur remplacée'),
+            },
             {
                 label: 'Fractionner la colonne',
                 run: () => addStep('Colonne fractionnée par délimiteur'),
             },
         ],
         'Ajouter une colonne': [
-            { label: 'Colonne personnalisée', run: () => addStep('Colonne personnalisée ajoutée') },
+            {
+                label: 'Colonne personnalisée',
+                run: () => addStep('Colonne personnalisée ajoutée'),
+            },
             {
                 label: 'Colonne conditionnelle',
                 run: () => addStep('Colonne conditionnelle ajoutée'),
@@ -165,7 +190,8 @@ export function PowerQueryDialog({
                 label: 'Dépendances des requêtes',
                 run: () =>
                     toast.info(
-                        tables.map((t) => t.name).join(' → ') || 'Aucune requête',
+                        tables.map((t) => t.name).join(' → ') ||
+                            'Aucune requête',
                     ),
             },
         ],
@@ -347,7 +373,8 @@ function FormulaOverlay({
         const match = bracketMatch(expr, cursor);
         if (match) {
             for (const idx of [match.open, match.close])
-                classes[idx] = `${classes[idx] ?? ''} ${BRACKET_MATCH_CLASS}`.trim();
+                classes[idx] =
+                    `${classes[idx] ?? ''} ${BRACKET_MATCH_CLASS}`.trim();
         }
         return classes;
     }, [expr, cursor]);
@@ -364,7 +391,7 @@ function FormulaOverlay({
         <pre
             ref={preRef}
             aria-hidden
-            className="pointer-events-none absolute inset-0 overflow-hidden border border-transparent p-2 font-mono text-[12px] leading-[1.4] whitespace-pre-wrap break-words"
+            className="pointer-events-none absolute inset-0 overflow-hidden border border-transparent p-2 font-mono text-[12px] leading-[1.4] break-words whitespace-pre-wrap"
         >
             {spans.map((s, i) => (
                 <span key={i} className={s.className || undefined}>
@@ -385,7 +412,10 @@ function SignatureHint({ signature }: { signature: DaxSignature }) {
     let m: RegExpExecArray | null;
     while ((m = re.exec(signature.signature)) !== null) {
         if (m.index > last)
-            parts.push({ text: signature.signature.slice(last, m.index), active: false });
+            parts.push({
+                text: signature.signature.slice(last, m.index),
+                active: false,
+            });
         parts.push({ text: m[1]!, active: i === signature.activeArg });
         last = re.lastIndex;
         i += 1;
@@ -421,9 +451,11 @@ function SignatureHint({ signature }: { signature: DaxSignature }) {
 export function DaxDialog({
     onClose,
     edit,
+    createCategory,
 }: {
     onClose: () => void;
     edit?: Field | null;
+    createCategory?: string | null;
 }) {
     const { tables, addMeasure, updateMeasure, state } = usePbi();
     const taRef = useRef<HTMLTextAreaElement>(null);
@@ -443,7 +475,9 @@ export function DaxDialog({
         }
         return 'Nouvelle mesure = '.length;
     });
-    const [category, setCategory] = useState(edit?.category ?? '');
+    const [category, setCategory] = useState(
+        edit?.category ?? createCategory ?? '',
+    );
     const [description, setDescription] = useState(edit?.description ?? '');
     const [active, setActive] = useState(0);
     const [visible, setVisible] = useState(false);
@@ -481,10 +515,7 @@ export function DaxDialog({
         [expr, cursor, tables, measures],
     );
 
-    const signature = useMemo(
-        () => daxSignature(expr, cursor),
-        [expr, cursor],
-    );
+    const signature = useMemo(() => daxSignature(expr, cursor), [expr, cursor]);
 
     const suggestions = completion.suggestions;
     const show = visible && suggestions.length > 0;
@@ -499,7 +530,8 @@ export function DaxDialog({
         const cols: { title: string; items: DaxSuggestion[] }[] = [];
         if (fn.length) cols.push({ title: 'Functions', items: fn });
         if (tb.length) cols.push({ title: 'Datasets', items: tb });
-        if (rest.length) cols.push({ title: 'Columns & Measures', items: rest });
+        if (rest.length)
+            cols.push({ title: 'Columns & Measures', items: rest });
         return cols;
     }, [suggestions]);
 
@@ -533,9 +565,7 @@ export function DaxDialog({
             setActive((a) => (a + 1) % suggestions.length);
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            setActive(
-                (a) => (a - 1 + suggestions.length) % suggestions.length,
-            );
+            setActive((a) => (a - 1 + suggestions.length) % suggestions.length);
         } else if (e.key === 'Enter' || e.key === 'Tab') {
             e.preventDefault();
             apply(suggestions[index]!);
@@ -591,7 +621,13 @@ export function DaxDialog({
         try {
             const full = `${name} = ${formula}`;
             if (edit) {
-                await updateMeasure(edit.id!, name, full, category, description);
+                await updateMeasure(
+                    edit.id!,
+                    name,
+                    full,
+                    category,
+                    description,
+                );
                 toast.success('Mesure mise à jour', {
                     description: `${name} = ${formula}`,
                 });
@@ -603,14 +639,23 @@ export function DaxDialog({
             }
             onClose();
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Échec de l’enregistrement de la mesure');
+            toast.error(
+                e instanceof Error
+                    ? e.message
+                    : 'Échec de l’enregistrement de la mesure',
+            );
         } finally {
             setSaving(false);
         }
     };
 
     return (
-        <Modal open onClose={onClose} title={editing ? 'Modifier la mesure' : 'Nouvelle mesure'} wide>
+        <Modal
+            open
+            onClose={onClose}
+            title={editing ? 'Modifier la mesure' : 'Nouvelle mesure'}
+            wide
+        >
             <div className="space-y-3 p-4">
                 {!editing && (
                     <div className="flex flex-wrap gap-1 text-[11px]">
@@ -624,28 +669,30 @@ export function DaxDialog({
                             'DISTINCTCOUNT(',
                             'IF(',
                         ].map((snippet) => (
-                                <button
-                                    key={snippet}
-                                    onClick={() => {
-                                        setExpr(`Nouvelle mesure = ${snippet}`);
-                                        setCursor(`Nouvelle mesure = ${snippet}`.length - 1);
-                                        setVisible(true);
-                                        requestAnimationFrame(() => {
-                                            taRef.current?.focus();
-                                            taRef.current?.setSelectionRange(
-                                                `Nouvelle mesure = ${snippet}`.length -
-                                                    1,
-                                                `Nouvelle mesure = ${snippet}`.length -
-                                                    1,
-                                            );
-                                        });
-                                    }}
-                                    className="rounded-full border border-border px-2 py-0.5 font-mono hover:bg-accent"
-                                >
-                                    {snippet}
-                                </button>
-                            ),
-                        )}
+                            <button
+                                key={snippet}
+                                onClick={() => {
+                                    setExpr(`Nouvelle mesure = ${snippet}`);
+                                    setCursor(
+                                        `Nouvelle mesure = ${snippet}`.length -
+                                            1,
+                                    );
+                                    setVisible(true);
+                                    requestAnimationFrame(() => {
+                                        taRef.current?.focus();
+                                        taRef.current?.setSelectionRange(
+                                            `Nouvelle mesure = ${snippet}`
+                                                .length - 1,
+                                            `Nouvelle mesure = ${snippet}`
+                                                .length - 1,
+                                        );
+                                    });
+                                }}
+                                className="rounded-full border border-border px-2 py-0.5 font-mono hover:bg-accent"
+                            >
+                                {snippet}
+                            </button>
+                        ))}
                     </div>
                 )}
                 <div className="relative">
@@ -661,7 +708,8 @@ export function DaxDialog({
                         onChange={(e) => {
                             setExpr(e.target.value);
                             setCursor(
-                                e.target.selectionStart ?? e.target.value.length,
+                                e.target.selectionStart ??
+                                    e.target.value.length,
                             );
                             setVisible(true);
                         }}
@@ -682,7 +730,7 @@ export function DaxDialog({
                         onBlur={() => setVisible(false)}
                         onFocus={() => setVisible(true)}
                         spellCheck={false}
-                        className="text-transparent caret-foreground selection:bg-brand/40 h-28 w-full resize-none rounded border border-border bg-background p-2 font-mono text-[12px] leading-[1.4]"
+                        className="h-28 w-full resize-none rounded border border-border bg-background p-2 font-mono text-[12px] leading-[1.4] text-transparent caret-foreground selection:bg-brand/40"
                     />
                     {validation && (
                         <div className="mt-1 text-[11px] text-red-500">
@@ -690,7 +738,7 @@ export function DaxDialog({
                         </div>
                     )}
                     {show && (
-                        <div className="absolute right-0 left-0 top-full z-10 mt-1 overflow-hidden rounded border border-border bg-card shadow-xl">
+                        <div className="absolute top-full right-0 left-0 z-10 mt-1 overflow-hidden rounded border border-border bg-card shadow-xl">
                             <div className="flex">
                                 {groups.map((g) => (
                                     <div
@@ -789,11 +837,7 @@ export function DaxDialog({
 
 /* ------------------------- Measure management ------------------------- */
 
-export function ManageMeasuresDialog({
-    onClose,
-}: {
-    onClose: () => void;
-}) {
+export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
     const { measures, removeMeasure } = usePbi();
     const [createOpen, setCreateOpen] = useState(false);
     const [editTarget, setEditTarget] = useState<Field | null>(null);
@@ -802,9 +846,7 @@ export function ManageMeasuresDialog({
 
     const items = useMemo(
         () => [
-            ...MEASURES.filter(
-                (m) => !measures.some((c) => c.name === m.name),
-            ),
+            ...MEASURES.filter((m) => !measures.some((c) => c.name === m.name)),
             ...measures,
         ],
         [measures],
@@ -830,7 +872,9 @@ export function ManageMeasuresDialog({
             setConfirm(null);
         } catch (e) {
             toast.error(
-                e instanceof Error ? e.message : 'Échec de la suppression de la mesure',
+                e instanceof Error
+                    ? e.message
+                    : 'Échec de la suppression de la mesure',
             );
         } finally {
             setBusy(false);
@@ -842,8 +886,8 @@ export function ManageMeasuresDialog({
             <div className="p-4">
                 <div className="mb-3 flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground">
-                        Bibliothèque de mesures partagée — utilisable sur
-                        chaque page.
+                        Bibliothèque de mesures partagée — utilisable sur chaque
+                        page.
                     </span>
                     <button
                         onClick={() => setCreateOpen(true)}
@@ -864,8 +908,9 @@ export function ManageMeasuresDialog({
                         <ul className="mt-1 space-y-1">
                             {list.map((m) => {
                                 const error = measureError(m.name);
-                                const builtin =
-                                    MEASURES.some((b) => b.name === m.name);
+                                const builtin = MEASURES.some(
+                                    (b) => b.name === m.name,
+                                );
                                 return (
                                     <li
                                         key={m.name}
@@ -930,14 +975,12 @@ export function ManageMeasuresDialog({
                 ))}
                 {!items.length && (
                     <p className="py-6 text-center text-[12px] text-muted-foreground">
-                        Aucune mesure pour l’instant — créez-en une avec
-                        « Nouvelle mesure ».
+                        Aucune mesure pour l’instant — créez-en une avec «
+                        Nouvelle mesure ».
                     </p>
                 )}
             </div>
-            {createOpen && (
-                <DaxDialog onClose={() => setCreateOpen(false)} />
-            )}
+            {createOpen && <DaxDialog onClose={() => setCreateOpen(false)} />}
             {editTarget && (
                 <DaxDialog
                     key={`edit-${editTarget.id ?? editTarget.name}`}
@@ -958,8 +1001,8 @@ export function ManageMeasuresDialog({
                                 {confirm.name}
                             </strong>
                             ? Les visuels qui l’utilisent cesseront de se
-                            résoudre tant qu’ils ne seront pas reliés à un
-                            autre champ.
+                            résoudre tant qu’ils ne seront pas reliés à un autre
+                            champ.
                         </p>
                         <div className="mt-4 flex justify-end gap-2">
                             <button

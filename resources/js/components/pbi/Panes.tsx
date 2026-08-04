@@ -311,6 +311,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
         tables,
         measures,
         removeMeasure,
+        updateMeasure,
     } = usePbi();
     const [query, setQuery] = useState('');
     const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -320,6 +321,14 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
     const [editTarget, setEditTarget] = useState<Field | null>(null);
     const [manageOpen, setManageOpen] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [folderMenuFor, setFolderMenuFor] = useState<string | null>(null);
+    const [createCategory, setCreateCategory] = useState<string | null>(null);
+    const [renameTarget, setRenameTarget] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState('');
+    const [confirmFolderDelete, setConfirmFolderDelete] = useState<
+        string | null
+    >(null);
+    const skipRenameBlur = useRef(false);
 
     const custom = useMemo(() => measures ?? [], [measures]);
     const measureFields = useMemo(
@@ -355,6 +364,90 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                 e instanceof Error
                     ? e.message
                     : 'Échec de la suppression de la mesure',
+            );
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const customIn = (list: Field[]) => list.filter((m) => m.id != null);
+
+    const renameFolder = async (oldName: string) => {
+        if (skipRenameBlur.current) {
+            skipRenameBlur.current = false;
+            return;
+        }
+        const newName = renameValue.trim();
+        setRenameTarget(null);
+        setFolderMenuFor(null);
+        if (!newName || newName === oldName) return;
+        const target = customIn(
+            measureFields.filter(
+                (m) => (m.category?.trim() || 'Other') === oldName,
+            ),
+        );
+        if (!target.length) {
+            toast.error('Impossible de renommer ce dossier');
+            return;
+        }
+        setBusy(true);
+        try {
+            await Promise.all(
+                target.map((m) =>
+                    updateMeasure(
+                        m.id!,
+                        m.name,
+                        m.expression ?? '',
+                        newName,
+                        m.description ?? null,
+                    ),
+                ),
+            );
+            toast.success(`Dossier « ${oldName} » renommé en « ${newName} »`);
+            setFolderOpen((o) => {
+                const rest = { ...o };
+                delete rest[oldName];
+                return { ...rest, [newName]: o[oldName] ?? false };
+            });
+        } catch (e) {
+            toast.error(
+                e instanceof Error
+                    ? e.message
+                    : 'Échec du renommage du dossier',
+            );
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const deleteFolder = async (name: string) => {
+        const target = customIn(
+            measureFields.filter(
+                (m) => (m.category?.trim() || 'Other') === name,
+            ),
+        );
+        if (!target.length) return;
+        setBusy(true);
+        try {
+            await Promise.all(
+                target.map((m) =>
+                    updateMeasure(
+                        m.id!,
+                        m.name,
+                        m.expression ?? '',
+                        null,
+                        m.description ?? null,
+                    ),
+                ),
+            );
+            toast.success(`Dossier « ${name} » supprimé — mesures déplacées`);
+            setFolderMenuFor(null);
+            setConfirmFolderDelete(null);
+        } catch (e) {
+            toast.error(
+                e instanceof Error
+                    ? e.message
+                    : 'Échec de la suppression du dossier',
             );
         } finally {
             setBusy(false);
@@ -439,32 +532,178 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                     ),
                                 );
                                 if (!visible.length) return null;
+                                const isOther = folder === 'Other';
+                                const named = !isOther;
                                 return (
-                                    <div key={folder}>
-                                        <button
-                                            onClick={() =>
-                                                setFolderOpen((o) => ({
-                                                    ...o,
-                                                    [folder]: !o[folder],
-                                                }))
-                                            }
-                                            className="ml-4 flex w-full items-center gap-1 rounded px-1 py-[2px] text-[11px] font-medium text-muted-foreground hover:bg-accent"
-                                        >
-                                            <ChevronRight
-                                                className={cn(
-                                                    'size-2.5 transition-transform',
-                                                    folderOpen[folder] &&
-                                                        'rotate-90',
+                                    <div key={folder} className="relative">
+                                        <div className="ml-4 flex items-center">
+                                            {renameTarget === folder ? (
+                                                <input
+                                                    autoFocus
+                                                    value={renameValue}
+                                                    onChange={(e) =>
+                                                        setRenameValue(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            e.currentTarget.blur();
+                                                        } else if (
+                                                            e.key === 'Escape'
+                                                        ) {
+                                                            skipRenameBlur.current = true;
+                                                            setRenameTarget(
+                                                                null,
+                                                            );
+                                                            setFolderMenuFor(
+                                                                null,
+                                                            );
+                                                        }
+                                                    }}
+                                                    onBlur={() =>
+                                                        renameFolder(folder)
+                                                    }
+                                                    className="min-w-0 flex-1 rounded border border-brand bg-background px-1 py-[1px] text-[11px] text-foreground outline-none"
+                                                />
+                                            ) : (
+                                                <button
+                                                    onClick={() =>
+                                                        setFolderOpen((o) => ({
+                                                            ...o,
+                                                            [folder]:
+                                                                !o[folder],
+                                                        }))
+                                                    }
+                                                    className="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-[2px] text-[11px] font-medium text-muted-foreground hover:bg-accent"
+                                                >
+                                                    <ChevronRight
+                                                        className={cn(
+                                                            'size-2.5 shrink-0 transition-transform',
+                                                            folderOpen[
+                                                                folder
+                                                            ] && 'rotate-90',
+                                                        )}
+                                                    />
+                                                    <Folder className="size-3 shrink-0 text-muted-foreground" />
+                                                    <span className="truncate">
+                                                        {folder}
+                                                    </span>
+                                                    <span className="ml-auto shrink-0 pr-1 text-[10px] text-muted-foreground/60">
+                                                        {visible.length}
+                                                    </span>
+                                                </button>
+                                            )}
+                                            {named && (
+                                                <button
+                                                    onClick={() =>
+                                                        setFolderMenuFor(
+                                                            folderMenuFor ===
+                                                                folder
+                                                                ? null
+                                                                : folder,
+                                                        )
+                                                    }
+                                                    title="Actions du dossier"
+                                                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent"
+                                                >
+                                                    <MoreHorizontal className="size-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        {folderMenuFor === folder && (
+                                            <div className="absolute top-0 right-5 z-20 w-48 rounded border border-border bg-card py-1 text-[11px] shadow-xl">
+                                                {confirmFolderDelete ===
+                                                folder ? (
+                                                    <div className="px-2 py-1">
+                                                        <p className="mb-1 text-muted-foreground">
+                                                            Supprimer le dossier{' '}
+                                                            <span className="font-mono">
+                                                                {folder}
+                                                            </span>{' '}
+                                                            ? Les mesures seront
+                                                            déplacées dans «
+                                                            Sans catégorie ».
+                                                        </p>
+                                                        <div className="flex justify-end gap-1">
+                                                            <button
+                                                                onClick={() =>
+                                                                    setConfirmFolderDelete(
+                                                                        null,
+                                                                    )
+                                                                }
+                                                                className="rounded border border-border px-2 py-0.5"
+                                                            >
+                                                                Non
+                                                            </button>
+                                                            <button
+                                                                onClick={() =>
+                                                                    deleteFolder(
+                                                                        folder,
+                                                                    )
+                                                                }
+                                                                disabled={busy}
+                                                                className="rounded bg-red-600 px-2 py-0.5 text-white disabled:opacity-50"
+                                                            >
+                                                                Oui
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => {
+                                                                setFolderMenuFor(
+                                                                    null,
+                                                                );
+                                                                setCreateCategory(
+                                                                    folder,
+                                                                );
+                                                                setFolderOpen(
+                                                                    (o) => ({
+                                                                        ...o,
+                                                                        [folder]: true,
+                                                                    }),
+                                                                );
+                                                            }}
+                                                            className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
+                                                        >
+                                                            <Plus className="size-3" />
+                                                            Nouvelle mesure
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setRenameValue(
+                                                                    folder,
+                                                                );
+                                                                setRenameTarget(
+                                                                    folder,
+                                                                );
+                                                                setFolderMenuFor(
+                                                                    null,
+                                                                );
+                                                            }}
+                                                            className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
+                                                        >
+                                                            <Pencil className="size-3" />
+                                                            Renommer
+                                                        </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                setConfirmFolderDelete(
+                                                                    folder,
+                                                                )
+                                                            }
+                                                            className="flex w-full items-center gap-2 px-2 py-1 text-red-500 hover:bg-accent"
+                                                        >
+                                                            <Trash2 className="size-3" />
+                                                            Supprimer
+                                                        </button>
+                                                    </>
                                                 )}
-                                            />
-                                            <Folder className="size-3 text-muted-foreground" />
-                                            <span className="truncate">
-                                                {folder}
-                                            </span>
-                                            <span className="ml-auto pr-1 text-[10px] text-muted-foreground/60">
-                                                {visible.length}
-                                            </span>
-                                        </button>
+                                            </div>
+                                        )}
                                         {folderOpen[folder] &&
                                             visible.map((f) => {
                                                 const error = measureError(
@@ -739,6 +978,13 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                     key={`edit-${editTarget.id ?? editTarget.name}`}
                     edit={editTarget}
                     onClose={() => setEditTarget(null)}
+                />
+            )}
+            {createCategory !== null && (
+                <DaxDialog
+                    key={`new-${createCategory}`}
+                    createCategory={createCategory}
+                    onClose={() => setCreateCategory(null)}
                 />
             )}
         </div>
