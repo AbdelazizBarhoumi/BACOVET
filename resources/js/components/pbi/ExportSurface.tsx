@@ -113,7 +113,11 @@ export function ExportSurface({
                                             </div>
                                         )}
                                     <div className="min-h-0 flex-1">
-                                        <VisualView visual={v} rows={vRows} />
+                                        <VisualView
+                                            visual={v}
+                                            rows={vRows}
+                                            static
+                                        />
                                     </div>
                                 </div>
                             );

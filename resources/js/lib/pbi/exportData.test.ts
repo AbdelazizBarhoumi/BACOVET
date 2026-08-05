@@ -107,7 +107,7 @@ describe('visualExportData', () => {
             values: [well('Amount')],
         });
         const ds = visualExportData(v, sales.rows, deps)!;
-        expect(ds.columns).toEqual(['Category', 'Sum of Amount']);
+        expect(ds.columns).toEqual(['Catégorie', 'Somme de Amount']);
         expect(ds.rows).toEqual([
             ['South', '90'],
             ['North', '30'],
@@ -122,15 +122,15 @@ describe('visualExportData', () => {
             values: [well('Amount')],
         });
         const ds = visualExportData(v, sales.rows, deps)!;
-        expect(ds.columns[0]).toBe('Category');
+        expect(ds.columns[0]).toBe('Catégorie');
         expect(ds.rows.length).toBe(2);
     });
 
     it('exports a card as a single aggregate row per measure', () => {
         const v = visual({ type: 'card', values: [well('Amount')] });
         const ds = visualExportData(v, sales.rows, deps)!;
-        expect(ds.columns).toEqual(['Measure', 'Value']);
-        expect(ds.rows).toEqual([['Sum of Amount', '120']]);
+        expect(ds.columns).toEqual(['Mesure', 'Valeur']);
+        expect(ds.rows).toEqual([['Somme de Amount', '120']]);
     });
 
     it('exports a slicer as its distinct axis values', () => {

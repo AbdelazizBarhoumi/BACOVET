@@ -61,6 +61,45 @@ describe('CF_ICON_SETS registry', () => {
     });
 });
 
+describe('Sentiment faces sets', () => {
+    it('has a 5-face smile-to-angry set in order', () => {
+        const set = iconSetOf('sentiment')!;
+        expect(set).toBeDefined();
+        expect(set.category).toBe('Sentiment');
+        expect(set.icons.map((i) => i.id)).toEqual([
+            'smile',
+            'happy',
+            'neutral',
+            'sad',
+            'angry',
+        ]);
+        expect(set.icons[0]!.unicode).toBe('😄');
+        expect(set.icons[4]!.unicode).toBe('😠');
+        expect(set.icons.every((i) => !i.fluent)).toBe(true);
+    });
+
+    it('has a 3-face smile / neutral / angry set with distinct glyphs', () => {
+        const set = iconSetOf('faces-smile-angry')!;
+        expect(set).toBeDefined();
+        expect(set.category).toBe('Sentiment');
+        expect(set.icons.map((i) => i.id)).toEqual([
+            'smile',
+            'neutral',
+            'angry',
+        ]);
+        const glyphs = set.icons.map((i) => i.unicode);
+        expect(new Set(glyphs).size).toBe(3);
+        expect(glyphs[0]).toBe('😃');
+        expect(glyphs[2]).toBe('😠');
+    });
+
+    it('resolves faces by id within each set', () => {
+        expect(iconById('sentiment', 'sad')?.label).toBe('Sad');
+        expect(iconById('faces-smile-angry', 'angry')?.unicode).toBe('😠');
+        expect(iconById('faces-smile-angry', 'happy')).toBeUndefined();
+    });
+});
+
 describe('iconForRule', () => {
     it('falls back to the first icon for a rule without an icon', () => {
         const set = iconSetOf('directional-colored')!;

@@ -120,6 +120,10 @@ export function ExportMenu() {
         await nextFrame();
         await nextFrame();
         await nextFrame();
+        // Give the off-screen surface time to finish layout (recharts
+        // ResponsiveContainer measures via ResizeObserver) and for fonts to
+        // load before the DOM is rasterized.
+        await new Promise((resolve) => setTimeout(resolve, 200));
         const nodes = pageNodes();
         if (!nodes.length) throw new Error('empty surface');
 

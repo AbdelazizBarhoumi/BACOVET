@@ -7,8 +7,8 @@ describe('visualConfig', () => {
         for (const type of ['card'] as const) {
             const config = visualConfig(type);
             expect(config.build).toEqual([
-                { well: 'values', label: 'Fields' },
-                { well: 'target', label: 'Target (goal)' },
+                { well: 'values', label: 'Champs' },
+                { well: 'target', label: 'Objectif (cible)' },
             ]);
             expect(config.showAnalytics).toBe(false);
             expect(config.format).toBe('singleValue');
@@ -19,11 +19,11 @@ describe('visualConfig', () => {
     it('gives the gauge its own five wells, gauge format, and no analytics', () => {
         const config = visualConfig('gauge');
         expect(config.build).toEqual([
-            { well: 'values', label: 'Value' },
-            { well: 'minimum', label: 'Minimum value' },
-            { well: 'maximum', label: 'Maximum value' },
-            { well: 'target', label: 'Target value' },
-            { well: 'tooltips', label: 'Tooltips' },
+            { well: 'values', label: 'Valeur' },
+            { well: 'minimum', label: 'Valeur min' },
+            { well: 'maximum', label: 'Valeur max' },
+            { well: 'target', label: 'Objectif (cible)' },
+            { well: 'tooltips', label: 'Info-bulles' },
         ]);
         expect(config.showAnalytics).toBe(false);
         expect(config.analyticsKinds).toEqual([]);

@@ -47,9 +47,9 @@ describe('buildChartData — correct data per chart family', () => {
             [],
             [field('Amount')],
         );
-        expect(series).toEqual(['Sum of Amount']);
+        expect(series).toEqual(['Somme de Amount']);
         const byRegion = Object.fromEntries(
-            data.map((d) => [d['category'], d['Sum of Amount']]),
+            data.map((d) => [d['category'], d['Somme de Amount']]),
         );
         expect(byRegion['North']).toBe(150);
         expect(byRegion['South']).toBe(100);
@@ -76,9 +76,9 @@ describe('buildChartData — correct data per chart family', () => {
             [field('Amount'), field('Cost')],
         );
         expect(data).toHaveLength(1);
-        expect(data[0]!['Sum of Amount']).toBe(250);
-        expect(data[0]!['Sum of Cost']).toBe(85);
-        expect(series).toEqual(['Sum of Amount', 'Sum of Cost']);
+        expect(data[0]!['Somme de Amount']).toBe(250);
+        expect(data[0]!['Somme de Cost']).toBe(85);
+        expect(series).toEqual(['Somme de Amount', 'Somme de Cost']);
     });
 
     it('is deterministic for large datasets', () => {
@@ -97,7 +97,7 @@ describe('buildChartData — correct data per chart family', () => {
 describe('buildChartData — empty data handling', () => {
     it('returns a single Total point with zeroed values for no-axis charts', () => {
         const { data } = buildChartData([], [], [], [field('Amount')]);
-        expect(data).toEqual([{ category: 'Total', 'Sum of Amount': 0 }]);
+        expect(data).toEqual([{ category: 'Total', 'Somme de Amount': 0 }]);
     });
 
     it('returns no points for an empty axis-grouped chart', () => {
@@ -115,7 +115,7 @@ describe('buildChartData — maxCategories cap rolls into Other', () => {
         const { data } = buildChartData(rows, [field('Region')], [], [field('Amount')], [], 4);
         expect(data).toHaveLength(5);
         const other = data.find((d) => d['category'] === 'Other')!;
-        expect(other['Sum of Amount']).toBeGreaterThan(0);
+        expect(other['Somme de Amount']).toBeGreaterThan(0);
         const categories = data.map((d) => d['category']).filter((c) => c !== 'Other');
         expect(categories.length).toBe(4);
     });

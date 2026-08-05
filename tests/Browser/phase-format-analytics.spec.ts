@@ -38,11 +38,16 @@ test.describe('Phase 8–10 — Format, page format, analytics', () => {
         const formatText = await page.locator('body').innerText();
         expect(formatText).toContain('Show title');
         await page.getByRole('button', { name: 'Analytics' }).click();
-        const constant = page.getByText('constant line').locator('..').getByRole('checkbox');
+        const constant = page.getByText('constant ligne').locator('..').getByRole('checkbox');
         await constant.check();
         await expect(constant).toBeChecked();
+        const valueInput = page.getByPlaceholder('Valeur');
+        await expect(valueInput).toBeVisible();
+        await valueInput.fill('123');
+        await expect(valueInput).toHaveValue('123');
         await constant.uncheck();
         await expect(constant).not.toBeChecked();
+        await expect(valueInput).toBeHidden();
     });
 
     test('supports page presets and clamps visual dimensions', async ({ page }) => {

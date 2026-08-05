@@ -46,7 +46,7 @@ describe('shape visuals', () => {
     });
 
     it('visualTypeLabel renders Shape', () => {
-        expect(visualTypeLabel('shape')).toBe('Shape');
+        expect(visualTypeLabel('shape')).toBe('Forme');
     });
 
     it('shapes produce no export dataset (skipped in CSV/Excel)', () => {

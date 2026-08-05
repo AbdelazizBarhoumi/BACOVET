@@ -9,6 +9,7 @@ import {
     Filter,
     Layers,
     Link2,
+    Maximize2,
     Palette,
     Pencil,
     RefreshCw,
@@ -24,6 +25,7 @@ import { toast } from 'sonner';
 import { Canvas, PageTabs } from '@/components/pbi/Canvas';
 import { DaxDialog, ManageMeasuresDialog } from '@/components/pbi/Dialogs';
 import { ExportMenu } from '@/components/pbi/ExportMenu';
+import { FullscreenView } from '@/components/pbi/FullscreenView';
 import {
     BookmarksPane,
     FieldsPane,
@@ -309,7 +311,8 @@ function Shell({
     layoutDraft?: PageProps['layoutDraft'];
     layoutDraftUpdatedAt?: string | null;
 }) {
-    const { state, setState, undo, redo, canUndo, canRedo } = usePbi();
+    const { state, setState, undo, redo, canUndo, canRedo, fullscreen } =
+        usePbi();
     const [mode, setMode] = useState<'view' | 'edit'>('view');
     const savingRef = useRef(false);
     const draftSavingRef = useRef(false);
@@ -486,6 +489,10 @@ function Shell({
         return () => window.removeEventListener('keydown', handler);
     }, [mode, undo, redo]);
 
+    if (fullscreen) {
+        return <FullscreenView />;
+    }
+
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border bg-panel px-3">
@@ -599,7 +606,7 @@ function Shell({
 }
 
 function ViewBody() {
-    const { page, rows, selected, tables } = usePbi();
+    const { page, rows, selected, tables, setFullscreen } = usePbi();
     return (
         <div className="flex min-h-0 flex-1 flex-col bg-muted">
             <main className="flex min-h-0 flex-1 overflow-auto">
@@ -614,6 +621,14 @@ function ViewBody() {
                     {tables.length} dataset(s) · {rows.length.toLocaleString()}{' '}
                     lignes · {selected ? '1 sélection' : ''}
                 </span>
+                <button
+                    onClick={() => setFullscreen(true)}
+                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    aria-label="Plein écran"
+                    title="Plein écran"
+                >
+                    <Maximize2 className="size-3.5" />
+                </button>
             </footer>
         </div>
     );
@@ -681,6 +696,7 @@ function EditBody() {
         setZoom,
         mobileView,
         setState,
+        setFullscreen,
         editInteractions,
         defaultInteraction,
         setDefaultInteraction,
@@ -894,6 +910,14 @@ function EditBody() {
                     lignes du contexte · {filters.length} filtres du rapport
                 </span>
                 <span className="flex items-center gap-2">
+                    <button
+                        onClick={() => setFullscreen(true)}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="Plein écran"
+                        title="Plein écran"
+                    >
+                        <Maximize2 className="size-3.5" />
+                    </button>
                     <button
                         onClick={() =>
                             setState((s) => ({

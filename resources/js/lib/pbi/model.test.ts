@@ -112,10 +112,10 @@ describe('PBI chart aggregation', () => {
             [value],
         );
 
-        expect(result.series).toEqual(['Sum of WIP_Chaine']);
+        expect(result.series).toEqual(['Somme de WIP_Chaine']);
         expect(result.data).toEqual([
-            { category: 'CH01', 'Sum of WIP_Chaine': 15 },
-            { category: 'CH02', 'Sum of WIP_Chaine': 7 },
+            { category: 'CH01', 'Somme de WIP_Chaine': 15 },
+            { category: 'CH02', 'Somme de WIP_Chaine': 7 },
         ]);
     });
 
@@ -164,19 +164,19 @@ describe('PBI chart aggregation', () => {
         expect(aggregate(rows, field('Amount', 'latest'))).toBe(-4);
         expect(aggregate(rows, field('Amount', 'raw'))).toBe(10);
         expect(measureLabel(field('Amount', 'raw'))).toBe('Amount');
-        expect(measureLabel(field('Amount', 'sum'))).toBe('Sum of Amount');
-        expect(measureLabel(field('Amount', 'avg'))).toBe('Average of Amount');
-        expect(measureLabel(field('Amount', 'count'))).toBe('Count of Amount');
+        expect(measureLabel(field('Amount', 'sum'))).toBe('Somme de Amount');
+        expect(measureLabel(field('Amount', 'avg'))).toBe('Moyenne de Amount');
+        expect(measureLabel(field('Amount', 'count'))).toBe('Nombre de Amount');
         expect(measureLabel(field('Amount', 'distinct'))).toBe(
-            'Distinct count of Amount',
+            'Nombre distinct de Amount',
         );
-        expect(measureLabel(field('Amount', 'min'))).toBe('Min of Amount');
-        expect(measureLabel(field('Amount', 'max'))).toBe('Max of Amount');
+        expect(measureLabel(field('Amount', 'min'))).toBe('Min de Amount');
+        expect(measureLabel(field('Amount', 'max'))).toBe('Max de Amount');
         expect(measureLabel(field('Amount', 'first'))).toBe(
-            'First of Amount',
+            'Premier de Amount',
         );
         expect(measureLabel(field('Amount', 'latest'))).toBe(
-            'Latest of Amount',
+            'Dernier de Amount',
         );
     });
 
@@ -672,7 +672,7 @@ describe('singleValue — string/date support for single-value visuals', () => {
         expect(singleValue(rows, text, 'latest')).toBe('Closed');
         expect(singleValue(rows, text, 'count')).toBe(2);
         expect(singleValueLabel(text, 'text', 'first')).toBe('Status');
-        expect(singleValueLabel(text, 'text', 'count')).toBe('Count of Status');
+        expect(singleValueLabel(text, 'text', 'count')).toBe('Nombre de Status');
         expect(
             singleValue(
                 rows,
@@ -707,7 +707,7 @@ describe('singleValue — string/date support for single-value visuals', () => {
                 { ...text, valueAggregation: 'count' as const },
                 'text',
             ),
-        ).toBe('Count of Status');
+        ).toBe('Nombre de Status');
     });
 
     it('normalizes valueAggregation on well fields', () => {

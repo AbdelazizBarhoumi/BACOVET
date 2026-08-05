@@ -1,4 +1,6 @@
+import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
+import { decode as decodePng } from 'fast-png';
 
 async function enterView(page: Page) {
     await page.goto('/v5/p/test');
@@ -37,6 +39,72 @@ async function downloadFrom(
     return { filename: download.suggestedFilename(), path };
 }
 
+/** Fraction of pixels that differ from the page's dominant (background) color. */
+function nonBackgroundRatio(buf: Buffer): number {
+    const { data } = decodePng(buf);
+    const counts = new Map<string, number>();
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    let dominant = '';
+    let dominantCount = 0;
+    for (const [k, c] of counts) {
+        if (c > dominantCount) {
+            dominantCount = c;
+            dominant = k;
+        }
+    }
+    if (!dominant) return 0;
+    const [dr, dg, db] = dominant.split(',').map(Number);
+    let differing = 0;
+    let total = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        total += 1;
+        if (
+            Math.abs(data[i] - dr) > 8 ||
+            Math.abs(data[i + 1] - dg) > 8 ||
+            Math.abs(data[i + 2] - db) > 8
+        ) {
+            differing += 1;
+        }
+    }
+    return total ? differing / total : 0;
+}
+
+/**
+ * Clicks an export menu option and, while the off-screen export surface is
+ * mounted, verifies the page visuals actually render data: chart shapes
+ * (bars / lines / pie sectors / areas), table rows, or numeric KPI values.
+ * This is what catches "empty" exports where charts are captured before they
+ * finish drawing.
+ */
+async function triggerExportAndCheckSurface(page: Page, option: string) {
+    await page.locator('button').filter({ hasText: 'Exporter' }).click();
+    await page.getByText(option).click();
+    const pageNode = page.locator('[data-export-page]').first();
+    await pageNode.waitFor({ state: 'attached', timeout: 5000 });
+    const visuals = pageNode.locator('[data-export-visual]');
+    expect(await visuals.count()).toBeGreaterThan(0);
+    const rendered = await visuals.evaluateAll((els) =>
+        els.filter((el) => {
+            const content = (el.textContent ?? '').trim();
+            if (!content || content === 'Blank page') return false;
+            return (
+                el.querySelector('.recharts-bar-rectangle') !== null ||
+                el.querySelector('.recharts-line-curve') !== null ||
+                el.querySelector('.recharts-pie-sector') !== null ||
+                el.querySelector('.recharts-area-area') !== null ||
+                el.querySelector('table tbody tr') !== null ||
+                /[0-9]/.test(content)
+            );
+        }).length,
+    );
+    expect(rendered).toBeGreaterThan(0);
+}
+
 test.describe('Phase 7 — Export menu', () => {
     test.beforeEach(async ({ page }) => enterView(page));
 
@@ -50,18 +118,22 @@ test.describe('Phase 7 — Export menu', () => {
         await expect(page.getByText('Excel — toutes les données')).toBeVisible();
     });
 
-    test('downloads a PNG of the current page', async ({ page }) => {
-        const { filename } = await downloadFrom(page, async () => {
-            await page.locator('button').filter({ hasText: 'Exporter' }).click();
-            await page.getByText('Image PNG — page actuelle').click();
+    test('downloads a PNG of the current page with rendered content', async ({
+        page,
+    }) => {
+        const { filename, path } = await downloadFrom(page, async () => {
+            await triggerExportAndCheckSurface(page, 'Image PNG — page actuelle');
         });
         expect(filename).toMatch(/\.png$/);
+        const buf = await readFile(path);
+        expect(nonBackgroundRatio(buf)).toBeGreaterThan(0.005);
     });
 
-    test('downloads a PDF of the current page', async ({ page }) => {
+    test('downloads a PDF of the current page with rendered content', async ({
+        page,
+    }) => {
         const { filename } = await downloadFrom(page, async () => {
-            await page.locator('button').filter({ hasText: 'Exporter' }).click();
-            await page.getByText('PDF — page actuelle').click();
+            await triggerExportAndCheckSurface(page, 'PDF — page actuelle');
         });
         expect(filename).toMatch(/rapport_\d{4}-\d{2}-\d{2}\.pdf$/);
     });

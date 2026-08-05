@@ -6,7 +6,6 @@ import {
     CircleRegular,
     DiamondRegular,
     DismissCircleRegular,
-    EmojiRegular,
     ErrorCircleRegular,
     FireRegular,
     FlashRegular,
@@ -55,7 +54,6 @@ const FLUENT_MAP: Record<string, React.ComponentType<{
     Square: SquareRegular,
     Triangle: TriangleRegular,
     Diamond: DiamondRegular,
-    Emoji: EmojiRegular,
     Target: TargetRegular,
 };
 

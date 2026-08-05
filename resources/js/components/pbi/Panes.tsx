@@ -1243,6 +1243,7 @@ export function VisualizationsPane({
         setWellAgg,
         setWellValueAgg,
         toggleAnalytics,
+        setAnalyticsValue,
         page,
         pages,
         setPageFormat,
@@ -1727,24 +1728,54 @@ export function VisualizationsPane({
 
                         {activeTab === 'analytics' && config?.showAnalytics && (
                             <div className="space-y-2 text-[11px]">
-                                {config.analyticsKinds.map((k) => (
-                                    <label
-                                        key={k}
-                                        className="flex items-center justify-between capitalize"
-                                    >
-                                        <span>{k} ligne</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={selected.analytics.some(
-                                                (a) => a.kind === k,
+                                {config.analyticsKinds.map((k) => {
+                                    const line = selected.analytics.find(
+                                        (a) => a.kind === k,
+                                    );
+                                    const enabled = !!line;
+                                    const valueEditable =
+                                        k === 'constant' ||
+                                        k === 'max' ||
+                                        k === 'min';
+                                    return (
+                                        <div key={k}>
+                                            <label className="flex items-center justify-between capitalize">
+                                                <span>{k} ligne</span>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={enabled}
+                                                    onChange={() =>
+                                                        toggleAnalytics(
+                                                            selected.id,
+                                                            k,
+                                                        )
+                                                    }
+                                                    className="accent-[var(--brand)]"
+                                                />
+                                            </label>
+                                            {enabled && valueEditable && (
+                                                <input
+                                                    type="number"
+                                                    value={line.value ?? ''}
+                                                    onChange={(e) =>
+                                                        setAnalyticsValue(
+                                                            selected.id,
+                                                            k,
+                                                            e.target.value === ''
+                                                                ? undefined
+                                                                : Number(
+                                                                      e.target
+                                                                          .value,
+                                                                  ),
+                                                        )
+                                                    }
+                                                    placeholder="Valeur"
+                                                    className="mt-1 w-full rounded border border-border bg-background px-2 py-1"
+                                                />
                                             )}
-                                            onChange={() =>
-                                                toggleAnalytics(selected.id, k)
-                                            }
-                                            className="accent-[var(--brand)]"
-                                        />
-                                    </label>
-                                ))}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

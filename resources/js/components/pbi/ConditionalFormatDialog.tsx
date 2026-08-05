@@ -1,11 +1,23 @@
-import { Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Plus, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import { isColor } from '@/lib/pbi/conditionalFormat';
+import { Button } from '@/components/ui/button';
 import {
-    CF_ICON_SETS,
+    Select as UiSelect,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import {
+    conditionalColor,
+    conditionalIcon,
+    isColor,
+} from '@/lib/pbi/conditionalFormat';
+import {
     bindRulesToSet,
     defaultIconSet,
-    iconForRule,
+    iconById,
     iconSetOf,
     type CFIconSet,
 } from '@/lib/pbi/icons';
@@ -31,6 +43,7 @@ import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 import { CfIcon } from './CfIcon';
 import { ColorInput } from './formatControls';
+import { IconPicker, IconSetPicker } from './IconPicker';
 
 const STYLE_OPTIONS: { value: ConditionalFormat['style']; label: string }[] = [
     { value: 'none', label: 'None' },
@@ -69,6 +82,7 @@ const VALUE_TYPE_LABELS: Record<CfValueType, string> = {
     percentile: 'Percentile',
 };
 
+/** shadcn/Radix wrapper exposing the same API as the old native <select>. */
 function Select({
     label,
     value,
@@ -85,22 +99,22 @@ function Select({
     return (
         <label className="block">
             {label && (
-                <span className="mb-1 block text-muted-foreground">{label}</span>
+                <span className="mb-1 block text-[11px] text-muted-foreground">
+                    {label}
+                </span>
             )}
-            <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className={cn(
-                    'w-full rounded border border-border bg-background px-2 py-1',
-                    className,
-                )}
-            >
-                {options.map((o) => (
-                    <option key={o.value} value={o.value}>
-                        {o.label}
-                    </option>
-                ))}
-            </select>
+            <UiSelect value={value} onValueChange={onChange}>
+                <SelectTrigger className={cn('h-8 text-[12px]', className)}>
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((o) => (
+                        <SelectItem key={o.value} value={o.value} className="text-[12px]">
+                            {o.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </UiSelect>
         </label>
     );
 }
@@ -119,14 +133,16 @@ function NumberInput({
     return (
         <label className="block">
             {label && (
-                <span className="mb-1 block text-muted-foreground">{label}</span>
+                <span className="mb-1 block text-[11px] text-muted-foreground">
+                    {label}
+                </span>
             )}
             <input
                 type="number"
                 value={value}
                 onChange={(e) => onChange(Number(e.target.value))}
                 className={cn(
-                    'w-full rounded border border-border bg-background px-2 py-1',
+                    'h-8 w-full rounded-md border border-input bg-transparent px-2 text-[12px] shadow-sm focus:outline-none focus:ring-1 focus:ring-ring',
                     className,
                 )}
             />
@@ -144,15 +160,10 @@ function Toggle({
     onChange: (v: boolean) => void;
 }) {
     return (
-        <label className="flex items-center justify-between">
-            <span>{label}</span>
-            <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => onChange(e.target.checked)}
-                className="accent-[var(--brand)]"
-            />
-        </label>
+        <div className="flex items-center justify-between gap-3">
+            <span className="text-[12px]">{label}</span>
+            <Switch checked={checked} onCheckedChange={onChange} />
+        </div>
     );
 }
 
@@ -171,29 +182,243 @@ function BoundEditor({
         ? CF_BOUND_TYPES
         : CF_BOUND_TYPES.filter((t) => t !== 'none');
     return (
-        <div className="grid grid-cols-[1fr_auto] gap-2">
-            <Select
-                label={label}
-                value={bound.type}
-                options={types.map((t) => ({ value: t, label: BOUND_LABELS[t] }))}
-                onChange={(v) => onChange({ type: v as CfBoundType })}
-            />
-            <div className="w-12">
-                <span className="mb-1 block text-muted-foreground">&nbsp;</span>
-                <ColorInput
-                    value={bound.color}
-                    onChange={(v) => onChange({ color: v })}
+        <div className="space-y-2">
+            <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                <Select
+                    label={label}
+                    value={bound.type}
+                    options={types.map((t) => ({ value: t, label: BOUND_LABELS[t] }))}
+                    onChange={(v) => onChange({ type: v as CfBoundType })}
                 />
-            </div>
-            {['number', 'percent', 'percentile'].includes(bound.type) && (
-                <div className="col-span-2">
-                    <NumberInput
-                        label="Value"
-                        value={bound.value ?? 0}
-                        onChange={(v) => onChange({ value: v })}
+                <div className="w-9 pb-0.5">
+                    <span className="mb-1 block text-[11px] text-muted-foreground">
+                        Color
+                    </span>
+                    <ColorInput
+                        value={bound.color}
+                        onChange={(v) => onChange({ color: v })}
+                        className="h-8 w-9"
                     />
                 </div>
+            </div>
+            {['number', 'percent', 'percentile'].includes(bound.type) && (
+                <NumberInput
+                    label="Value"
+                    value={bound.value ?? 0}
+                    onChange={(v) => onChange({ value: v })}
+                />
             )}
+        </div>
+    );
+}
+
+/** Segmented pill control for the format style. */
+function StylePicker({
+    value,
+    options,
+    onChange,
+}: {
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (v: string) => void;
+}) {
+    return (
+        <div className="flex flex-wrap gap-1.5">
+            {options.map((o) => {
+                const active = o.value === value;
+                return (
+                    <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => onChange(o.value)}
+                        className={cn(
+                            'rounded-md border px-3 py-1.5 text-[11px] font-medium transition-colors',
+                            active
+                                ? 'border-brand bg-brand text-white shadow-sm'
+                                : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
+                        )}
+                    >
+                        {o.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+/** One conditional-formatting rule row (color or icon flavor). */
+function RuleCard({
+    index,
+    rule,
+    set,
+    iconMode,
+    onPatch,
+    onRemove,
+}: {
+    index: number;
+    rule: CfRule;
+    set: CFIconSet | undefined;
+    iconMode: boolean;
+    onPatch: (p: Partial<CfRule>) => void;
+    onRemove: () => void;
+}) {
+    return (
+        <div className="rounded-lg border border-border bg-card p-3">
+            <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                    Rule {index + 1}
+                </span>
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+                    aria-label="Delete rule"
+                >
+                    <Trash2 className="size-3.5" />
+                </button>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+                <div className="w-24">
+                    <Select
+                        label="Condition"
+                        value={rule.condition}
+                        options={CF_RULE_CONDITIONS.map((c) => ({
+                            value: c,
+                            label: CONDITION_LABELS[c],
+                        }))}
+                        onChange={(v) =>
+                            onPatch({ condition: v as CfRuleCondition })
+                        }
+                    />
+                </div>
+                {rule.condition === 'is' && (
+                    <>
+                        <div className="w-44">
+                            <Select
+                                label="Operator"
+                                value={rule.comparator}
+                                options={CF_COMPARATORS.map((c) => ({
+                                    value: c,
+                                    label: COMPARATOR_LABELS[c],
+                                }))}
+                                onChange={(v) =>
+                                    onPatch({ comparator: v as CfComparator })
+                                }
+                            />
+                        </div>
+                        <div className="w-20">
+                            <NumberInput
+                                label="Value"
+                                value={rule.value}
+                                onChange={(v) => onPatch({ value: v })}
+                            />
+                        </div>
+                        {rule.comparator === 'between' && (
+                            <div className="w-20">
+                                <NumberInput
+                                    label="to"
+                                    value={rule.value2 ?? rule.value}
+                                    onChange={(v) => onPatch({ value2: v })}
+                                />
+                            </div>
+                        )}
+                        <div className="w-24">
+                            <Select
+                                label="Type"
+                                value={rule.valueType}
+                                options={CF_VALUE_TYPES.map((t) => ({
+                                    value: t,
+                                    label: VALUE_TYPE_LABELS[t],
+                                }))}
+                                onChange={(v) =>
+                                    onPatch({ valueType: v as CfValueType })
+                                }
+                            />
+                        </div>
+                    </>
+                )}
+                {iconMode ? (
+                    <div className="w-44">
+                        <span className="mb-1 block text-[11px] text-muted-foreground">
+                            Icon
+                        </span>
+                        <IconPicker
+                            value={rule.icon}
+                            set={set}
+                            onChange={(v) => onPatch({ icon: v })}
+                            className="h-8"
+                        />
+                    </div>
+                ) : (
+                    <div className="w-24">
+                        <span className="mb-1 block text-[11px] text-muted-foreground">
+                            Color
+                        </span>
+                        <ColorInput
+                            value={rule.color}
+                            onChange={(v) => onPatch({ color: v })}
+                            className="h-8"
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+const formatNum = (v: number) =>
+    Number.isInteger(v) ? String(v) : v.toFixed(1);
+
+/** Live swatch strip sampling how the format will look across the field range. */
+function PreviewStrip({
+    cf,
+    values,
+    basedOnLabel,
+}: {
+    cf: ConditionalFormat;
+    values: number[];
+    basedOnLabel: string;
+}) {
+    const set = iconSetOf(cf.iconSet) ?? defaultIconSet();
+    return (
+        <div className="rounded-lg border border-border bg-panel p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                    Preview
+                </span>
+                <span className="truncate text-[10px] text-muted-foreground">
+                    {basedOnLabel}
+                </span>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+                {values.map((v, i) => {
+                    const color = conditionalColor(cf, v, values, v);
+                    const icon =
+                        cf.style === 'icons'
+                            ? iconById(set.id, conditionalIcon(cf, v, values))
+                            : undefined;
+                    return (
+                        <div key={i} className="flex flex-col items-center gap-1">
+                            <div
+                                className={cn(
+                                    'flex h-10 w-10 items-center justify-center rounded-md border',
+                                    color ? 'border-transparent' : 'border-border',
+                                )}
+                                style={
+                                    color
+                                        ? { backgroundColor: color }
+                                        : undefined
+                                }
+                            >
+                                {icon && <CfIcon icon={icon} size={20} />}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">
+                                {formatNum(v)}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
@@ -390,6 +615,59 @@ export function ConditionalFormatDialog({
         ? draft.agg
         : aggOptions[0]!.value;
 
+    const basedOnOptions = (() => {
+        const seen = new Set<string>();
+        const options: { value: string; label: string }[] = [];
+        const push = (value: string, label: string) => {
+            if (seen.has(value)) return;
+            seen.add(value);
+            options.push({ value, label });
+        };
+        if (visual.values[0]) {
+            push(
+                qualified(visual.values[0].table ?? '', visual.values[0].name),
+                `${visual.values[0].name} (value)`,
+            );
+        }
+        for (const f of fields)
+            push(
+                qualified(f.table, f.name),
+                `${f.table} · ${f.name}`,
+            );
+        return options;
+    })();
+    const basedOnSelectValue = basedOnKey || basedOnOptions[0]?.value || '';
+
+    /** ~7 sample values spanning the based-on field for the live preview. */
+    const previewValues = (() => {
+        if (!effectiveBasedOn) return [];
+        const nums: number[] = [];
+        for (const t of tables) {
+            if (effectiveBasedOnTable && t.name !== effectiveBasedOnTable)
+                continue;
+            for (const row of t.rows) {
+                const v = row[effectiveBasedOn];
+                if (typeof v === 'number' && isFinite(v)) nums.push(v);
+                else if (
+                    typeof v === 'string' &&
+                    v.trim() !== '' &&
+                    isFinite(Number(v))
+                )
+                    nums.push(Number(v));
+            }
+        }
+        if (!nums.length) return [];
+        const min = Math.min(...nums);
+        const max = Math.max(...nums);
+        if (min === max) return [min];
+        const out: number[] = [];
+        for (let i = 0; i < 7; i++)
+            out.push(min + ((max - min) * i) / 6);
+        return out;
+    })();
+
+    const iconSet = iconSetOf(draft.iconSet) ?? defaultIconSet();
+
     const apply = () => {
         if (onCommit) onCommit(draft);
         else setConditionalFormat(visual.id, draft);
@@ -403,67 +681,59 @@ export function ConditionalFormatDialog({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4">
-            <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl">
-                <div className="flex items-center justify-between border-b border-border bg-panel px-4 py-2">
-                    <h2 className="text-sm font-semibold">
-                        Conditional formatting
-                    </h2>
+            <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+                <header className="flex items-center justify-between border-b border-border bg-panel px-5 py-3">
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-sm font-semibold">
+                            Conditional formatting
+                        </h2>
+                        <span
+                            className={cn(
+                                'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                                draft.style !== 'none'
+                                    ? 'bg-brand/10 text-brand'
+                                    : 'bg-accent text-muted-foreground',
+                            )}
+                        >
+                            {STYLE_LABELS[draft.style]}
+                        </span>
+                    </div>
                     <button
+                        type="button"
                         onClick={onClose}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        aria-label="Close"
                     >
-                        ×
+                        <X className="size-4" />
                     </button>
-                </div>
+                </header>
 
-                <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4 text-[11px]">
-                    <Select
-                        label="Format style"
-                        value={draft.style}
-                        options={
-                            hideFieldValue
-                                ? STYLE_OPTIONS.filter(
-                                      (o) => o.value !== 'fieldValue',
-                                  )
-                                : STYLE_OPTIONS
-                        }
-                        onChange={(v) =>
-                            changeStyle(v as ConditionalFormat['style'])
-                        }
-                    />
+                <div className="min-h-0 flex-1 space-y-5 overflow-auto p-5 text-[12px]">
+                    <section>
+                        <span className="mb-1.5 block text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                            Format style
+                        </span>
+                        <StylePicker
+                            value={draft.style}
+                            options={
+                                hideFieldValue
+                                    ? STYLE_OPTIONS.filter(
+                                          (o) => o.value !== 'fieldValue',
+                                      )
+                                    : STYLE_OPTIONS
+                            }
+                            onChange={(v) =>
+                                changeStyle(v as ConditionalFormat['style'])
+                            }
+                        />
+                    </section>
 
                     {draft.style !== 'none' && (
-                        <div className="grid grid-cols-2 gap-2">
+                        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <Select
                                 label="What field should we base this on?"
-                                value={basedOnKey}
-                                options={(() => {
-                                    const seen = new Set<string>();
-                                    const options: {
-                                        value: string;
-                                        label: string;
-                                    }[] = [];
-                                    const push = (value: string, label: string) => {
-                                        if (seen.has(value)) return;
-                                        seen.add(value);
-                                        options.push({ value, label });
-                                    };
-                                    if (visual.values[0]) {
-                                        push(
-                                            qualified(
-                                                visual.values[0].table ?? '',
-                                                visual.values[0].name,
-                                            ),
-                                            `${visual.values[0].name} (value)`,
-                                        );
-                                    }
-                                    for (const f of fields)
-                                        push(
-                                            qualified(f.table, f.name),
-                                            `${f.table} · ${f.name}`,
-                                        );
-                                    return options;
-                                })()}
+                                value={basedOnSelectValue}
+                                options={basedOnOptions}
                                 onChange={(v) => {
                                     const { table, name } =
                                         splitQualified(v);
@@ -481,17 +751,17 @@ export function ConditionalFormatDialog({
                                     patch({ agg: v as CfAgg })
                                 }
                             />
-                        </div>
+                        </section>
                     )}
 
                     {draft.style === 'gradient' && (
-                        <>
+                        <section className="space-y-3">
                             <Toggle
                                 label="Diverging (3-color scale)"
                                 checked={draft.diverging}
                                 onChange={(v) => patch({ diverging: v })}
                             />
-                            <div className="space-y-3 rounded border border-border p-2">
+                            <div className="space-y-3 rounded-lg border border-border bg-panel p-3">
                                 <BoundEditor
                                     label="Minimum"
                                     bound={draft.min}
@@ -515,302 +785,63 @@ export function ConditionalFormatDialog({
                                     />
                                 )}
                             </div>
-                        </>
+                        </section>
                     )}
 
                     {draft.style === 'icons' && (
-                        <>
-                            <Select
-                                label="Icon set"
-                                value={
-                                    (iconSetOf(draft.iconSet) ??
-                                        defaultIconSet()).id
-                                }
-                                options={CF_ICON_SETS.map((s) => ({
-                                    value: s.id,
-                                    label: `${s.category} · ${s.label}`,
-                                }))}
-                                onChange={changeIconSet}
-                            />
-                            <p className="text-muted-foreground">
+                        <section className="space-y-3">
+                            <div>
+                                <span className="mb-1 block text-[11px] text-muted-foreground">
+                                    Icon set
+                                </span>
+                                <IconSetPicker
+                                    value={iconSet.id}
+                                    onChange={changeIconSet}
+                                />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
                                 Les icônes sont attribuées par règle. Les
                                 règles non configurées utilisent la première
                                 icône du jeu.
                             </p>
-                        </>
+                        </section>
                     )}
 
-                    {draft.style === 'rules' && (
-                        <div className="space-y-2">
-                            {draft.rules.map((rule, i) => (
-                                <div
-                                    key={i}
-                                    className="space-y-2 rounded border border-border p-2"
+                    {(draft.style === 'rules' ||
+                        draft.style === 'icons') && (
+                        <section className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                                    Rules
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={addRule}
+                                    className="flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium transition-colors hover:bg-accent"
                                 >
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <div className="w-24">
-                                            <Select
-                                                value={rule.condition}
-                                                options={CF_RULE_CONDITIONS.map(
-                                                    (c) => ({
-                                                        value: c,
-                                                        label: CONDITION_LABELS[
-                                                            c
-                                                        ],
-                                                    }),
-                                                )}
-                                                onChange={(v) =>
-                                                    patchRule(i, {
-                                                        condition:
-                                                            v as CfRuleCondition,
-                                                    })
-                                                }
-                                            />
-                                        </div>
-                                        {rule.condition === 'is' && (
-                                            <>
-                                                <div className="w-40">
-                                                    <Select
-                                                        value={rule.comparator}
-                                                        options={CF_COMPARATORS.map(
-                                                            (c) => ({
-                                                                value: c,
-                                                                label: COMPARATOR_LABELS[
-                                                                    c
-                                                                ],
-                                                            }),
-                                                        )}
-                                                        onChange={(v) =>
-                                                            patchRule(i, {
-                                                                comparator:
-                                                                    v as CfComparator,
-                                                            })
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="w-20">
-                                                    <NumberInput
-                                                        value={rule.value}
-                                                        onChange={(v) =>
-                                                            patchRule(i, {
-                                                                value: v,
-                                                            })
-                                                        }
-                                                    />
-                                                </div>
-                                                {rule.comparator ===
-                                                    'between' && (
-                                                    <div className="w-20">
-                                                        <NumberInput
-                                                            value={
-                                                                rule.value2 ??
-                                                                rule.value
-                                                            }
-                                                            onChange={(v) =>
-                                                                patchRule(i, {
-                                                                    value2: v,
-                                                                })
-                                                            }
-                                                        />
-                                                    </div>
-                                                )}
-                                                <div className="w-24">
-                                                    <Select
-                                                        value={rule.valueType}
-                                                        options={CF_VALUE_TYPES.map(
-                                                            (t) => ({
-                                                                value: t,
-                                                                label: VALUE_TYPE_LABELS[
-                                                                    t
-                                                                ],
-                                                            }),
-                                                        )}
-                                                        onChange={(v) =>
-                                                            patchRule(i, {
-                                                                valueType:
-                                                                    v as CfValueType,
-                                                            })
-                                                        }
-                                                    />
-                                                </div>
-                                            </>
-                                        )}
-                                        <div className="w-12">
-                                            <ColorInput
-                                                value={rule.color}
-                                                onChange={(v) =>
-                                                    patchRule(i, { color: v })
-                                                }
-                                            />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeRule(i)}
-                                            className="rounded p-1 text-muted-foreground hover:text-destructive"
-                                            aria-label="Delete rule"
-                                        >
-                                            <Trash2 className="size-3" />
-                                        </button>
-                                    </div>
-                                </div>
+                                    <Plus className="size-3.5" /> New rule
+                                </button>
+                            </div>
+                            {draft.rules.map((rule, i) => (
+                                <RuleCard
+                                    key={i}
+                                    index={i}
+                                    rule={rule}
+                                    set={
+                                        draft.style === 'icons'
+                                            ? iconSet
+                                            : undefined
+                                    }
+                                    iconMode={draft.style === 'icons'}
+                                    onPatch={(p) => patchRule(i, p)}
+                                    onRemove={() => removeRule(i)}
+                                />
                             ))}
-                            <button
-                                type="button"
-                                onClick={addRule}
-                                className="flex items-center gap-1 rounded border border-border bg-background px-2 py-1 hover:bg-accent"
-                            >
-                                <Plus className="size-3" /> New rule
-                            </button>
-                        </div>
-                    )}
-
-                    {draft.style === 'icons' && (
-                        <div className="space-y-2">
-                            {draft.rules.map((rule, i) => {
-                                const set =
-                                    iconSetOf(draft.iconSet) ??
-                                    defaultIconSet();
-                                const icon = iconForRule(set, rule);
-                                return (
-                                    <div
-                                        key={i}
-                                        className="space-y-2 rounded border border-border p-2"
-                                    >
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <div className="w-24">
-                                                <Select
-                                                    value={rule.condition}
-                                                    options={CF_RULE_CONDITIONS.map(
-                                                        (c) => ({
-                                                            value: c,
-                                                            label: CONDITION_LABELS[
-                                                                c
-                                                            ],
-                                                        }),
-                                                    )}
-                                                    onChange={(v) =>
-                                                        patchRule(i, {
-                                                            condition:
-                                                                v as CfRuleCondition,
-                                                        })
-                                                    }
-                                                />
-                                            </div>
-                                            {rule.condition === 'is' && (
-                                                <>
-                                                    <div className="w-40">
-                                                        <Select
-                                                            value={
-                                                                rule.comparator
-                                                            }
-                                                            options={CF_COMPARATORS.map(
-                                                                (c) => ({
-                                                                    value: c,
-                                                                    label: COMPARATOR_LABELS[
-                                                                        c
-                                                                    ],
-                                                                }),
-                                                            )}
-                                                            onChange={(v) =>
-                                                                patchRule(i, {
-                                                                    comparator:
-                                                                        v as CfComparator,
-                                                                })
-                                                            }
-                                                        />
-                                                    </div>
-                                                    <div className="w-20">
-                                                        <NumberInput
-                                                            value={rule.value}
-                                                            onChange={(v) =>
-                                                                patchRule(i, {
-                                                                    value: v,
-                                                                })
-                                                            }
-                                                        />
-                                                    </div>
-                                                    {rule.comparator ===
-                                                        'between' && (
-                                                        <div className="w-20">
-                                                            <NumberInput
-                                                                value={
-                                                                    rule.value2 ??
-                                                                    rule.value
-                                                                }
-                                                                onChange={(v) =>
-                                                                    patchRule(i, {
-                                                                        value2: v,
-                                                                    })
-                                                                }
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    <div className="w-24">
-                                                        <Select
-                                                            value={rule.valueType}
-                                                            options={CF_VALUE_TYPES.map(
-                                                                (t) => ({
-                                                                    value: t,
-                                                                    label: VALUE_TYPE_LABELS[
-                                                                        t
-                                                                    ],
-                                                                }),
-                                                            )}
-                                                            onChange={(v) =>
-                                                                patchRule(i, {
-                                                                    valueType:
-                                                                        v as CfValueType,
-                                                                })
-                                                            }
-                                                        />
-                                                    </div>
-                                                </>
-                                            )}
-                                            <div className="w-28">
-                                                <Select
-                                                    label="Icon"
-                                                    value={icon?.id ?? ''}
-                                                    options={set.icons.map(
-                                                        (ic) => ({
-                                                            value: ic.id,
-                                                            label: ic.label,
-                                                        }),
-                                                    )}
-                                                    onChange={(v) =>
-                                                        patchRule(i, { icon: v })
-                                                    }
-                                                />
-                                            </div>
-                                            <span className="flex items-center gap-1">
-                                                <CfIcon
-                                                    icon={icon}
-                                                    size={14}
-                                                />
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeRule(i)}
-                                                className="rounded p-1 text-muted-foreground hover:text-destructive"
-                                                aria-label="Delete rule"
-                                            >
-                                                <Trash2 className="size-3" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            <button
-                                type="button"
-                                onClick={addRule}
-                                className="flex items-center gap-1 rounded border border-border bg-background px-2 py-1 hover:bg-accent"
-                            >
-                                <Plus className="size-3" /> New rule
-                            </button>
-                        </div>
+                        </section>
                     )}
 
                     {draft.style === 'fieldValue' && (
-                        <>
+                        <section className="space-y-2">
                             <Select
                                 label="What field should we use?"
                                 value={fieldValueKey}
@@ -828,12 +859,12 @@ export function ConditionalFormatDialog({
                                 }}
                             />
                             {!colorColumns.length && (
-                                <p className="text-muted-foreground">
+                                <p className="text-[11px] text-muted-foreground">
                                     No columns contain valid color values (hex
                                     codes) in the current dataset.
                                 </p>
                             )}
-                        </>
+                        </section>
                     )}
 
                     {['table', 'matrix'].includes(visual.type) && (
@@ -843,33 +874,44 @@ export function ConditionalFormatDialog({
                             onChange={(v) => patch({ showDataBars: v })}
                         />
                     )}
+
+                    {draft.style !== 'none' &&
+                        previewValues.length > 0 && (
+                            <PreviewStrip
+                                cf={draft}
+                                values={previewValues}
+                                basedOnLabel={
+                                    effectiveBasedOn
+                                        ? `${effectiveBasedOnTable ? `${effectiveBasedOnTable} · ` : ''}${effectiveBasedOn}`
+                                        : 'based on…'
+                                }
+                            />
+                        )}
                 </div>
 
-                <div className="flex items-center justify-between border-t border-border bg-panel px-4 py-2">
-                    <button
+                <footer className="flex items-center justify-between gap-2 border-t border-border bg-panel px-5 py-3">
+                    <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={reset}
-                        className="rounded border border-border bg-background px-3 py-1 hover:bg-accent"
                     >
                         Reset to default
-                    </button>
+                    </Button>
                     <div className="flex gap-2">
-                        <button
+                        <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={onClose}
-                            className="rounded border border-border bg-background px-3 py-1 hover:bg-accent"
                         >
                             Cancel
-                        </button>
-                        <button
-                            type="button"
-                            onClick={apply}
-                            className="rounded bg-brand px-3 py-1 text-white hover:opacity-90"
-                        >
+                        </Button>
+                        <Button type="button" size="sm" onClick={apply}>
                             OK
-                        </button>
+                        </Button>
                     </div>
-                </div>
+                </footer>
             </div>
         </div>
     );

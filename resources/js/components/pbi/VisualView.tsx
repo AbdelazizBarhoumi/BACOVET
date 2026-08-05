@@ -649,9 +649,11 @@ function useInteractiveRows(visual: Visual, rows: Row[]) {
 export function VisualView({
     visual,
     rows: allRows,
+    static: staticRender = false,
 }: {
     visual: Visual;
     rows: Row[];
+    static?: boolean;
 }) {
     const { tables, joins, measures } = usePbi();
     const measureExpressions = useMemo(
@@ -669,7 +671,15 @@ export function VisualView({
     const { rows, match } = useInteractiveRows(visual, enrichedRows);
     const sm = visual.smallMultiples[0]?.name;
 
-    if (!sm) return <ChartBody visual={visual} rows={rows} match={match} />;
+    if (!sm)
+        return (
+            <ChartBody
+                visual={visual}
+                rows={rows}
+                match={match}
+                static={staticRender}
+            />
+        );
 
     const cells = distinctValues(sm, rows);
     if (!cells.length)
@@ -692,6 +702,7 @@ export function VisualView({
                                 (r) => String(r[sm]) === String(value),
                             )}
                             match={match}
+                            static={staticRender}
                         />
                     </div>
                 </div>
@@ -704,13 +715,16 @@ function ChartBody({
     visual,
     rows,
     match,
+    static: staticRender = false,
 }: {
     visual: Visual;
     rows: Row[];
     match: ((r: Row) => boolean) | null;
+    static?: boolean;
 }) {
     const { applyCrossFilter, setTooltipHover, tooltipHover } = usePbi();
 
+    const animate = staticRender ? false : undefined;
     const cf = normalizeConditionalFormat(visual.conditionalFormat);
     const extra = useMemo(() => {
         if (cf.style === 'none' || cf.style === 'fieldValue') return undefined;
@@ -1241,6 +1255,7 @@ function ChartBody({
                             innerRadius={visual.type === 'donut' ? '55%' : 0}
                             outerRadius="85%"
                             paddingAngle={1}
+                            isAnimationActive={animate}
                             onClick={(d: { category?: string }) =>
                                 onPointClick(d)
                             }
@@ -1322,7 +1337,7 @@ function ChartBody({
                         <Funnel
                             dataKey={series[0] ?? 'value'}
                             data={data}
-                            isAnimationActive
+                            isAnimationActive={animate}
                             onClick={onPointClick}
                         >
                             <LabelList
@@ -1394,6 +1409,7 @@ function ChartBody({
                             dataKey="delta"
                             stackId="w"
                             radius={[2, 2, 0, 0]}
+                            isAnimationActive={animate}
                             onClick={onPointClick}
                         >
                             {wdata.map((d, i) => (
@@ -1448,10 +1464,11 @@ function ChartBody({
                                     stroke={color}
                                     strokeWidth={2}
                                     dot={pointDot(color)}
+                                    isAnimationActive={animate}
                                 />
                             );
                         })}
-                        {analyticsLines(visual, data, series)}
+                        {analyticsLines(visual, data, series, false, animate)}
                     </LineChart>
                 </ResponsiveContainer>,
             );
@@ -1495,6 +1512,7 @@ function ChartBody({
                                     fill={color}
                                     fillOpacity={0.35}
                                     dot={pointDot(color)}
+                                    isAnimationActive={animate}
                                 />
                             );
                         })}
@@ -1532,6 +1550,7 @@ function ChartBody({
                                     dataKey={s}
                                     fill={PALETTE[0]}
                                     radius={[2, 2, 0, 0]}
+                                    isAnimationActive={animate}
                                     onClick={onPointClick}
                                 >
                                     {data.map((d, idx) => (
@@ -1550,10 +1569,11 @@ function ChartBody({
                                     stroke={seriesColor ?? PALETTE[i]}
                                     strokeWidth={2}
                                     dot={pointDot(seriesColor ?? PALETTE[i])}
+                                    isAnimationActive={animate}
                                 />
                             ),
                         )}
-                        {analyticsLines(visual, data, series)}
+                        {analyticsLines(visual, data, series, false, animate)}
                     </ComposedChart>
                 </ResponsiveContainer>,
             );
@@ -1608,6 +1628,7 @@ function ChartBody({
                         <Scatter
                             data={scData}
                             fill={seriesColor ?? 'var(--chart-1)'}
+                            isAnimationActive={animate}
                             onClick={onPointClick}
                             shape={
                                 matchSet
@@ -1720,6 +1741,7 @@ function ChartBody({
                                 {...(stacked ? { stackId: 'a' } : {})}
                                 fill={seriesBaseFill(i)}
                                 radius={barRadius}
+                                isAnimationActive={animate}
                                 onClick={onPointClick}
                             >
                                 {bdata.map((d, idx) => (
@@ -1741,7 +1763,7 @@ function ChartBody({
                                 )}
                             </Bar>
                         ))}
-                        {analyticsLines(visual, bdata, series, true)}
+                        {analyticsLines(visual, bdata, series, true, animate)}
                     </BarChart>
                 </ResponsiveContainer>,
             );
@@ -1822,6 +1844,7 @@ function ChartBody({
                                 {...(stacked ? { stackId: 'a' } : {})}
                                 fill={seriesBaseFill(i)}
                                 radius={barRadius}
+                                isAnimationActive={animate}
                                 onClick={onPointClick}
                             >
                                 {cdata.map((d, idx) => (
@@ -1843,7 +1866,7 @@ function ChartBody({
                                 )}
                             </Bar>
                         ))}
-                        {analyticsLines(visual, cdata, series, false)}
+                        {analyticsLines(visual, cdata, series, false, animate)}
                     </BarChart>
                 </ResponsiveContainer>,
             );
@@ -1869,6 +1892,7 @@ function analyticsLines(
     data: Record<string, string | number>[],
     series: string[],
     horizontal = false,
+    animate = true,
 ) {
     if (!visual.analytics.length || !series.length) return null;
     const key = series[0]!;
@@ -1907,15 +1931,15 @@ function analyticsLines(
             return statLine(a.value ?? max * 0.8, 'var(--chart-5)', 'Objectif');
         if (a.kind === 'min')
             return statLine(
-                min,
+                a.value ?? min,
                 'var(--chart-6)',
-                `Minimum ${visualFmt(min, visual, visual.values[0])}`,
+                `Minimum ${visualFmt(a.value ?? min, visual, visual.values[0])}`,
             );
         if (a.kind === 'max')
             return statLine(
-                max,
+                a.value ?? max,
                 'var(--chart-6)',
-                `Maximum ${visualFmt(max, visual, visual.values[0])}`,
+                `Maximum ${visualFmt(a.value ?? max, visual, visual.values[0])}`,
             );
         if (a.kind === 'median')
             return statLine(
@@ -1933,6 +1957,7 @@ function analyticsLines(
                     strokeDasharray={a.kind === 'forecast' ? '6 3' : '3 3'}
                     strokeWidth={1.5}
                     dot={false}
+                    isAnimationActive={animate}
                     legendType="none"
                 />
             );

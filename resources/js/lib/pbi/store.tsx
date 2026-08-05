@@ -202,6 +202,7 @@ export type State = {
     snapToGrid: boolean;
     zoom: number;
     mobileView: boolean;
+    fullscreen: boolean;
     ribbonTab: string;
     openPanes: Record<PaneName, boolean>;
     drillthrough: { pageId: string; column: string; value: string } | null;
@@ -339,6 +340,7 @@ function normalizeState(state: State): State {
                 : 'highlight',
         slicerDateRanges: state.slicerDateRanges ?? {},
         measures: state.measures ?? [],
+        fullscreen: state.fullscreen ?? false,
         theme: state.theme ?? 'default',
         customThemes: Array.isArray(state.customThemes)
             ? state.customThemes
@@ -639,6 +641,7 @@ const defaultState = (tables: TableDef[] = []): State => ({
     snapToGrid: true,
     zoom: 100,
     mobileView: false,
+    fullscreen: false,
     ribbonTab: 'Insertion',
     openPanes: {
         filters: true,
@@ -807,6 +810,11 @@ type Ctx = State & {
         mode: ValueAggregationMode,
     ) => void;
     toggleAnalytics: (visualId: string, kind: AnalyticsLine['kind']) => void;
+    setAnalyticsValue: (
+        visualId: string,
+        kind: AnalyticsLine['kind'],
+        value: number | undefined,
+    ) => void;
     drill: (visualId: string, dir: -1 | 1) => void;
     addPage: () => void;
     removePage: (id: string) => void;
@@ -914,6 +922,7 @@ type Ctx = State & {
     setRibbonTab: (t: string) => void;
     togglePane: (p: PaneName) => void;
     setZoom: (z: number) => void;
+    setFullscreen: (v: boolean) => void;
     openDrillthrough: (column: string, value: string) => void;
     clearDrillthrough: () => void;
     undo: () => void;
@@ -1669,6 +1678,21 @@ export function PbiProvider({
                     };
                 }),
             ),
+        setAnalyticsValue: (visualId, kind, value) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const exists = v.analytics.find((a) => a.kind === kind);
+                    return {
+                        ...v,
+                        analytics: exists
+                            ? v.analytics.map((a) =>
+                                  a.kind === kind ? { ...a, value } : a,
+                              )
+                            : [...v.analytics, { kind, enabled: true, value }],
+                    };
+                }),
+            ),
         drill: (visualId, dir) =>
             mapVisuals((vs) =>
                 vs.map((v) => {
@@ -2177,6 +2201,7 @@ export function PbiProvider({
                 openPanes: { ...s.openPanes, [p]: !s.openPanes[p] },
             })),
         setZoom: (zoom) => setState((s) => ({ ...s, zoom })),
+        setFullscreen: (fullscreen) => setState((s) => ({ ...s, fullscreen })),
         openDrillthrough: (column, value) =>
             setState((s) => {
                 const target = s.pages.find((p) => p.id !== s.activePageId);

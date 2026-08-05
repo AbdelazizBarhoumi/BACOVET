@@ -146,7 +146,13 @@ function TooltipPagePopup() {
     );
 }
 
-export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
+export function Canvas({
+    readOnly = false,
+    fit = false,
+}: {
+    readOnly?: boolean;
+    fit?: boolean;
+}) {
     const {
         page,
         rows,
@@ -197,8 +203,12 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         y: number;
     } | null>(null);
     const [records, setRecords] = useState<string | null>(null);
-    const scale = zoom / 100;
     const ref = useRef<HTMLDivElement>(null);
+    const fitRef = useRef<HTMLDivElement>(null);
+    const [fitSize, setFitSize] = useState<{ w: number; h: number } | null>(
+        null,
+    );
+    const scale = zoom / 100;
     const latestLiveRef = useRef<Record<string, LiveGeo> | null>(null);
     const rafRef = useRef<number | null>(null);
     const { pageId } = usePage().props as unknown as { pageId: number };
@@ -323,6 +333,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     };
 
     useEffect(() => {
+        if (readOnly) return;
         const el = ref.current;
         if (!el) return;
         const handler = (e: WheelEvent) => {
@@ -333,7 +344,19 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
         };
         el.addEventListener('wheel', handler, { passive: false });
         return () => el.removeEventListener('wheel', handler);
-    }, [zoom, setZoom]);
+    }, [zoom, setZoom, readOnly]);
+
+    useEffect(() => {
+        if (!fit) return;
+        const el = fitRef.current;
+        if (!el) return;
+        const measure = () =>
+            setFitSize({ w: el.clientWidth, h: el.clientHeight });
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [fit]);
 
     const snap = useCallback(
         (n: number) =>
@@ -458,6 +481,12 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     const menuVisual = page.visuals.find((v) => v.id === menu?.id) ?? null;
     const showBoundary = !readOnly && !mobileView;
 
+    const fitScale =
+        fit && fitSize && fitSize.w > 0 && fitSize.h > 0
+            ? Math.min(fitSize.w / width, fitSize.h / height)
+            : 1;
+    const renderScale = fit ? fitScale : scale;
+
     const dragGeo = drag && live ? (live[drag.id] ?? null) : null;
     const pageW = page.format.width;
     const pageH = page.format.height;
@@ -492,10 +521,17 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
             : null;
 
     return (
-        <div className="flex min-h-full w-full p-6">
+        <div
+            ref={fitRef}
+            className={cn(
+                'flex min-h-full w-full',
+                !fit && 'p-6',
+                fit && 'items-center justify-center',
+            )}
+        >
             <div
                 className="mx-auto"
-                style={{ width: width * scale, height: height * scale }}
+                style={{ width: width * renderScale, height: height * renderScale }}
             >
                 <div
                     ref={ref}
@@ -544,7 +580,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
                     style={{
                         width,
                         height,
-                        transform: `scale(${scale})`,
+                        transform: `scale(${renderScale})`,
                         backgroundColor: page.format.background,
                     }}
                 >

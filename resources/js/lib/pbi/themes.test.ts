@@ -130,7 +130,7 @@ describe('themeById', () => {
     });
 
     it('resolves known built-in themes', () => {
-        expect(themeById('ocean').name).toBe('Ocean');
+        expect(themeById('ocean').name).toBe('Océan');
         expect(themeById('monochrome').name).toBe('Monochrome');
     });
 });
