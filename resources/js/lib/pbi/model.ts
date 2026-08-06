@@ -963,7 +963,14 @@ export type CrossFilter = {
 export type Interaction = 'filter' | 'highlight' | 'none';
 
 /** A dataset table: a named set of fields backed by captured endpoint rows. */
-export type TableDef = { name: string; fields: Field[]; rows: Row[] };
+export type TableDef = {
+    name: string;
+    fields: Field[];
+    rows: Row[];
+    slug?: string;
+    label?: string | null;
+    object?: string | null;
+};
 
 /* ------------------------------------------------------------------ */
 /* Dataset tables — populated at runtime from the fetched endpoints.   */

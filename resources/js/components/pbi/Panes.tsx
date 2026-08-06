@@ -30,6 +30,11 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
+    applyFilter,
+    customFilterColumnsForTable,
+    customFilterPooledValues,
+    customFilterSelectedValues,
+    isCustomFilter,
     relativeDateRange,
     type FilterType,
     type RelativePreset,
@@ -196,43 +201,107 @@ const IconStacked100ColumnPreview = chartPreviewIcon(
 const IconBarPreview = chartPreviewIcon(
     <>
         <rect x="3" y="3" width="8" height="1.8" fill={CHART_COLORS.blue} />
-        <rect x="3" y="5.2" width="13" height="1.8" fill={CHART_COLORS.orange} />
+        <rect
+            x="3"
+            y="5.2"
+            width="13"
+            height="1.8"
+            fill={CHART_COLORS.orange}
+        />
         <rect x="3" y="8" width="12" height="1.8" fill={CHART_COLORS.blue} />
-        <rect x="3" y="10.2" width="6" height="1.8" fill={CHART_COLORS.orange} />
+        <rect
+            x="3"
+            y="10.2"
+            width="6"
+            height="1.8"
+            fill={CHART_COLORS.orange}
+        />
         <rect x="3" y="13" width="5" height="1.8" fill={CHART_COLORS.blue} />
-        <rect x="3" y="15.2" width="10" height="1.8" fill={CHART_COLORS.orange} />
+        <rect
+            x="3"
+            y="15.2"
+            width="10"
+            height="1.8"
+            fill={CHART_COLORS.orange}
+        />
     </>,
 );
 
 const IconLinePreview = chartPreviewIcon(
     <>
-        <polyline points="2,14 6,8 10,11 14,5 18,9" fill="none" stroke={CHART_COLORS.blue} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points="2,10 6,13 10,6 14,10 18,4" fill="none" stroke={CHART_COLORS.orange} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline
+            points="2,14 6,8 10,11 14,5 18,9"
+            fill="none"
+            stroke={CHART_COLORS.blue}
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+        <polyline
+            points="2,10 6,13 10,6 14,10 18,4"
+            fill="none"
+            stroke={CHART_COLORS.orange}
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
     </>,
 );
 
 const IconAreaPreview = chartPreviewIcon(
     <>
-        <path d="M2 17v-6l3-3 3 2 4-4 4 3v8Z" fill={CHART_COLORS.blue} fillOpacity={0.85} />
-        <path d="M2 17v-3l3-3 3 2 4-3.5 4 2.5v5Z" fill={CHART_COLORS.orange} fillOpacity={0.9} />
+        <path
+            d="M2 17v-6l3-3 3 2 4-4 4 3v8Z"
+            fill={CHART_COLORS.blue}
+            fillOpacity={0.85}
+        />
+        <path
+            d="M2 17v-3l3-3 3 2 4-3.5 4 2.5v5Z"
+            fill={CHART_COLORS.orange}
+            fillOpacity={0.9}
+        />
     </>,
 );
 
 const IconPiePreview = chartPreviewIcon(
     <>
-        <path d="M10 10 L10 2 A8 8 0 0 1 14.70 16.47 Z" fill={CHART_COLORS.blue} />
-        <path d="M10 10 L14.70 16.47 A8 8 0 0 1 3.53 14.70 Z" fill={CHART_COLORS.orange} />
-        <path d="M10 10 L3.53 14.70 A8 8 0 0 1 3.53 5.30 Z" fill={CHART_COLORS.gray} />
-        <path d="M10 10 L3.53 5.30 A8 8 0 0 1 10 2 Z" fill={CHART_COLORS.gold} />
+        <path
+            d="M10 10 L10 2 A8 8 0 0 1 14.70 16.47 Z"
+            fill={CHART_COLORS.blue}
+        />
+        <path
+            d="M10 10 L14.70 16.47 A8 8 0 0 1 3.53 14.70 Z"
+            fill={CHART_COLORS.orange}
+        />
+        <path
+            d="M10 10 L3.53 14.70 A8 8 0 0 1 3.53 5.30 Z"
+            fill={CHART_COLORS.gray}
+        />
+        <path
+            d="M10 10 L3.53 5.30 A8 8 0 0 1 10 2 Z"
+            fill={CHART_COLORS.gold}
+        />
     </>,
 );
 
 const IconDonutPreview = chartPreviewIcon(
     <>
-        <path d="M10 2 A8 8 0 0 1 14.70 16.47 L12.06 12.83 A3.5 3.5 0 0 0 10 6.5 Z" fill={CHART_COLORS.blue} />
-        <path d="M14.70 16.47 A8 8 0 0 1 3.53 14.70 L7.17 12.06 A3.5 3.5 0 0 0 12.06 12.83 Z" fill={CHART_COLORS.orange} />
-        <path d="M3.53 14.70 A8 8 0 0 1 3.53 5.30 L7.17 7.94 A3.5 3.5 0 0 0 7.17 12.06 Z" fill={CHART_COLORS.gray} />
-        <path d="M3.53 5.30 A8 8 0 0 1 10 2 L10 6.5 A3.5 3.5 0 0 0 7.17 7.94 Z" fill={CHART_COLORS.gold} />
+        <path
+            d="M10 2 A8 8 0 0 1 14.70 16.47 L12.06 12.83 A3.5 3.5 0 0 0 10 6.5 Z"
+            fill={CHART_COLORS.blue}
+        />
+        <path
+            d="M14.70 16.47 A8 8 0 0 1 3.53 14.70 L7.17 12.06 A3.5 3.5 0 0 0 12.06 12.83 Z"
+            fill={CHART_COLORS.orange}
+        />
+        <path
+            d="M3.53 14.70 A8 8 0 0 1 3.53 5.30 L7.17 7.94 A3.5 3.5 0 0 0 7.17 12.06 Z"
+            fill={CHART_COLORS.gray}
+        />
+        <path
+            d="M3.53 5.30 A8 8 0 0 1 10 2 L10 6.5 A3.5 3.5 0 0 0 7.17 7.94 Z"
+            fill={CHART_COLORS.gold}
+        />
     </>,
 );
 
@@ -266,9 +335,18 @@ const IconStacked100BarPreview = chartPreviewIcon(
 
 const IconStackedAreaPreview = chartPreviewIcon(
     <>
-        <path d="M2 17 L2 14 L6 12 L10 15 L14 11 L18 14 L18 17 Z" fill={CHART_COLORS.blue} />
-        <path d="M2 12 L6 9 L10 11 L14 9 L18 11 L18 14 L14 11 L10 15 L6 12 L2 14 Z" fill={CHART_COLORS.orange} />
-        <path d="M2 10 L6 7 L10 8 L14 6 L18 9 L18 11 L14 9 L10 11 L6 9 L2 12 Z" fill={CHART_COLORS.gray} />
+        <path
+            d="M2 17 L2 14 L6 12 L10 15 L14 11 L18 14 L18 17 Z"
+            fill={CHART_COLORS.blue}
+        />
+        <path
+            d="M2 12 L6 9 L10 11 L14 9 L18 11 L18 14 L14 11 L10 15 L6 12 L2 14 Z"
+            fill={CHART_COLORS.orange}
+        />
+        <path
+            d="M2 10 L6 7 L10 8 L14 6 L18 9 L18 11 L14 9 L10 11 L6 9 L2 12 Z"
+            fill={CHART_COLORS.gray}
+        />
     </>,
 );
 
@@ -280,7 +358,14 @@ const IconComboPreview = chartPreviewIcon(
         <rect x="8.5" y="4" width="3" height="5" fill={CHART_COLORS.orange} />
         <rect x="14" y="13" width="3" height="4" fill={CHART_COLORS.blue} />
         <rect x="14" y="7" width="3" height="6" fill={CHART_COLORS.orange} />
-        <polyline points="4.5,8 10,5 15.5,9" fill="none" stroke={CHART_COLORS.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline
+            points="4.5,8 10,5 15.5,9"
+            fill="none"
+            stroke={CHART_COLORS.gold}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
         <circle cx="4.5" cy="8" r="1" fill={CHART_COLORS.gold} />
         <circle cx="10" cy="5" r="1" fill={CHART_COLORS.gold} />
         <circle cx="15.5" cy="9" r="1" fill={CHART_COLORS.gold} />
@@ -307,8 +392,14 @@ const IconFunnelPreview = chartPreviewIcon(
 
 const IconRibbonPreview = chartPreviewIcon(
     <>
-        <path d="M1 7c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z" fill={CHART_COLORS.blue} />
-        <path d="M1 12c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z" fill={CHART_COLORS.orange} />
+        <path
+            d="M1 7c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z"
+            fill={CHART_COLORS.blue}
+        />
+        <path
+            d="M1 12c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z"
+            fill={CHART_COLORS.orange}
+        />
     </>,
 );
 
@@ -319,10 +410,38 @@ const IconWaterfallPreview = chartPreviewIcon(
         <rect x="8.4" y="5" width="2.6" height="3" fill={CHART_COLORS.orange} />
         <rect x="11.6" y="4" width="2.6" height="4" fill={CHART_COLORS.blue} />
         <rect x="14.8" y="4" width="2.6" height="13" fill={CHART_COLORS.gray} />
-        <line x1="4.6" y1="10" x2="5.2" y2="10" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
-        <line x1="7.8" y1="5" x2="8.4" y2="5" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
-        <line x1="11" y1="8" x2="11.6" y2="8" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
-        <line x1="14.2" y1="4" x2="14.8" y2="4" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+        <line
+            x1="4.6"
+            y1="10"
+            x2="5.2"
+            y2="10"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.6"
+        />
+        <line
+            x1="7.8"
+            y1="5"
+            x2="8.4"
+            y2="5"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.6"
+        />
+        <line
+            x1="11"
+            y1="8"
+            x2="11.6"
+            y2="8"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.6"
+        />
+        <line
+            x1="14.2"
+            y1="4"
+            x2="14.8"
+            y2="4"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.6"
+        />
     </>,
 );
 
@@ -339,10 +458,34 @@ const IconScatterPreview = chartPreviewIcon(
 
 const IconBubblePreview = chartPreviewIcon(
     <>
-        <circle cx="6" cy="12" r="3" fill={CHART_COLORS.blue} fillOpacity={0.75} />
-        <circle cx="13" cy="7" r="4" fill={CHART_COLORS.orange} fillOpacity={0.7} />
-        <circle cx="15" cy="14" r="2.2" fill={CHART_COLORS.gray} fillOpacity={0.8} />
-        <circle cx="4" cy="5" r="2.5" fill={CHART_COLORS.gold} fillOpacity={0.75} />
+        <circle
+            cx="6"
+            cy="12"
+            r="3"
+            fill={CHART_COLORS.blue}
+            fillOpacity={0.75}
+        />
+        <circle
+            cx="13"
+            cy="7"
+            r="4"
+            fill={CHART_COLORS.orange}
+            fillOpacity={0.7}
+        />
+        <circle
+            cx="15"
+            cy="14"
+            r="2.2"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.8}
+        />
+        <circle
+            cx="4"
+            cy="5"
+            r="2.5"
+            fill={CHART_COLORS.gold}
+            fillOpacity={0.75}
+        />
     </>,
 );
 
@@ -350,43 +493,168 @@ const IconBubblePreview = chartPreviewIcon(
 
 const IconCardPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="2" width="16" height="16" rx="1.5" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
-        <rect x="5" y="6" width="10" height="5" rx="1" fill={CHART_COLORS.blue} />
-        <rect x="5" y="13" width="6" height="2" rx="1" fill={CHART_COLORS.gray} fillOpacity={0.7} />
+        <rect
+            x="2"
+            y="2"
+            width="16"
+            height="16"
+            rx="1.5"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.6"
+        />
+        <rect
+            x="5"
+            y="6"
+            width="10"
+            height="5"
+            rx="1"
+            fill={CHART_COLORS.blue}
+        />
+        <rect
+            x="5"
+            y="13"
+            width="6"
+            height="2"
+            rx="1"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.7}
+        />
     </>,
 );
 
 const IconGaugePreview = chartPreviewIcon(
     <>
-        <path d="M2 15 A8 8 0 0 1 6 8.07" fill="none" stroke={CHART_COLORS.blue} strokeWidth="2.6" />
-        <path d="M6 8.07 A8 8 0 0 1 14 8.07" fill="none" stroke={CHART_COLORS.gold} strokeWidth="2.6" />
-        <path d="M14 8.07 A8 8 0 0 1 18 15" fill="none" stroke={CHART_COLORS.orange} strokeWidth="2.6" />
-        <line x1="10" y1="15" x2="9.13" y2="10.08" stroke={CHART_COLORS.gray} strokeWidth="1" />
+        <path
+            d="M2 15 A8 8 0 0 1 6 8.07"
+            fill="none"
+            stroke={CHART_COLORS.blue}
+            strokeWidth="2.6"
+        />
+        <path
+            d="M6 8.07 A8 8 0 0 1 14 8.07"
+            fill="none"
+            stroke={CHART_COLORS.gold}
+            strokeWidth="2.6"
+        />
+        <path
+            d="M14 8.07 A8 8 0 0 1 18 15"
+            fill="none"
+            stroke={CHART_COLORS.orange}
+            strokeWidth="2.6"
+        />
+        <line
+            x1="10"
+            y1="15"
+            x2="9.13"
+            y2="10.08"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="1"
+        />
         <circle cx="10" cy="15" r="1.2" fill={CHART_COLORS.gray} />
     </>,
 );
 
 const IconTablePreview = chartPreviewIcon(
     <>
-        <rect x="2" y="3" width="16" height="14" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect
+            x="2"
+            y="3"
+            width="16"
+            height="14"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.5"
+        />
         <rect x="2" y="3" width="16" height="3" fill={CHART_COLORS.blue} />
-        <rect x="2" y="9" width="16" height="3" fill={CHART_COLORS.gray} fillOpacity={0.15} />
-        <rect x="2" y="15" width="16" height="2" fill={CHART_COLORS.gray} fillOpacity={0.15} />
-        <line x1="8" y1="3" x2="8" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
-        <line x1="13" y1="3" x2="13" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+        <rect
+            x="2"
+            y="9"
+            width="16"
+            height="3"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.15}
+        />
+        <rect
+            x="2"
+            y="15"
+            width="16"
+            height="2"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.15}
+        />
+        <line
+            x1="8"
+            y1="3"
+            x2="8"
+            y2="17"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.4"
+        />
+        <line
+            x1="13"
+            y1="3"
+            x2="13"
+            y2="17"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.4"
+        />
     </>,
 );
 
 const IconMatrixPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="2" width="16" height="15" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect
+            x="2"
+            y="2"
+            width="16"
+            height="15"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.5"
+        />
         <rect x="2" y="2" width="5" height="3" fill={CHART_COLORS.gray} />
         <rect x="7" y="2" width="11" height="3" fill={CHART_COLORS.blue} />
-        <rect x="2" y="5" width="5" height="12" fill={CHART_COLORS.orange} fillOpacity={0.75} />
-        <line x1="11" y1="2" x2="11" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
-        <line x1="15" y1="2" x2="15" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
-        <line x1="7" y1="8" x2="18" y2="8" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
-        <line x1="7" y1="13" x2="18" y2="13" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+        <rect
+            x="2"
+            y="5"
+            width="5"
+            height="12"
+            fill={CHART_COLORS.orange}
+            fillOpacity={0.75}
+        />
+        <line
+            x1="11"
+            y1="2"
+            x2="11"
+            y2="17"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.4"
+        />
+        <line
+            x1="15"
+            y1="2"
+            x2="15"
+            y2="17"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.4"
+        />
+        <line
+            x1="7"
+            y1="8"
+            x2="18"
+            y2="8"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.4"
+        />
+        <line
+            x1="7"
+            y1="13"
+            x2="18"
+            y2="13"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.4"
+        />
     </>,
 );
 
@@ -394,7 +662,15 @@ const IconMatrixPreview = chartPreviewIcon(
 
 const IconMapPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="2" width="16" height="16" rx="2" fill={CHART_COLORS.gray} fillOpacity={0.15} />
+        <rect
+            x="2"
+            y="2"
+            width="16"
+            height="16"
+            rx="2"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.15}
+        />
         <circle cx="7" cy="10" r="2.2" fill={CHART_COLORS.blue} />
         <path d="M5.3 11.3 L8.7 11.3 L7 15 Z" fill={CHART_COLORS.blue} />
         <circle cx="14" cy="8" r="1.8" fill={CHART_COLORS.orange} />
@@ -406,7 +682,14 @@ const IconMapPreview = chartPreviewIcon(
 
 const IconFilledMapPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="2" width="16" height="16" rx="2" fill={CHART_COLORS.blue} />
+        <rect
+            x="2"
+            y="2"
+            width="16"
+            height="16"
+            rx="2"
+            fill={CHART_COLORS.blue}
+        />
         <circle cx="6" cy="7.5" r="2" fill={CHART_COLORS.orange} />
         <circle cx="13" cy="8.5" r="2.5" fill={CHART_COLORS.gray} />
         <circle cx="6" cy="14" r="3" fill={CHART_COLORS.gold} />
@@ -415,9 +698,18 @@ const IconFilledMapPreview = chartPreviewIcon(
 
 const IconShapeMapPreview = chartPreviewIcon(
     <>
-        <polygon points="12,10 9.5,14.33 4.5,14.33 2,10 4.5,5.67 9.5,5.67" fill={CHART_COLORS.blue} />
-        <polygon points="17.5,6 15.75,9.03 12.25,9.03 10.5,6 12.25,2.97 15.75,2.97" fill={CHART_COLORS.orange} />
-        <polygon points="17.2,14 15.6,16.77 12.4,16.77 10.8,14 12.4,11.23 15.6,11.23" fill={CHART_COLORS.gray} />
+        <polygon
+            points="12,10 9.5,14.33 4.5,14.33 2,10 4.5,5.67 9.5,5.67"
+            fill={CHART_COLORS.blue}
+        />
+        <polygon
+            points="17.5,6 15.75,9.03 12.25,9.03 10.5,6 12.25,2.97 15.75,2.97"
+            fill={CHART_COLORS.orange}
+        />
+        <polygon
+            points="17.2,14 15.6,16.77 12.4,16.77 10.8,14 12.4,11.23 15.6,11.23"
+            fill={CHART_COLORS.gray}
+        />
     </>,
 );
 
@@ -425,53 +717,201 @@ const IconShapeMapPreview = chartPreviewIcon(
 
 const IconSlicerPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="2" width="16" height="16" rx="1.5" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect
+            x="2"
+            y="2"
+            width="16"
+            height="16"
+            rx="1.5"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.5"
+        />
         <rect x="2" y="2" width="16" height="3.5" fill={CHART_COLORS.blue} />
         <rect x="4" y="8" width="2" height="2" fill={CHART_COLORS.blue} />
-        <rect x="7" y="8.5" width="8" height="1.2" fill={CHART_COLORS.gray} fillOpacity={0.5} />
-        <rect x="4" y="11.5" width="2" height="2" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
-        <rect x="7" y="12" width="6" height="1.2" fill={CHART_COLORS.gray} fillOpacity={0.4} />
+        <rect
+            x="7"
+            y="8.5"
+            width="8"
+            height="1.2"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.5}
+        />
+        <rect
+            x="4"
+            y="11.5"
+            width="2"
+            height="2"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.5"
+        />
+        <rect
+            x="7"
+            y="12"
+            width="6"
+            height="1.2"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.4}
+        />
         <rect x="4" y="15" width="2" height="2" fill={CHART_COLORS.blue} />
-        <rect x="7" y="15.5" width="9" height="1.2" fill={CHART_COLORS.gray} fillOpacity={0.5} />
+        <rect
+            x="7"
+            y="15.5"
+            width="9"
+            height="1.2"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.5}
+        />
     </>,
 );
 
 const IconButtonSlicerPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="8" width="5" height="4" rx="1" fill={CHART_COLORS.blue} />
-        <rect x="8" y="8" width="5" height="4" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
-        <rect x="14" y="8" width="4" height="4" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect
+            x="2"
+            y="8"
+            width="5"
+            height="4"
+            rx="1"
+            fill={CHART_COLORS.blue}
+        />
+        <rect
+            x="8"
+            y="8"
+            width="5"
+            height="4"
+            rx="1"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.5"
+        />
+        <rect
+            x="14"
+            y="8"
+            width="4"
+            height="4"
+            rx="1"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.5"
+        />
     </>,
 );
 
 const IconDropdownSlicerPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="7" width="16" height="6" rx="1" fill="none" stroke={CHART_COLORS.blue} strokeWidth="0.7" />
-        <rect x="4" y="9.2" width="8" height="1.6" rx="0.5" fill={CHART_COLORS.gray} fillOpacity={0.5} />
+        <rect
+            x="2"
+            y="7"
+            width="16"
+            height="6"
+            rx="1"
+            fill="none"
+            stroke={CHART_COLORS.blue}
+            strokeWidth="0.7"
+        />
+        <rect
+            x="4"
+            y="9.2"
+            width="8"
+            height="1.6"
+            rx="0.5"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.5}
+        />
         <path d="M14 9 L16 9 L15 11 Z" fill={CHART_COLORS.blue} />
     </>,
 );
 
 const IconInputSlicerPreview = chartPreviewIcon(
     <>
-        <rect x="2" y="5" width="16" height="10" rx="1.5" fill="none" stroke={CHART_COLORS.blue} strokeWidth="0.7" />
-        <rect x="5" y="9.2" width="5" height="1.6" rx="0.8" fill={CHART_COLORS.gray} fillOpacity={0.5} />
-        <rect x="12.3" y="8.4" width="1.4" height="3.2" rx="0.5" fill={CHART_COLORS.orange} />
+        <rect
+            x="2"
+            y="5"
+            width="16"
+            height="10"
+            rx="1.5"
+            fill="none"
+            stroke={CHART_COLORS.blue}
+            strokeWidth="0.7"
+        />
+        <rect
+            x="5"
+            y="9.2"
+            width="5"
+            height="1.6"
+            rx="0.8"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.5}
+        />
+        <rect
+            x="12.3"
+            y="8.4"
+            width="1.4"
+            height="3.2"
+            rx="0.5"
+            fill={CHART_COLORS.orange}
+        />
     </>,
 );
 
 const IconDateSlicerPreview = chartPreviewIcon(
     <>
-        <rect x="3" y="4" width="14" height="13" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect
+            x="3"
+            y="4"
+            width="14"
+            height="13"
+            rx="1"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.5"
+        />
         <rect x="3" y="4" width="14" height="3" fill={CHART_COLORS.blue} />
         <rect x="6" y="2" width="1" height="3" fill={CHART_COLORS.gray} />
         <rect x="13" y="2" width="1" height="3" fill={CHART_COLORS.gray} />
-        <rect x="5" y="9" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
-        <rect x="9" y="9" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
-        <rect x="13" y="9" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
-        <rect x="5" y="12" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
+        <rect
+            x="5"
+            y="9"
+            width="1.8"
+            height="1.8"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.25}
+        />
+        <rect
+            x="9"
+            y="9"
+            width="1.8"
+            height="1.8"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.25}
+        />
+        <rect
+            x="13"
+            y="9"
+            width="1.8"
+            height="1.8"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.25}
+        />
+        <rect
+            x="5"
+            y="12"
+            width="1.8"
+            height="1.8"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.25}
+        />
         <rect x="9" y="12" width="1.8" height="1.8" fill={CHART_COLORS.gold} />
-        <rect x="13" y="12" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
+        <rect
+            x="13"
+            y="12"
+            width="1.8"
+            height="1.8"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.25}
+        />
     </>,
 );
 
@@ -480,25 +920,73 @@ const IconDateSlicerPreview = chartPreviewIcon(
 const IconTextPreview = chartPreviewIcon(
     <>
         <rect x="3" y="5" width="14" height="1.6" fill={CHART_COLORS.blue} />
-        <rect x="3" y="8.5" width="14" height="1.3" fill={CHART_COLORS.gray} fillOpacity={0.4} />
-        <rect x="3" y="11" width="11" height="1.3" fill={CHART_COLORS.gray} fillOpacity={0.4} />
-        <rect x="3" y="13.5" width="13" height="1.3" fill={CHART_COLORS.gray} fillOpacity={0.4} />
+        <rect
+            x="3"
+            y="8.5"
+            width="14"
+            height="1.3"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.4}
+        />
+        <rect
+            x="3"
+            y="11"
+            width="11"
+            height="1.3"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.4}
+        />
+        <rect
+            x="3"
+            y="13.5"
+            width="13"
+            height="1.3"
+            fill={CHART_COLORS.gray}
+            fillOpacity={0.4}
+        />
     </>,
 );
 
 const IconImagePreview = chartPreviewIcon(
     <>
-        <rect x="2" y="3" width="16" height="14" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+        <rect
+            x="2"
+            y="3"
+            width="16"
+            height="14"
+            rx="1"
+            fill="none"
+            stroke={CHART_COLORS.gray}
+            strokeWidth="0.6"
+        />
         <circle cx="6" cy="7" r="1.8" fill={CHART_COLORS.gold} />
-        <path d="M2 15 L7 9 L11 13 L14 10 L18 15 L18 17 L2 17 Z" fill={CHART_COLORS.gray} />
+        <path
+            d="M2 15 L7 9 L11 13 L14 10 L18 15 L18 17 L2 17 Z"
+            fill={CHART_COLORS.gray}
+        />
         <path d="M2 17 L6 12 L10 15 L13 12 L18 17 Z" fill={CHART_COLORS.blue} />
     </>,
 );
 
 const IconButtonPreview = chartPreviewIcon(
     <>
-        <rect x="3" y="7" width="14" height="6" rx="2" fill={CHART_COLORS.blue} />
-        <rect x="6" y="9.2" width="8" height="1.6" rx="0.8" fill="white" fillOpacity={0.9} />
+        <rect
+            x="3"
+            y="7"
+            width="14"
+            height="6"
+            rx="2"
+            fill={CHART_COLORS.blue}
+        />
+        <rect
+            x="6"
+            y="9.2"
+            width="8"
+            height="1.6"
+            rx="0.8"
+            fill="white"
+            fillOpacity={0.9}
+        />
     </>,
 );
 
@@ -914,8 +1402,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                           left: r.left,
                                                                           top: r.top,
                                                                           right: r.right,
-                                                                          bottom:
-                                                                              r.bottom,
+                                                                          bottom: r.bottom,
                                                                       },
                                                                   },
                                                         );
@@ -942,7 +1429,9 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                 Supprimer le
                                                                 dossier{' '}
                                                                 <span className="font-mono">
-                                                                    {folderLabel(folder)}
+                                                                    {folderLabel(
+                                                                        folder,
+                                                                    )}
                                                                 </span>{' '}
                                                                 ? Les mesures
                                                                 seront déplacées
@@ -986,7 +1475,9 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                                         folder,
                                                                     );
                                                                     setFolderOpen(
-                                                                        (o) => ({
+                                                                        (
+                                                                            o,
+                                                                        ) => ({
                                                                             ...o,
                                                                             [folder]: true,
                                                                         }),
@@ -2108,7 +2599,8 @@ export function VisualizationsPane({
                                                         setAnalyticsValue(
                                                             selected.id,
                                                             k,
-                                                            e.target.value === ''
+                                                            e.target.value ===
+                                                                ''
                                                                 ? undefined
                                                                 : Number(
                                                                       e.target
@@ -2918,6 +3410,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
     const {
         filters,
         addFilter,
+        addCustomFilter,
         toggleFilterValue,
         setFilterValues,
         removeFilter,
@@ -2927,9 +3420,17 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         setFilterRange,
         setFilterRelative,
         setFilterTopN,
+        setCustomFilterColumns,
+        setCustomFilterLabel,
+        toggleCustomFilterPooledValue,
+        setCustomFilterPooledValue,
         tables,
         tableRows,
         measures,
+        graph,
+        smartNetwork,
+        setSmartNetworkFilter,
+        state,
     } = usePbi();
     const columns = tables.flatMap((t) =>
         t.fields
@@ -2949,9 +3450,104 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
     );
 
     const [dragOver, setDragOver] = useState(false);
+    const [customOpen, setCustomOpen] = useState(false);
+    const [customLabel, setCustomLabel] = useState('');
+    const [customColumns, setCustomColumns] = useState<
+        { table: string; column: string }[]
+    >([]);
+    const [customSearchQuery, setCustomSearchQuery] = useState('');
+
+    const filteredCustomTables = useMemo(() => {
+        const q = customSearchQuery.trim().toLowerCase();
+        return tables
+            .map((t) => ({
+                ...t,
+                fields: t.fields.filter(
+                    (field) =>
+                        field.type !== 'boolean' &&
+                        (!q ||
+                            [
+                                field.name,
+                                t.name,
+                                `${t.name}.${field.name}`,
+                            ].some((value) => value.toLowerCase().includes(q))),
+                ),
+            }))
+            .filter((t) => t.fields.length > 0);
+    }, [tables, customSearchQuery]);
+
+    const [newFilterQuery, setNewFilterQuery] = useState('');
+    const [showFilterList, setShowFilterList] = useState(false);
+    const filteredColumns = useMemo(() => {
+        const q = newFilterQuery.trim().toLowerCase();
+        if (!q) return columns.slice(0, 200);
+        return columns
+            .filter(
+                (c) =>
+                    c.name.toLowerCase().includes(q) ||
+                    c.table.toLowerCase().includes(q) ||
+                    `${c.table}.${c.name}`.toLowerCase().includes(q),
+            )
+            .slice(0, 200);
+    }, [columns, newFilterQuery]);
 
     const rowsFor = (f: (typeof filters)[number]) =>
         (f.table && tableRows[f.table]) || [];
+
+    const filterValues = (f: (typeof filters)[number]) =>
+        distinctValues(f.column, rowsFor(f));
+
+    const filterName = (f: (typeof filters)[number]) =>
+        isCustomFilter(f) ? (f.label ?? f.column) : f.column;
+
+    const pooledOptions = (f: (typeof filters)[number]) =>
+        customFilterPooledValues(f, tables, tableRows);
+
+    const pooledSelected = (f: (typeof filters)[number]) =>
+        customFilterSelectedValues(f);
+
+    const pathExists = (from: string, to: string) => {
+        if (from === to) return true;
+        const seen = new Set<string>([from]);
+        const queue = [from];
+        while (queue.length) {
+            const table = queue.shift()!;
+            for (const edge of graph.edges) {
+                const next =
+                    edge.a === table
+                        ? edge.b
+                        : edge.b === table
+                          ? edge.a
+                          : null;
+                if (!next || seen.has(next)) continue;
+                if (next === to) return true;
+                seen.add(next);
+                queue.push(next);
+            }
+        }
+        return false;
+    };
+
+    const disconnectedPair = (
+        selected: { table: string; column: string }[],
+    ) => {
+        const tables = [...new Set(selected.map((column) => column.table))];
+        if (tables.length < 2) return null;
+        for (let i = 0; i < tables.length; i++) {
+            for (let j = i + 1; j < tables.length; j++) {
+                if (!pathExists(tables[i]!, tables[j]!)) {
+                    return [tables[i]!, tables[j]!] as const;
+                }
+            }
+        }
+        return null;
+    };
+
+    const customTypes: { value: FilterType; label: string }[] = [
+        { value: 'list', label: 'Liste' },
+        { value: 'dropdown', label: 'Liste déroulante' },
+        { value: 'search', label: 'Recherche' },
+    ];
 
     const filterTypes: { value: FilterType; label: string }[] = [
         { value: 'list', label: 'Liste' },
@@ -2961,6 +3557,57 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         { value: 'relativeDate', label: 'Période relative' },
         { value: 'topN', label: 'N premiers' },
     ];
+
+    const customDiagnostics = (f: (typeof filters)[number]) => {
+        if (!isCustomFilter(f)) return null;
+        let direct = 0;
+        let propagated = 0;
+        let affected = 0;
+        for (const t of tables) {
+            const applies = customFilterColumnsForTable(f, t).length > 0;
+            if (!applies) continue;
+            affected += 1;
+            direct += applyFilter(t.rows, f, {
+                table: t,
+                activePageId: state.activePageId,
+            }).length;
+            propagated += tableRows[t.name]?.length ?? 0;
+        }
+        return { affected, direct, propagated };
+    };
+
+    const toggleCustomColumn = (table: string, column: string) => {
+        setCustomColumns((cols) => {
+            const exists = cols.some(
+                (c) => c.table === table && c.column === column,
+            );
+            return exists
+                ? cols.filter(
+                      (c) => !(c.table === table && c.column === column),
+                  )
+                : [...cols, { table, column }];
+        });
+    };
+
+    const createCustomFilter = () => {
+        if (customColumns.length < 2) return;
+        const disconnected = disconnectedPair(customColumns);
+        if (disconnected) {
+            toast.error(
+                `Connexion introuvable entre ${disconnected[0]} et ${disconnected[1]}.`,
+            );
+            return;
+        }
+        addCustomFilter(
+            customLabel || 'Filtre personnalisé',
+            customColumns,
+            'report',
+        );
+        setCustomOpen(false);
+        setCustomLabel('');
+        setCustomColumns([]);
+        setCustomSearchQuery('');
+    };
 
     const relativePresets: { value: RelativePreset; label: string }[] = [
         { value: 'today', label: "Aujourd'hui" },
@@ -2982,29 +3629,9 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                 right={<Filter className="size-3 text-muted-foreground" />}
                 onCollapse={onCollapse}
             />
-            <div className="px-3 pb-2">
-                <select
-                    value=""
-                    onChange={(e) => {
-                        const [table, name] = e.target.value.split('::');
-                        if (name) addFilter(name, table);
-                    }}
-                    className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
-                >
-                    <option value="">Ajouter un champ de filtre…</option>
-                    {columns.map((c) => (
-                        <option
-                            key={`${c.table}::${c.name}`}
-                            value={`${c.table}::${c.name}`}
-                        >
-                            {c.name} ({c.table})
-                        </option>
-                    ))}
-                </select>
-            </div>
             <div
                 className={cn(
-                    'flex-1 space-y-2 overflow-auto px-3 pb-3',
+                    'flex-1 overflow-auto px-3 pb-3',
                     dragOver && 'bg-brand/5 ring-2 ring-brand ring-inset',
                 )}
                 onDragOver={(e) => {
@@ -3033,275 +3660,669 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                     }
                 }}
             >
-                {!filters.length && (
-                    <p className="text-[11px] text-muted-foreground">
-                        Filtres sur toutes les pages. Glissez un champ ici ou
-                        double-cliquez sur un champ du volet Données pour
-                        l’ajouter.
-                    </p>
-                )}
-                {filters.map((f) => (
-                    <div
-                        key={`${f.table ?? ''}::${f.column}`}
-                        className="rounded border border-border bg-background p-2"
-                    >
-                        <div className="mb-1 flex items-center justify-between text-[11px] font-medium">
-                            <span>
-                                {f.column}
-                                <span className="text-muted-foreground">
-                                    {' '}
-                                    {f.type === 'search' && f.query
-                                        ? `“${f.query}”`
-                                        : f.type === 'topN'
-                                          ? `N premiers : ${f.topN}`
-                                          : f.type === 'relativeDate'
-                                            ? (relativePresets.find(
-                                                  (p) => p.value === f.relative,
-                                              )?.label ?? 'Période relative')
-                                            : f.type === 'dateRange'
-                                              ? `${f.from ?? '…'} → ${f.to ?? '…'}`
-                                              : f.values.length
-                                                ? f.values.join(', ')
-                                                : '(Tous)'}
-                                </span>
-                            </span>
-                            <button
-                                onClick={() => removeFilter(f.column, f.table)}
-                            >
-                                <X className="size-3 text-muted-foreground hover:text-destructive" />
-                            </button>
-                        </div>
-                        <select
-                            aria-label={`Type de filtre pour ${f.column}`}
-                            value={f.type}
-                            onChange={(e) =>
-                                setFilterType(
-                                    f.column,
-                                    f.table,
-                                    e.target.value as FilterType,
-                                )
-                            }
-                            className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
-                        >
-                            {filterTypes.map((t) => (
-                                <option key={t.value} value={t.value}>
-                                    {t.label}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            aria-label={`Portée du filtre pour ${f.column}`}
-                            value={f.scope}
-                            onChange={(e) =>
-                                setFilterScope(
-                                    f.column,
-                                    f.table,
-                                    e.target.value as 'page' | 'report',
-                                )
-                            }
-                            className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
-                        >
-                            <option value="report">Toutes les pages</option>
-                            <option value="page">Page actuelle</option>
-                        </select>
-
-                        {f.type === 'search' && (
+                <div className="pb-2">
+                    <div className="relative">
+                        <div className="flex items-center gap-1 rounded border border-border bg-background px-2">
+                            <Search className="size-3 text-muted-foreground" />
                             <input
-                                type="text"
-                                value={f.query ?? ''}
+                                value={newFilterQuery}
                                 onChange={(e) =>
-                                    setFilterQuery(
-                                        f.column,
-                                        f.table,
-                                        e.target.value,
+                                    setNewFilterQuery(e.target.value)
+                                }
+                                onFocus={() => setShowFilterList(true)}
+                                onBlur={() =>
+                                    setTimeout(
+                                        () => setShowFilterList(false),
+                                        150,
                                     )
                                 }
-                                placeholder={`Rechercher ${f.column}…`}
-                                className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const match = filteredColumns[0];
+                                        if (match) {
+                                            addFilter(match.name, match.table);
+                                            setNewFilterQuery('');
+                                            setShowFilterList(false);
+                                        }
+                                    }
+                                }}
+                                placeholder="Ajouter un champ de filtre…"
+                                className="w-full bg-transparent py-1 text-[11px] outline-none"
                             />
-                        )}
-
-                        {f.type === 'dateRange' && (
-                            <div className="flex items-center gap-1 text-[10px]">
-                                <input
-                                    type="date"
-                                    value={f.from ?? ''}
-                                    onChange={(e) =>
-                                        setFilterRange(
-                                            f.column,
-                                            f.table,
-                                            e.target.value || undefined,
-                                            f.to,
-                                        )
-                                    }
-                                    className="w-full rounded border border-border bg-background px-1 py-0.5"
-                                />
-                                <span className="text-muted-foreground">→</span>
-                                <input
-                                    type="date"
-                                    value={f.to ?? ''}
-                                    onChange={(e) =>
-                                        setFilterRange(
-                                            f.column,
-                                            f.table,
-                                            f.from,
-                                            e.target.value || undefined,
-                                        )
-                                    }
-                                    className="w-full rounded border border-border bg-background px-1 py-0.5"
-                                />
+                            {newFilterQuery && (
+                                <button
+                                    onClick={() => setNewFilterQuery('')}
+                                    className="rounded p-0.5 text-muted-foreground hover:bg-accent"
+                                    aria-label="Effacer la recherche"
+                                >
+                                    <X className="size-3" />
+                                </button>
+                            )}
+                        </div>
+                        {showFilterList && filteredColumns.length > 0 && (
+                            <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-border bg-background">
+                                {filteredColumns.map((c) => (
+                                    <button
+                                        key={`${c.table}::${c.name}`}
+                                        onClick={() => {
+                                            addFilter(c.name, c.table);
+                                            setNewFilterQuery('');
+                                            setShowFilterList(false);
+                                        }}
+                                        className="flex w-full items-center justify-between px-2 py-1 text-left text-[11px] hover:bg-accent"
+                                    >
+                                        <span className="truncate">
+                                            {c.name}
+                                        </span>
+                                        <span className="ml-2 shrink-0 text-muted-foreground">
+                                            {c.table}
+                                        </span>
+                                    </button>
+                                ))}
                             </div>
                         )}
-
-                        {f.type === 'relativeDate' && (
-                            <>
+                    </div>
+                    <button
+                        onClick={() => setCustomOpen((v) => !v)}
+                        className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-border px-2 py-1 text-[11px] hover:bg-accent"
+                    >
+                        <Plus className="size-3" /> Créer un filtre personnalisé
+                    </button>
+                    {customOpen && (
+                        <div className="mt-2 rounded border border-border bg-background p-2">
+                            <input
+                                value={customLabel}
+                                onChange={(e) => setCustomLabel(e.target.value)}
+                                placeholder="Nom du filtre"
+                                className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                            />
+                            <div className="mb-2 flex items-center gap-2">
+                                <div className="flex flex-1 items-center gap-1 rounded border border-border bg-background px-2">
+                                    <Search className="size-3 text-muted-foreground" />
+                                    <input
+                                        value={customSearchQuery}
+                                        onChange={(e) =>
+                                            setCustomSearchQuery(e.target.value)
+                                        }
+                                        placeholder="Rechercher des colonnes…"
+                                        className="w-full bg-transparent py-1 text-[11px] outline-none"
+                                    />
+                                </div>
+                                {customSearchQuery && (
+                                    <button
+                                        onClick={() => setCustomSearchQuery('')}
+                                        className="rounded p-0.5 text-muted-foreground hover:bg-accent"
+                                        aria-label="Effacer la recherche"
+                                    >
+                                        <X className="size-3" />
+                                    </button>
+                                )}
+                            </div>
+                            <div className="mb-2 max-h-40 overflow-auto rounded border border-border/70 p-1">
+                                {filteredCustomTables.map((t) => (
+                                    <div key={t.name} className="mb-1">
+                                        <div className="px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                            {t.name}
+                                        </div>
+                                        {t.fields
+                                            .filter((f) => f.type !== 'boolean')
+                                            .map((field) => {
+                                                const checked =
+                                                    customColumns.some(
+                                                        (c) =>
+                                                            c.table ===
+                                                                t.name &&
+                                                            c.column ===
+                                                                field.name,
+                                                    );
+                                                return (
+                                                    <label
+                                                        key={`${t.name}::${field.name}`}
+                                                        className="flex items-center gap-2 px-1 py-[1px] text-[11px]"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() =>
+                                                                toggleCustomColumn(
+                                                                    t.name,
+                                                                    field.name,
+                                                                )
+                                                            }
+                                                            className="size-3 accent-[var(--brand)]"
+                                                        />
+                                                        <span className="truncate">
+                                                            {field.name}
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })}
+                                    </div>
+                                ))}
+                            </div>
+                            <button
+                                onClick={createCustomFilter}
+                                disabled={customColumns.length < 2}
+                                className="w-full rounded bg-brand px-2 py-1 text-[11px] text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Ajouter ({customColumns.length})
+                            </button>
+                        </div>
+                    )}
+                    <div className="mt-2 rounded border border-border/70 bg-background p-2 text-[10px] text-muted-foreground">
+                        <label className="mb-1 flex items-center justify-between gap-2">
+                            <span>Réseau intelligent</span>
+                            <input
+                                type="checkbox"
+                                checked={smartNetwork}
+                                onChange={(e) =>
+                                    setSmartNetworkFilter(e.target.checked)
+                                }
+                                className="size-3 accent-[var(--brand)]"
+                            />
+                        </label>
+                        <div>{graph.edges.length} relation(s) détectée(s)</div>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    {!filters.length && (
+                        <p className="text-[11px] text-muted-foreground">
+                            Filtres sur toutes les pages. Glissez un champ ici
+                            ou double-cliquez sur un champ du volet Données pour
+                            l’ajouter.
+                        </p>
+                    )}
+                    {filters.map((f) => {
+                        const name = filterName(f);
+                        const isCustom = isCustomFilter(f);
+                        const options = filterValues(f);
+                        const diagnostics = customDiagnostics(f);
+                        const customSelectedCount = isCustom
+                            ? pooledSelected(f).length
+                            : 0;
+                        return (
+                            <div
+                                key={`${isCustom ? 'custom' : (f.table ?? '')}::${name}`}
+                                className="rounded border border-border bg-background p-2"
+                            >
+                                <div className="mb-1 flex items-center justify-between text-[11px] font-medium">
+                                    <span className="min-w-0 truncate">
+                                        {isCustom ? (
+                                            <input
+                                                value={name}
+                                                onChange={(e) =>
+                                                    setCustomFilterLabel(
+                                                        name,
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="w-full bg-transparent outline-none"
+                                            />
+                                        ) : (
+                                            f.column
+                                        )}
+                                        <span className="text-muted-foreground">
+                                            {' '}
+                                            {f.type === 'search' && f.query
+                                                ? `“${f.query}”`
+                                                : f.type === 'topN'
+                                                  ? `N premiers : ${f.topN}`
+                                                  : f.type === 'relativeDate'
+                                                    ? (relativePresets.find(
+                                                          (p) =>
+                                                              p.value ===
+                                                              f.relative,
+                                                      )?.label ??
+                                                      'Période relative')
+                                                    : f.type === 'dateRange'
+                                                      ? `${f.from ?? '…'} → ${f.to ?? '…'}`
+                                                      : isCustom
+                                                        ? customSelectedCount
+                                                            ? `${customSelectedCount} sélection(s)`
+                                                            : '(Tous)'
+                                                        : f.values.length
+                                                          ? f.values.join(', ')
+                                                          : '(Tous)'}
+                                        </span>
+                                    </span>
+                                    <button
+                                        onClick={() =>
+                                            removeFilter(
+                                                isCustom ? name : f.column,
+                                                isCustom ? undefined : f.table,
+                                            )
+                                        }
+                                    >
+                                        <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                    </button>
+                                </div>
+                                {isCustom && (
+                                    <div className="mb-1 rounded border border-border/60 p-1">
+                                        <div className="mb-1 text-[10px] text-muted-foreground">
+                                            Colonnes fusionnées
+                                        </div>
+                                        <div className="max-h-20 overflow-auto">
+                                            {tables.flatMap((t) =>
+                                                t.fields
+                                                    .filter(
+                                                        (field) =>
+                                                            field.type !==
+                                                            'boolean',
+                                                    )
+                                                    .map((field) => {
+                                                        const checked = (
+                                                            f.columns ?? []
+                                                        ).some(
+                                                            (c) =>
+                                                                c.table ===
+                                                                    t.name &&
+                                                                c.column ===
+                                                                    field.name,
+                                                        );
+                                                        return (
+                                                            <label
+                                                                key={`${name}::${t.name}::${field.name}`}
+                                                                className="flex items-center gap-2 py-[1px] text-[10px]"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={
+                                                                        checked
+                                                                    }
+                                                                    onChange={() => {
+                                                                        const current =
+                                                                            f.columns ??
+                                                                            [];
+                                                                        const next =
+                                                                            checked
+                                                                                ? current.filter(
+                                                                                      (
+                                                                                          c,
+                                                                                      ) =>
+                                                                                          !(
+                                                                                              c.table ===
+                                                                                                  t.name &&
+                                                                                              c.column ===
+                                                                                                  field.name
+                                                                                          ),
+                                                                                  )
+                                                                                : [
+                                                                                      ...current,
+                                                                                      {
+                                                                                          table: t.name,
+                                                                                          column: field.name,
+                                                                                          values: [],
+                                                                                      },
+                                                                                  ];
+                                                                        const broken =
+                                                                            disconnectedPair(
+                                                                                next,
+                                                                            );
+                                                                        if (
+                                                                            broken
+                                                                        ) {
+                                                                            toast.error(
+                                                                                `Connexion introuvable entre ${broken[0]} et ${broken[1]}.`,
+                                                                            );
+                                                                            return;
+                                                                        }
+                                                                        setCustomFilterColumns(
+                                                                            name,
+                                                                            next,
+                                                                        );
+                                                                    }}
+                                                                    className="size-3 accent-[var(--brand)]"
+                                                                />
+                                                                <span className="truncate">
+                                                                    {field.name}{' '}
+                                                                    ({t.name})
+                                                                </span>
+                                                            </label>
+                                                        );
+                                                    }),
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                                 <select
-                                    value={f.relative ?? 'last7days'}
+                                    aria-label={`Type de filtre pour ${name}`}
+                                    value={f.type}
                                     onChange={(e) =>
-                                        setFilterRelative(
-                                            f.column,
-                                            f.table,
-                                            e.target.value as RelativePreset,
+                                        setFilterType(
+                                            isCustom ? name : f.column,
+                                            isCustom ? undefined : f.table,
+                                            e.target.value as FilterType,
                                         )
                                     }
                                     className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
                                 >
-                                    {relativePresets.map((p) => (
-                                        <option key={p.value} value={p.value}>
-                                            {p.label}
-                                        </option>
-                                    ))}
+                                    {(isCustom ? customTypes : filterTypes).map(
+                                        (t) => (
+                                            <option
+                                                key={t.value}
+                                                value={t.value}
+                                            >
+                                                {t.label}
+                                            </option>
+                                        ),
+                                    )}
                                 </select>
-                                <p className="text-[10px] text-muted-foreground">
-                                    {(() => {
-                                        const r = relativeDateRange(
-                                            f.relative ?? 'last7days',
-                                        );
-                                        return `${r.from} → ${r.to}`;
-                                    })()}
-                                </p>
-                            </>
-                        )}
-
-                        {f.type === 'topN' && (
-                            <div className="flex items-center gap-1 text-[10px]">
-                                <input
-                                    type="number"
-                                    min={1}
-                                    value={f.topN ?? 10}
-                                    onChange={(e) => {
-                                        const n = Math.max(
-                                            1,
-                                            Number(e.target.value) || 10,
-                                        );
-                                        setFilterTopN(
-                                            f.column,
-                                            f.table,
-                                            n,
-                                            f.topNBy ?? {
-                                                name:
-                                                    numericColumns[0]?.name ??
-                                                    '',
-                                                agg: 'sum',
-                                                table: numericColumns[0]?.table,
-                                            },
-                                        );
-                                    }}
-                                    className="w-14 rounded border border-border bg-background px-1 py-0.5"
-                                />
                                 <select
-                                    aria-label={`Mesure pour le N premiers de ${f.column}`}
-                                    value={f.topNBy?.name ?? ''}
+                                    aria-label={`Portée du filtre pour ${name}`}
+                                    value={f.scope}
                                     onChange={(e) =>
-                                        setFilterTopN(
-                                            f.column,
-                                            f.table,
-                                            f.topN ?? 10,
-                                            {
-                                                name: e.target.value,
-                                                agg: 'sum',
-                                                table: numericColumns.find(
-                                                    (c) =>
-                                                        c.name ===
-                                                        e.target.value,
-                                                )?.table,
-                                            },
+                                        setFilterScope(
+                                            isCustom ? name : f.column,
+                                            isCustom ? undefined : f.table,
+                                            e.target.value as 'page' | 'report',
                                         )
                                     }
-                                    className="min-w-0 flex-1 rounded border border-border bg-background px-1 py-0.5"
+                                    className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
                                 >
-                                    {numericColumns.map((c) => (
-                                        <option key={c.name} value={c.name}>
-                                            {c.name}
-                                        </option>
-                                    ))}
+                                    <option value="report">
+                                        Toutes les pages
+                                    </option>
+                                    <option value="page">Page actuelle</option>
                                 </select>
-                            </div>
-                        )}
 
-                        {(f.type === 'list' || f.type === 'dropdown') && (
-                            <div className="max-h-36 overflow-auto">
-                                {f.type === 'dropdown' && (
-                                    <select
-                                        aria-label={`Valeur de la liste déroulante pour ${f.column}`}
-                                        value={
-                                            f.values.length
-                                                ? f.values[0]
-                                                : '__all__'
+                                {f.type === 'search' && (
+                                    <input
+                                        type="text"
+                                        value={f.query ?? ''}
+                                        onChange={(e) =>
+                                            setFilterQuery(
+                                                isCustom ? name : f.column,
+                                                isCustom ? undefined : f.table,
+                                                e.target.value,
+                                            )
                                         }
-                                        onChange={(e) => {
-                                            const v = e.target.value;
-                                            setFilterValues(
-                                                f.column,
-                                                f.table,
-                                                v === '__all__' ? [] : [v],
-                                            );
-                                        }}
-                                        className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
-                                    >
-                                        <option value="__all__">(Tous)</option>
-                                        {distinctValues(
-                                            f.column,
-                                            rowsFor(f),
-                                        ).map((v) => (
-                                            <option key={v} value={v}>
-                                                {v}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        placeholder={`Rechercher ${name}…`}
+                                        className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                    />
                                 )}
-                                {f.type === 'dropdown'
-                                    ? null
-                                    : distinctValues(f.column, rowsFor(f)).map(
-                                          (v) => (
-                                              <label
-                                                  key={v}
-                                                  className="flex items-center gap-2 py-[1px] text-[11px]"
-                                              >
-                                                  <input
-                                                      type="checkbox"
-                                                      checked={f.values.includes(
-                                                          v,
-                                                      )}
-                                                      onChange={() =>
-                                                          toggleFilterValue(
-                                                              f.column,
-                                                              v,
-                                                              f.table,
-                                                          )
-                                                      }
-                                                      className="size-3 accent-[var(--brand)]"
-                                                  />
-                                                  <span className="truncate">
-                                                      {v}
-                                                  </span>
-                                              </label>
-                                          ),
-                                      )}
+
+                                {f.type === 'dateRange' && (
+                                    <div className="flex items-center gap-1 text-[10px]">
+                                        <input
+                                            type="date"
+                                            value={f.from ?? ''}
+                                            onChange={(e) =>
+                                                setFilterRange(
+                                                    f.column,
+                                                    f.table,
+                                                    e.target.value || undefined,
+                                                    f.to,
+                                                )
+                                            }
+                                            className="w-full rounded border border-border bg-background px-1 py-0.5"
+                                        />
+                                        <span className="text-muted-foreground">
+                                            →
+                                        </span>
+                                        <input
+                                            type="date"
+                                            value={f.to ?? ''}
+                                            onChange={(e) =>
+                                                setFilterRange(
+                                                    f.column,
+                                                    f.table,
+                                                    f.from,
+                                                    e.target.value || undefined,
+                                                )
+                                            }
+                                            className="w-full rounded border border-border bg-background px-1 py-0.5"
+                                        />
+                                    </div>
+                                )}
+
+                                {f.type === 'relativeDate' && (
+                                    <>
+                                        <select
+                                            value={f.relative ?? 'last7days'}
+                                            onChange={(e) =>
+                                                setFilterRelative(
+                                                    f.column,
+                                                    f.table,
+                                                    e.target
+                                                        .value as RelativePreset,
+                                                )
+                                            }
+                                            className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+                                        >
+                                            {relativePresets.map((p) => (
+                                                <option
+                                                    key={p.value}
+                                                    value={p.value}
+                                                >
+                                                    {p.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[10px] text-muted-foreground">
+                                            {(() => {
+                                                const r = relativeDateRange(
+                                                    f.relative ?? 'last7days',
+                                                );
+                                                return `${r.from} → ${r.to}`;
+                                            })()}
+                                        </p>
+                                    </>
+                                )}
+
+                                {f.type === 'topN' && (
+                                    <div className="flex items-center gap-1 text-[10px]">
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={f.topN ?? 10}
+                                            onChange={(e) => {
+                                                const n = Math.max(
+                                                    1,
+                                                    Number(e.target.value) ||
+                                                        10,
+                                                );
+                                                setFilterTopN(
+                                                    f.column,
+                                                    f.table,
+                                                    n,
+                                                    f.topNBy ?? {
+                                                        name:
+                                                            numericColumns[0]
+                                                                ?.name ?? '',
+                                                        agg: 'sum',
+                                                        table: numericColumns[0]
+                                                            ?.table,
+                                                    },
+                                                );
+                                            }}
+                                            className="w-14 rounded border border-border bg-background px-1 py-0.5"
+                                        />
+                                        <select
+                                            aria-label={`Mesure pour le N premiers de ${f.column}`}
+                                            value={f.topNBy?.name ?? ''}
+                                            onChange={(e) =>
+                                                setFilterTopN(
+                                                    f.column,
+                                                    f.table,
+                                                    f.topN ?? 10,
+                                                    {
+                                                        name: e.target.value,
+                                                        agg: 'sum',
+                                                        table: numericColumns.find(
+                                                            (c) =>
+                                                                c.name ===
+                                                                e.target.value,
+                                                        )?.table,
+                                                    },
+                                                )
+                                            }
+                                            className="min-w-0 flex-1 rounded border border-border bg-background px-1 py-0.5"
+                                        >
+                                            {numericColumns.map((c) => (
+                                                <option
+                                                    key={c.name}
+                                                    value={c.name}
+                                                >
+                                                    {c.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {(f.type === 'list' || f.type === 'dropdown') &&
+                                    (isCustom ? (
+                                        <div>
+                                            <div className="mb-1 text-[10px] text-muted-foreground">
+                                                Valeurs fusionnées (
+                                                {pooledOptions(f).length})
+                                            </div>
+                                            {f.type === 'dropdown' ? (
+                                                <select
+                                                    aria-label={`Valeur de ${name}`}
+                                                    value={
+                                                        pooledSelected(f).length
+                                                            ? pooledSelected(
+                                                                  f,
+                                                              )[0]
+                                                            : '__all__'
+                                                    }
+                                                    onChange={(e) => {
+                                                        const v =
+                                                            e.target.value;
+                                                        setCustomFilterPooledValue(
+                                                            name,
+                                                            v === '__all__'
+                                                                ? null
+                                                                : v,
+                                                        );
+                                                    }}
+                                                    className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+                                                >
+                                                    <option value="__all__">
+                                                        (Tous)
+                                                    </option>
+                                                    {pooledOptions(f).map(
+                                                        (v) => (
+                                                            <option
+                                                                key={v}
+                                                                value={v}
+                                                            >
+                                                                {v}
+                                                            </option>
+                                                        ),
+                                                    )}
+                                                </select>
+                                            ) : (
+                                                <div className="max-h-36 overflow-auto">
+                                                    {pooledOptions(f).map(
+                                                        (v) => (
+                                                            <label
+                                                                key={`${name}::${v}`}
+                                                                className="flex items-center gap-2 py-[1px] text-[11px]"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={pooledSelected(
+                                                                        f,
+                                                                    ).includes(
+                                                                        v,
+                                                                    )}
+                                                                    onChange={() =>
+                                                                        toggleCustomFilterPooledValue(
+                                                                            name,
+                                                                            v,
+                                                                        )
+                                                                    }
+                                                                    className="size-3 accent-[var(--brand)]"
+                                                                />
+                                                                <span className="truncate">
+                                                                    {v}
+                                                                </span>
+                                                            </label>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="max-h-36 overflow-auto">
+                                            {f.type === 'dropdown' && (
+                                                <select
+                                                    aria-label={`Valeur de la liste déroulante pour ${name}`}
+                                                    value={
+                                                        f.values.length
+                                                            ? f.values[0]
+                                                            : '__all__'
+                                                    }
+                                                    onChange={(e) => {
+                                                        const v =
+                                                            e.target.value;
+                                                        setFilterValues(
+                                                            f.column,
+                                                            f.table,
+                                                            v === '__all__'
+                                                                ? []
+                                                                : [v],
+                                                        );
+                                                    }}
+                                                    className="mb-1 w-full rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+                                                >
+                                                    <option value="__all__">
+                                                        (Tous)
+                                                    </option>
+                                                    {options.map((v) => (
+                                                        <option
+                                                            key={v}
+                                                            value={v}
+                                                        >
+                                                            {v}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
+                                            {f.type === 'dropdown'
+                                                ? null
+                                                : options.map((v) => (
+                                                      <label
+                                                          key={v}
+                                                          className="flex items-center gap-2 py-[1px] text-[11px]"
+                                                      >
+                                                          <input
+                                                              type="checkbox"
+                                                              checked={f.values.includes(
+                                                                  v,
+                                                              )}
+                                                              onChange={() =>
+                                                                  toggleFilterValue(
+                                                                      f.column,
+                                                                      v,
+                                                                      f.table,
+                                                                  )
+                                                              }
+                                                              className="size-3 accent-[var(--brand)]"
+                                                          />
+                                                          <span className="truncate">
+                                                              {v}
+                                                          </span>
+                                                      </label>
+                                                  ))}
+                                        </div>
+                                    ))}
+                                {diagnostics && (
+                                    <div className="mt-2 text-[10px] text-muted-foreground">
+                                        {diagnostics.affected} endpoint(s) ·
+                                        direct{' '}
+                                        {diagnostics.direct.toLocaleString()} ·
+                                        contexte{' '}
+                                        {diagnostics.propagated.toLocaleString()}
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
-                ))}
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );

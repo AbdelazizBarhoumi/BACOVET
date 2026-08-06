@@ -2,7 +2,8 @@
 //
 // Two kinds of edges connect loaded tables:
 //   - `shared`: the same (normalized) column name appears on both tables
-//     (from the existing join registry).
+//     (from the existing join registry), plus configured composite tuples
+//     that must match as a unit.
 //   - `fk_pk`: a differently-named foreign-key / primary-key relationship
 //     inferred from overlapping normalized values across the loaded rows,
 //     gated by "at least one side is key-like" so generic columns (e.g.
@@ -12,17 +13,21 @@
 import type { SchemaAnalysis } from '@/services/endpointManagerApi';
 import { normValue } from './filters';
 import type { JoinRegistry } from './joins';
+import { canonical } from './joins';
 import type { Row, TableDef } from './model';
+
+export type ColumnPair = {
+    colA: string;
+    colB: string;
+};
 
 export type RelationEdge = {
     /** table A name */
     a: string;
-    /** join column on A */
-    colA: string;
     /** table B name */
     b: string;
-    /** join column on B */
-    colB: string;
+    /** 1 pair = simple key, 2+ pairs = tuple/composite key */
+    columns: ColumnPair[];
     kind: 'shared' | 'fk_pk';
     confidence: number;
 };
@@ -38,6 +43,11 @@ const FK_OVERLAP_THRESHOLD = 0.85;
 
 /** Cap of inferred edges kept per table pair (best-overlap first). */
 const MAX_EDGES_PER_PAIR = 3;
+
+/** Shared-key tuples that must match as a unit (not as independent columns). */
+const SHARED_COMPOSITE_GROUPS: ReadonlyArray<readonly string[]> = [
+    ['shiftcode', 'prodgroup', 'logdate'],
+];
 
 function distinctSet(rows: Row[], col: string): Set<string> {
     const set = new Set<string>();
@@ -89,8 +99,6 @@ function schemaKeyMap(
     const map = new Map<string, Set<string>>();
     if (!schema) return map;
     for (const entry of schema.entries ?? []) {
-        const key = entry.name.trim().toLowerCase();
-        if (!key) continue;
         const cols = new Set<string>();
         for (const c of entry.columns ?? []) {
             if (c.unique) cols.add(c.name.trim().toLowerCase());
@@ -100,9 +108,47 @@ function schemaKeyMap(
         if (entry.primary_key?.column) {
             cols.add(entry.primary_key.column.trim().toLowerCase());
         }
-        if (cols.size) map.set(key, cols);
+        if (!cols.size) continue;
+
+        for (const key of [
+            entry.name,
+            entry.slug,
+            entry.slug?.split('/').pop() ?? '',
+        ]) {
+            const normalized = key.trim().toLowerCase();
+            if (normalized) map.set(normalized, cols);
+        }
     }
     return map;
+}
+
+function schemaKeysForTable(
+    schemaKeys: Map<string, Set<string>>,
+    table: TableDef,
+): Set<string> | undefined {
+    for (const key of [
+        table.name,
+        table.slug ?? '',
+        table.slug?.split('/').pop() ?? '',
+        table.label ?? '',
+        table.object ?? '',
+    ]) {
+        const found = schemaKeys.get(key.trim().toLowerCase());
+        if (found) return found;
+    }
+    return undefined;
+}
+
+function entryFieldForTable(
+    joins: JoinRegistry,
+    canonicalColumn: string,
+    tableName: string,
+): string | null {
+    return (
+        joins[canonicalColumn]?.participants.find(
+            (p) => p.tableName === tableName,
+        )?.fieldName ?? null
+    );
 }
 
 /**
@@ -120,34 +166,109 @@ export function buildRelationGraph(
 ): RelationGraph {
     const edges: RelationEdge[] = [];
     const seen = new Set<string>();
+    const compositeSkip = new Set<string>();
+    for (let i = 0; i < tables.length; i++) {
+        for (let j = i + 1; j < tables.length; j++) {
+            const tableA = tables[i]!.name;
+            const tableB = tables[j]!.name;
+            for (const group of SHARED_COMPOSITE_GROUPS) {
+                const hasGroup = group.every((canonicalColumn) => {
+                    return (
+                        entryFieldForTable(joins, canonicalColumn, tableA) &&
+                        entryFieldForTable(joins, canonicalColumn, tableB)
+                    );
+                });
+                if (!hasGroup) continue;
+                for (const canonicalColumn of group) {
+                    compositeSkip.add(
+                        `${tableA}\u0000${tableB}\u0000${canonicalColumn}`,
+                    );
+                    compositeSkip.add(
+                        `${tableB}\u0000${tableA}\u0000${canonicalColumn}`,
+                    );
+                }
+            }
+        }
+    }
+
     const addEdge = (
         a: string,
-        colA: string,
         b: string,
-        colB: string,
+        columns: ColumnPair[],
         kind: RelationEdge['kind'],
         confidence: number,
     ) => {
-        const keyA = [a, colA, b, colB].join('\u0000');
-        const keyB = [b, colB, a, colA].join('\u0000');
+        if (!columns.length) return;
+        const keyColsA = columns
+            .map((pair) => `${pair.colA}\u0001${pair.colB}`)
+            .join('\u0002');
+        const keyColsB = columns
+            .map((pair) => `${pair.colB}\u0001${pair.colA}`)
+            .join('\u0002');
+        const keyA = [a, b, keyColsA].join('\u0000');
+        const keyB = [b, a, keyColsB].join('\u0000');
         if (seen.has(keyA) || seen.has(keyB)) return;
         seen.add(keyA);
         seen.add(keyB);
-        edges.push({ a, colA, b, colB, kind, confidence });
+        edges.push({ a, b, columns, kind, confidence });
     };
 
     for (const entry of Object.values(joins)) {
         const ps = entry.participants;
         for (let i = 0; i < ps.length; i++) {
             for (let j = i + 1; j < ps.length; j++) {
+                const tableA = ps[i]!.tableName;
+                const tableB = ps[j]!.tableName;
+                const canonicalColumn = canonical(entry.type);
+                if (
+                    compositeSkip.has(
+                        `${tableA}\u0000${tableB}\u0000${canonicalColumn}`,
+                    )
+                ) {
+                    continue;
+                }
                 addEdge(
-                    ps[i]!.tableName,
-                    ps[i]!.fieldName,
-                    ps[j]!.tableName,
-                    ps[j]!.fieldName,
+                    tableA,
+                    tableB,
+                    [
+                        {
+                            colA: ps[i]!.fieldName,
+                            colB: ps[j]!.fieldName,
+                        },
+                    ],
                     'shared',
                     1,
                 );
+            }
+        }
+    }
+
+    for (let i = 0; i < tables.length; i++) {
+        for (let j = i + 1; j < tables.length; j++) {
+            const tableA = tables[i]!.name;
+            const tableB = tables[j]!.name;
+            for (const group of SHARED_COMPOSITE_GROUPS) {
+                const columns: ColumnPair[] = [];
+                let complete = true;
+                for (const canonicalColumn of group) {
+                    const colA = entryFieldForTable(
+                        joins,
+                        canonicalColumn,
+                        tableA,
+                    );
+                    const colB = entryFieldForTable(
+                        joins,
+                        canonicalColumn,
+                        tableB,
+                    );
+                    if (!colA || !colB) {
+                        complete = false;
+                        break;
+                    }
+                    columns.push({ colA, colB });
+                }
+                if (!complete) continue;
+                addEdge(tableA, tableB, columns, 'shared', 1);
             }
         }
     }
@@ -196,12 +317,12 @@ export function buildRelationGraph(
                     // that merely happen to overlap.
                     const aNameKey = keyLikeName(fa.name);
                     const bNameKey = keyLikeName(fb.name);
-                    const aSchema = schemaKeys
-                        .get(A.name.trim().toLowerCase())
-                        ?.has(fa.name.trim().toLowerCase());
-                    const bSchema = schemaKeys
-                        .get(B.name.trim().toLowerCase())
-                        ?.has(fb.name.trim().toLowerCase());
+                    const aSchema = schemaKeysForTable(schemaKeys, A)?.has(
+                        fa.name.trim().toLowerCase(),
+                    );
+                    const bSchema = schemaKeysForTable(schemaKeys, B)?.has(
+                        fb.name.trim().toLowerCase(),
+                    );
                     if (!aNameKey && !bNameKey && !aSchema && !bSchema)
                         continue;
                     pairs.push({
@@ -215,16 +336,20 @@ export function buildRelationGraph(
             pairs.sort((x, y) => y.overlap - x.overlap);
             for (const p of pairs.slice(0, MAX_EDGES_PER_PAIR)) {
                 let confidence = Math.min(1, p.overlap + 0.1);
-                const aC = A.name.trim().toLowerCase();
-                const bC = B.name.trim().toLowerCase();
-                const aKeyed = schemaKeys
-                    .get(aC)
-                    ?.has(p.colA.trim().toLowerCase());
-                const bKeyed = schemaKeys
-                    .get(bC)
-                    ?.has(p.colB.trim().toLowerCase());
+                const aKeyed = schemaKeysForTable(schemaKeys, A)?.has(
+                    p.colA.trim().toLowerCase(),
+                );
+                const bKeyed = schemaKeysForTable(schemaKeys, B)?.has(
+                    p.colB.trim().toLowerCase(),
+                );
                 if (aKeyed && bKeyed) confidence = 1;
-                addEdge(A.name, p.colA, B.name, p.colB, 'fk_pk', confidence);
+                addEdge(
+                    A.name,
+                    B.name,
+                    [{ colA: p.colA, colB: p.colB }],
+                    'fk_pk',
+                    confidence,
+                );
             }
         }
     }

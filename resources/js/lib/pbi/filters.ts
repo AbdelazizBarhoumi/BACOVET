@@ -31,6 +31,8 @@ export type RelativePreset =
     | 'ytd';
 
 export type ReportFilter = {
+    /** custom = grouped filter over multiple endpoint columns */
+    kind?: 'custom';
     column: string;
     values: string[];
     /** page = current page only, report = all pages */
@@ -50,6 +52,16 @@ export type ReportFilter = {
     /** topN */
     topN?: number;
     topNBy?: { table?: string; name: string; agg: Agg };
+    /** custom filter label shown in the pane */
+    label?: string;
+    /** custom filter target columns */
+    columns?: CustomFilterColumn[];
+};
+
+export type CustomFilterColumn = {
+    table: string;
+    column: string;
+    values?: string[];
 };
 
 export type FilterCtx = {
@@ -137,6 +149,146 @@ function dayOf(r: Row, col: string): string {
     return String(r[col] ?? '').slice(0, 10);
 }
 
+export function isCustomFilter(f: ReportFilter): boolean {
+    return f.kind === 'custom' && Array.isArray(f.columns);
+}
+
+export function customFilterColumnsForTable(
+    f: ReportFilter,
+    table: TableDef,
+): CustomFilterColumn[] {
+    if (!isCustomFilter(f)) return [];
+    const cols = f.columns ?? [];
+    const names = new Set(table.fields.map((field) => field.name));
+    return cols
+        .filter((c) => c.table === table.name && names.has(c.column))
+        .map((c) => ({
+            ...c,
+            values: Array.isArray(c.values) ? c.values : [],
+        }));
+}
+
+export function distinctValuesForTableColumn(
+    tables: TableDef[],
+    tableName: string,
+    column: string,
+): string[] {
+    const table = tables.find((t) => t.name === tableName);
+    if (!table) return [];
+    if (!hasColumn(table, column)) return [];
+    const out = new Set<string>();
+    for (const row of table.rows) {
+        const value = row[column];
+        if (value === null || value === undefined) continue;
+        out.add(String(value));
+    }
+    return [...out].sort((a, b) => a.localeCompare(b));
+}
+
+function columnRows(
+    tables: TableDef[],
+    rows: Record<string, Row[]> | undefined,
+    tableName: string,
+): Row[] {
+    if (rows && rows[tableName]) return rows[tableName];
+    return tables.find((t) => t.name === tableName)?.rows ?? [];
+}
+
+/**
+ * One consolidated, de-duplicated, sorted value list pooled across every column
+ * a custom filter targets. When `rows` is provided (e.g. the currently filtered
+ * `tableRows`) the pool reflects the visible "stripped" result; otherwise it is
+ * built from the raw table rows. Selecting from this single list drives
+ * "affect all related" consistency in the filter pane.
+ */
+export function customFilterPooledValues(
+    f: ReportFilter,
+    tables: TableDef[],
+    rows?: Record<string, Row[]>,
+): string[] {
+    if (!isCustomFilter(f)) return [];
+    const seen = new Map<string, string>();
+    for (const col of f.columns ?? []) {
+        if (!col.table || !col.column) continue;
+        for (const row of columnRows(tables, rows, col.table)) {
+            const value = row[col.column];
+            if (value === null || value === undefined) continue;
+            const display = String(value);
+            const key = normValue(display);
+            if (key && !seen.has(key)) seen.set(key, display);
+        }
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * The subset of a custom filter's columns whose current distinct-value list
+ * contains `value`. Used to consolidate a pooled selection onto every related
+ * column that actually holds the value (never onto unrelated domains).
+ */
+export function customFilterColumnsContainingValue(
+    f: ReportFilter,
+    tables: TableDef[],
+    value: string,
+): CustomFilterColumn[] {
+    if (!isCustomFilter(f)) return [];
+    const pool = customFilterPooledValues(f, tables);
+    if (!pool.some((v) => normValue(v) === normValue(value))) return [];
+    return (f.columns ?? []).filter((c) =>
+        c.table && c.column
+            ? distinctValuesForTableColumn(tables, c.table, c.column).some(
+                  (v) => normValue(v) === normValue(value),
+              )
+            : false,
+    );
+}
+
+/** Distinct selected values held in any column of a custom filter (pooled). */
+export function customFilterSelectedValues(f: ReportFilter): string[] {
+    if (!isCustomFilter(f)) return [];
+    const out = new Map<string, string>();
+    for (const col of f.columns ?? []) {
+        for (const value of Array.isArray(col.values) ? col.values : []) {
+            const key = normValue(value);
+            if (key && !out.has(key)) out.set(key, value);
+        }
+    }
+    return [...out.values()];
+}
+
+function applyCustomFilter(
+    rows: Row[],
+    f: ReportFilter,
+    ctx: FilterCtx,
+): Row[] {
+    const columns = customFilterColumnsForTable(f, ctx.table);
+    if (!columns.length) return rows;
+    if (f.scope === 'page' && f.pageId && f.pageId !== ctx.activePageId)
+        return rows;
+
+    if (f.type === 'search') {
+        const q = (f.query ?? '').trim().toLowerCase();
+        if (!q) return rows;
+        return rows.filter((r) =>
+            columns.some((col) =>
+                String(r[col.column] ?? '')
+                    .toLowerCase()
+                    .includes(q),
+            ),
+        );
+    }
+
+    if (f.type !== 'list' && f.type !== 'dropdown') return rows;
+    let out = rows;
+    for (const col of columns) {
+        const selected = Array.isArray(col.values) ? col.values : [];
+        if (!selected.length) continue;
+        const allowed = new Set(selected.map(normValue));
+        out = out.filter((r) => allowed.has(normValue(r[col.column])));
+    }
+    return out;
+}
+
 /**
  * Distinct values of `column` ranked by an aggregate of `by`, keeping the top
  * `n`. Ranking uses SUM of the `by` column per distinct value of `column`.
@@ -175,6 +327,7 @@ export function applyFilter(
     f: ReportFilter,
     ctx: FilterCtx,
 ): Row[] {
+    if (isCustomFilter(f)) return applyCustomFilter(rows, f, ctx);
     if (f.table && f.table !== ctx.table.name) return rows;
     if (!hasColumn(ctx.table, f.column)) return rows;
     if (f.scope === 'page' && f.pageId && f.pageId !== ctx.activePageId)
@@ -184,7 +337,8 @@ export function applyFilter(
         case 'list':
         case 'dropdown':
             if (!f.values.length) return rows;
-            return rows.filter((r) => f.values.includes(String(r[f.column])));
+            const allowed = new Set(f.values.map(normValue));
+            return rows.filter((r) => allowed.has(normValue(r[f.column])));
         case 'search': {
             const q = (f.query ?? '').toLowerCase();
             if (!q) return rows;
@@ -230,9 +384,9 @@ export function applyFilter(
  * Only tables actually reduced by a filter, slicer, drillthrough or
  * cross-filter are seeds. A seed constrains its neighbours outward through
  * the relationship graph; a derived (shrunken) table constrains its other
- * neighbours in turn. Seeds are never constrained back, so an explicit
- * selection stays authoritative. Intersections are monotonic (row counts only
- * decrease) so the process terminates; a safety cap guards against
+ * neighbours in turn. Explicit seed tables may intersect one another (multiple
+ * filters are AND), but derived tables do not erase an explicit seed. Row
+ * counts only decrease, so the process terminates; a safety cap guards against
  * pathological graphs.
  *
  * With no seeds the map is returned unchanged, which makes toggling network
@@ -257,6 +411,16 @@ export function propagateNetwork(
     const queue = [...seeds];
     let steps = 0;
 
+    const tupleKey = (r: Row, cols: string[]): string | null => {
+        const parts: string[] = [];
+        for (const col of cols) {
+            const v = normValue(r[col]);
+            if (!v) return null;
+            parts.push(v);
+        }
+        return parts.join('\u0001');
+    };
+
     while (queue.length && steps < cap) {
         steps += 1;
         const t = queue.shift()!;
@@ -264,30 +428,39 @@ export function propagateNetwork(
         if (!tArr) continue;
         for (const e of graph.edges) {
             let neighbor: string;
-            let colSelf: string;
-            let colNeighbor: string;
+            let selfCols: string[];
+            let neighborCols: string[];
             if (e.a === t) {
                 neighbor = e.b;
-                colSelf = e.colA;
-                colNeighbor = e.colB;
+                selfCols = e.columns.map((pair) => pair.colA);
+                neighborCols = e.columns.map((pair) => pair.colB);
             } else if (e.b === t) {
                 neighbor = e.a;
-                colSelf = e.colB;
-                colNeighbor = e.colA;
+                selfCols = e.columns.map((pair) => pair.colB);
+                neighborCols = e.columns.map((pair) => pair.colA);
             } else {
                 continue;
             }
-            if (seeds.has(neighbor)) continue;
+            if (seeds.has(neighbor) && !seeds.has(t)) continue;
+            // A derived (non-seed) table that became empty must not cascade
+            // that emptiness onto its neighbours; only explicit seeds may
+            // wipe (orphan semantics).
+            if (!seeds.has(t) && tArr.length === 0) continue;
             const nArr = current.get(neighbor);
             if (!nArr) continue;
             const allowed = new Set<string>();
             for (const r of tArr) {
-                const v = normValue(r[colSelf]);
-                if (v) allowed.add(v);
+                const key = tupleKey(r, selfCols);
+                if (key) allowed.add(key);
             }
-            const next = nArr.filter((r) =>
-                allowed.has(normValue(r[colNeighbor])),
-            );
+            // A non-empty seed whose rows can't express a complete key on this
+            // edge's columns (e.g. an empty composite member like `LogDate: []`)
+            // cannot constrain the neighbour, so don't wipe it to empty.
+            if (allowed.size === 0 && tArr.length > 0) continue;
+            const next = nArr.filter((r) => {
+                const key = tupleKey(r, neighborCols);
+                return key !== null && allowed.has(key);
+            });
             if (next.length < nArr.length) {
                 current.set(neighbor, next);
                 queue.push(neighbor);

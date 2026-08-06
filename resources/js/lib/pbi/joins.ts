@@ -301,7 +301,8 @@ export function crossFilterRows(
 
     if (!apply) return { rows, dim: false, match: null };
 
-    const matches = (r: Row) => String(r[colName]) === crossFilter.value;
+    const matches = (r: Row) =>
+        normValue(r[colName]) === normValue(crossFilter.value);
     if (mode === 'filter')
         return { rows: rows.filter(matches), dim: false, match: null };
     if (mode === 'none') return { rows, dim: false, match: null };

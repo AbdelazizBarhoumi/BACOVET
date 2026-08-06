@@ -80,6 +80,13 @@ export function buildTables(datasets: EndpointDataset[]): TableDef[] {
             }));
         }
 
-        return { name, fields, rows };
+        return {
+            name,
+            fields,
+            rows,
+            slug: d.slug,
+            label: d.label,
+            object: d.object,
+        };
     });
 }

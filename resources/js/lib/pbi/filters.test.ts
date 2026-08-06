@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
     applyFilter,
+    customFilterColumnsContainingValue,
+    customFilterPooledValues,
+    customFilterSelectedValues,
+    distinctValuesForTableColumn,
     filterTableRows,
     propagateNetwork,
     relativeDateRange,
@@ -42,6 +46,29 @@ function filter(partial: Partial<ReportFilter>): ReportFilter {
 describe('applyFilter — list / dropdown', () => {
     it('leaves rows untouched when no values are selected (clear)', () => {
         expect(applyFilter(sales.rows, filter({}), ctx)).toEqual(sales.rows);
+    });
+
+    it('matches values case-insensitively and after trimming whitespace', () => {
+        const rows = [
+            { ProdGroup: ' CH14 ' },
+            { ProdGroup: 'ch14' },
+            { ProdGroup: 'CH15' },
+        ];
+        const prodCtx = {
+            table: {
+                ...sales,
+                name: 'Prod',
+                fields: [{ table: 'Prod', name: 'ProdGroup', type: 'text' }],
+                rows,
+            },
+            activePageId: 'p1',
+        };
+        const out = applyFilter(
+            rows,
+            filter({ column: 'ProdGroup', values: ['ch14'] }),
+            prodCtx,
+        );
+        expect(out).toEqual([{ ProdGroup: ' CH14 ' }, { ProdGroup: 'ch14' }]);
     });
 
     it('filters rows to the selected values', () => {
@@ -381,9 +408,8 @@ describe('propagateNetwork', () => {
         edges: [
             {
                 a: 'Orders',
-                colA: 'ProductRef',
                 b: 'Products',
-                colB: 'Id',
+                columns: [{ colA: 'ProductRef', colB: 'Id' }],
                 kind: 'fk_pk',
                 confidence: 1,
             },
@@ -441,6 +467,238 @@ describe('propagateNetwork', () => {
         expect(out.Orders).toEqual([]);
     });
 
+    it('enforces composite tuples and excludes phantom cross-product matches', () => {
+        const itemTrx: TableDef = {
+            name: 'ItemTrxEnq',
+            fields: [
+                { table: 'ItemTrxEnq', name: 'TerminalNo', type: 'text' },
+                { table: 'ItemTrxEnq', name: 'ShiftCode', type: 'text' },
+                { table: 'ItemTrxEnq', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    TerminalNo: 'T5',
+                    ShiftCode: 'Morning',
+                    ProdGroup: 'LineA',
+                },
+                { TerminalNo: 'T5', ShiftCode: 'Night', ProdGroup: 'LineB' },
+                {
+                    TerminalNo: 'T9',
+                    ShiftCode: 'Morning',
+                    ProdGroup: 'LineC',
+                },
+            ],
+        };
+        const defects: TableDef = {
+            name: 'EmpDefectEff',
+            fields: [
+                { table: 'EmpDefectEff', name: 'ShiftCode', type: 'text' },
+                { table: 'EmpDefectEff', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                { ShiftCode: 'Morning', ProdGroup: 'LineA' },
+                { ShiftCode: 'Morning', ProdGroup: 'LineB' },
+                { ShiftCode: 'Night', ProdGroup: 'LineC' },
+            ],
+        };
+        const composite: RelationGraph = {
+            edges: [
+                {
+                    a: 'ItemTrxEnq',
+                    b: 'EmpDefectEff',
+                    columns: [
+                        { colA: 'ShiftCode', colB: 'ShiftCode' },
+                        { colA: 'ProdGroup', colB: 'ProdGroup' },
+                    ],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+            ],
+        };
+
+        const out = propagateNetwork(
+            [itemTrx, defects],
+            {
+                ItemTrxEnq: itemTrx.rows.filter(
+                    (row) => row.TerminalNo === 'T5',
+                ),
+                EmpDefectEff: defects.rows,
+            },
+            composite,
+            true,
+        );
+
+        expect(out.EmpDefectEff).toEqual([
+            { ShiftCode: 'Morning', ProdGroup: 'LineA' },
+        ]);
+    });
+
+    it('does not wipe neighbours when composite keys are unexpressible', () => {
+        // Real endpoints: wip_chaine (ProdGroup, 36 trailing spaces) links to
+        // EmpDefectEff via a plain ProdGroup edge; EmpDefectEff and Production
+        // link by the [shiftcode, prodgroup, logdate] composite. The captured
+        // sample stores `LogDate: ''` (empty array), so no composite row can
+        // form a key. Constraining must leave neighbours untouched rather than
+        // collapse them to empty and cascade back through the cycle.
+        const wipPad = (v: string) => `${v}${' '.repeat(36)}`;
+        const pad = (v: string) => `${v}${' '.repeat(6)}`;
+        const wipChaine: TableDef = {
+            name: 'WipChaine',
+            fields: [
+                { table: 'WipChaine', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                { ProdGroup: wipPad('CH14') },
+                { ProdGroup: wipPad('CH16') },
+            ],
+        };
+        const empDefectEff: TableDef = {
+            name: 'EmpDefectEff',
+            fields: [
+                { table: 'EmpDefectEff', name: 'ShiftCode', type: 'text' },
+                { table: 'EmpDefectEff', name: 'ProdGroup', type: 'text' },
+                { table: 'EmpDefectEff', name: 'LogDate', type: 'text' },
+            ],
+            rows: [
+                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH14'), LogDate: '' },
+                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH16'), LogDate: '' },
+            ],
+        };
+        const production: TableDef = {
+            name: 'Production',
+            fields: [
+                { table: 'Production', name: 'ShiftCode', type: 'text' },
+                { table: 'Production', name: 'ProdGroup', type: 'text' },
+                { table: 'Production', name: 'LogDate', type: 'text' },
+            ],
+            rows: [
+                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH14'), LogDate: '' },
+                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH99'), LogDate: '' },
+            ],
+        };
+        const net: RelationGraph = {
+            edges: [
+                {
+                    a: 'WipChaine',
+                    b: 'EmpDefectEff',
+                    columns: [{ colA: 'ProdGroup', colB: 'ProdGroup' }],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+                {
+                    a: 'EmpDefectEff',
+                    b: 'Production',
+                    columns: [
+                        { colA: 'ShiftCode', colB: 'ShiftCode' },
+                        { colA: 'ProdGroup', colB: 'ProdGroup' },
+                        { colA: 'LogDate', colB: 'LogDate' },
+                    ],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+                {
+                    a: 'Production',
+                    b: 'EmpDefectEff',
+                    columns: [
+                        { colA: 'ShiftCode', colB: 'ShiftCode' },
+                        { colA: 'ProdGroup', colB: 'ProdGroup' },
+                        { colA: 'LogDate', colB: 'LogDate' },
+                    ],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+            ],
+        };
+        const out = propagateNetwork(
+            [wipChaine, empDefectEff, production],
+            {
+                WipChaine: [wipChaine.rows[0]],
+                EmpDefectEff: empDefectEff.rows,
+                Production: production.rows,
+            },
+            net,
+            true,
+        );
+        expect(out.EmpDefectEff).toEqual([
+            { ShiftCode: 'JOUR      ', ProdGroup: pad('CH14'), LogDate: '' },
+        ]);
+        expect(out.Production).toEqual(production.rows);
+    });
+
+    it('does not cascade emptiness from an orphaned table onto the target chart', () => {
+        // Mirrors the real report: wip_chaine + EmpDefectEff charts, plus the
+        // other loaded endpoints that share ProdGroup but contain no CH14 rows
+        // (ItemTrxEnq, Production, minutes_presence...). Those tables become
+        // empty (orphans) and must not wipe the related chart tables back to
+        // "Aucune donnée".
+        const wipPad = (v: string) => `${v}${' '.repeat(36)}`;
+        const pad = (v: string) => `${v}${' '.repeat(6)}`;
+        const wipChaine: TableDef = {
+            name: 'WipChaine',
+            fields: [{ table: 'WipChaine', name: 'ProdGroup', type: 'text' }],
+            rows: [
+                { ProdGroup: wipPad('CH14') },
+                { ProdGroup: wipPad('CH16') },
+            ],
+        };
+        const empDefectEff: TableDef = {
+            name: 'EmpDefectEff',
+            fields: [
+                { table: 'EmpDefectEff', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                { ProdGroup: pad('CH14') },
+                { ProdGroup: pad('CH16') },
+            ],
+        };
+        const orphan: TableDef = {
+            name: 'ItemTrxEnq',
+            fields: [{ table: 'ItemTrxEnq', name: 'ProdGroup', type: 'text' }],
+            rows: [
+                { ProdGroup: pad('CH05') },
+                { ProdGroup: pad('CH08') },
+            ],
+        };
+        const graph: RelationGraph = {
+            edges: [
+                {
+                    a: 'WipChaine',
+                    b: 'EmpDefectEff',
+                    columns: [{ colA: 'ProdGroup', colB: 'ProdGroup' }],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+                {
+                    a: 'WipChaine',
+                    b: 'ItemTrxEnq',
+                    columns: [{ colA: 'ProdGroup', colB: 'ProdGroup' }],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+                {
+                    a: 'ItemTrxEnq',
+                    b: 'EmpDefectEff',
+                    columns: [{ colA: 'ProdGroup', colB: 'ProdGroup' }],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+            ],
+        };
+        const out = propagateNetwork(
+            [wipChaine, empDefectEff, orphan],
+            {
+                WipChaine: [wipChaine.rows[0]],
+                EmpDefectEff: empDefectEff.rows,
+                ItemTrxEnq: orphan.rows,
+            },
+            graph,
+            true,
+        );
+        expect(out.WipChaine).toEqual([{ ProdGroup: wipPad('CH14') }]);
+        expect(out.EmpDefectEff).toEqual([{ ProdGroup: pad('CH14') }]);
+        expect(out.ItemTrxEnq).toEqual([]);
+    });
+
     it('does not constrain a seed back through a cyclic graph', () => {
         const a: TableDef = {
             name: 'A',
@@ -456,17 +714,15 @@ describe('propagateNetwork', () => {
             edges: [
                 {
                     a: 'A',
-                    colA: 'Id',
                     b: 'B',
-                    colB: 'Id',
+                    columns: [{ colA: 'Id', colB: 'Id' }],
                     kind: 'fk_pk',
                     confidence: 1,
                 },
                 {
                     a: 'B',
-                    colA: 'Id',
                     b: 'A',
-                    colB: 'Id',
+                    columns: [{ colA: 'Id', colB: 'Id' }],
                     kind: 'fk_pk',
                     confidence: 1,
                 },
@@ -504,9 +760,8 @@ describe('filterTableRows', () => {
         edges: [
             {
                 a: 'Orders',
-                colA: 'ProductRef',
                 b: 'Products',
-                colB: 'Id',
+                columns: [{ colA: 'ProductRef', colB: 'Id' }],
                 kind: 'fk_pk',
                 confidence: 1,
             },
@@ -532,6 +787,59 @@ describe('filterTableRows', () => {
         expect(out.Orders[0]!.ProductRef).toBe('P1');
     });
 
+    it('propagates a normalized ProdGroup filter across a shared join edge', () => {
+        const pad = (value: string) => `${value}${' '.repeat(12)}`;
+        const wipChaine: TableDef = {
+            name: 'WipChaine',
+            fields: [{ table: 'WipChaine', name: 'ProdGroup', type: 'text' }],
+            rows: [
+                { ProdGroup: pad('CH14') },
+                { ProdGroup: pad('CH16') },
+            ],
+        };
+        const empDefectEff: TableDef = {
+            name: 'EmpDefectEff',
+            fields: [
+                { table: 'EmpDefectEff', name: 'ProdGroup', type: 'text' },
+                { table: 'EmpDefectEff', name: 'ShiftCode', type: 'text' },
+            ],
+            rows: [
+                { ProdGroup: 'CH14', ShiftCode: 'JOUR' },
+                { ProdGroup: 'CH16', ShiftCode: 'JOUR' },
+            ],
+        };
+        const graph: RelationGraph = {
+            edges: [
+                {
+                    a: 'WipChaine',
+                    b: 'EmpDefectEff',
+                    columns: [{ colA: 'ProdGroup', colB: 'ProdGroup' }],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+            ],
+        };
+
+        const out = filterTableRows(
+            [wipChaine, empDefectEff],
+            [
+                {
+                    column: 'ProdGroup',
+                    table: 'WipChaine',
+                    values: ['CH14'],
+                    scope: 'report',
+                    type: 'list',
+                },
+            ],
+            graph,
+        );
+
+        expect(out.WipChaine).toEqual([{ ProdGroup: pad('CH14') }]);
+        expect(out.EmpDefectEff).toEqual([
+            { ProdGroup: 'CH14', ShiftCode: 'JOUR' },
+        ]);
+    });
+
     it('without a graph it only filters the targeted table', () => {
         const out = filterTableRows(
             [products, orders],
@@ -547,5 +855,305 @@ describe('filterTableRows', () => {
         );
         expect(out.Products).toHaveLength(1);
         expect(out.Orders).toHaveLength(2);
+    });
+
+    it('custom filters keep distinct values scoped per table column', () => {
+        expect(
+            distinctValuesForTableColumn([products, orders], 'Products', 'Id'),
+        ).toEqual(['P1', 'P2', 'P3']);
+        expect(
+            distinctValuesForTableColumn(
+                [products, orders],
+                'Orders',
+                'ProductRef',
+            ),
+        ).toEqual(['P1', 'P2']);
+    });
+    it('custom filters apply selected values per selected column', () => {
+        const out = filterTableRows(
+            [products, orders],
+            [
+                filter({
+                    kind: 'custom',
+                    column: 'Product',
+                    label: 'Product',
+                    values: [],
+                    columns: [
+                        {
+                            table: 'Products',
+                            column: 'Id',
+                            values: ['P1'],
+                        },
+                        {
+                            table: 'Orders',
+                            column: 'ProductRef',
+                            values: ['P1'],
+                        },
+                    ],
+                }),
+            ],
+            graph,
+        );
+        expect(out.Products).toEqual([{ Id: 'P1' }]);
+        expect(out.Orders).toEqual([{ ProductRef: 'P1', Amount: 10 }]);
+    });
+
+    it('custom filter values are OR per column and AND with other filters', () => {
+        const out = filterTableRows(
+            [products, orders],
+            [
+                filter({
+                    kind: 'custom',
+                    column: 'Product',
+                    label: 'Product',
+                    values: [],
+                    columns: [
+                        {
+                            table: 'Products',
+                            column: 'Id',
+                            values: ['P1', 'P2'],
+                        },
+                        {
+                            table: 'Orders',
+                            column: 'ProductRef',
+                            values: ['P1', 'P2'],
+                        },
+                    ],
+                }),
+                {
+                    column: 'Amount',
+                    table: 'Orders',
+                    values: [],
+                    scope: 'report',
+                    type: 'topN',
+                    topN: 1,
+                    topNBy: { name: 'Amount', agg: 'sum' },
+                },
+            ],
+            graph,
+        );
+        expect(out.Products).toEqual([{ Id: 'P2' }]);
+        expect(out.Orders).toEqual([{ ProductRef: 'P2', Amount: 30 }]);
+    });
+
+    it('propagates custom filters across a multi-hop relationship path', () => {
+        const families: TableDef = {
+            name: 'Families',
+            fields: [{ table: 'Families', name: 'FamilyId', type: 'text' }],
+            rows: [{ FamilyId: 'F1' }, { FamilyId: 'F2' }],
+        };
+        const productFamilies: TableDef = {
+            name: 'ProductFamilies',
+            fields: [
+                { table: 'ProductFamilies', name: 'FamilyRef', type: 'text' },
+                { table: 'ProductFamilies', name: 'ProductId', type: 'text' },
+            ],
+            rows: [
+                { FamilyRef: 'F1', ProductId: 'P1' },
+                { FamilyRef: 'F2', ProductId: 'P2' },
+            ],
+        };
+        const salesByProduct: TableDef = {
+            name: 'SalesByProduct',
+            fields: [
+                { table: 'SalesByProduct', name: 'ProductRef', type: 'text' },
+                { table: 'SalesByProduct', name: 'Amount', type: 'number' },
+            ],
+            rows: [
+                { ProductRef: 'P1', Amount: 10 },
+                { ProductRef: 'P2', Amount: 20 },
+            ],
+        };
+        const multiHop: RelationGraph = {
+            edges: [
+                {
+                    a: 'Families',
+                    b: 'ProductFamilies',
+                    columns: [{ colA: 'FamilyId', colB: 'FamilyRef' }],
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+                {
+                    a: 'ProductFamilies',
+                    b: 'SalesByProduct',
+                    columns: [{ colA: 'ProductId', colB: 'ProductRef' }],
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+            ],
+        };
+        const out = filterTableRows(
+            [families, productFamilies, salesByProduct],
+            [
+                filter({
+                    kind: 'custom',
+                    column: 'Family',
+                    label: 'Family',
+                    values: [],
+                    columns: [
+                        {
+                            table: 'Families',
+                            column: 'FamilyId',
+                            values: ['F1'],
+                        },
+                    ],
+                }),
+            ],
+            multiHop,
+        );
+        expect(out.Families).toEqual([{ FamilyId: 'F1' }]);
+        expect(out.ProductFamilies).toEqual([
+            { FamilyRef: 'F1', ProductId: 'P1' },
+        ]);
+        expect(out.SalesByProduct).toEqual([{ ProductRef: 'P1', Amount: 10 }]);
+    });
+});
+
+describe('custom filter pooled values (consolidated single list)', () => {
+    const products: TableDef = {
+        name: 'Products',
+        fields: [{ table: 'Products', name: 'Id', type: 'text' }],
+        rows: [{ Id: 'P1' }, { Id: 'P2' }, { Id: 'P3' }],
+    };
+    const orders: TableDef = {
+        name: 'Orders',
+        fields: [{ table: 'Orders', name: 'ProductRef', type: 'text' }],
+        rows: [
+            { ProductRef: 'P1' },
+            { ProductRef: 'P2' },
+            { ProductRef: 'P3' },
+        ],
+    };
+    const custom = (
+        columns: { table: string; column: string }[],
+    ): ReportFilter =>
+        filter({
+            kind: 'custom',
+            column: 'Produit',
+            label: 'Produit',
+            values: [],
+            columns: columns.map((c) => ({ ...c, values: [] })),
+        });
+
+    it('pools distinct values across columns into one sorted list', () => {
+        const out = customFilterPooledValues(
+            custom([
+                { table: 'Products', column: 'Id' },
+                { table: 'Orders', column: 'ProductRef' },
+            ]),
+            [products, orders],
+        );
+        expect(out).toEqual(['P1', 'P2', 'P3']);
+    });
+
+    it('removes duplicates across columns (shared values overlap)', () => {
+        const out = customFilterPooledValues(
+            custom([
+                { table: 'Products', column: 'Id' },
+                { table: 'Orders', column: 'ProductRef' },
+            ]),
+            [products, orders],
+        );
+        expect(out).toEqual(['P1', 'P2', 'P3']);
+    });
+
+    it('merges disjoint value domains into a single flat list', () => {
+        const regions: TableDef = {
+            name: 'Regions',
+            fields: [{ table: 'Regions', name: 'Name', type: 'text' }],
+            rows: [{ Name: 'North' }, { Name: 'South' }],
+        };
+        const out = customFilterPooledValues(
+            custom([
+                { table: 'Products', column: 'Id' },
+                { table: 'Regions', column: 'Name' },
+            ]),
+            [products, regions],
+        );
+        expect(out).toEqual(['North', 'P1', 'P2', 'P3', 'South']);
+    });
+
+    it('respects the provided (filtered) rows for the stripped result', () => {
+        const out = customFilterPooledValues(
+            custom([{ table: 'Products', column: 'Id' }]),
+            [products, orders],
+            { Products: [{ Id: 'P2' }] },
+        );
+        expect(out).toEqual(['P2']);
+    });
+
+    it('returns empty for non-custom filters', () => {
+        expect(
+            customFilterPooledValues(
+                { column: 'Id', values: [], scope: 'report', type: 'list' },
+                [products],
+            ),
+        ).toEqual([]);
+    });
+
+    it('reports only the columns that actually contain a value', () => {
+        const f = custom([
+            { table: 'Products', column: 'Id' },
+            { table: 'Orders', column: 'ProductRef' },
+        ]);
+        expect(
+            customFilterColumnsContainingValue(f, [products, orders], 'P1').map(
+                (c) => `${c.table}.${c.column}`,
+            ),
+        ).toEqual(['Products.Id', 'Orders.ProductRef']);
+        expect(
+            customFilterColumnsContainingValue(
+                f,
+                [products, orders],
+                'Nowhere',
+            ),
+        ).toEqual([]);
+    });
+
+    it('gathers the distinct selected pooled values across columns', () => {
+        const f: ReportFilter = {
+            kind: 'custom',
+            column: 'Produit',
+            label: 'Produit',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'Products', column: 'Id', values: ['P1', 'P2'] },
+                { table: 'Orders', column: 'ProductRef', values: ['P2', 'P3'] },
+            ],
+        };
+        expect(customFilterSelectedValues(f)).toEqual(['P1', 'P2', 'P3']);
+    });
+
+    it('consolidates the pooled selection onto every containing column then narrows related endpoints', () => {
+        const graph: RelationGraph = {
+            edges: [
+                {
+                    a: 'Orders',
+                    b: 'Products',
+                    columns: [{ colA: 'ProductRef', colB: 'Id' }],
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+            ],
+        };
+        // Simulate the store's pooled toggle: value applied to every column
+        // that contains it (here P1 lives in both tables' value pools).
+        const f: ReportFilter = {
+            kind: 'custom',
+            column: 'Produit',
+            label: 'Produit',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'Products', column: 'Id', values: ['P1'] },
+                { table: 'Orders', column: 'ProductRef', values: ['P1'] },
+            ],
+        };
+        const out = filterTableRows([products, orders], [f], graph);
+        expect(out.Products).toEqual([{ Id: 'P1' }]);
+        expect(out.Orders).toEqual([{ ProductRef: 'P1' }]);
     });
 });

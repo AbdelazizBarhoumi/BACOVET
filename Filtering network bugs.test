@@ -1,0 +1,273 @@
+/**
+ * Reproduction tests for two bugs found in the smart-filtering engine:
+ *
+ *  1. Composite keys (e.g. ShiftCode + ProdGroup + LogDate) are decomposed
+ *     into independent single-column edges by `buildRelationGraph`, so
+ *     `propagateNetwork` can admit "phantom" rows whose column values never
+ *     actually co-occurred together in the seed table.
+ *
+ *  2. The custom filter builder (`kind: 'custom'`) does not consult the
+ *     relationship graph at all — it pools distinct values from all selected
+ *     columns into one flat list and matches literal equality per table,
+ *     which is not a join and breaks down across mismatched domains.
+ *
+ * Assumed test runner: Vitest (adjust the `describe`/`it`/`expect` imports if
+ * this project uses Jest instead — the assertions are runner-agnostic).
+ *
+ * Import paths assume this file sits alongside filters.ts / graph.ts /
+ * model.ts; adjust if placed elsewhere.
+ */
+
+import { describe, expect, it } from 'vitest';
+import {
+    applyFilter,
+    customFilterDistinctValues,
+    filterTableRows,
+    propagateNetwork,
+    type ReportFilter,
+} from './filters';
+import type { RelationGraph } from './graph';
+import { setTables, type Field, type Row, type TableDef } from './model';
+
+function table(
+    name: string,
+    fieldDefs: { name: string; type: Field['type'] }[],
+    rows: Row[],
+): TableDef {
+    return {
+        name,
+        fields: fieldDefs.map((f) => ({ table: name, ...f })),
+        rows,
+    };
+}
+
+describe('Bug 1: composite-key edges are decomposed into independent columns', () => {
+    // Mirrors the real shape of your schema: ItemTrxEnq and EmpDefectEff are
+    // only truly related through the (ShiftCode, ProdGroup, LogDate) grain
+    // key taken TOGETHER — no single column is a safe join key on its own.
+    const itemTrxEnq = table(
+        'ItemTrxEnq',
+        [
+            { name: 'TerminalNo', type: 'text' },
+            { name: 'ShiftCode', type: 'text' },
+            { name: 'ProdGroup', type: 'text' },
+        ],
+        [
+            { TerminalNo: 'T5', ShiftCode: 'Morning', ProdGroup: 'LineA' },
+            { TerminalNo: 'T5', ShiftCode: 'Night', ProdGroup: 'LineB' },
+            { TerminalNo: 'T9', ShiftCode: 'Morning', ProdGroup: 'LineC' },
+        ],
+    );
+
+    const empDefectEff = table(
+        'EmpDefectEff',
+        [
+            { name: 'ShiftCode', type: 'text' },
+            { name: 'ProdGroup', type: 'text' },
+            { name: 'DefectQty', type: 'number' },
+        ],
+        [
+            // Phantom combo: (Morning, LineB) never occurs together in the
+            // T5-filtered ItemTrxEnq rows above (Morning only pairs with
+            // LineA there). A correct composite join must exclude this row.
+            { ShiftCode: 'Morning', ProdGroup: 'LineB', DefectQty: 7 },
+            // Real combo: (Morning, LineA) does occur together. Must be kept.
+            { ShiftCode: 'Morning', ProdGroup: 'LineA', DefectQty: 3 },
+            // Neither column value is in the T5-filtered set at all. Must
+            // be excluded regardless of join strategy.
+            { ShiftCode: 'Night', ProdGroup: 'LineC', DefectQty: 9 },
+        ],
+    );
+
+    // The two edges your graph module would currently produce for this
+    // composite relationship (decomposed, exactly as buildRelationGraph does
+    // today for same-named multi-column keys via the joins registry).
+    const graph: RelationGraph = {
+        edges: [
+            {
+                a: 'ItemTrxEnq',
+                colA: 'ShiftCode',
+                b: 'EmpDefectEff',
+                colB: 'ShiftCode',
+                kind: 'shared',
+                confidence: 1,
+            },
+            {
+                a: 'ItemTrxEnq',
+                colA: 'ProdGroup',
+                b: 'EmpDefectEff',
+                colB: 'ProdGroup',
+                kind: 'shared',
+                confidence: 1,
+            },
+        ],
+    };
+
+    it('FAILS TODAY: admits a phantom row whose columns never co-occurred in the seed', () => {
+        const filtered: Record<string, Row[]> = {
+            ItemTrxEnq: itemTrxEnq.rows.filter((r) => r.TerminalNo === 'T5'),
+            EmpDefectEff: empDefectEff.rows,
+        };
+
+        const result = propagateNetwork(
+            [itemTrxEnq, empDefectEff],
+            filtered,
+            graph,
+            true,
+        );
+
+        // What a correct composite join should return: only the row whose
+        // (ShiftCode, ProdGroup) tuple actually appeared together in a
+        // filtered ItemTrxEnq row.
+        const correctlyMatched = result.EmpDefectEff!.filter(
+            (r) => r.ShiftCode === 'Morning' && r.ProdGroup === 'LineA',
+        );
+        expect(correctlyMatched).toHaveLength(1);
+
+        // This is the assertion that currently FAILS: today's decomposed
+        // per-column filtering also admits the phantom (Morning, LineB) row,
+        // so the result has 2 rows instead of 1.
+        expect(result.EmpDefectEff).toHaveLength(1); // <-- currently returns 2
+    });
+});
+
+describe('Bug 2: the custom filter builder pools values instead of joining', () => {
+    const itemTrxEnq = table(
+        'ItemTrxEnq',
+        [{ name: 'TransactionID', type: 'text' }],
+        [
+            { TransactionID: 'TXN-1001' },
+            { TransactionID: 'TXN-1002' },
+        ],
+    );
+
+    const empDefectEff = table(
+        'EmpDefectEff',
+        [{ name: 'LogDate', type: 'date' }],
+        [{ LogDate: '2026-08-05' }, { LogDate: '2026-08-06' }],
+    );
+
+    it('pools two unrelated value domains into one flat distinct-value list', () => {
+        const customFilter: ReportFilter = {
+            kind: 'custom',
+            column: 'Mixed domains',
+            label: 'Mixed domains',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'ItemTrxEnq', column: 'TransactionID' },
+                { table: 'EmpDefectEff', column: 'LogDate' },
+            ],
+        };
+
+        const values = customFilterDistinctValues(customFilter, [
+            itemTrxEnq,
+            empDefectEff,
+        ]);
+
+        // Demonstrates the structural problem: TransactionIDs and LogDates
+        // — two columns with no relationship to each other — end up in the
+        // SAME dropdown, as if they were one shared domain of values.
+        expect(values).toEqual(
+            expect.arrayContaining(['TXN-1001', '2026-08-05']),
+        );
+    });
+
+    it('silently empties an unrelated table instead of signaling "no relationship"', () => {
+        const customFilter: ReportFilter = {
+            kind: 'custom',
+            column: 'Mixed domains',
+            label: 'Mixed domains',
+            values: ['TXN-1001'], // a real TransactionID, meaningless as a LogDate
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'ItemTrxEnq', column: 'TransactionID' },
+                { table: 'EmpDefectEff', column: 'LogDate' },
+            ],
+        };
+
+        setTables([itemTrxEnq, empDefectEff]);
+        const empRows = applyFilter(empDefectEff.rows, customFilter, {
+            table: empDefectEff,
+            activePageId: '',
+        });
+
+        // No row in EmpDefectEff has LogDate === "TXN-1001", so the table
+        // silently goes to zero rows. There is no warning surfaced anywhere
+        // that these two columns have no real relationship — from the UI it
+        // looks identical to "this is a legitimately empty result."
+        expect(empRows).toHaveLength(0);
+    });
+});
+
+describe('Control: transitive BFS propagation genuinely works for single-column keys', () => {
+    // A -> B -> C chain via two different single-column keys, matching the
+    // real ItemTrxEnq -> vwItemTrx -> EmpDefectEff shape when the composite
+    // key is set aside (e.g. testing via TransactionID + a single grain
+    // column rather than the full 3-column key from Bug 1).
+    const a = table(
+        'A',
+        [{ name: 'TerminalNo', type: 'text' }, { name: 'TransactionID', type: 'text' }],
+        [
+            { TerminalNo: 'T5', TransactionID: 'TXN-1' },
+            { TerminalNo: 'T9', TransactionID: 'TXN-2' },
+        ],
+    );
+    const b = table(
+        'B',
+        [{ name: 'TransactionID', type: 'text' }, { name: 'ShiftCode', type: 'text' }],
+        [
+            { TransactionID: 'TXN-1', ShiftCode: 'Morning' },
+            { TransactionID: 'TXN-2', ShiftCode: 'Night' },
+        ],
+    );
+    const c = table(
+        'C',
+        [{ name: 'ShiftCode', type: 'text' }, { name: 'DefectQty', type: 'number' }],
+        [
+            { ShiftCode: 'Morning', DefectQty: 3 },
+            { ShiftCode: 'Night', DefectQty: 9 },
+        ],
+    );
+
+    const graph: RelationGraph = {
+        edges: [
+            {
+                a: 'A',
+                colA: 'TransactionID',
+                b: 'B',
+                colB: 'TransactionID',
+                kind: 'shared',
+                confidence: 1,
+            },
+            {
+                a: 'B',
+                colA: 'ShiftCode',
+                b: 'C',
+                colB: 'ShiftCode',
+                kind: 'shared',
+                confidence: 1,
+            },
+        ],
+    };
+
+    it('narrows C correctly via B even though A and C share no column', () => {
+        setTables([a, b, c]);
+        const filters: ReportFilter[] = [
+            { column: 'TerminalNo', table: 'A', values: ['T5'], scope: 'report', type: 'list' },
+        ];
+        const result = filterTableRows([a, b, c], filters, graph, {
+            activePageId: '',
+        });
+
+        expect(result.A).toHaveLength(1);
+        expect(result.B).toHaveLength(1);
+        expect(result.B![0]!.TransactionID).toBe('TXN-1');
+        // The interesting assertion: C narrows too, purely through B, with
+        // no direct A<->C edge in the graph at all.
+        expect(result.C).toHaveLength(1);
+        expect(result.C![0]!.ShiftCode).toBe('Morning');
+    });
+});

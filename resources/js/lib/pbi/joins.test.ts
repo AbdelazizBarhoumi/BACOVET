@@ -256,6 +256,35 @@ describe('joins', () => {
     describe('crossFilterRows', () => {
         const reg = buildJoinRegistry(schema, [sales, targets]);
 
+        // Mirrors the real endpoints: both wip_chaine and EmpDefectEff carry
+        // ProdGroup but pad it to different widths (36 vs 6 trailing spaces).
+        const wipProd = (v: string) => `${v}${' '.repeat(36)}`;
+        const empProd = (v: string) => `${v}${' '.repeat(6)}`;
+        const wipLike: TableDef = {
+            name: 'WipChaine',
+            fields: [
+                { table: 'WipChaine', name: 'ProdGroup', type: 'text' },
+                { table: 'WipChaine', name: 'WIP', type: 'number' },
+            ],
+            rows: [
+                { ProdGroup: wipProd('CH14'), WIP: 10 },
+                { ProdGroup: wipProd('CH16'), WIP: 20 },
+            ],
+        };
+        const empLike: TableDef = {
+            name: 'EmpDefectEff',
+            fields: [
+                { table: 'EmpDefectEff', name: 'ProdGroup', type: 'text' },
+                { table: 'EmpDefectEff', name: 'Defects', type: 'number' },
+            ],
+            rows: [
+                { ProdGroup: empProd('CH14'), Defects: 5 },
+                { ProdGroup: empProd('CH16'), Defects: 7 },
+                { ProdGroup: empProd('CH14A'), Defects: 9 },
+            ],
+        };
+        const paddedReg = buildJoinRegistry(schema, [wipLike, empLike]);
+
         it('returns rows unchanged without a cross-filter', () => {
             expect(
                 crossFilterRows(
@@ -337,6 +366,68 @@ describe('joins', () => {
                 reg,
             );
             expect(rows).toEqual([{ prodgroup: 'A', Target: 100 }]);
+        });
+
+        it('propagates cross-table filters across differently padded values', () => {
+            const cf = {
+                sourceId: 'v2',
+                column: 'ProdGroup',
+                value: wipProd('CH14'),
+                table: 'WipChaine',
+            };
+            const { rows } = crossFilterRows(
+                empLike.rows,
+                cf,
+                'v1',
+                'EmpDefectEff',
+                true,
+                'filter',
+                paddedReg,
+            );
+            expect(rows).toEqual([{ ProdGroup: empProd('CH14'), Defects: 5 }]);
+        });
+
+        it('matches highlight rows by normalized value across padding', () => {
+            const cf = {
+                sourceId: 'v2',
+                column: 'ProdGroup',
+                value: wipProd('CH16'),
+                table: 'WipChaine',
+            };
+            const { rows, match } = crossFilterRows(
+                empLike.rows,
+                cf,
+                'v1',
+                'EmpDefectEff',
+                true,
+                'highlight',
+                paddedReg,
+            );
+            expect(rows).toBe(empLike.rows);
+            expect(empLike.rows.filter(match!)).toEqual([
+                { ProdGroup: empProd('CH16'), Defects: 7 },
+            ]);
+        });
+
+        it('does not merge distinct trimmed values when normalizing', () => {
+            const cf = {
+                sourceId: 'v2',
+                column: 'ProdGroup',
+                value: wipProd('CH14'),
+                table: 'WipChaine',
+            };
+            const { match } = crossFilterRows(
+                empLike.rows,
+                cf,
+                'v1',
+                'EmpDefectEff',
+                true,
+                'highlight',
+                paddedReg,
+            );
+            const matched = empLike.rows.filter(match!);
+            expect(matched).toHaveLength(1);
+            expect(matched[0]!.Defects).toBe(5);
         });
 
         it('ignores cross-table filters when the column is not a shared join', () => {
@@ -450,9 +541,8 @@ describe('joins', () => {
             edges: [
                 {
                     a: 'Orders',
-                    colA: 'ProductRef',
                     b: 'Products',
-                    colB: 'Id',
+                    columns: [{ colA: 'ProductRef', colB: 'Id' }],
                     kind: 'fk_pk',
                     confidence: 1,
                 },

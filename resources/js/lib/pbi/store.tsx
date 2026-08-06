@@ -18,8 +18,12 @@ import {
 } from '@/services/measureApi';
 import {
     applyFilter,
+    customFilterColumnsContainingValue,
+    isCustomFilter,
+    normValue,
     propagateNetwork,
     relativeDateRange,
+    type CustomFilterColumn,
     type FilterType,
     type RelativePreset,
     type ReportFilter,
@@ -163,6 +167,38 @@ function parseSlicerKey(
             };
     }
     return null;
+}
+
+function filterMatches(
+    f: ReportFilter,
+    column: string,
+    table: string | undefined,
+): boolean {
+    if (isCustomFilter(f)) {
+        return table === undefined && (f.label ?? f.column) === column;
+    }
+    return f.column === column && f.table === table;
+}
+
+function cloneCustomColumns(
+    columns: CustomFilterColumn[] | undefined,
+): CustomFilterColumn[] | undefined {
+    if (!columns) return undefined;
+    return columns.map((column) => ({
+        table: column.table,
+        column: column.column,
+        values: Array.isArray(column.values) ? [...column.values] : [],
+    }));
+}
+
+function cloneReportFilter(f: ReportFilter): ReportFilter {
+    return {
+        ...f,
+        values: [...f.values],
+        ...(isCustomFilter(f)
+            ? { columns: cloneCustomColumns(f.columns) }
+            : {}),
+    };
 }
 
 export type PaneName =
@@ -346,10 +382,42 @@ function normalizeState(state: State): State {
         customThemes: Array.isArray(state.customThemes)
             ? state.customThemes
             : [],
-        filters: (state.filters ?? []).map((f) => ({
-            ...f,
-            type: f.type ?? 'list',
-        })),
+        filters: (state.filters ?? []).map((f) => {
+            if (isCustomFilter(f)) {
+                const label = (f.label || f.column || 'Custom filter').trim();
+                const seen = new Set<string>();
+                const columns = (f.columns ?? [])
+                    .filter((c) => c.table && c.column)
+                    .filter((c) => {
+                        const key = `${c.table}\u0000${c.column}`;
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    })
+                    .map((c) => ({
+                        table: c.table,
+                        column: c.column,
+                        values: Array.isArray(c.values) ? c.values : [],
+                    }));
+                return {
+                    ...f,
+                    kind: 'custom' as const,
+                    column: f.column || label,
+                    label,
+                    table: undefined,
+                    type:
+                        f.type === 'dropdown' || f.type === 'search'
+                            ? f.type
+                            : 'list',
+                    columns,
+                    values: [],
+                };
+            }
+            return {
+                ...f,
+                type: f.type ?? 'list',
+            };
+        }),
         slicerSelections,
         pages: state.pages.map((page) => ({
             ...page,
@@ -854,6 +922,11 @@ type Ctx = State & {
         table?: string,
         scope?: 'page' | 'report',
     ) => void;
+    addCustomFilter: (
+        label: string,
+        columns: { table: string; column: string }[],
+        scope?: 'page' | 'report',
+    ) => void;
     toggleFilterValue: (column: string, value: string, table?: string) => void;
     setFilterValues: (
         column: string,
@@ -893,6 +966,25 @@ type Ctx = State & {
         topN: number,
         topNBy: { table?: string; name: string; agg: Agg },
     ) => void;
+    setCustomFilterColumns: (
+        label: string,
+        columns: { table: string; column: string }[],
+    ) => void;
+    setCustomFilterColumnValues: (
+        label: string,
+        table: string,
+        column: string,
+        values: string[],
+    ) => void;
+    toggleCustomFilterColumnValue: (
+        label: string,
+        table: string,
+        column: string,
+        value: string,
+    ) => void;
+    setCustomFilterLabel: (oldLabel: string, label: string) => void;
+    toggleCustomFilterPooledValue: (label: string, value: string) => void;
+    setCustomFilterPooledValue: (label: string, value: string | null) => void;
     toggleEditInteractions: () => void;
     addBookmark: (name: string) => void;
     applyBookmark: (id: string) => void;
@@ -968,12 +1060,12 @@ export function PbiProvider({
     const [rawState, setRawState] = useState<State>(() =>
         initialState?.pages?.length
             ? {
-                  ...normalizeState(
-                      JSON.parse(JSON.stringify(initialState)),
-                  ),
+                  ...normalizeState(JSON.parse(JSON.stringify(initialState))),
                   selectedIds:
                       initialState.selectedIds ??
-                      (initialState.selectedId ? [initialState.selectedId] : []),
+                      (initialState.selectedId
+                          ? [initialState.selectedId]
+                          : []),
               }
             : defaultState(tables),
     );
@@ -1242,7 +1334,10 @@ export function PbiProvider({
             );
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
-            logV5WidgetActivity('widget.add', { id: v.id, type: type as string });
+            logV5WidgetActivity('widget.add', {
+                id: v.id,
+                type: type as string,
+            });
             return v.id;
         },
         [mapVisuals, setState],
@@ -1450,7 +1545,8 @@ export function PbiProvider({
                 }
                 for (const [c, vals] of byCol) {
                     if (!hasColumn(t, c)) continue;
-                    out = out.filter((r) => vals.includes(String(r[c])));
+                    const allowed = new Set(vals.map(normValue));
+                    out = out.filter((r) => allowed.has(normValue(r[c])));
                 }
             }
             if (
@@ -1459,7 +1555,9 @@ export function PbiProvider({
             ) {
                 const d = state.drillthrough;
                 if (hasColumn(t, d.column))
-                    out = out.filter((r) => String(r[d.column]) === d.value);
+                    out = out.filter(
+                        (r) => normValue(r[d.column]) === normValue(d.value),
+                    );
             }
             map[t.name] = out;
         }
@@ -1524,9 +1622,7 @@ export function PbiProvider({
                 return {
                     ...s,
                     selectedIds: next,
-                    selectedId: next.length
-                        ? next[next.length - 1]
-                        : null,
+                    selectedId: next.length ? next[next.length - 1] : null,
                 };
             }),
         setSelectedIds: (ids) =>
@@ -1564,9 +1660,7 @@ export function PbiProvider({
                         p.id === s.activePageId
                             ? {
                                   ...p,
-                                  visuals: p.visuals.filter(
-                                      (v) => v.id !== id,
-                                  ),
+                                  visuals: p.visuals.filter((v) => v.id !== id),
                               }
                             : p,
                     ),
@@ -1924,7 +2018,12 @@ export function PbiProvider({
         interactionFor,
         addFilter: (column, table, scope = 'report') =>
             setState((s) =>
-                s.filters.some((f) => f.column === column && f.table === table)
+                s.filters.some(
+                    (f) =>
+                        !isCustomFilter(f) &&
+                        f.column === column &&
+                        f.table === table,
+                )
                     ? s
                     : {
                           ...s,
@@ -1944,11 +2043,54 @@ export function PbiProvider({
                           ],
                       },
             ),
+        addCustomFilter: (label, columns, scope = 'report') =>
+            setState((s) => {
+                const cleanLabel =
+                    label.trim() ||
+                    `Filtre personnalisé ${s.filters.length + 1}`;
+                const cleanColumns = columns.filter(
+                    (c, i, arr) =>
+                        c.table &&
+                        c.column &&
+                        arr.findIndex(
+                            (x) => x.table === c.table && x.column === c.column,
+                        ) === i,
+                );
+                if (cleanColumns.length < 2) return s;
+                if (
+                    s.filters.some(
+                        (f) =>
+                            isCustomFilter(f) &&
+                            (f.label ?? f.column) === cleanLabel,
+                    )
+                )
+                    return s;
+                return {
+                    ...s,
+                    filters: [
+                        ...s.filters,
+                        {
+                            kind: 'custom',
+                            column: cleanLabel,
+                            label: cleanLabel,
+                            values: [],
+                            scope,
+                            type: 'list',
+                            columns: cleanColumns.map((column) => ({
+                                ...column,
+                                values: [],
+                            })),
+                            pageId:
+                                scope === 'page' ? s.activePageId : undefined,
+                        },
+                    ],
+                };
+            }),
         toggleFilterValue: (column, value, table) =>
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
+                    !isCustomFilter(f) && filterMatches(f, column, table)
                         ? {
                               ...f,
                               values: f.values.includes(value)
@@ -1962,7 +2104,7 @@ export function PbiProvider({
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
+                    !isCustomFilter(f) && filterMatches(f, column, table)
                         ? { ...f, values: [...values] }
                         : f,
                 ),
@@ -1971,7 +2113,7 @@ export function PbiProvider({
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
+                    filterMatches(f, column, table)
                         ? {
                               ...f,
                               scope,
@@ -1985,23 +2127,21 @@ export function PbiProvider({
             setState((s) => ({
                 ...s,
                 filters: s.filters.filter(
-                    (f) => !(f.column === column && f.table === table),
+                    (f) => !filterMatches(f, column, table),
                 ),
             })),
         setFilterType: (column, table, type) =>
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
-                        ? { ...f, type }
-                        : f,
+                    filterMatches(f, column, table) ? { ...f, type } : f,
                 ),
             })),
         setFilterQuery: (column, table, query) =>
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
+                    filterMatches(f, column, table)
                         ? { ...f, type: 'search', query }
                         : f,
                 ),
@@ -2010,7 +2150,7 @@ export function PbiProvider({
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
+                    filterMatches(f, column, table)
                         ? { ...f, type: 'dateRange', from, to }
                         : f,
                 ),
@@ -2019,7 +2159,7 @@ export function PbiProvider({
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
+                    filterMatches(f, column, table)
                         ? { ...f, type: 'relativeDate', relative }
                         : f,
                 ),
@@ -2028,11 +2168,190 @@ export function PbiProvider({
             setState((s) => ({
                 ...s,
                 filters: s.filters.map((f) =>
-                    f.column === column && f.table === table
+                    filterMatches(f, column, table)
                         ? { ...f, type: 'topN', topN, topNBy }
                         : f,
                 ),
             })),
+        setCustomFilterColumns: (label, columns) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    isCustomFilter(f) && (f.label ?? f.column) === label
+                        ? {
+                              ...f,
+                              columns: (() => {
+                                  const previous = new Map(
+                                      (f.columns ?? []).map((c) => [
+                                          `${c.table}\u0000${c.column}`,
+                                          Array.isArray(c.values)
+                                              ? c.values
+                                              : [],
+                                      ]),
+                                  );
+                                  return columns
+                                      .filter(
+                                          (c, i, arr) =>
+                                              c.table &&
+                                              c.column &&
+                                              arr.findIndex(
+                                                  (x) =>
+                                                      x.table === c.table &&
+                                                      x.column === c.column,
+                                              ) === i,
+                                      )
+                                      .map((c) => {
+                                          const key = `${c.table}\u0000${c.column}`;
+                                          return {
+                                              ...c,
+                                              values: [
+                                                  ...(previous.get(key) ?? []),
+                                              ],
+                                          };
+                                      });
+                              })(),
+                              values: [],
+                          }
+                        : f,
+                ),
+            })),
+        setCustomFilterColumnValues: (label, table, column, values) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    isCustomFilter(f) && (f.label ?? f.column) === label
+                        ? {
+                              ...f,
+                              columns: (f.columns ?? []).map((c) =>
+                                  c.table === table && c.column === column
+                                      ? { ...c, values: [...values] }
+                                      : c,
+                              ),
+                          }
+                        : f,
+                ),
+            })),
+        toggleCustomFilterColumnValue: (label, table, column, value) =>
+            setState((s) => ({
+                ...s,
+                filters: s.filters.map((f) =>
+                    isCustomFilter(f) && (f.label ?? f.column) === label
+                        ? {
+                              ...f,
+                              columns: (f.columns ?? []).map((c) => {
+                                  if (
+                                      c.table !== table ||
+                                      c.column !== column
+                                  ) {
+                                      return c;
+                                  }
+                                  const selected = Array.isArray(c.values)
+                                      ? c.values
+                                      : [];
+                                  return {
+                                      ...c,
+                                      values: selected.includes(value)
+                                          ? selected.filter((v) => v !== value)
+                                          : [...selected, value],
+                                  };
+                              }),
+                          }
+                        : f,
+                ),
+            })),
+        setCustomFilterLabel: (oldLabel, label) =>
+            setState((s) => {
+                const nextLabel = label.trim();
+                if (!nextLabel) return s;
+                return {
+                    ...s,
+                    filters: s.filters.map((f) =>
+                        isCustomFilter(f) && (f.label ?? f.column) === oldLabel
+                            ? { ...f, label: nextLabel, column: nextLabel }
+                            : f,
+                    ),
+                };
+            }),
+        toggleCustomFilterPooledValue: (label, value) =>
+            setState((s) => {
+                const target = s.filters.find(
+                    (f) => isCustomFilter(f) && (f.label ?? f.column) === label,
+                );
+                if (!target || !isCustomFilter(target)) return s;
+                const affected = customFilterColumnsContainingValue(
+                    target,
+                    tables,
+                    value,
+                );
+                if (!affected.length) return s;
+                const remove = affected.every((col) =>
+                    (col.values ?? []).some((v) => String(v) === value),
+                );
+                return {
+                    ...s,
+                    filters: s.filters.map((f) =>
+                        f === target
+                            ? {
+                                  ...f,
+                                  columns: (f.columns ?? []).map((col) => {
+                                      if (
+                                          !affected.some(
+                                              (c) =>
+                                                  c.table === col.table &&
+                                                  c.column === col.column,
+                                          )
+                                      )
+                                          return col;
+                                      const selected = Array.isArray(col.values)
+                                          ? col.values
+                                          : [];
+                                      return {
+                                          ...col,
+                                          values: remove
+                                              ? selected.filter(
+                                                    (v) => v !== value,
+                                                )
+                                              : [...selected, value],
+                                      };
+                                  }),
+                              }
+                            : f,
+                    ),
+                };
+            }),
+        setCustomFilterPooledValue: (label, value) =>
+            setState((s) => {
+                const target = s.filters.find(
+                    (f) => isCustomFilter(f) && (f.label ?? f.column) === label,
+                );
+                if (!target || !isCustomFilter(target)) return s;
+                const affected = value
+                    ? customFilterColumnsContainingValue(target, tables, value)
+                    : (target.columns ?? []).filter((c) => c.table && c.column);
+                const flag = new Set(
+                    affected.map((c) => `${c.table}\u0000${c.column}`),
+                );
+                return {
+                    ...s,
+                    filters: s.filters.map((f) =>
+                        f === target
+                            ? {
+                                  ...f,
+                                  columns: (f.columns ?? []).map((col) => {
+                                      const selected = flag.has(
+                                          `${col.table}\u0000${col.column}`,
+                                      );
+                                      if (!value) return { ...col, values: [] };
+                                      return {
+                                          ...col,
+                                          values: selected ? [value] : [],
+                                      };
+                                  }),
+                              }
+                            : f,
+                    ),
+                };
+            }),
         toggleEditInteractions: () =>
             setState((s) => ({
                 ...s,
@@ -2049,10 +2368,7 @@ export function PbiProvider({
                             id: uid('b'),
                             name: name || `Signet ${s.bookmarks.length + 1}`,
                             pageId: s.activePageId,
-                            filters: s.filters.map((f) => ({
-                                ...f,
-                                values: [...f.values],
-                            })),
+                            filters: s.filters.map(cloneReportFilter),
                             slicerSelections: JSON.parse(
                                 JSON.stringify(s.slicerSelections),
                             ),
@@ -2074,10 +2390,7 @@ export function PbiProvider({
                 return {
                     ...s,
                     activePageId: b.pageId,
-                    filters: b.filters.map((f) => ({
-                        ...f,
-                        values: [...f.values],
-                    })),
+                    filters: b.filters.map(cloneReportFilter),
                     slicerSelections: JSON.parse(
                         JSON.stringify(b.slicerSelections),
                     ),
@@ -2172,8 +2485,8 @@ export function PbiProvider({
                     ...s.customThemes,
                     {
                         id: uid('theme'),
-                            name:
-                                name.trim() || `Thème ${s.customThemes.length + 1}`,
+                        name:
+                            name.trim() || `Thème ${s.customThemes.length + 1}`,
                         palette,
                         ...(fontFamily ? { fontFamily } : {}),
                     },
