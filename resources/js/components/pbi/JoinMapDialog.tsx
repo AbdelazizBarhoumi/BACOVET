@@ -31,10 +31,23 @@ export function JoinMapDialog({
             .map((c) => ({ table: c.table!, column: c.column! }));
     }, [filter]);
 
-    const [source, setSource] = useState(sourceColumns[0] ?? null);
+    const defaultSource = useMemo(() => {
+        if (!isCustomFilter(filter)) return sourceColumns[0] ?? null;
+        const withValues = sourceColumns.find(({ table, column }) =>
+            (filter.columns ?? []).some(
+                (c) =>
+                    c.table === table &&
+                    c.column === column &&
+                    (c.values?.length ?? 0) > 0,
+            ),
+        );
+        return withValues ?? sourceColumns[0] ?? null;
+    }, [sourceColumns, filter]);
+
+    const [source, setSource] = useState(defaultSource);
     useEffect(() => {
-        setSource(sourceColumns[0] ?? null);
-    }, [sourceColumns]);
+        setSource(defaultSource);
+    }, [defaultSource]);
 
     const options = useMemo(
         () =>

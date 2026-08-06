@@ -550,9 +550,7 @@ describe('propagateNetwork', () => {
         const pad = (v: string) => `${v}${' '.repeat(6)}`;
         const wipChaine: TableDef = {
             name: 'WipChaine',
-            fields: [
-                { table: 'WipChaine', name: 'ProdGroup', type: 'text' },
-            ],
+            fields: [{ table: 'WipChaine', name: 'ProdGroup', type: 'text' }],
             rows: [
                 { ProdGroup: wipPad('CH14') },
                 { ProdGroup: wipPad('CH16') },
@@ -566,8 +564,16 @@ describe('propagateNetwork', () => {
                 { table: 'EmpDefectEff', name: 'LogDate', type: 'text' },
             ],
             rows: [
-                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH14'), LogDate: '' },
-                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH16'), LogDate: '' },
+                {
+                    ShiftCode: 'JOUR      ',
+                    ProdGroup: pad('CH14'),
+                    LogDate: '',
+                },
+                {
+                    ShiftCode: 'JOUR      ',
+                    ProdGroup: pad('CH16'),
+                    LogDate: '',
+                },
             ],
         };
         const production: TableDef = {
@@ -578,8 +584,16 @@ describe('propagateNetwork', () => {
                 { table: 'Production', name: 'LogDate', type: 'text' },
             ],
             rows: [
-                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH14'), LogDate: '' },
-                { ShiftCode: 'JOUR      ', ProdGroup: pad('CH99'), LogDate: '' },
+                {
+                    ShiftCode: 'JOUR      ',
+                    ProdGroup: pad('CH14'),
+                    LogDate: '',
+                },
+                {
+                    ShiftCode: 'JOUR      ',
+                    ProdGroup: pad('CH99'),
+                    LogDate: '',
+                },
             ],
         };
         const net: RelationGraph = {
@@ -652,18 +666,12 @@ describe('propagateNetwork', () => {
             fields: [
                 { table: 'EmpDefectEff', name: 'ProdGroup', type: 'text' },
             ],
-            rows: [
-                { ProdGroup: pad('CH14') },
-                { ProdGroup: pad('CH16') },
-            ],
+            rows: [{ ProdGroup: pad('CH14') }, { ProdGroup: pad('CH16') }],
         };
         const orphan: TableDef = {
             name: 'ItemTrxEnq',
             fields: [{ table: 'ItemTrxEnq', name: 'ProdGroup', type: 'text' }],
-            rows: [
-                { ProdGroup: pad('CH05') },
-                { ProdGroup: pad('CH08') },
-            ],
+            rows: [{ ProdGroup: pad('CH05') }, { ProdGroup: pad('CH08') }],
         };
         const graph: RelationGraph = {
             edges: [
@@ -798,10 +806,7 @@ describe('filterTableRows', () => {
         const wipChaine: TableDef = {
             name: 'WipChaine',
             fields: [{ table: 'WipChaine', name: 'ProdGroup', type: 'text' }],
-            rows: [
-                { ProdGroup: pad('CH14') },
-                { ProdGroup: pad('CH16') },
-            ],
+            rows: [{ ProdGroup: pad('CH14') }, { ProdGroup: pad('CH16') }],
         };
         const empDefectEff: TableDef = {
             name: 'EmpDefectEff',
@@ -1161,5 +1166,160 @@ describe('custom filter pooled values (consolidated single list)', () => {
         const out = filterTableRows([products, orders], [f], graph);
         expect(out.Products).toEqual([{ Id: 'P1' }]);
         expect(out.Orders).toEqual([{ ProductRef: 'P1' }]);
+    });
+
+    it('applies the pooled selection to every selected key column, emptying tables whose key never holds the value', () => {
+        // Simulates the user's CH01/SRG scenario: one endpoint's ProdGroup
+        // only carries SRG, another carries CH01. The store's pooled toggle
+        // stores CH01 only on the column that contains it, but the filter must
+        // still constrain the SRG-only table down to nothing.
+        const wip: TableDef = {
+            name: 'wip',
+            fields: [
+                { table: 'wip', name: 'ProdGroup', type: 'text' },
+                { table: 'wip', name: 'Rows', type: 'number' },
+            ],
+            rows: [
+                { ProdGroup: 'CH01', Rows: 1 },
+                { ProdGroup: 'SRG', Rows: 2 },
+            ],
+        };
+        const eff: TableDef = {
+            name: 'eff',
+            fields: [
+                { table: 'eff', name: 'ProdGroup', type: 'text' },
+                { table: 'eff', name: 'Rows', type: 'number' },
+            ],
+            rows: [{ ProdGroup: 'SRG', Rows: 3 }],
+        };
+        const f: ReportFilter = {
+            kind: 'custom',
+            column: 'Prod',
+            label: 'Prod',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                // Pooled toggle only wrote CH01 onto the column containing it.
+                { table: 'wip', column: 'ProdGroup', values: ['CH01'] },
+                { table: 'eff', column: 'ProdGroup', values: [] },
+            ],
+        };
+        const out = filterTableRows([wip, eff], [f]);
+        expect(out.wip).toEqual([{ ProdGroup: 'CH01', Rows: 1 }]);
+        expect(out.eff).toEqual([]);
+    });
+
+    it('keeps matching rows in every selected endpoint that contains the pooled value', () => {
+        const wip: TableDef = {
+            name: 'wip',
+            fields: [
+                { table: 'wip', name: 'ProdGroup', type: 'text' },
+                { table: 'wip', name: 'Rows', type: 'number' },
+            ],
+            rows: [
+                { ProdGroup: 'CH01', Rows: 1 },
+                { ProdGroup: 'SRG', Rows: 2 },
+            ],
+        };
+        const eff: TableDef = {
+            name: 'eff',
+            fields: [
+                { table: 'eff', name: 'ProdGroup', type: 'text' },
+                { table: 'eff', name: 'Rows', type: 'number' },
+            ],
+            rows: [{ ProdGroup: 'CH01', Rows: 3 }],
+        };
+        const f: ReportFilter = {
+            kind: 'custom',
+            column: 'Prod',
+            label: 'Prod',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'wip', column: 'ProdGroup', values: ['CH01'] },
+                { table: 'eff', column: 'ProdGroup', values: ['CH01'] },
+            ],
+        };
+        const out = filterTableRows([wip, eff], [f]);
+        expect(out.wip).toEqual([{ ProdGroup: 'CH01', Rows: 1 }]);
+        expect(out.eff).toEqual([{ ProdGroup: 'CH01', Rows: 3 }]);
+    });
+
+    it('matches a row when any of its key columns holds a pooled value (OR across columns)', () => {
+        const wip: TableDef = {
+            name: 'wip',
+            fields: [
+                { table: 'wip', name: 'ProdGroup', type: 'text' },
+                { table: 'wip', name: 'Chaine', type: 'text' },
+                { table: 'wip', name: 'Rows', type: 'number' },
+            ],
+            rows: [
+                { ProdGroup: 'CH01', Chaine: 'C2', Rows: 1 },
+                { ProdGroup: 'SRG', Chaine: 'CH01', Rows: 2 },
+                { ProdGroup: 'SRG', Chaine: 'C3', Rows: 3 },
+            ],
+        };
+        const f: ReportFilter = {
+            kind: 'custom',
+            column: 'Prod',
+            label: 'Prod',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'wip', column: 'ProdGroup', values: ['CH01'] },
+                { table: 'wip', column: 'Chaine', values: [] },
+            ],
+        };
+        const out = filterTableRows([wip], [f]);
+        expect(out.wip).toEqual([
+            { ProdGroup: 'CH01', Chaine: 'C2', Rows: 1 },
+            { ProdGroup: 'SRG', Chaine: 'CH01', Rows: 2 },
+        ]);
+    });
+
+    it('applies the pooled multi-value selection across every key column', () => {
+        const wip: TableDef = {
+            name: 'wip',
+            fields: [
+                { table: 'wip', name: 'ProdGroup', type: 'text' },
+                { table: 'wip', name: 'Rows', type: 'number' },
+            ],
+            rows: [
+                { ProdGroup: 'CH01', Rows: 1 },
+                { ProdGroup: 'SRG', Rows: 2 },
+            ],
+        };
+        const eff: TableDef = {
+            name: 'eff',
+            fields: [
+                { table: 'eff', name: 'ProdGroup', type: 'text' },
+                { table: 'eff', name: 'Rows', type: 'number' },
+            ],
+            rows: [
+                { ProdGroup: 'SRG', Rows: 3 },
+                { ProdGroup: 'CH02', Rows: 4 },
+            ],
+        };
+        const f: ReportFilter = {
+            kind: 'custom',
+            column: 'Prod',
+            label: 'Prod',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'wip', column: 'ProdGroup', values: ['CH01', 'SRG'] },
+                { table: 'eff', column: 'ProdGroup', values: ['SRG'] },
+            ],
+        };
+        const out = filterTableRows([wip, eff], [f]);
+        expect(out.wip).toEqual([
+            { ProdGroup: 'CH01', Rows: 1 },
+            { ProdGroup: 'SRG', Rows: 2 },
+        ]);
+        expect(out.eff).toEqual([{ ProdGroup: 'SRG', Rows: 3 }]);
     });
 });

@@ -279,14 +279,17 @@ function applyCustomFilter(
     }
 
     if (f.type !== 'list' && f.type !== 'dropdown') return rows;
-    let out = rows;
-    for (const col of columns) {
-        const selected = Array.isArray(col.values) ? col.values : [];
-        if (!selected.length) continue;
-        const allowed = new Set(selected.map(normValue));
-        out = out.filter((r) => allowed.has(normValue(r[col.column])));
-    }
-    return out;
+    // The merged-list selection is pooled across every column the filter
+    // targets, so a selected value applies to all related tables carrying one
+    // of those keys — even when a particular table's key never holds it (that
+    // table simply filters down to nothing). A row passes when any of this
+    // table's key columns matches the pooled selection.
+    const selected = customFilterSelectedValues(f);
+    if (!selected.length) return rows;
+    const allowed = new Set(selected.map(normValue));
+    return rows.filter((r) =>
+        columns.some((col) => allowed.has(normValue(r[col.column]))),
+    );
 }
 
 /**
