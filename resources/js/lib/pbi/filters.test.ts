@@ -58,7 +58,13 @@ describe('applyFilter — list / dropdown', () => {
             table: {
                 ...sales,
                 name: 'Prod',
-                fields: [{ table: 'Prod', name: 'ProdGroup', type: 'text' }],
+                fields: [
+                    {
+                        table: 'Prod',
+                        name: 'ProdGroup',
+                        type: 'text' as const,
+                    },
+                ],
                 rows,
             },
             activePageId: 'p1',

@@ -38,6 +38,7 @@ import {
     relativeDateRange,
     type FilterType,
     type RelativePreset,
+    type ReportFilter,
 } from '@/lib/pbi/filters';
 import {
     MEASURES,
@@ -93,6 +94,7 @@ import {
     TitleSection,
 } from './formatControls';
 import { GaugeFormat } from './GaugeFormat';
+import { JoinMapDialog } from './JoinMapDialog';
 import { SingleValueFormat } from './SingleValueFormat';
 
 /** Visual types that expose the conditional-formatting (fx) dialog. */
@@ -3456,6 +3458,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         { table: string; column: string }[]
     >([]);
     const [customSearchQuery, setCustomSearchQuery] = useState('');
+    const [mapFor, setMapFor] = useState<ReportFilter | null>(null);
 
     const filteredCustomTables = useMemo(() => {
         const q = customSearchQuery.trim().toLowerCase();
@@ -3886,16 +3889,30 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                                           : '(Tous)'}
                                         </span>
                                     </span>
-                                    <button
-                                        onClick={() =>
-                                            removeFilter(
-                                                isCustom ? name : f.column,
-                                                isCustom ? undefined : f.table,
-                                            )
-                                        }
-                                    >
-                                        <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                    </button>
+                                    <div className="flex shrink-0 items-center gap-0.5">
+                                        <button
+                                            onClick={() => setMapFor(f)}
+                                            title="Voir la carte des relations"
+                                            className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                        >
+                                            <Eye className="size-3" />
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                removeFilter(
+                                                    isCustom
+                                                        ? name
+                                                        : f.column,
+                                                    isCustom
+                                                        ? undefined
+                                                        : f.table,
+                                                )
+                                            }
+                                            className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+                                        >
+                                            <X className="size-3" />
+                                        </button>
+                                    </div>
                                 </div>
                                 {isCustom && (
                                     <div className="mb-1 rounded border border-border/60 p-1">
@@ -4324,6 +4341,12 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                     })}
                 </div>
             </div>
+            {mapFor && (
+                <JoinMapDialog
+                    filter={mapFor}
+                    onClose={() => setMapFor(null)}
+                />
+            )}
         </div>
     );
 }
