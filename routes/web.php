@@ -243,6 +243,13 @@ Route::middleware('v5.auth')->group(function () {
         Route::put('/{id}', [App\Http\Controllers\Api\MeasureV5Controller::class, 'update']);
         Route::delete('/{id}', [App\Http\Controllers\Api\MeasureV5Controller::class, 'destroy']);
     });
+
+    // ── V5 SHARED JOINS (persisted cross-table relationships) ──────
+    Route::prefix('api/v5/joins')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\MeasureJoinController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Api\MeasureJoinController::class, 'store']);
+        Route::delete('/{id}', [App\Http\Controllers\Api\MeasureJoinController::class, 'destroy']);
+    });
 });
 
 // ── V6 DASHBOARD (V4 foundation; data/measure/graph upgrades) ───────

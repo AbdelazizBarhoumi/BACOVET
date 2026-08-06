@@ -67,6 +67,82 @@ class MeasureV5Test extends TestCase
         ]);
     }
 
+    public function test_store_persists_wizard_config(): void
+    {
+        $config = json_encode([
+            'from' => 'wip_chaine',
+            'to' => 'codestyle',
+            'hops' => [
+                [
+                    'from' => 'wip_chaine',
+                    'to' => 'codestyle',
+                    'fromCol' => 'MONo',
+                    'toCol' => 'SONo',
+                    'kind' => 'fk_pk',
+                    'overlap' => 0.36,
+                    'confidence' => 0.46,
+                    'verified' => false,
+                ],
+            ],
+            'kind' => 'list',
+            'column' => 'StyleCode',
+            'agg' => 'sum',
+        ]);
+
+        $response = $this->postJson('/api/v5/measures', [
+            'name' => 'Style Codes',
+            'expression' => 'Style Codes = VALUES(FILTER(codestyle, ...))',
+            'config' => $config,
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertEquals('Style Codes', $response['measure']['name']);
+        $this->assertEquals(
+            'wip_chaine',
+            $response['measure']['config']['from'],
+        );
+        $this->assertEquals(
+            'StyleCode',
+            $response['measure']['config']['column'],
+        );
+
+        $stored = MeasureV5::where('name', 'Style Codes')->first();
+        $this->assertNotNull($stored);
+        $this->assertIsArray($stored->config);
+        $this->assertEquals('codestyle', $stored->config['to']);
+        $this->assertEquals('list', $stored->config['kind']);
+        $this->assertFalse($stored->config['hops'][0]['verified']);
+    }
+
+    public function test_store_rejects_invalid_config_json(): void
+    {
+        $this->postJson('/api/v5/measures', [
+            'name' => 'Broken Config',
+            'expression' => 'Broken = 1',
+            'config' => 'not-json{{{',
+        ])->assertStatus(422);
+    }
+
+    public function test_update_replaces_wizard_config(): void
+    {
+        $measure = MeasureV5::create([
+            'name' => 'Style Codes',
+            'expression' => 'Style = 1',
+            'config' => ['kind' => 'list'],
+        ]);
+
+        $response = $this->putJson("/api/v5/measures/{$measure->id}", [
+            'name' => 'Style Codes',
+            'expression' => 'Style = SUM(x)',
+            'config' => json_encode(['kind' => 'number', 'agg' => 'sum']),
+        ]);
+
+        $response->assertStatus(200);
+        $measure->refresh();
+        $this->assertEquals('number', $measure->config['kind']);
+        $this->assertEquals('sum', $measure->config['agg']);
+    }
+
     public function test_store_normalizes_empty_category_to_null(): void
     {
         $this->postJson('/api/v5/measures', [

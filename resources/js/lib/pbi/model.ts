@@ -18,6 +18,12 @@ export type Field = {
     /** folder / group, used to group measures in the fields pane */
     category?: string | null;
     description?: string | null;
+    /**
+     * Optional wizard (Measure Studio) spec persisted with the measure — the
+     * hops/joins + kind/agg/column used to build the DAX. Only present for
+     * measures created through the wizard.
+     */
+    config?: string | null;
 };
 
 export type Row = Record<string, string | number | boolean | null>;

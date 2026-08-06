@@ -9,6 +9,7 @@ export type MeasureRecord = {
     expression: string;
     category: string | null;
     description: string | null;
+    config?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
 };
@@ -18,6 +19,7 @@ export type MeasurePayload = {
     expression: string;
     category?: string | null;
     description?: string | null;
+    config?: string | null;
 };
 
 function getCsrfToken(): string {
@@ -72,7 +74,9 @@ export async function fetchMeasures(): Promise<MeasureRecord[]> {
     return body.measures ?? [];
 }
 
-export async function createMeasure(payload: MeasurePayload): Promise<MeasureRecord> {
+export async function createMeasure(
+    payload: MeasurePayload,
+): Promise<MeasureRecord> {
     const body = await request<{ measure: MeasureRecord }>('/api/v5/measures', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -94,9 +98,7 @@ export async function updateMeasure(
     return body.measure;
 }
 
-export async function deleteMeasure(
-    id: number | string,
-): Promise<void> {
+export async function deleteMeasure(id: number | string): Promise<void> {
     await request<{ message: string }>(`/api/v5/measures/${id}`, {
         method: 'DELETE',
     });

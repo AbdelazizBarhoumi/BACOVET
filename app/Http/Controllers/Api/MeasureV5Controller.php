@@ -27,6 +27,7 @@ class MeasureV5Controller extends Controller
             'expression' => 'required|string',
             'category' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:2000',
+            'config' => 'nullable|json',
         ]);
 
         $measure = MeasureV5::create([
@@ -36,6 +37,7 @@ class MeasureV5Controller extends Controller
                 ? trim($validated['category'])
                 : null,
             'description' => $validated['description'] ?? null,
+            'config' => isset($validated['config']) ? json_decode($validated['config'], true) : null,
         ]);
 
         $this->logActivity('measure.create', $measure);
@@ -59,6 +61,7 @@ class MeasureV5Controller extends Controller
             'expression' => 'required|string',
             'category' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:2000',
+            'config' => 'nullable|json',
         ]);
 
         $before = $measure->getOriginal();
@@ -68,6 +71,9 @@ class MeasureV5Controller extends Controller
             ? trim($validated['category'])
             : null;
         $measure->description = $validated['description'] ?? null;
+        $measure->config = isset($validated['config'])
+            ? json_decode($validated['config'], true)
+            : null;
         $measure->save();
 
         $this->logActivity('measure.update', $measure, $before);

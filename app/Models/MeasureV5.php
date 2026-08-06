@@ -9,7 +9,11 @@ class MeasureV5 extends Model
 {
     protected $table = 'measures_v5';
 
-    protected $fillable = ['name', 'expression', 'description', 'category', 'user_id'];
+    protected $fillable = ['name', 'expression', 'description', 'category', 'user_id', 'config'];
+
+    protected $casts = [
+        'config' => 'array',
+    ];
 
     public function user(): BelongsTo
     {

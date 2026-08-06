@@ -9,6 +9,7 @@ import {
     type ReactNode,
 } from 'react';
 import { logV5WidgetActivity } from '@/lib/v5-activity';
+import type { JoinRecord } from '@/services/joinApi';
 import {
     createMeasure as apiCreateMeasure,
     deleteMeasure as apiDeleteMeasure,
@@ -109,6 +110,7 @@ function toMeasureField(record: MeasureRecord): Field {
         id: record.id,
         category: record.category,
         description: record.description,
+        config: record.config ?? null,
     };
 }
 
@@ -837,6 +839,8 @@ type Ctx = State & {
     tableRows: Record<string, Row[]>;
     joins: JoinRegistry;
     graph: RelationGraph;
+    /** Persisted shared cross-table joins (measure wizard / join builder). */
+    sharedJoins: JoinRecord[];
     smartNetwork: boolean;
     setSmartNetworkFilter: (v: boolean) => void;
     highlightValue: CrossFilter;
@@ -1007,6 +1011,7 @@ type Ctx = State & {
         expression: string,
         category?: string | null,
         description?: string | null,
+        config?: string | null,
     ) => Promise<void>;
     updateMeasure: (
         id: string | number,
@@ -1014,6 +1019,7 @@ type Ctx = State & {
         expression: string,
         category?: string | null,
         description?: string | null,
+        config?: string | null,
     ) => Promise<void>;
     removeMeasure: (id: string | number) => Promise<void>;
     setTheme: (t: string) => void;
@@ -1046,6 +1052,7 @@ export function PbiProvider({
     tables: tablesProp = [],
     joins: joinsProp = {},
     graph: graphProp = EMPTY_GRAPH,
+    sharedJoins: sharedJoinsProp = [],
 }: {
     children: ReactNode;
     initialState?: State;
@@ -1053,10 +1060,12 @@ export function PbiProvider({
     tables?: TableDef[];
     joins?: JoinRegistry;
     graph?: RelationGraph;
+    sharedJoins?: JoinRecord[];
 }) {
     const tables = tablesProp;
     const joins = joinsProp;
     const graph = graphProp;
+    const sharedJoins = sharedJoinsProp;
 
     // Runtime preference (default ON): network propagation is a safe no-op
     // when nothing is reduced, so it never wipes visuals. Kept out of the
@@ -1623,6 +1632,7 @@ export function PbiProvider({
         tableRows,
         joins,
         graph,
+        sharedJoins,
         smartNetwork,
         setSmartNetworkFilter: (v) => setSmartNetwork(v),
         highlightValue: state.crossFilter,
@@ -2475,12 +2485,14 @@ export function PbiProvider({
             expression,
             category = null,
             description = null,
+            config = null,
         ) => {
             const record = await apiCreateMeasure({
                 name: name.trim(),
                 expression: expression.trim(),
                 category: category ?? null,
                 description: description ?? null,
+                config: config ?? null,
             });
             registerMeasure(record.name, record.expression);
             setState((s) =>
@@ -2501,12 +2513,14 @@ export function PbiProvider({
             expression,
             category = null,
             description = null,
+            config = null,
         ) => {
             const record = await apiUpdateMeasure(id, {
                 name: name.trim(),
                 expression: expression.trim(),
                 category: category ?? null,
                 description: description ?? null,
+                config: config ?? null,
             });
             registerMeasure(record.name, record.expression);
             setState((s) => ({

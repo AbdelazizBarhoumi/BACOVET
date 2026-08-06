@@ -134,7 +134,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     store.form = storeForm
 /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::update
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:49
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:51
  * @route '/api/v5/measures/{id}'
  */
 export const update = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -149,7 +149,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::update
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:49
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:51
  * @route '/api/v5/measures/{id}'
  */
 update.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -177,7 +177,7 @@ update.url = (args: { id: string | number } | [id: string | number ] | string | 
 
 /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::update
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:49
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:51
  * @route '/api/v5/measures/{id}'
  */
 update.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -187,7 +187,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
     /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::update
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:49
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:51
  * @route '/api/v5/measures/{id}'
  */
     const updateForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -202,7 +202,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
 
             /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::update
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:49
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:51
  * @route '/api/v5/measures/{id}'
  */
         updateForm.put = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -218,7 +218,7 @@ update.put = (args: { id: string | number } | [id: string | number ] | string | 
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::destroy
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:81
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:87
  * @route '/api/v5/measures/{id}'
  */
 export const destroy = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -233,7 +233,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::destroy
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:81
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:87
  * @route '/api/v5/measures/{id}'
  */
 destroy.url = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -261,7 +261,7 @@ destroy.url = (args: { id: string | number } | [id: string | number ] | string |
 
 /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::destroy
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:81
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:87
  * @route '/api/v5/measures/{id}'
  */
 destroy.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -271,7 +271,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
     /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::destroy
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:81
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:87
  * @route '/api/v5/measures/{id}'
  */
     const destroyForm = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -286,7 +286,7 @@ destroy.delete = (args: { id: string | number } | [id: string | number ] | strin
 
             /**
 * @see \App\Http\Controllers\Api\MeasureV5Controller::destroy
- * @see app/Http/Controllers/Api/MeasureV5Controller.php:81
+ * @see app/Http/Controllers/Api/MeasureV5Controller.php:87
  * @route '/api/v5/measures/{id}'
  */
         destroyForm.delete = (args: { id: string | number } | [id: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

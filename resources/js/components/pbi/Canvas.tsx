@@ -15,9 +15,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { crossFilterRows, enrichRows } from '@/lib/pbi/joins';
 import {
+    AGG_LABELS,
+    KIND_LABELS,
+    isReliableHop,
+    type WizardSpec,
+} from '@/lib/pbi/measureWizard';
+import {
     isSlicerVisual,
     visualTable,
     visualTitleStyle,
+    type Field,
     type Interaction,
     type Visual,
 } from '@/lib/pbi/model';
@@ -304,9 +311,7 @@ export function Canvas({
         const members = ids
             .map((id) => {
                 const s = page.visuals.find((x) => x.id === id);
-                return s
-                    ? { id, ox: s.x, oy: s.y, ow: s.w, oh: s.h }
-                    : null;
+                return s ? { id, ox: s.x, oy: s.y, ow: s.w, oh: s.h } : null;
             })
             .filter((x): x is DragMember => x !== null);
         setDrag({
@@ -451,9 +456,13 @@ export function Canvas({
     );
 
     const liveMaxX =
-        drag && live ? Math.max(0, ...Object.values(live).map((g) => g.x + g.w)) : 0;
+        drag && live
+            ? Math.max(0, ...Object.values(live).map((g) => g.x + g.w))
+            : 0;
     const liveMaxY =
-        drag && live ? Math.max(0, ...Object.values(live).map((g) => g.y + g.h)) : 0;
+        drag && live
+            ? Math.max(0, ...Object.values(live).map((g) => g.y + g.h))
+            : 0;
     const width = mobileView
         ? 360
         : Math.max(
@@ -531,7 +540,10 @@ export function Canvas({
         >
             <div
                 className="mx-auto"
-                style={{ width: width * renderScale, height: height * renderScale }}
+                style={{
+                    width: width * renderScale,
+                    height: height * renderScale,
+                }}
             >
                 <div
                     ref={ref}
@@ -803,7 +815,7 @@ export function Canvas({
                                             <Upload className="size-3.5" />
                                             {v.imageUrl
                                                 ? "Remplacer l'image"
-                                                : "Ajouter une image"}
+                                                : 'Ajouter une image'}
                                             <input
                                                 type="file"
                                                 accept="image/jpeg,image/png,image/gif,image/webp"
@@ -855,50 +867,52 @@ export function Canvas({
                                     </div>
                                 )}
 
-                                {!readOnly && isSel && selected?.id === v.id && (
-                                    <>
-                                        <ResizeHandle
-                                            dir="n"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                        <ResizeHandle
-                                            dir="s"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                        <ResizeHandle
-                                            dir="e"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                        <ResizeHandle
-                                            dir="w"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                        <ResizeHandle
-                                            dir="nw"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                        <ResizeHandle
-                                            dir="ne"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                        <ResizeHandle
-                                            dir="sw"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                        <ResizeHandle
-                                            dir="se"
-                                            visual={v}
-                                            setDrag={setDrag}
-                                        />
-                                    </>
-                                )}
+                                {!readOnly &&
+                                    isSel &&
+                                    selected?.id === v.id && (
+                                        <>
+                                            <ResizeHandle
+                                                dir="n"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                            <ResizeHandle
+                                                dir="s"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                            <ResizeHandle
+                                                dir="e"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                            <ResizeHandle
+                                                dir="w"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                            <ResizeHandle
+                                                dir="nw"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                            <ResizeHandle
+                                                dir="ne"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                            <ResizeHandle
+                                                dir="sw"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                            <ResizeHandle
+                                                dir="se"
+                                                visual={v}
+                                                setDrag={setDrag}
+                                            />
+                                        </>
+                                    )}
                             </div>
                         );
                     })}
@@ -1049,38 +1063,201 @@ export function Canvas({
                                     recordsRows.flatMap((r) => Object.keys(r)),
                                 ),
                             ];
+
+                            // Find a wizard-created measure behind this visual so
+                            // we can show its joins + DAX alongside the records.
+                            const wellLists = [
+                                recordsVisual.axis,
+                                recordsVisual.legend,
+                                recordsVisual.values,
+                                recordsVisual.drillFields,
+                                recordsVisual.smallMultiples,
+                                recordsVisual.tooltips,
+                                recordsVisual.minimum ?? [],
+                                recordsVisual.maximum ?? [],
+                                recordsVisual.target ?? [],
+                            ];
+                            let wizardMeasure: Field | null = null;
+                            for (const well of wellLists) {
+                                for (const f of well ?? []) {
+                                    const m = measures.find(
+                                        (x) =>
+                                            x.table === 'Measures' &&
+                                            x.name === String(f?.name ?? '') &&
+                                            x.config,
+                                    );
+                                    if (m) {
+                                        wizardMeasure = m;
+                                        break;
+                                    }
+                                }
+                                if (wizardMeasure) break;
+                            }
+                            let wizardSpec: WizardSpec | null = null;
+                            if (
+                                wizardMeasure?.config &&
+                                typeof wizardMeasure.config === 'string'
+                            ) {
+                                try {
+                                    wizardSpec = JSON.parse(
+                                        wizardMeasure.config,
+                                    ) as WizardSpec;
+                                } catch {
+                                    wizardSpec = null;
+                                }
+                            }
                             return (
-                                <table className="w-full text-[11px]">
-                                    <thead className="sticky top-0 bg-muted">
-                                        <tr>
-                                            {keys.map((k) => (
-                                                <th
-                                                    key={k}
-                                                    className="border-b border-border px-2 py-1 text-left"
-                                                >
-                                                    {k}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {recordsRows.map((r, i) => (
-                                            <tr
-                                                key={i}
-                                                className="hover:bg-accent"
-                                            >
+                                <>
+                                    {wizardSpec && wizardMeasure && (
+                                        <div className="mb-3 rounded-lg border border-brand/30 bg-brand/5 p-3">
+                                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                                                <span className="text-[11px] font-semibold text-brand">
+                                                    Mesure créée avec
+                                                    l’assistant
+                                                </span>
+                                                <span className="text-[10px] text-muted-foreground">
+                                                    {wizardMeasure.name}
+                                                </span>
+                                            </div>
+                                            {wizardSpec.hops.length > 0 && (
+                                                <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                                    {[
+                                                        wizardSpec.hops[0]!
+                                                            .from,
+                                                        ...wizardSpec.hops.map(
+                                                            (h) => h.to,
+                                                        ),
+                                                    ].map((node, i, arr) => (
+                                                        <span
+                                                            key={`${node}-${i}`}
+                                                            className="flex items-center gap-1.5"
+                                                        >
+                                                            {i > 0 && (
+                                                                <>
+                                                                    <span
+                                                                        className={cn(
+                                                                            'rounded border px-1.5 py-0.5 font-mono',
+                                                                            isReliableHop(
+                                                                                wizardSpec
+                                                                                    .hops[
+                                                                                    i -
+                                                                                        1
+                                                                                ]!,
+                                                                            )
+                                                                                ? 'border-emerald-500/40 text-emerald-700'
+                                                                                : 'border-red-400 text-red-600',
+                                                                        )}
+                                                                    >
+                                                                        {
+                                                                            wizardSpec
+                                                                                .hops[
+                                                                                i -
+                                                                                    1
+                                                                            ]!
+                                                                                .fromCol
+                                                                        }
+                                                                        ↔
+                                                                        {
+                                                                            wizardSpec
+                                                                                .hops[
+                                                                                i -
+                                                                                    1
+                                                                            ]!
+                                                                                .toCol
+                                                                        }
+                                                                    </span>
+                                                                    <span>
+                                                                        →
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                            <span
+                                                                className={cn(
+                                                                    'rounded-md border px-2 py-0.5 font-medium',
+                                                                    i === 0 ||
+                                                                        i ===
+                                                                            arr.length -
+                                                                                1
+                                                                        ? 'border-brand/40 bg-brand/10'
+                                                                        : 'border-border bg-background',
+                                                                )}
+                                                            >
+                                                                {node}
+                                                            </span>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div className="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                                                <span>
+                                                    Résultat :{' '}
+                                                    <b className="text-foreground">
+                                                        {KIND_LABELS[
+                                                            wizardSpec.kind
+                                                        ] ?? wizardSpec.kind}
+                                                    </b>
+                                                </span>
+                                                {wizardSpec.kind ===
+                                                    'number' && (
+                                                    <span>
+                                                        Agrégation :{' '}
+                                                        <b className="text-foreground">
+                                                            {AGG_LABELS[
+                                                                wizardSpec.agg
+                                                            ] ?? wizardSpec.agg}
+                                                        </b>
+                                                    </span>
+                                                )}
+                                                {wizardSpec.kind !==
+                                                    'countrows' && (
+                                                    <span>
+                                                        Colonne :{' '}
+                                                        <b className="font-mono text-foreground">
+                                                            {wizardSpec.column}
+                                                        </b>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-[11px] font-semibold">
+                                                DAX
+                                            </div>
+                                            <pre className="mt-1 overflow-auto rounded-md border border-border bg-muted p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                                                {wizardMeasure.expression}
+                                            </pre>
+                                        </div>
+                                    )}
+                                    <table className="w-full text-[11px]">
+                                        <thead className="sticky top-0 bg-muted">
+                                            <tr>
                                                 {keys.map((k) => (
-                                                    <td
+                                                    <th
                                                         key={k}
-                                                        className="border-b border-border px-2 py-1"
+                                                        className="border-b border-border px-2 py-1 text-left"
                                                     >
-                                                        {String(r[k])}
-                                                    </td>
+                                                        {k}
+                                                    </th>
                                                 ))}
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {recordsRows.map((r, i) => (
+                                                <tr
+                                                    key={i}
+                                                    className="hover:bg-accent"
+                                                >
+                                                    {keys.map((k) => (
+                                                        <td
+                                                            key={k}
+                                                            className="border-b border-border px-2 py-1"
+                                                        >
+                                                            {String(r[k])}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </>
                             );
                         })()}
                     </div>

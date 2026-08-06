@@ -1,7 +1,15 @@
-import { AlertTriangle, Folder, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+    AlertTriangle,
+    Folder,
+    Pencil,
+    Plus,
+    Sparkles,
+    Trash2,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { MeasureWizardDialog } from '@/components/pbi/MeasureWizardDialog';
 import {
     BRACKET_MATCH_CLASS,
     applySuggestion,
@@ -358,9 +366,6 @@ const KIND_LABEL: Record<DaxSuggestion['kind'], string> = {
     measure: 'Σ',
 };
 
-/* Highlighted layer behind the transparent formula textarea: Power BI-style
- * coloring (functions blue, tables cyan, numbers green, strings orange) plus
- * a highlighted background on the bracket pair adjacent to the caret. */
 function FormulaOverlay({
     expr,
     cursor,
@@ -581,8 +586,8 @@ export function DaxDialog({
         const eq = expr.indexOf('=');
         const name = (eq >= 0 ? expr.slice(0, eq) : expr).trim();
         const formula = (eq >= 0 ? expr.slice(eq + 1) : expr).trim();
-        if (!name) return "Saisissez un nom de mesure avant le signe =";
-        if (!formula) return "Saisissez une formule DAX après le signe =";
+        if (!name) return 'Saisissez un nom de mesure avant le signe =';
+        if (!formula) return 'Saisissez une formule DAX après le signe =';
         const columns = tables.flatMap((t) => t.fields.map((f) => f.name));
         const result = validateMeasureExpression(
             formula,
@@ -842,6 +847,7 @@ export function DaxDialog({
 export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
     const { measures, removeMeasure } = usePbi();
     const [createOpen, setCreateOpen] = useState(false);
+    const [wizardOpen, setWizardOpen] = useState(false);
     const [editTarget, setEditTarget] = useState<Field | null>(null);
     const [confirm, setConfirm] = useState<Field | null>(null);
     const [busy, setBusy] = useState(false);
@@ -897,6 +903,22 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                     >
                         <Plus className="size-3.5" /> Nouvelle mesure
                     </button>
+                    <div className="flex overflow-hidden rounded border border-border">
+                        <button
+                            onClick={() => setWizardOpen(true)}
+                            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-brand hover:bg-brand/10"
+                            title="Créer avec l'assistant guidé"
+                        >
+                            <Sparkles className="size-3.5" /> Assistant
+                        </button>
+                        <button
+                            onClick={() => setCreateOpen(true)}
+                            className="border-l border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-accent"
+                            title="Saisir directement la formule DAX"
+                        >
+                            DAX
+                        </button>
+                    </div>
                 </div>
                 {folders.map(([folder, list]) => (
                     <div key={folder} className="mb-3">
@@ -983,6 +1005,9 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                 )}
             </div>
             {createOpen && <DaxDialog onClose={() => setCreateOpen(false)} />}
+            {wizardOpen && (
+                <MeasureWizardDialog onClose={() => setWizardOpen(false)} />
+            )}
             {editTarget && (
                 <DaxDialog
                     key={`edit-${editTarget.id ?? editTarget.name}`}

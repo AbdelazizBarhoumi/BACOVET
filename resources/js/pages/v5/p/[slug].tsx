@@ -52,6 +52,7 @@ import {
     type RelationGraph,
 } from '@/lib/pbi/graph';
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
+import { graphWithManualJoins } from '@/lib/pbi/graph';
 import type { Interaction } from '@/lib/pbi/model';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
@@ -59,6 +60,7 @@ import { cn } from '@/lib/utils';
 import { logV5Activity, setV5PageContext } from '@/lib/v5-activity';
 import { getV5CsrfToken, handleV5Error, statusOfError } from '@/lib/v5-session';
 import { fetchV5Schema } from '@/services/endpointManagerApi';
+import { fetchJoins, type JoinRecord } from '@/services/joinApi';
 
 type PageProps = {
     pageId: number;
@@ -191,6 +193,7 @@ export default function V5PageView() {
     const [tables, setTables] = useState<TableDef[]>([]);
     const [joins, setJoins] = useState<JoinRegistry>({});
     const [graph, setGraph] = useState<RelationGraph>(EMPTY_GRAPH);
+    const [sharedJoins, setSharedJoins] = useState<JoinRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
@@ -219,6 +222,29 @@ export default function V5PageView() {
                     // shared join registry + relationship graph are
                     // best-effort; cross-table cross-filtering simply
                     // degrades to same-table / direct-from-graph only.
+                }
+                try {
+                    const persisted = await fetchJoins();
+                    if (!stop) {
+                        setSharedJoins(persisted);
+                        // Merge persisted joins into the effective graph so
+                        // cross-filtering and the measure wizard can cross
+                        // tables even when inference missed the relationship.
+                        setGraph((prev) =>
+                            graphWithManualJoins(
+                                prev,
+                                persisted.map((j) => ({
+                                    tableA: j.table_a,
+                                    columnA: j.column_a,
+                                    tableB: j.table_b,
+                                    columnB: j.column_b,
+                                })),
+                                built,
+                            ),
+                        );
+                    }
+                } catch {
+                    // shared join library is best-effort too.
                 }
             } catch {
                 if (!stop) setFailed(true);
@@ -298,6 +324,7 @@ export default function V5PageView() {
                 tables={tables}
                 joins={joins}
                 graph={graph}
+                sharedJoins={sharedJoins}
             >
                 <Shell
                     pageId={pageId}

@@ -38,6 +38,43 @@ export type RelationGraph = {
 
 export const EMPTY_GRAPH: RelationGraph = { edges: [] };
 
+/**
+ * Merge manually persisted joins (shared join library, tier B) into the graph
+ * as high-confidence edges. Only joins whose both tables are actually loaded
+ * are kept, so a global join library never references absent datasets.
+ */
+export function graphWithManualJoins(
+    graph: RelationGraph,
+    manual: readonly {
+        tableA: string;
+        columnA: string;
+        tableB: string;
+        columnB: string;
+        confidence?: number;
+    }[],
+    tables: { name: string }[],
+): RelationGraph {
+    const names = new Set(tables.map((t) => t.name));
+    const edges = [...graph.edges];
+    for (const j of manual) {
+        if (!names.has(j.tableA) || !names.has(j.tableB)) continue;
+        const duplicate = edges.some(
+            (e) =>
+                (e.a === j.tableA && e.b === j.tableB) ||
+                (e.a === j.tableB && e.b === j.tableA),
+        );
+        if (duplicate) continue;
+        edges.push({
+            a: j.tableA,
+            b: j.tableB,
+            columns: [{ colA: j.columnA, colB: j.columnB }],
+            kind: 'shared',
+            confidence: j.confidence ?? 1,
+        });
+    }
+    return { edges };
+}
+
 /** Minimum value-overlap (of the smaller side) to infer an fk_pk edge. */
 const FK_OVERLAP_THRESHOLD = 0.85;
 
