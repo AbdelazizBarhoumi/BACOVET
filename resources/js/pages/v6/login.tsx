@@ -3,10 +3,10 @@ import { CheckCircle2, ChevronRight, Loader2, Lock, Mail } from "lucide-react";
 import React, { useState } from "react";
 
 const EMAILS = [
-  { email: "superadmin@bacovet.com", name: "Super admin" },
+  { email: "superadmin@novationcity.com", name: "Super admin" },
   { email: "direction@bacovet.com", name: "Direction" },
   { email: "resp.production@bacovet.com", name: "Resp. Production" },
-  { email: "qualite@bacovet.com", name: "Qualité" },
+  { email: "qualite@bacovet.com", name: "Dhoha" },
 ];
 
 type Step = "email" | "password" | "create-password";

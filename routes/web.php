@@ -164,11 +164,28 @@ Route::post('/api/v5-auth/logout', [V5AuthController::class, 'logout']);
 Route::get('/api/v5-auth/me', [V5AuthController::class, 'me']);
 
 Route::middleware('v5.auth')->group(function () {
-    Route::get('/v5', fn () => Inertia::render('v5/page-builder'))->name('v5');
+    Route::get('/v5', fn () => Inertia::render('v5/page-builder', [
+        'authRole' => \Illuminate\Support\Facades\Auth::guard('v5_users')->user()?->role,
+    ]))->name('v5');
+    Route::get('/v5/trace', function () {
+        $user = \Illuminate\Support\Facades\Auth::guard('v5_users')->user();
+        if (! $user || ! \App\Support\V5PageAccess::isAdmin($user)) {
+            abort(403);
+        }
+
+        return Inertia::render('v5/trace', [
+            'authRole' => $user->role,
+        ]);
+    })->name('v5.trace');
     Route::get('/v5/p/{slug}', function ($slug) {
         $page = \App\Models\BuilderPageV5::where('slug', $slug)->first();
         if (! $page) {
             abort(404);
+        }
+
+        $user = \Illuminate\Support\Facades\Auth::guard('v5_users')->user();
+        if (! \App\Support\V5PageAccess::canView($page, $user)) {
+            abort(403);
         }
 
         return Inertia::render('v5/p/[slug]', [
@@ -178,6 +195,9 @@ Route::middleware('v5.auth')->group(function () {
             'layout' => $page->layout,
             'layoutDraft' => $page->layout_draft,
             'layoutDraftUpdatedAt' => $page->layout_draft_updated_at?->toISOString(),
+            'isOwner' => $page->owner_user_id === $user->id,
+            'canEdit' => \App\Support\V5PageAccess::canEdit($page, $user),
+            'canManage' => \App\Support\V5PageAccess::canManage($page, $user),
         ]);
     })->name('v5.page');
 
@@ -196,6 +216,8 @@ Route::middleware('v5.auth')->group(function () {
         Route::post('/{id}/duplicate', [BuilderPageV5Controller::class, 'duplicate']);
         Route::post('/{id}/images', [BuilderPageV5Controller::class, 'uploadImage'])->name('v5.page.image.upload');
         Route::get('/{id}/images/{filename}', [BuilderPageV5Controller::class, 'showImage'])->name('v5.page.image');
+        Route::get('/{id}/permissions', [BuilderPageV5Controller::class, 'getPermissions']);
+        Route::put('/{id}/permissions', [BuilderPageV5Controller::class, 'savePermissions']);
     });
 
     Route::prefix('api/v5/builder-page-groups')->group(function () {
@@ -209,9 +231,10 @@ Route::middleware('v5.auth')->group(function () {
     });
 
     // ── V5 BUILDER ACTIVITY TRACE ───────────────────────────────────
-    // Capture + query both require a v5 session.
+    // Capture + query both require a v5 session; the reads are superadmin-only.
     Route::post('/api/v5-activity', [BuilderActivityV5Controller::class, 'store']);
     Route::get('/api/v5-activity', [BuilderActivityV5Controller::class, 'index']);
+    Route::get('/api/v5-activity/users', [BuilderActivityV5Controller::class, 'users']);
 
     // ── V5 MEASURE LIBRARY (shared, reusable calculations) ────────────
     Route::prefix('api/v5/measures')->group(function () {

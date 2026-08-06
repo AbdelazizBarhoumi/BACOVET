@@ -1,28 +1,7 @@
 import {
-    BubbleMultipleRegular,
-    ButtonRegular,
     CalendarLtrRegular,
-    CardUiRegular,
-    ChartMultipleRegular,
-    CheckboxCheckedRegular,
-    ChevronDownRegular,
-    DataAreaRegular,
-    DataBarHorizontalRegular,
-    DataBarVerticalRegular,
-    DataFunnelRegular,
-    DataLineRegular,
-    DataPieRegular,
-    DataScatterRegular,
-    DataTreemapRegular,
-    DataWaterfallRegular,
-    GaugeRegular,
-    GridRegular,
-    ImageRegular,
-    MapRegular,
     NumberSymbolRegular,
-    TableRegular,
     TextCaseTitleRegular,
-    TextboxRegular,
     ToggleLeftRegular,
 } from '@fluentui/react-icons';
 import { usePage } from '@inertiajs/react';
@@ -47,7 +26,8 @@ import {
     Upload,
     X,
 } from 'lucide-react';
-import { Fragment, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
     relativeDateRange,
@@ -95,7 +75,7 @@ import { CartesianFormat } from './CartesianFormat';
 import { ConditionalFormatControl } from './ConditionalFormatDialog';
 import { DaxDialog, ManageMeasuresDialog } from './Dialogs';
 import {
-    ALIGNS,
+    AlignControls,
     Biu,
     ColorInput,
     FONT_OPTIONS,
@@ -134,6 +114,10 @@ const CONDITIONAL_FORMAT_TYPES: ReadonlySet<VisualType> = new Set([
     'matrix',
 ]);
 
+const DEFAULT_FOLDER_LABELS: Record<string, string> = {
+    Other: 'Autre',
+};
+
 /* ------------------------------ Icon set ------------------------------- */
 /* The Visualizations pane and Data pane now use Microsoft's own Fluent UI
  * System Icons (@fluentui/react-icons) — the same open-source icon family
@@ -151,12 +135,22 @@ const CONDITIONAL_FORMAT_TYPES: ReadonlySet<VisualType> = new Set([
 
 type IconComponent = React.ComponentType<{ className?: string }>;
 
-function customIcon(paths: React.ReactNode): IconComponent {
+// Office chart-gallery palette (Excel/PowerPoint "Insert Chart" colors) —
+// hardcoded, not currentColor, so these read as live chart thumbnails
+// rather than themed UI glyphs. Same across light/dark mode, like Office's
+// own gallery.
+const CHART_COLORS = {
+    blue: '#4472C4',
+    orange: '#ED7D31',
+    gray: '#A5A5A5',
+    gold: '#FFC000',
+} as const;
+
+function chartPreviewIcon(paths: React.ReactNode): IconComponent {
     return function Icon({ className }: { className?: string }) {
         return (
             <svg
                 viewBox="0 0 20 20"
-                fill="currentColor"
                 xmlns="http://www.w3.org/2000/svg"
                 className={className}
             >
@@ -166,97 +160,345 @@ function customIcon(paths: React.ReactNode): IconComponent {
     };
 }
 
-// Fluent has one generic DataBarVerticalRegular / DataBarHorizontalRegular —
-// no separate stacked / 100%-stacked glyphs. Built to match their corner
-// radius and proportions so the set still reads as one family.
-const IconStackedColumn = customIcon(
+const IconColumnPreview = chartPreviewIcon(
     <>
-        <rect x="4" y="11" width="3" height="6" rx="1" />
-        <rect x="4" y="6" width="3" height="4.2" rx="1" opacity={0.45} />
-        <rect x="9" y="8.5" width="3" height="8.5" rx="1" />
-        <rect x="9" y="3" width="3" height="5" rx="1" opacity={0.45} />
-        <rect x="14" y="13" width="3" height="4" rx="1" />
-        <rect x="14" y="7" width="3" height="5.5" rx="1" opacity={0.45} />
-    </>,
-);
-const IconStacked100Column = customIcon(
-    <>
-        <rect x="4" y="9" width="3" height="8" rx="1" />
-        <rect x="4" y="3" width="3" height="5.5" rx="1" opacity={0.45} />
-        <rect x="9" y="12" width="3" height="5" rx="1" />
-        <rect x="9" y="3" width="3" height="8.5" rx="1" opacity={0.45} />
-        <rect x="14" y="7" width="3" height="10" rx="1" />
-        <rect x="14" y="3" width="3" height="3.5" rx="1" opacity={0.45} />
-    </>,
-);
-const IconStackedBar = customIcon(
-    <>
-        <rect x="3" y="4" width="7" height="3" rx="1" />
-        <rect x="10.3" y="4" width="5" height="3" rx="1" opacity={0.45} />
-        <rect x="3" y="8.5" width="10" height="3" rx="1" />
-        <rect x="13.3" y="8.5" width="4" height="3" rx="1" opacity={0.45} />
-        <rect x="3" y="13" width="5" height="3" rx="1" />
-        <rect x="8.3" y="13" width="8" height="3" rx="1" opacity={0.45} />
-    </>,
-);
-const IconStacked100Bar = customIcon(
-    <>
-        <rect x="3" y="4" width="10" height="3" rx="1" />
-        <rect x="13.3" y="4" width="4" height="3" rx="1" opacity={0.45} />
-        <rect x="3" y="8.5" width="6" height="3" rx="1" />
-        <rect x="9.3" y="8.5" width="8" height="3" rx="1" opacity={0.45} />
-        <rect x="3" y="13" width="12" height="3" rx="1" />
-        <rect x="15.3" y="13" width="2" height="3" rx="1" opacity={0.45} />
-    </>,
-);
-const IconStackedArea = customIcon(
-    <>
-        <path d="M2 17v-6l3-3 3 2 4-4 4 3v8Z" opacity={0.35} />
-        <path d="M2 17v-3l3-3 3 2 4-3.5 4 2.5v5Z" />
+        <rect x="2" y="10" width="2" height="7" fill={CHART_COLORS.blue} />
+        <rect x="4.3" y="6" width="2" height="11" fill={CHART_COLORS.orange} />
+        <rect x="7.3" y="4" width="2" height="13" fill={CHART_COLORS.blue} />
+        <rect x="9.6" y="9" width="2" height="8" fill={CHART_COLORS.orange} />
+        <rect x="12.6" y="7" width="2" height="10" fill={CHART_COLORS.blue} />
+        <rect x="14.9" y="2" width="2" height="15" fill={CHART_COLORS.orange} />
     </>,
 );
 
-// No donut glyph in Fluent — a ring cut from a disc via fill-rule, same
-// technique Fluent's own DataPieRegular uses for its center cut-out.
-const IconDonut = customIcon(
-    <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M10 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm0 3.4a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Z"
-    />,
-);
-// No ribbon-chart glyph — two flowing bands.
-const IconRibbon = customIcon(
+const IconStackedColumnPreview = chartPreviewIcon(
     <>
-        <path
-            d="M1 7c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z"
-            opacity={0.35}
-        />
-        <path d="M1 12c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z" />
+        <rect x="3" y="10" width="3" height="7" fill={CHART_COLORS.blue} />
+        <rect x="8.5" y="2" width="3" height="15" fill={CHART_COLORS.orange} />
+        <rect x="14" y="5" width="3" height="12" fill={CHART_COLORS.gray} />
     </>,
 );
-// No choropleth glyph — a filled region with a few "shaded territory"
-// cut-outs.
-const IconFilledMap = customIcon(
-    <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M3 2h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm3 3.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm7 1a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM6 11a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"
-    />,
-);
-// No shape-map glyph — a plain polygon, in keeping with the "shape" name.
-const IconShapeMap = customIcon(<path d="M10 1.3 18 6v8l-8 4.7L2 14V6Z" />);
 
-// No input-slicer glyph — an outlined field with a text dash and a cursor.
-const IconInputSlicer = customIcon(
+const IconStacked100ColumnPreview = chartPreviewIcon(
     <>
-        <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M3.5 5A1.5 1.5 0 0 0 2 6.5v7A1.5 1.5 0 0 0 3.5 15h13a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 16.5 5h-13Zm-.5 1.5a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-7Z"
-        />
-        <rect x="5" y="9.2" width="5" height="1.6" rx="0.8" opacity={0.45} />
-        <rect x="12.3" y="8.4" width="1.4" height="3.2" rx="0.5" />
+        <rect x="3" y="9" width="3" height="8" fill={CHART_COLORS.blue} />
+        <rect x="3" y="5" width="3" height="4" fill={CHART_COLORS.orange} />
+        <rect x="3" y="3" width="3" height="2" fill={CHART_COLORS.gray} />
+        <rect x="8.5" y="12" width="3" height="5" fill={CHART_COLORS.blue} />
+        <rect x="8.5" y="6" width="3" height="6" fill={CHART_COLORS.orange} />
+        <rect x="8.5" y="3" width="3" height="3" fill={CHART_COLORS.gray} />
+        <rect x="14" y="7" width="3" height="10" fill={CHART_COLORS.blue} />
+        <rect x="14" y="4" width="3" height="3" fill={CHART_COLORS.orange} />
+        <rect x="14" y="3" width="3" height="1" fill={CHART_COLORS.gray} />
+    </>,
+);
+
+const IconBarPreview = chartPreviewIcon(
+    <>
+        <rect x="3" y="3" width="8" height="1.8" fill={CHART_COLORS.blue} />
+        <rect x="3" y="5.2" width="13" height="1.8" fill={CHART_COLORS.orange} />
+        <rect x="3" y="8" width="12" height="1.8" fill={CHART_COLORS.blue} />
+        <rect x="3" y="10.2" width="6" height="1.8" fill={CHART_COLORS.orange} />
+        <rect x="3" y="13" width="5" height="1.8" fill={CHART_COLORS.blue} />
+        <rect x="3" y="15.2" width="10" height="1.8" fill={CHART_COLORS.orange} />
+    </>,
+);
+
+const IconLinePreview = chartPreviewIcon(
+    <>
+        <polyline points="2,14 6,8 10,11 14,5 18,9" fill="none" stroke={CHART_COLORS.blue} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="2,10 6,13 10,6 14,10 18,4" fill="none" stroke={CHART_COLORS.orange} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </>,
+);
+
+const IconAreaPreview = chartPreviewIcon(
+    <>
+        <path d="M2 17v-6l3-3 3 2 4-4 4 3v8Z" fill={CHART_COLORS.blue} fillOpacity={0.85} />
+        <path d="M2 17v-3l3-3 3 2 4-3.5 4 2.5v5Z" fill={CHART_COLORS.orange} fillOpacity={0.9} />
+    </>,
+);
+
+const IconPiePreview = chartPreviewIcon(
+    <>
+        <path d="M10 10 L10 2 A8 8 0 0 1 14.70 16.47 Z" fill={CHART_COLORS.blue} />
+        <path d="M10 10 L14.70 16.47 A8 8 0 0 1 3.53 14.70 Z" fill={CHART_COLORS.orange} />
+        <path d="M10 10 L3.53 14.70 A8 8 0 0 1 3.53 5.30 Z" fill={CHART_COLORS.gray} />
+        <path d="M10 10 L3.53 5.30 A8 8 0 0 1 10 2 Z" fill={CHART_COLORS.gold} />
+    </>,
+);
+
+const IconDonutPreview = chartPreviewIcon(
+    <>
+        <path d="M10 2 A8 8 0 0 1 14.70 16.47 L12.06 12.83 A3.5 3.5 0 0 0 10 6.5 Z" fill={CHART_COLORS.blue} />
+        <path d="M14.70 16.47 A8 8 0 0 1 3.53 14.70 L7.17 12.06 A3.5 3.5 0 0 0 12.06 12.83 Z" fill={CHART_COLORS.orange} />
+        <path d="M3.53 14.70 A8 8 0 0 1 3.53 5.30 L7.17 7.94 A3.5 3.5 0 0 0 7.17 12.06 Z" fill={CHART_COLORS.gray} />
+        <path d="M3.53 5.30 A8 8 0 0 1 10 2 L10 6.5 A3.5 3.5 0 0 0 7.17 7.94 Z" fill={CHART_COLORS.gold} />
+    </>,
+);
+
+const IconStackedBarPreview = chartPreviewIcon(
+    <>
+        <rect x="3" y="4" width="4" height="3" fill={CHART_COLORS.blue} />
+        <rect x="7" y="4" width="3" height="3" fill={CHART_COLORS.orange} />
+        <rect x="10" y="4" width="2" height="3" fill={CHART_COLORS.gray} />
+        <rect x="3" y="8.5" width="6" height="3" fill={CHART_COLORS.blue} />
+        <rect x="9" y="8.5" width="4" height="3" fill={CHART_COLORS.orange} />
+        <rect x="13" y="8.5" width="2" height="3" fill={CHART_COLORS.gray} />
+        <rect x="3" y="13" width="2" height="3" fill={CHART_COLORS.blue} />
+        <rect x="5" y="13" width="6" height="3" fill={CHART_COLORS.orange} />
+        <rect x="11" y="13" width="4" height="3" fill={CHART_COLORS.gray} />
+    </>,
+);
+
+const IconStacked100BarPreview = chartPreviewIcon(
+    <>
+        <rect x="3" y="4" width="8" height="3" fill={CHART_COLORS.blue} />
+        <rect x="11" y="4" width="4" height="3" fill={CHART_COLORS.orange} />
+        <rect x="15" y="4" width="2" height="3" fill={CHART_COLORS.gray} />
+        <rect x="3" y="8.5" width="5" height="3" fill={CHART_COLORS.blue} />
+        <rect x="8" y="8.5" width="6" height="3" fill={CHART_COLORS.orange} />
+        <rect x="14" y="8.5" width="3" height="3" fill={CHART_COLORS.gray} />
+        <rect x="3" y="13" width="10" height="3" fill={CHART_COLORS.blue} />
+        <rect x="13" y="13" width="3" height="3" fill={CHART_COLORS.orange} />
+        <rect x="16" y="13" width="1" height="3" fill={CHART_COLORS.gray} />
+    </>,
+);
+
+const IconStackedAreaPreview = chartPreviewIcon(
+    <>
+        <path d="M2 17 L2 14 L6 12 L10 15 L14 11 L18 14 L18 17 Z" fill={CHART_COLORS.blue} />
+        <path d="M2 12 L6 9 L10 11 L14 9 L18 11 L18 14 L14 11 L10 15 L6 12 L2 14 Z" fill={CHART_COLORS.orange} />
+        <path d="M2 10 L6 7 L10 8 L14 6 L18 9 L18 11 L14 9 L10 11 L6 9 L2 12 Z" fill={CHART_COLORS.gray} />
+    </>,
+);
+
+const IconComboPreview = chartPreviewIcon(
+    <>
+        <rect x="3" y="11" width="3" height="6" fill={CHART_COLORS.blue} />
+        <rect x="3" y="6" width="3" height="5" fill={CHART_COLORS.orange} />
+        <rect x="8.5" y="9" width="3" height="8" fill={CHART_COLORS.blue} />
+        <rect x="8.5" y="4" width="3" height="5" fill={CHART_COLORS.orange} />
+        <rect x="14" y="13" width="3" height="4" fill={CHART_COLORS.blue} />
+        <rect x="14" y="7" width="3" height="6" fill={CHART_COLORS.orange} />
+        <polyline points="4.5,8 10,5 15.5,9" fill="none" stroke={CHART_COLORS.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="4.5" cy="8" r="1" fill={CHART_COLORS.gold} />
+        <circle cx="10" cy="5" r="1" fill={CHART_COLORS.gold} />
+        <circle cx="15.5" cy="9" r="1" fill={CHART_COLORS.gold} />
+    </>,
+);
+
+const IconTreemapPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="2" width="9" height="8" fill={CHART_COLORS.blue} />
+        <rect x="12" y="2" width="6" height="8" fill={CHART_COLORS.orange} />
+        <rect x="2" y="11" width="6" height="6" fill={CHART_COLORS.gray} />
+        <rect x="9" y="11" width="9" height="6" fill={CHART_COLORS.gold} />
+    </>,
+);
+
+const IconFunnelPreview = chartPreviewIcon(
+    <>
+        <path d="M2 2 L18 2 L16 6 L4 6 Z" fill={CHART_COLORS.blue} />
+        <path d="M4 6 L16 6 L14 10 L6 10 Z" fill={CHART_COLORS.orange} />
+        <path d="M6 10 L14 10 L12 14 L8 14 Z" fill={CHART_COLORS.gray} />
+        <path d="M8 14 L12 14 L11 17 L9 17 Z" fill={CHART_COLORS.gold} />
+    </>,
+);
+
+const IconRibbonPreview = chartPreviewIcon(
+    <>
+        <path d="M1 7c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z" fill={CHART_COLORS.blue} />
+        <path d="M1 12c2-3 3 3 5 0s3-3 5 0 3 3 5 0v2.4c-2 3-3-3-5 0s-3 3-5 0-3-3-5 0Z" fill={CHART_COLORS.orange} />
+    </>,
+);
+
+const IconWaterfallPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="10" width="2.6" height="7" fill={CHART_COLORS.gray} />
+        <rect x="5.2" y="5" width="2.6" height="5" fill={CHART_COLORS.blue} />
+        <rect x="8.4" y="5" width="2.6" height="3" fill={CHART_COLORS.orange} />
+        <rect x="11.6" y="4" width="2.6" height="4" fill={CHART_COLORS.blue} />
+        <rect x="14.8" y="4" width="2.6" height="13" fill={CHART_COLORS.gray} />
+        <line x1="4.6" y1="10" x2="5.2" y2="10" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+        <line x1="7.8" y1="5" x2="8.4" y2="5" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+        <line x1="11" y1="8" x2="11.6" y2="8" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+        <line x1="14.2" y1="4" x2="14.8" y2="4" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+    </>,
+);
+
+const IconScatterPreview = chartPreviewIcon(
+    <>
+        <circle cx="4" cy="14" r="1.2" fill={CHART_COLORS.blue} />
+        <circle cx="7" cy="8" r="1.1" fill={CHART_COLORS.blue} />
+        <circle cx="10" cy="15" r="1.3" fill={CHART_COLORS.orange} />
+        <circle cx="13" cy="6" r="1.1" fill={CHART_COLORS.blue} />
+        <circle cx="16" cy="11" r="1" fill={CHART_COLORS.orange} />
+        <circle cx="14" cy="16" r="1" fill={CHART_COLORS.blue} />
+    </>,
+);
+
+const IconBubblePreview = chartPreviewIcon(
+    <>
+        <circle cx="6" cy="12" r="3" fill={CHART_COLORS.blue} fillOpacity={0.75} />
+        <circle cx="13" cy="7" r="4" fill={CHART_COLORS.orange} fillOpacity={0.7} />
+        <circle cx="15" cy="14" r="2.2" fill={CHART_COLORS.gray} fillOpacity={0.8} />
+        <circle cx="4" cy="5" r="2.5" fill={CHART_COLORS.gold} fillOpacity={0.75} />
+    </>,
+);
+
+/* ---- Valeur unique et tabulaire ---- */
+
+const IconCardPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="2" width="16" height="16" rx="1.5" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+        <rect x="5" y="6" width="10" height="5" rx="1" fill={CHART_COLORS.blue} />
+        <rect x="5" y="13" width="6" height="2" rx="1" fill={CHART_COLORS.gray} fillOpacity={0.7} />
+    </>,
+);
+
+const IconGaugePreview = chartPreviewIcon(
+    <>
+        <path d="M2 15 A8 8 0 0 1 6 8.07" fill="none" stroke={CHART_COLORS.blue} strokeWidth="2.6" />
+        <path d="M6 8.07 A8 8 0 0 1 14 8.07" fill="none" stroke={CHART_COLORS.gold} strokeWidth="2.6" />
+        <path d="M14 8.07 A8 8 0 0 1 18 15" fill="none" stroke={CHART_COLORS.orange} strokeWidth="2.6" />
+        <line x1="10" y1="15" x2="9.13" y2="10.08" stroke={CHART_COLORS.gray} strokeWidth="1" />
+        <circle cx="10" cy="15" r="1.2" fill={CHART_COLORS.gray} />
+    </>,
+);
+
+const IconTablePreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="3" width="16" height="14" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect x="2" y="3" width="16" height="3" fill={CHART_COLORS.blue} />
+        <rect x="2" y="9" width="16" height="3" fill={CHART_COLORS.gray} fillOpacity={0.15} />
+        <rect x="2" y="15" width="16" height="2" fill={CHART_COLORS.gray} fillOpacity={0.15} />
+        <line x1="8" y1="3" x2="8" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+        <line x1="13" y1="3" x2="13" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+    </>,
+);
+
+const IconMatrixPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="2" width="16" height="15" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect x="2" y="2" width="5" height="3" fill={CHART_COLORS.gray} />
+        <rect x="7" y="2" width="11" height="3" fill={CHART_COLORS.blue} />
+        <rect x="2" y="5" width="5" height="12" fill={CHART_COLORS.orange} fillOpacity={0.75} />
+        <line x1="11" y1="2" x2="11" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+        <line x1="15" y1="2" x2="15" y2="17" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+        <line x1="7" y1="8" x2="18" y2="8" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+        <line x1="7" y1="13" x2="18" y2="13" stroke={CHART_COLORS.gray} strokeWidth="0.4" />
+    </>,
+);
+
+/* ---- Cartes ---- */
+
+const IconMapPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="2" width="16" height="16" rx="2" fill={CHART_COLORS.gray} fillOpacity={0.15} />
+        <circle cx="7" cy="10" r="2.2" fill={CHART_COLORS.blue} />
+        <path d="M5.3 11.3 L8.7 11.3 L7 15 Z" fill={CHART_COLORS.blue} />
+        <circle cx="14" cy="8" r="1.8" fill={CHART_COLORS.orange} />
+        <path d="M12.6 9.2 L15.4 9.2 L14 12 Z" fill={CHART_COLORS.orange} />
+        <circle cx="11" cy="4.5" r="1.4" fill={CHART_COLORS.gold} />
+        <path d="M9.9 5.5 L12.1 5.5 L11 7 Z" fill={CHART_COLORS.gold} />
+    </>,
+);
+
+const IconFilledMapPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="2" width="16" height="16" rx="2" fill={CHART_COLORS.blue} />
+        <circle cx="6" cy="7.5" r="2" fill={CHART_COLORS.orange} />
+        <circle cx="13" cy="8.5" r="2.5" fill={CHART_COLORS.gray} />
+        <circle cx="6" cy="14" r="3" fill={CHART_COLORS.gold} />
+    </>,
+);
+
+const IconShapeMapPreview = chartPreviewIcon(
+    <>
+        <polygon points="12,10 9.5,14.33 4.5,14.33 2,10 4.5,5.67 9.5,5.67" fill={CHART_COLORS.blue} />
+        <polygon points="17.5,6 15.75,9.03 12.25,9.03 10.5,6 12.25,2.97 15.75,2.97" fill={CHART_COLORS.orange} />
+        <polygon points="17.2,14 15.6,16.77 12.4,16.77 10.8,14 12.4,11.23 15.6,11.23" fill={CHART_COLORS.gray} />
+    </>,
+);
+
+/* ---- Segmenteurs ---- */
+
+const IconSlicerPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="2" width="16" height="16" rx="1.5" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect x="2" y="2" width="16" height="3.5" fill={CHART_COLORS.blue} />
+        <rect x="4" y="8" width="2" height="2" fill={CHART_COLORS.blue} />
+        <rect x="7" y="8.5" width="8" height="1.2" fill={CHART_COLORS.gray} fillOpacity={0.5} />
+        <rect x="4" y="11.5" width="2" height="2" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect x="7" y="12" width="6" height="1.2" fill={CHART_COLORS.gray} fillOpacity={0.4} />
+        <rect x="4" y="15" width="2" height="2" fill={CHART_COLORS.blue} />
+        <rect x="7" y="15.5" width="9" height="1.2" fill={CHART_COLORS.gray} fillOpacity={0.5} />
+    </>,
+);
+
+const IconButtonSlicerPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="8" width="5" height="4" rx="1" fill={CHART_COLORS.blue} />
+        <rect x="8" y="8" width="5" height="4" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect x="14" y="8" width="4" height="4" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+    </>,
+);
+
+const IconDropdownSlicerPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="7" width="16" height="6" rx="1" fill="none" stroke={CHART_COLORS.blue} strokeWidth="0.7" />
+        <rect x="4" y="9.2" width="8" height="1.6" rx="0.5" fill={CHART_COLORS.gray} fillOpacity={0.5} />
+        <path d="M14 9 L16 9 L15 11 Z" fill={CHART_COLORS.blue} />
+    </>,
+);
+
+const IconInputSlicerPreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="5" width="16" height="10" rx="1.5" fill="none" stroke={CHART_COLORS.blue} strokeWidth="0.7" />
+        <rect x="5" y="9.2" width="5" height="1.6" rx="0.8" fill={CHART_COLORS.gray} fillOpacity={0.5} />
+        <rect x="12.3" y="8.4" width="1.4" height="3.2" rx="0.5" fill={CHART_COLORS.orange} />
+    </>,
+);
+
+const IconDateSlicerPreview = chartPreviewIcon(
+    <>
+        <rect x="3" y="4" width="14" height="13" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.5" />
+        <rect x="3" y="4" width="14" height="3" fill={CHART_COLORS.blue} />
+        <rect x="6" y="2" width="1" height="3" fill={CHART_COLORS.gray} />
+        <rect x="13" y="2" width="1" height="3" fill={CHART_COLORS.gray} />
+        <rect x="5" y="9" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
+        <rect x="9" y="9" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
+        <rect x="13" y="9" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
+        <rect x="5" y="12" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
+        <rect x="9" y="12" width="1.8" height="1.8" fill={CHART_COLORS.gold} />
+        <rect x="13" y="12" width="1.8" height="1.8" fill={CHART_COLORS.gray} fillOpacity={0.25} />
+    </>,
+);
+
+/* ---- Éléments ---- */
+
+const IconTextPreview = chartPreviewIcon(
+    <>
+        <rect x="3" y="5" width="14" height="1.6" fill={CHART_COLORS.blue} />
+        <rect x="3" y="8.5" width="14" height="1.3" fill={CHART_COLORS.gray} fillOpacity={0.4} />
+        <rect x="3" y="11" width="11" height="1.3" fill={CHART_COLORS.gray} fillOpacity={0.4} />
+        <rect x="3" y="13.5" width="13" height="1.3" fill={CHART_COLORS.gray} fillOpacity={0.4} />
+    </>,
+);
+
+const IconImagePreview = chartPreviewIcon(
+    <>
+        <rect x="2" y="3" width="16" height="14" rx="1" fill="none" stroke={CHART_COLORS.gray} strokeWidth="0.6" />
+        <circle cx="6" cy="7" r="1.8" fill={CHART_COLORS.gold} />
+        <path d="M2 15 L7 9 L11 13 L14 10 L18 15 L18 17 L2 17 Z" fill={CHART_COLORS.gray} />
+        <path d="M2 17 L6 12 L10 15 L13 12 L18 17 Z" fill={CHART_COLORS.blue} />
+    </>,
+);
+
+const IconButtonPreview = chartPreviewIcon(
+    <>
+        <rect x="3" y="7" width="14" height="6" rx="2" fill={CHART_COLORS.blue} />
+        <rect x="6" y="9.2" width="8" height="1.6" rx="0.8" fill="white" fillOpacity={0.9} />
     </>,
 );
 
@@ -303,6 +545,59 @@ function PaneHeader({
 
 /* ---------------------------- Fields pane ---------------------------- */
 
+type AnchorRect = {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+};
+
+/** Portaled context menu for the measure folders / rows. Rendered at the
+ *  document root so it escapes the pane's overflow container and stacking
+ *  chain, keeping it in front of the visualization panel. */
+function MeasureDropdown({
+    rect,
+    width = 192,
+    onClose,
+    children,
+}: {
+    rect: AnchorRect;
+    width?: number;
+    onClose: () => void;
+    children: React.ReactNode;
+}) {
+    const ref = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [onClose]);
+
+    const style: React.CSSProperties = {
+        position: 'fixed',
+        left: Math.min(rect.right, window.innerWidth - width - 4),
+        top: Math.min(rect.top, window.innerHeight - 160),
+        width,
+        zIndex: 100,
+    };
+
+    return createPortal(
+        <div
+            ref={ref}
+            style={style}
+            className="rounded border border-border bg-card py-1 text-[11px] shadow-xl"
+        >
+            {children}
+        </div>,
+        document.body,
+    );
+}
+
 export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
     const {
         addFilter,
@@ -316,12 +611,18 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
     const [query, setQuery] = useState('');
     const [open, setOpen] = useState<Record<string, boolean>>({});
     const [folderOpen, setFolderOpen] = useState<Record<string, boolean>>({});
-    const [menuFor, setMenuFor] = useState<string | null>(null);
+    const [menuFor, setMenuFor] = useState<{
+        name: string;
+        rect: AnchorRect;
+    } | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
     const [editTarget, setEditTarget] = useState<Field | null>(null);
     const [manageOpen, setManageOpen] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [folderMenuFor, setFolderMenuFor] = useState<string | null>(null);
+    const [folderMenuFor, setFolderMenuFor] = useState<{
+        folder: string;
+        rect: AnchorRect;
+    } | null>(null);
     const [createCategory, setCreateCategory] = useState<string | null>(null);
     const [renameTarget, setRenameTarget] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
@@ -338,6 +639,9 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
         ],
         [custom],
     );
+
+    const folderLabel = (folder: string) =>
+        DEFAULT_FOLDER_LABELS[folder] ?? folder;
 
     const measureFolders = useMemo(() => {
         const map = new Map<string, Field[]>();
@@ -588,7 +892,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                     />
                                                     <Folder className="size-3 shrink-0 text-muted-foreground" />
                                                     <span className="truncate">
-                                                        {folder}
+                                                        {folderLabel(folder)}
                                                     </span>
                                                     <span className="ml-auto shrink-0 pr-1 text-[10px] text-muted-foreground/60">
                                                         {visible.length}
@@ -597,14 +901,25 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                             )}
                                             {named && (
                                                 <button
-                                                    onClick={() =>
+                                                    onClick={(e) => {
+                                                        const r =
+                                                            e.currentTarget.getBoundingClientRect();
                                                         setFolderMenuFor(
-                                                            folderMenuFor ===
+                                                            folderMenuFor?.folder ===
                                                                 folder
                                                                 ? null
-                                                                : folder,
-                                                        )
-                                                    }
+                                                                : {
+                                                                      folder,
+                                                                      rect: {
+                                                                          left: r.left,
+                                                                          top: r.top,
+                                                                          right: r.right,
+                                                                          bottom:
+                                                                              r.bottom,
+                                                                      },
+                                                                  },
+                                                        );
+                                                    }}
                                                     title="Actions du dossier"
                                                     className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent"
                                                 >
@@ -612,98 +927,108 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                 </button>
                                             )}
                                         </div>
-                                        {folderMenuFor === folder && (
-                                            <div className="absolute top-0 right-5 z-20 w-48 rounded border border-border bg-card py-1 text-[11px] shadow-xl">
-                                                {confirmFolderDelete ===
-                                                folder ? (
-                                                    <div className="px-2 py-1">
-                                                        <p className="mb-1 text-muted-foreground">
-                                                            Supprimer le dossier{' '}
-                                                            <span className="font-mono">
-                                                                {folder}
-                                                            </span>{' '}
-                                                            ? Les mesures seront
-                                                            déplacées dans «
-                                                            Sans catégorie ».
-                                                        </p>
-                                                        <div className="flex justify-end gap-1">
+                                        {folderMenuFor?.folder === folder &&
+                                            folderMenuFor && (
+                                                <MeasureDropdown
+                                                    rect={folderMenuFor.rect}
+                                                    onClose={() =>
+                                                        setFolderMenuFor(null)
+                                                    }
+                                                >
+                                                    {confirmFolderDelete ===
+                                                    folder ? (
+                                                        <div className="px-2 py-1">
+                                                            <p className="mb-1 text-muted-foreground">
+                                                                Supprimer le
+                                                                dossier{' '}
+                                                                <span className="font-mono">
+                                                                    {folderLabel(folder)}
+                                                                </span>{' '}
+                                                                ? Les mesures
+                                                                seront déplacées
+                                                                dans « Sans
+                                                                catégorie ».
+                                                            </p>
+                                                            <div className="flex justify-end gap-1">
+                                                                <button
+                                                                    onClick={() =>
+                                                                        setConfirmFolderDelete(
+                                                                            null,
+                                                                        )
+                                                                    }
+                                                                    className="rounded border border-border px-2 py-0.5"
+                                                                >
+                                                                    Non
+                                                                </button>
+                                                                <button
+                                                                    onClick={() =>
+                                                                        deleteFolder(
+                                                                            folder,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        busy
+                                                                    }
+                                                                    className="rounded bg-red-600 px-2 py-0.5 text-white disabled:opacity-50"
+                                                                >
+                                                                    Oui
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setFolderMenuFor(
+                                                                        null,
+                                                                    );
+                                                                    setCreateCategory(
+                                                                        folder,
+                                                                    );
+                                                                    setFolderOpen(
+                                                                        (o) => ({
+                                                                            ...o,
+                                                                            [folder]: true,
+                                                                        }),
+                                                                    );
+                                                                }}
+                                                                className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
+                                                            >
+                                                                <Plus className="size-3" />
+                                                                Nouvelle mesure
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setRenameValue(
+                                                                        folder,
+                                                                    );
+                                                                    setRenameTarget(
+                                                                        folder,
+                                                                    );
+                                                                    setFolderMenuFor(
+                                                                        null,
+                                                                    );
+                                                                }}
+                                                                className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
+                                                            >
+                                                                <Pencil className="size-3" />
+                                                                Renommer
+                                                            </button>
                                                             <button
                                                                 onClick={() =>
                                                                     setConfirmFolderDelete(
-                                                                        null,
-                                                                    )
-                                                                }
-                                                                className="rounded border border-border px-2 py-0.5"
-                                                            >
-                                                                Non
-                                                            </button>
-                                                            <button
-                                                                onClick={() =>
-                                                                    deleteFolder(
                                                                         folder,
                                                                     )
                                                                 }
-                                                                disabled={busy}
-                                                                className="rounded bg-red-600 px-2 py-0.5 text-white disabled:opacity-50"
+                                                                className="flex w-full items-center gap-2 px-2 py-1 text-red-500 hover:bg-accent"
                                                             >
-                                                                Oui
+                                                                <Trash2 className="size-3" />
+                                                                Supprimer
                                                             </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <button
-                                                            onClick={() => {
-                                                                setFolderMenuFor(
-                                                                    null,
-                                                                );
-                                                                setCreateCategory(
-                                                                    folder,
-                                                                );
-                                                                setFolderOpen(
-                                                                    (o) => ({
-                                                                        ...o,
-                                                                        [folder]: true,
-                                                                    }),
-                                                                );
-                                                            }}
-                                                            className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
-                                                        >
-                                                            <Plus className="size-3" />
-                                                            Nouvelle mesure
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                setRenameValue(
-                                                                    folder,
-                                                                );
-                                                                setRenameTarget(
-                                                                    folder,
-                                                                );
-                                                                setFolderMenuFor(
-                                                                    null,
-                                                                );
-                                                            }}
-                                                            className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
-                                                        >
-                                                            <Pencil className="size-3" />
-                                                            Renommer
-                                                        </button>
-                                                        <button
-                                                            onClick={() =>
-                                                                setConfirmFolderDelete(
-                                                                    folder,
-                                                                )
-                                                            }
-                                                            className="flex w-full items-center gap-2 px-2 py-1 text-red-500 hover:bg-accent"
-                                                        >
-                                                            <Trash2 className="size-3" />
-                                                            Supprimer
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        )}
+                                                        </>
+                                                    )}
+                                                </MeasureDropdown>
+                                            )}
                                         {folderOpen[folder] &&
                                             visible.map((f) => {
                                                 const error = measureError(
@@ -768,90 +1093,112 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                             )}
                                                         </div>
                                                         <button
-                                                            onClick={() =>
+                                                            onClick={(e) => {
+                                                                const r =
+                                                                    e.currentTarget.getBoundingClientRect();
                                                                 setMenuFor(
-                                                                    menuFor ===
+                                                                    menuFor?.name ===
                                                                         f.name
                                                                         ? null
-                                                                        : f.name,
-                                                                )
-                                                            }
+                                                                        : {
+                                                                              name: f.name,
+                                                                              rect: {
+                                                                                  left: r.left,
+                                                                                  top: r.top,
+                                                                                  right: r.right,
+                                                                                  bottom: r.bottom,
+                                                                              },
+                                                                          },
+                                                                );
+                                                            }}
                                                             title="Actions de la mesure"
                                                             className="absolute top-1 right-1 z-10 rounded p-0.5 text-muted-foreground hover:bg-accent"
                                                         >
                                                             <MoreHorizontal className="size-3.5" />
                                                         </button>
-                                                        {menuFor === f.name && (
-                                                            <div className="absolute top-0 right-6 z-20 w-40 rounded border border-border bg-card py-1 text-[11px] shadow-xl">
-                                                                {confirmDelete ===
-                                                                f.name ? (
-                                                                    <div className="px-2 py-1">
-                                                                        <p className="mb-1 text-muted-foreground">
-                                                                            Supprimer{' '}
-                                                                            <span className="font-mono">
-                                                                                {
-                                                                                    f.name
-                                                                                }
-                                                                            </span>{' '}
-                                                                            ?
-                                                                        </p>
-                                                                        <div className="flex justify-end gap-1">
+                                                        {menuFor?.name ===
+                                                            f.name &&
+                                                            menuFor && (
+                                                                <MeasureDropdown
+                                                                    rect={
+                                                                        menuFor.rect
+                                                                    }
+                                                                    width={160}
+                                                                    onClose={() =>
+                                                                        setMenuFor(
+                                                                            null,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {confirmDelete ===
+                                                                    f.name ? (
+                                                                        <div className="px-2 py-1">
+                                                                            <p className="mb-1 text-muted-foreground">
+                                                                                Supprimer{' '}
+                                                                                <span className="font-mono">
+                                                                                    {
+                                                                                        f.name
+                                                                                    }
+                                                                                </span>{' '}
+                                                                                ?
+                                                                            </p>
+                                                                            <div className="flex justify-end gap-1">
+                                                                                <button
+                                                                                    onClick={() =>
+                                                                                        setConfirmDelete(
+                                                                                            null,
+                                                                                        )
+                                                                                    }
+                                                                                    className="rounded border border-border px-2 py-0.5"
+                                                                                >
+                                                                                    Non
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() =>
+                                                                                        del(
+                                                                                            f.name,
+                                                                                        )
+                                                                                    }
+                                                                                    disabled={
+                                                                                        busy
+                                                                                    }
+                                                                                    className="rounded bg-red-600 px-2 py-0.5 text-white disabled:opacity-50"
+                                                                                >
+                                                                                    Oui
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setEditTarget(
+                                                                                        f,
+                                                                                    );
+                                                                                    setMenuFor(
+                                                                                        null,
+                                                                                    );
+                                                                                }}
+                                                                                className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
+                                                                            >
+                                                                                <Pencil className="size-3" />
+                                                                                Modifier
+                                                                            </button>
                                                                             <button
                                                                                 onClick={() =>
                                                                                     setConfirmDelete(
-                                                                                        null,
-                                                                                    )
-                                                                                }
-                                                                                className="rounded border border-border px-2 py-0.5"
-                                                                            >
-                                                                                Non
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() =>
-                                                                                    del(
                                                                                         f.name,
                                                                                     )
                                                                                 }
-                                                                                disabled={
-                                                                                    busy
-                                                                                }
-                                                                                className="rounded bg-red-600 px-2 py-0.5 text-white disabled:opacity-50"
+                                                                                className="flex w-full items-center gap-2 px-2 py-1 text-red-500 hover:bg-accent"
                                                                             >
-                                                                                Oui
+                                                                                <Trash2 className="size-3" />
+                                                                                Supprimer
                                                                             </button>
-                                                                        </div>
-                                                                    </div>
-                                                                ) : (
-                                                                    <>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setEditTarget(
-                                                                                    f,
-                                                                                );
-                                                                                setMenuFor(
-                                                                                    null,
-                                                                                );
-                                                                            }}
-                                                                            className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
-                                                                        >
-                                                                            <Pencil className="size-3" />
-                                                                            Modifier
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() =>
-                                                                                setConfirmDelete(
-                                                                                    f.name,
-                                                                                )
-                                                                            }
-                                                                            className="flex w-full items-center gap-2 px-2 py-1 text-red-500 hover:bg-accent"
-                                                                        >
-                                                                            <Trash2 className="size-3" />
-                                                                            Supprimer
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        )}
+                                                                        </>
+                                                                    )}
+                                                                </MeasureDropdown>
+                                                            )}
                                                     </div>
                                                 );
                                             })}
@@ -1003,98 +1350,98 @@ const VISUAL_GROUPS: {
             {
                 type: 'column',
                 label: 'Histogramme groupé',
-                Icon: DataBarVerticalRegular,
+                Icon: IconColumnPreview,
             },
             {
                 type: 'stackedColumn',
                 label: 'Histogramme empilé',
-                Icon: IconStackedColumn,
+                Icon: IconStackedColumnPreview,
             },
             {
                 type: 'stacked100Column',
                 label: 'Histogramme empilé 100 %',
-                Icon: IconStacked100Column,
+                Icon: IconStacked100ColumnPreview,
             },
             {
                 type: 'bar',
                 label: 'Barres groupées',
-                Icon: DataBarHorizontalRegular,
+                Icon: IconBarPreview,
             },
             {
                 type: 'stackedBar',
                 label: 'Barres empilées',
-                Icon: IconStackedBar,
+                Icon: IconStackedBarPreview,
             },
             {
                 type: 'stacked100Bar',
                 label: 'Barres empilées 100 %',
-                Icon: IconStacked100Bar,
+                Icon: IconStacked100BarPreview,
             },
-            { type: 'line', label: 'Courbe', Icon: DataLineRegular },
-            { type: 'area', label: 'Aire', Icon: DataAreaRegular },
+            { type: 'line', label: 'Courbe', Icon: IconLinePreview },
+            { type: 'area', label: 'Aire', Icon: IconAreaPreview },
             {
                 type: 'stackedArea',
                 label: 'Aire empilée',
-                Icon: IconStackedArea,
+                Icon: IconStackedAreaPreview,
             },
             {
                 type: 'combo',
                 label: 'Courbe et histogramme empilé',
-                Icon: ChartMultipleRegular,
+                Icon: IconComboPreview,
             },
         ],
     },
     {
         group: 'Part du tout et distribution',
         items: [
-            { type: 'pie', label: 'Secteurs', Icon: DataPieRegular },
-            { type: 'donut', label: 'Anneau', Icon: IconDonut },
+            { type: 'pie', label: 'Secteurs', Icon: IconPiePreview },
+            { type: 'donut', label: 'Anneau', Icon: IconDonutPreview },
             {
                 type: 'treemap',
                 label: 'Treemap',
-                Icon: DataTreemapRegular,
+                Icon: IconTreemapPreview,
             },
-            { type: 'funnel', label: 'Entonnoir', Icon: DataFunnelRegular },
-            { type: 'ribbon', label: 'Ruban', Icon: IconRibbon },
+            { type: 'funnel', label: 'Entonnoir', Icon: IconFunnelPreview },
+            { type: 'ribbon', label: 'Ruban', Icon: IconRibbonPreview },
             {
                 type: 'waterfall',
                 label: 'Cascade',
-                Icon: DataWaterfallRegular,
+                Icon: IconWaterfallPreview,
             },
             {
                 type: 'scatter',
                 label: 'Nuage de points',
-                Icon: DataScatterRegular,
+                Icon: IconScatterPreview,
             },
             {
                 type: 'bubble',
                 label: 'Nuage de points (bulles)',
-                Icon: BubbleMultipleRegular,
+                Icon: IconBubblePreview,
             },
         ],
     },
     {
         group: 'Valeur unique et tabulaire',
         items: [
-            { type: 'card', label: 'Carte', Icon: CardUiRegular },
-            { type: 'gauge', label: 'Jauge', Icon: GaugeRegular },
-            { type: 'table', label: 'Tableau', Icon: TableRegular },
-            { type: 'matrix', label: 'Matrice', Icon: GridRegular },
+            { type: 'card', label: 'Carte', Icon: IconCardPreview },
+            { type: 'gauge', label: 'Jauge', Icon: IconGaugePreview },
+            { type: 'table', label: 'Tableau', Icon: IconTablePreview },
+            { type: 'matrix', label: 'Matrice', Icon: IconMatrixPreview },
         ],
     },
     {
         group: 'Cartes',
         items: [
-            { type: 'map', label: 'Carte', Icon: MapRegular },
+            { type: 'map', label: 'Carte', Icon: IconMapPreview },
             {
                 type: 'filledMap',
                 label: 'Carte remplie',
-                Icon: IconFilledMap,
+                Icon: IconFilledMapPreview,
             },
             {
                 type: 'shapeMap',
                 label: 'Carte de formes',
-                Icon: IconShapeMap,
+                Icon: IconShapeMapPreview,
             },
         ],
     },
@@ -1104,27 +1451,27 @@ const VISUAL_GROUPS: {
             {
                 type: 'slicer',
                 label: 'Segmenteur (cases à cocher)',
-                Icon: CheckboxCheckedRegular,
+                Icon: IconSlicerPreview,
             },
             {
                 type: 'buttonSlicer',
                 label: 'Segmenteur de boutons',
-                Icon: ToggleLeftRegular,
+                Icon: IconButtonSlicerPreview,
             },
             {
                 type: 'dropdownSlicer',
                 label: 'Segmenteur déroulant',
-                Icon: ChevronDownRegular,
+                Icon: IconDropdownSlicerPreview,
             },
             {
                 type: 'inputSlicer',
                 label: 'Segmenteur de saisie',
-                Icon: IconInputSlicer,
+                Icon: IconInputSlicerPreview,
             },
             {
                 type: 'dateSlicer',
                 label: 'Segmenteur de dates',
-                Icon: CalendarLtrRegular,
+                Icon: IconDateSlicerPreview,
             },
         ],
     },
@@ -1134,10 +1481,10 @@ const VISUAL_GROUPS: {
             {
                 type: 'text',
                 label: 'Zone de texte',
-                Icon: TextboxRegular,
+                Icon: IconTextPreview,
             },
-            { type: 'image', label: 'Image', Icon: ImageRegular },
-            { type: 'button', label: 'Bouton', Icon: ButtonRegular },
+            { type: 'image', label: 'Image', Icon: IconImagePreview },
+            { type: 'button', label: 'Bouton', Icon: IconButtonPreview },
         ],
     },
 ];
@@ -1526,12 +1873,12 @@ export function VisualizationsPane({
                                                 : addVisual(v.type)
                                         }
                                         className={cn(
-                                            'flex h-7 items-center justify-center rounded border border-border text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground',
+                                            'flex h-8 items-center justify-center rounded border border-border text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground',
                                             selected?.type === v.type &&
                                                 'border-brand bg-brand/15 text-brand',
                                         )}
                                     >
-                                        <v.Icon className="size-3.5" />
+                                        <v.Icon className="size-5" />
                                     </button>
                                 ))}
                             </div>
@@ -1876,7 +2223,7 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                     <Section title="Texte" defaultOpen>
                         <label className="block">
                             <span className="mb-1 block text-muted-foreground">
-                                Content
+                                Contenu
                             </span>
                             <textarea
                                 value={visual.text ?? ''}
@@ -1889,9 +2236,9 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                             />
                         </label>
                     </Section>
-                    <Section title="Font" defaultOpen>
+                    <Section title="Police" defaultOpen>
                         <Select
-                            label="Font family"
+                            label="Famille de police"
                             value={visual.fontFamily ?? ''}
                             options={FONT_OPTIONS}
                             onChange={(v) =>
@@ -1902,7 +2249,7 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                         />
                         <div className="grid grid-cols-2 gap-2">
                             <NumberInput
-                                label="Size"
+                                label="Taille"
                                 min={8}
                                 max={48}
                                 value={visual.fontSize ?? 14}
@@ -1913,48 +2260,46 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                                 }
                             />
                             <ColorInput
-                                label="Color"
+                                label="Couleur"
                                 value={visual.fontColor}
                                 onChange={(v) =>
                                     updateVisual(visual.id, { fontColor: v })
                                 }
                             />
                         </div>
-                        <Biu
-                            label="Font style"
-                            bold={visual.fontBold}
-                            italic={visual.fontItalic}
-                            underline={visual.fontUnderline}
-                            onChange={(p) =>
-                                updateVisual(visual.id, {
-                                    fontBold: p.bold,
-                                    fontItalic: p.italic,
-                                    fontUnderline: p.underline,
-                                })
-                            }
-                        />
-                        <Select
-                            label="Horizontal alignment"
-                            value={visual.textAlign ?? 'left'}
-                            options={ALIGNS}
-                            onChange={(v) =>
-                                updateVisual(visual.id, {
-                                    textAlign:
-                                        v === 'left' ||
-                                        v === 'center' ||
-                                        v === 'right'
-                                            ? v
-                                            : undefined,
-                                })
-                            }
-                        />
+                        <div className="grid grid-cols-2 gap-2">
+                            <Biu
+                                label="Style de police"
+                                bold={visual.fontBold}
+                                italic={visual.fontItalic}
+                                underline={visual.fontUnderline}
+                                onChange={(p) =>
+                                    updateVisual(visual.id, {
+                                        fontBold: p.bold ?? visual.fontBold,
+                                        fontItalic:
+                                            p.italic ?? visual.fontItalic,
+                                        fontUnderline:
+                                            p.underline ?? visual.fontUnderline,
+                                    })
+                                }
+                            />
+                            <AlignControls
+                                label="Alignement"
+                                value={visual.textAlign ?? 'left'}
+                                onChange={(v) =>
+                                    updateVisual(visual.id, {
+                                        textAlign: v,
+                                    })
+                                }
+                            />
+                        </div>
                     </Section>
                 </>
             )}
             {visual.type === 'image' && (
                 <Section title="Image" defaultOpen>
                     <TextInput
-                        label="Image URL"
+                        label="URL de l'image"
                         value={visual.imageUrl ?? ''}
                         onChange={(v) =>
                             updateVisual(visual.id, { imageUrl: v })
@@ -1962,7 +2307,7 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                     />
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Upload image
+                            Importer une image
                         </span>
                         <input
                             ref={fileInputRef}
@@ -1981,20 +2326,20 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                             className="flex w-full items-center justify-center gap-1 rounded border border-border bg-background px-2 py-1 text-sm text-foreground hover:bg-accent"
                         >
                             <Upload className="size-3.5" />
-                            Choose file…
+                            Choisir un fichier…
                         </button>
                     </label>
                     {visual.imageUrl && (
                         <div className="flex items-center justify-center rounded border border-border bg-background p-1">
                             <img
                                 src={visual.imageUrl}
-                                alt="Preview"
+                                alt="Aperçu"
                                 className="max-h-24 object-contain"
                             />
                         </div>
                     )}
                     <TextInput
-                        label="Alt text (accessibility)"
+                        label="Texte alternatif (accessibilité)"
                         value={visual.altText ?? ''}
                         onChange={(v) =>
                             updateVisual(visual.id, { altText: v })
@@ -2035,7 +2380,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
             {(selected.type === 'text' || selected.type === 'button') && (
                 <label className="block">
                     <span className="mb-1 block text-muted-foreground">
-                        Text
+                        Texte
                     </span>
                     <textarea
                         value={selected.text ?? ''}
@@ -2052,7 +2397,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                 <>
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Image URL
+                            URL de l'image
                         </span>
                         <input
                             value={selected.imageUrl ?? ''}
@@ -2066,7 +2411,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     </label>
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Upload image
+                            Importer une image
                         </span>
                         <input
                             ref={fileInputRef}
@@ -2085,14 +2430,14 @@ function GenericFormat({ visual }: { visual: Visual }) {
                             className="flex w-full items-center justify-center gap-1 rounded border border-border bg-background px-2 py-1 text-sm text-foreground hover:bg-accent"
                         >
                             <Upload className="size-3.5" />
-                            Choose file…
+                            Choisir un fichier…
                         </button>
                     </label>
                     {selected.imageUrl && (
                         <div className="flex items-center justify-center rounded border border-border bg-background p-1">
                             <img
                                 src={selected.imageUrl}
-                                alt="Preview"
+                                alt="Aperçu"
                                 className="max-h-24 object-contain"
                             />
                         </div>
@@ -2103,7 +2448,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                 <>
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Shape
+                            Forme
                         </span>
                         <select
                             value={selected.shape ?? 'rectangle'}
@@ -2122,7 +2467,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                         </select>
                     </label>
                     <ColorInput
-                        label="Outline color"
+                        label="Couleur de contour"
                         value={selected.background}
                         onChange={(v) =>
                             updateVisual(selected.id, {
@@ -2132,7 +2477,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     />
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Rotation (deg)
+                            Rotation (degré)
                         </span>
                         <input
                             type="number"
@@ -2150,7 +2495,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     {selected.shape !== 'line' && (
                         <label className="block">
                             <span className="mb-1 block text-muted-foreground">
-                                Corner radius
+                                Rayon des coins
                             </span>
                             <input
                                 type="number"
@@ -2170,11 +2515,11 @@ function GenericFormat({ visual }: { visual: Visual }) {
             )}
             {(
                 [
-                    ['showLegend', 'Show legend'],
-                    ['showLabels', 'Data labels'],
-                    ['border', 'Border'],
-                    ['shadow', 'Shadow'],
-                    ['subtotals', 'Totals / subtotals'],
+                    ['showLegend', 'Afficher la légende'],
+                    ['showLabels', 'Étiquettes de données'],
+                    ['border', 'Bordure'],
+                    ['shadow', 'Ombre'],
+                    ['subtotals', 'Totaux / sous-totaux'],
                 ] as const
             )
                 .filter(
@@ -2203,7 +2548,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                 ))}
             {selected.type !== 'shape' && (
                 <ColorInput
-                    label="Background"
+                    label="Arrière-plan"
                     value={selected.background}
                     onChange={(v) =>
                         updateVisual(selected.id, {
@@ -2216,7 +2561,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                 <>
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Font
+                            Police
                         </span>
                         <select
                             value={selected.fontFamily ?? ''}
@@ -2227,7 +2572,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                             }
                             className="w-full rounded border border-border bg-background px-2 py-1"
                         >
-                            <option value="">Report font</option>
+                            <option value="">Police du rapport</option>
                             <option value="ui-sans-serif, system-ui, sans-serif">
                                 Sans-serif
                             </option>
@@ -2241,7 +2586,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                         <div className="mt-2 grid grid-cols-2 gap-2">
                             <label className="block">
                                 <span className="mb-1 block text-muted-foreground">
-                                    Size
+                                    Taille
                                 </span>
                                 <input
                                     type="number"
@@ -2257,7 +2602,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                                 />
                             </label>
                             <ColorInput
-                                label="Color"
+                                label="Couleur"
                                 value={selected.fontColor}
                                 onChange={(v) =>
                                     updateVisual(selected.id, {
@@ -2269,7 +2614,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     </label>
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Number format
+                            Format numérique
                         </span>
                         <select
                             value={selected.numberFormat ?? 'auto'}
@@ -2294,7 +2639,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
             {selected.border && (
                 <div className="grid grid-cols-3 gap-2">
                     <ColorInput
-                        label="Border"
+                        label="Bordure"
                         value={selected.borderColor}
                         onChange={(v) =>
                             updateVisual(selected.id, {
@@ -2304,7 +2649,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     />
                     <label className="block">
                         <span className="mb-1 block text-muted-foreground">
-                            Width
+                            Épaisseur
                         </span>
                         <input
                             type="number"
@@ -2322,7 +2667,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     {selected.type !== 'shape' && (
                         <label className="block">
                             <span className="mb-1 block text-muted-foreground">
-                                Radius
+                                Rayon
                             </span>
                             <input
                                 type="number"
@@ -2342,7 +2687,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
             )}
             <label className="block">
                 <span className="mb-1 block text-muted-foreground">
-                    Data colors (palette offset)
+                    Couleurs de données (décalage de palette)
                 </span>
                 <input
                     type="range"
@@ -2360,7 +2705,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
             </label>
             <label className="block">
                 <span className="mb-1 block text-muted-foreground">
-                    Alt text (accessibility)
+                    Texte alternatif (accessibilité)
                 </span>
                 <input
                     value={selected.altText ?? ''}
@@ -2385,7 +2730,8 @@ function GenericFormat({ visual }: { visual: Visual }) {
             ].includes(selected.type) && (
                 <label className="block">
                     <span className="mb-1 block text-muted-foreground">
-                        Max categories (extra rolled into "Other")
+                        Nombre max de catégories (les autres sont regroupées
+                        dans « Autre »)
                     </span>
                     <input
                         type="number"
@@ -2405,9 +2751,9 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     <label key={k}>
                         <span className="mb-1 block text-muted-foreground">
                             {k === 'w'
-                                ? 'Width'
+                                ? 'Largeur'
                                 : k === 'h'
-                                  ? 'Height'
+                                  ? 'Hauteur'
                                   : k.toUpperCase()}{' '}
                             px
                         </span>
@@ -3015,19 +3361,19 @@ export function SelectionPane({ onCollapse }: { onCollapse?: () => void }) {
                         />
                         <button
                             onClick={() => reorderVisual(v.id, -1)}
-                            aria-label="Move up"
+                            aria-label="Monter"
                         >
                             <ChevronUp className="size-3 text-muted-foreground hover:text-foreground" />
                         </button>
                         <button
                             onClick={() => reorderVisual(v.id, 1)}
-                            aria-label="Move down"
+                            aria-label="Descendre"
                         >
                             <ChevronDown className="size-3 text-muted-foreground hover:text-foreground" />
                         </button>
                         <button
                             onClick={() => toggleVisualHidden(v.id)}
-                            aria-label="Toggle visibility"
+                            aria-label="Afficher/masquer"
                         >
                             {v.hidden ? (
                                 <EyeOff className="size-3 text-muted-foreground" />

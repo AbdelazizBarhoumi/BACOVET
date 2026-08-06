@@ -47,7 +47,7 @@ describe('CF_ICON_SETS registry', () => {
 
     it('resolves sets and icons by id', () => {
         expect(iconSetOf('directional-colored')?.label).toBe(
-            'Directional (colored)',
+            'Directionnel (couleurs)',
         );
         expect(iconSetOf('missing-set')).toBeUndefined();
         expect(iconById('directional-colored', 'up')?.unicode).toBe('↑');
@@ -94,7 +94,7 @@ describe('Sentiment faces sets', () => {
     });
 
     it('resolves faces by id within each set', () => {
-        expect(iconById('sentiment', 'sad')?.label).toBe('Sad');
+        expect(iconById('sentiment', 'sad')?.label).toBe('Triste');
         expect(iconById('faces-smile-angry', 'angry')?.unicode).toBe('😠');
         expect(iconById('faces-smile-angry', 'happy')).toBeUndefined();
     });

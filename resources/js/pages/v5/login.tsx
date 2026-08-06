@@ -3,10 +3,16 @@ import { Loader2, Lock, Mail, ChevronRight, CheckCircle2 } from 'lucide-react';
 import React, { useState } from 'react';
 
 const EMAILS = [
-    { email: 'superadmin@bacovet.com', name: 'Super admin' },
-    { email: 'direction@bacovet.com', name: 'Direction' },
-    { email: 'resp.production@bacovet.com', name: 'Resp. Production' },
-    { email: 'qualite@bacovet.com', name: 'Qualité' },
+    { email: 'superadmin@novationcity.com', name: 'Super administrateur' },
+    { email: 'm.chrifa@novationcity.com', name: 'M. Chrifa' },
+    { email: 'benhadjmbareknourhene@gmail.com', name: 'Ben Hadj Mbarek Nourhene' },
+    { email: 's.lafi@novationcity.com', name: 'Samar Lafi' },
+    { email: 'intissar@bacovet.com', name: 'Intissar' },
+    { email: 'azer.boughrara@bacovet.com', name: 'Azer Boughrara' },
+    { email: 'amira@bacovet.com', name: 'Amira' },
+    { email: 'qualite@bacovet.com', name: 'Dhoha ' },
+    { email: 'saadia@bacovet.com', name: 'Saadia' },
+    { email: 'wassim@bacovet.com', name: 'Wassim' },
 ];
 
 type Step = 'email' | 'password' | 'create-password';
@@ -128,7 +134,7 @@ export default function V5LoginPage() {
                     <div className="mb-6 flex items-center gap-2">
                         <Lock className="h-5 w-5 text-primary" />
                         <h1 className="text-lg font-semibold">
-                            Pages Builder V5
+                            Constructeur de pages V5
                         </h1>
                     </div>
 

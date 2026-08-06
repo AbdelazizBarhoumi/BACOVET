@@ -24,29 +24,29 @@ export type CFIconSet = {
 };
 
 export const CF_ICON_SETS: CFIconSet[] = [
-    // ── Directional ──────────────────────────────────────────────
+    // ── Directionnel ──────────────────────────────────────────────
     {
         id: 'directional-colored',
-        label: 'Directional (colored)',
-        category: 'Directional',
+        label: 'Directionnel (couleurs)',
+        category: 'Directionnel',
         icons: [
             {
                 id: 'up',
-                label: 'Up Arrow',
+                label: 'Flèche haut',
                 unicode: '↑',
                 fluent: 'ArrowUp',
                 color: '#16a34a',
             },
             {
                 id: 'side',
-                label: 'Side Arrow',
+                label: 'Flèche latérale',
                 unicode: '→',
                 fluent: 'ArrowRight',
                 color: '#4b5563',
             },
             {
                 id: 'down',
-                label: 'Down Arrow',
+                label: 'Flèche bas',
                 unicode: '↓',
                 fluent: 'ArrowDown',
                 color: '#dc2626',
@@ -55,26 +55,26 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'directional-gray',
-        label: 'Directional (gray)',
-        category: 'Directional',
+        label: 'Directionnel (gris)',
+        category: 'Directionnel',
         icons: [
             {
                 id: 'up',
-                label: 'Up Arrow',
+                label: 'Flèche haut',
                 unicode: '↑',
                 fluent: 'ArrowUp',
                 color: '#4b5563',
             },
             {
                 id: 'side',
-                label: 'Side Arrow',
+                label: 'Flèche latérale',
                 unicode: '→',
                 fluent: 'ArrowRight',
                 color: '#4b5563',
             },
             {
                 id: 'down',
-                label: 'Down Arrow',
+                label: 'Flèche bas',
                 unicode: '↓',
                 fluent: 'ArrowDown',
                 color: '#4b5563',
@@ -83,24 +83,24 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'directional-double',
-        label: 'Double Arrows',
-        category: 'Directional',
+        label: 'Flèches doubles',
+        category: 'Directionnel',
         icons: [
             {
                 id: 'up-up',
-                label: 'Double Up',
+                label: 'Double haut',
                 unicode: '⇈',
                 color: '#15803d',
             },
             {
                 id: 'right-right',
-                label: 'Double Side',
+                label: 'Double latéral',
                 unicode: '⇉',
                 color: '#4b5563',
             },
             {
                 id: 'down-down',
-                label: 'Double Down',
+                label: 'Double bas',
                 unicode: '⇊',
                 color: '#b91c1c',
             },
@@ -108,51 +108,51 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'directional-triple',
-        label: 'Triple Arrows',
-        category: 'Directional',
+        label: 'Flèches triples',
+        category: 'Directionnel',
         icons: [
             {
                 id: 'up3',
-                label: 'Triple Up',
+                label: 'Triple haut',
                 unicode: '⭧',
                 color: '#15803d',
             },
             {
                 id: 'right3',
-                label: 'Triple Side',
+                label: 'Triple latéral',
                 unicode: '⭨',
                 color: '#4b5563',
             },
             {
                 id: 'down3',
-                label: 'Triple Down',
+                label: 'Triple bas',
                 unicode: '⭩',
                 color: '#b91c1c',
             },
         ],
     },
 
-    // ── Traffic Lights ───────────────────────────────────────────
+    // ── Feux de circulation ───────────────────────────────────────
     {
         id: 'traffic-rimmed',
-        label: '3 Traffic Lights (Rimmed)',
-        category: 'Traffic Lights',
+        label: '3 feux de circulation (cerclés)',
+        category: 'Feux de circulation',
         icons: [
             {
                 id: 'go',
-                label: 'Go',
+                label: 'Feu vert',
                 unicode: '🟢',
                 color: '#16a34a',
             },
             {
                 id: 'caution',
-                label: 'Caution',
+                label: 'Feu jaune',
                 unicode: '🟡',
                 color: '#ca8a04',
             },
             {
                 id: 'stop',
-                label: 'Stop',
+                label: 'Feu rouge',
                 unicode: '🔴',
                 color: '#dc2626',
             },
@@ -160,24 +160,24 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'traffic-unrimmed',
-        label: '3 Traffic Lights (Unrimmed)',
-        category: 'Traffic Lights',
+        label: '3 feux de circulation (non cerclés)',
+        category: 'Feux de circulation',
         icons: [
             {
                 id: 'go',
-                label: 'Go',
+                label: 'Feu vert',
                 unicode: '⬤',
                 color: '#16a34a',
             },
             {
                 id: 'caution',
-                label: 'Caution',
+                label: 'Feu jaune',
                 unicode: '⬤',
                 color: '#ca8a04',
             },
             {
                 id: 'stop',
-                label: 'Stop',
+                label: 'Feu rouge',
                 unicode: '⬤',
                 color: '#dc2626',
             },
@@ -185,67 +185,67 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'traffic-four',
-        label: '4 Traffic Lights',
-        category: 'Traffic Lights',
+        label: '4 feux de circulation',
+        category: 'Feux de circulation',
         icons: [
             {
                 id: 'go',
-                label: 'Go',
+                label: 'Feu vert',
                 unicode: '🟢',
                 color: '#16a34a',
             },
             {
                 id: 'caution',
-                label: 'Caution',
+                label: 'Feu jaune',
                 unicode: '🟡',
                 color: '#ca8a04',
             },
             {
                 id: 'stop',
-                label: 'Stop',
+                label: 'Feu rouge',
                 unicode: '🔴',
                 color: '#dc2626',
             },
             {
                 id: 'off',
-                label: 'Off',
+                label: 'Éteint',
                 unicode: '⚫',
                 color: '#3f3f46',
             },
         ],
     },
 
-    // ── Flags ────────────────────────────────────────────────────
+    // ── Drapeaux ──────────────────────────────────────────────────
     {
         id: 'flags',
-        label: 'Flags',
-        category: 'Flags',
+        label: 'Drapeaux',
+        category: 'Drapeaux',
         icons: [
-            { id: 'red', label: 'Red Flag', unicode: '🚩', color: '#dc2626' },
+            { id: 'red', label: 'Drapeau rouge', unicode: '🚩', color: '#dc2626' },
             {
                 id: 'yellow',
-                label: 'Yellow Flag',
+                label: 'Drapeau jaune',
                 unicode: '🟨',
                 color: '#eab308',
             },
             {
                 id: 'green',
-                label: 'Green Flag',
+                label: 'Drapeau vert',
                 unicode: '🟩',
                 color: '#16a34a',
             },
         ],
     },
 
-    // ── Shapes ───────────────────────────────────────────────────
+    // ── Formes ────────────────────────────────────────────────────
     {
         id: 'shapes-colored',
-        label: 'Colored Shapes',
-        category: 'Shapes',
+        label: 'Formes colorées',
+        category: 'Formes',
         icons: [
             {
                 id: 'circle',
-                label: 'Circle',
+                label: 'Cercle',
                 unicode: '●',
                 fluent: 'Circle',
                 color: '#2563eb',
@@ -259,14 +259,14 @@ export const CF_ICON_SETS: CFIconSet[] = [
             },
             {
                 id: 'diamond',
-                label: 'Diamond',
+                label: 'Losange',
                 unicode: '◆',
                 fluent: 'Diamond',
                 color: '#7c3aed',
             },
             {
                 id: 'square',
-                label: 'Square',
+                label: 'Carré',
                 unicode: '■',
                 fluent: 'Square',
                 color: '#dc2626',
@@ -275,12 +275,12 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'shapes',
-        label: 'Shapes',
-        category: 'Shapes',
+        label: 'Formes',
+        category: 'Formes',
         icons: [
             {
                 id: 'circle',
-                label: 'Circle',
+                label: 'Cercle',
                 unicode: '●',
                 color: '#111827',
             },
@@ -292,35 +292,35 @@ export const CF_ICON_SETS: CFIconSet[] = [
             },
             {
                 id: 'diamond',
-                label: 'Diamond',
+                label: 'Losange',
                 unicode: '◆',
                 color: '#111827',
             },
             {
                 id: 'square',
-                label: 'Square',
+                label: 'Carré',
                 unicode: '■',
                 color: '#111827',
             },
         ],
     },
 
-    // ── Indicators ─────────────────────────────────────────────────
+    // ── Indicateurs ───────────────────────────────────────────────
     {
         id: 'indicators',
-        label: 'Indicators',
-        category: 'Indicators',
+        label: 'Indicateurs',
+        category: 'Indicateurs',
         icons: [
             {
                 id: 'check',
-                label: 'Check Mark',
+                label: 'Coche',
                 unicode: '✔',
                 fluent: 'CheckmarkCircle',
                 color: '#16a34a',
             },
             {
                 id: 'cross',
-                label: 'Cross',
+                label: 'Croix',
                 unicode: '✖',
                 fluent: 'DismissCircle',
                 color: '#dc2626',
@@ -334,7 +334,7 @@ export const CF_ICON_SETS: CFIconSet[] = [
             },
             {
                 id: 'question',
-                label: 'Question Mark',
+                label: 'Point d’interrogation',
                 unicode: '❓',
                 fluent: 'ErrorCircle',
                 color: '#2563eb',
@@ -349,27 +349,27 @@ export const CF_ICON_SETS: CFIconSet[] = [
         ],
     },
 
-    // ── Symbols ───────────────────────────────────────────────────
+    // ── Symboles ──────────────────────────────────────────────────
     {
         id: 'symbols-circles',
-        label: 'Colored Circles',
-        category: 'Symbols',
+        label: 'Cercles colorés',
+        category: 'Symboles',
         icons: [
             {
                 id: 'green',
-                label: 'Green Circle',
+                label: 'Cercle vert',
                 unicode: '🟢',
                 color: '#16a34a',
             },
             {
                 id: 'yellow',
-                label: 'Yellow Circle',
+                label: 'Cercle jaune',
                 unicode: '🟡',
                 color: '#ca8a04',
             },
             {
                 id: 'red',
-                label: 'Red Circle',
+                label: 'Cercle rouge',
                 unicode: '🔴',
                 color: '#dc2626',
             },
@@ -377,48 +377,48 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'symbols-stars',
-        label: 'Stars',
-        category: 'Symbols',
+        label: 'Étoiles',
+        category: 'Symboles',
         icons: [
-            { id: 'star1', label: '1 Star', unicode: '★', color: '#ca8a04' },
-            { id: 'star2', label: '2 Stars', unicode: '★★', color: '#ca8a04' },
+            { id: 'star1', label: '1 étoile', unicode: '★', color: '#ca8a04' },
+            { id: 'star2', label: '2 étoiles', unicode: '★★', color: '#ca8a04' },
             {
                 id: 'star3',
-                label: '3 Stars',
+                label: '3 étoiles',
                 unicode: '★★★',
                 color: '#ca8a04',
             },
         ],
     },
 
-    // ── Ratings ───────────────────────────────────────────────────
+    // ── Évaluations ───────────────────────────────────────────────
     {
         id: 'ratings-quarters',
-        label: 'Quarters',
-        category: 'Ratings',
+        label: 'Quarts',
+        category: 'Évaluations',
         icons: [
-            { id: 'q1', label: 'Quarter 1', unicode: '◔', color: '#ca8a04' },
-            { id: 'q2', label: 'Quarters 2', unicode: '◑', color: '#ca8a04' },
-            { id: 'q3', label: 'Quarters 3', unicode: '◒', color: '#ca8a04' },
-            { id: 'q4', label: 'Full', unicode: '●', color: '#ca8a04' },
+            { id: 'q1', label: 'Quart 1', unicode: '◔', color: '#ca8a04' },
+            { id: 'q2', label: 'Quart 2', unicode: '◑', color: '#ca8a04' },
+            { id: 'q3', label: 'Quart 3', unicode: '◒', color: '#ca8a04' },
+            { id: 'q4', label: 'Plein', unicode: '●', color: '#ca8a04' },
         ],
     },
     {
         id: 'ratings-boxes',
-        label: 'Boxes',
-        category: 'Ratings',
+        label: 'Cases',
+        category: 'Évaluations',
         icons: [
-            { id: 'b1', label: '1 Box', unicode: '□', color: '#9ca3af' },
-            { id: 'b2', label: '2 Boxes', unicode: '□□', color: '#9ca3af' },
+            { id: 'b1', label: '1 case', unicode: '□', color: '#9ca3af' },
+            { id: 'b2', label: '2 cases', unicode: '□□', color: '#9ca3af' },
             {
                 id: 'b3',
-                label: '3 Boxes',
+                label: '3 cases',
                 unicode: '□□□',
                 color: '#ca8a04',
             },
             {
                 id: 'b4',
-                label: '4 Boxes',
+                label: '4 cases',
                 unicode: '■■■■',
                 color: '#ca8a04',
             },
@@ -426,22 +426,22 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'ratings-stars',
-        label: 'Star Ratings',
-        category: 'Ratings',
+        label: 'Étoiles d’évaluation',
+        category: 'Évaluations',
         icons: [
-            { id: 's1', label: '1 Star', unicode: '★☆☆☆☆', fluent: 'Star', color: '#ca8a04' },
-            { id: 's2', label: '2 Stars', unicode: '★★☆☆☆', fluent: 'Star', color: '#ca8a04' },
-            { id: 's3', label: '3 Stars', unicode: '★★★☆☆', fluent: 'Star', color: '#ca8a04' },
+            { id: 's1', label: '1 étoile', unicode: '★☆☆☆☆', fluent: 'Star', color: '#ca8a04' },
+            { id: 's2', label: '2 étoiles', unicode: '★★☆☆☆', fluent: 'Star', color: '#ca8a04' },
+            { id: 's3', label: '3 étoiles', unicode: '★★★☆☆', fluent: 'Star', color: '#ca8a04' },
             {
                 id: 's4',
-                label: '4 Stars',
+                label: '4 étoiles',
                 unicode: '★★★★☆',
                 fluent: 'Star',
                 color: '#ca8a04',
             },
             {
                 id: 's5',
-                label: '5 Stars',
+                label: '5 étoiles',
                 unicode: '★★★★★',
                 fluent: 'Star',
                 color: '#ca8a04',
@@ -449,29 +449,29 @@ export const CF_ICON_SETS: CFIconSet[] = [
         ],
     },
 
-    // ── Trophies / Medals ───────────────────────────────────────
+    // ── Trophées / Médailles ──────────────────────────────────────
     {
         id: 'trophies',
-        label: 'Trophies',
-        category: 'Trophies',
+        label: 'Trophées',
+        category: 'Trophées',
         icons: [
             {
                 id: 'gold',
-                label: 'Gold / 1st Place',
+                label: 'Or / 1re place',
                 unicode: '🥇',
                 fluent: 'Trophy',
                 color: '#ca8a04',
             },
             {
                 id: 'silver',
-                label: 'Silver / 2nd Place',
+                label: 'Argent / 2e place',
                 unicode: '🥈',
                 fluent: 'Trophy',
                 color: '#9ca3af',
             },
             {
                 id: 'bronze',
-                label: 'Bronze / 3rd Place',
+                label: 'Bronze / 3e place',
                 unicode: '🥉',
                 fluent: 'Trophy',
                 color: '#b4530f',
@@ -480,26 +480,26 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'medals',
-        label: 'Medals',
-        category: 'Trophies',
+        label: 'Médailles',
+        category: 'Trophées',
         icons: [
             {
                 id: 'gold',
-                label: 'Gold Medal',
+                label: 'Médaille d’or',
                 unicode: '🏅',
                 fluent: 'Medal',
                 color: '#ca8a04',
             },
             {
                 id: 'silver',
-                label: 'Silver Medal',
+                label: 'Médaille d’argent',
                 unicode: '🏅',
                 fluent: 'Medal',
                 color: '#9ca3af',
             },
             {
                 id: 'bronze',
-                label: 'Bronze Medal',
+                label: 'Médaille de bronze',
                 unicode: '🏅',
                 fluent: 'Medal',
                 color: '#b4530f',
@@ -509,52 +509,52 @@ export const CF_ICON_SETS: CFIconSet[] = [
     {
         id: 'badges',
         label: 'Badges',
-        category: 'Trophies',
+        category: 'Trophées',
         icons: [
             {
                 id: 'green',
-                label: 'Green Badge',
+                label: 'Badge vert',
                 unicode: '⬤',
                 color: '#16a34a',
             },
             {
                 id: 'yellow',
-                label: 'Yellow Badge',
+                label: 'Badge jaune',
                 unicode: '⬤',
                 color: '#ca8a04',
             },
             {
                 id: 'red',
-                label: 'Red Badge',
+                label: 'Badge rouge',
                 unicode: '⬤',
                 color: '#dc2626',
             },
         ],
     },
 
-    // ── Modern Power BI categories ──────────────────────────────
+    // ── Catégories Power BI modernes ─────────────────────────────
     {
         id: 'health',
-        label: 'Health / Heart',
-        category: 'Modern',
+        label: 'Santé / Cœur',
+        category: 'Moderne',
         icons: [
             {
                 id: 'full',
-                label: 'Full Heart',
+                label: 'Cœur plein',
                 unicode: '❤',
                 fluent: 'Heart',
                 color: '#dc2626',
             },
             {
                 id: 'half',
-                label: 'Half Heart',
+                label: 'Cœur à moitié',
                 unicode: '💛',
                 fluent: 'Heart',
                 color: '#dc2626',
             },
             {
                 id: 'empty',
-                label: 'Empty Heart',
+                label: 'Cœur vide',
                 unicode: '♡',
                 fluent: 'Heart',
                 color: '#dc2626',
@@ -563,26 +563,26 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'fire',
-        label: 'Fire',
-        category: 'Modern',
+        label: 'Feu',
+        category: 'Moderne',
         icons: [
             {
                 id: 'low',
-                label: 'Low',
+                label: 'Bas',
                 unicode: '🔥',
                 fluent: 'Fire',
                 color: '#f97316',
             },
             {
                 id: 'mid',
-                label: 'Medium',
+                label: 'Moyen',
                 unicode: '🔥',
                 fluent: 'Fire',
                 color: '#ea580c',
             },
             {
                 id: 'high',
-                label: 'High',
+                label: 'Élevé',
                 unicode: '🔥',
                 fluent: 'Fire',
                 color: '#c2410c',
@@ -591,26 +591,26 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'lightning',
-        label: 'Lightning',
-        category: 'Modern',
+        label: 'Éclair',
+        category: 'Moderne',
         icons: [
             {
                 id: 'low',
-                label: 'Low',
+                label: 'Bas',
                 unicode: '⚡',
                 fluent: 'Flash',
                 color: '#60a5fa',
             },
             {
                 id: 'mid',
-                label: 'Medium',
+                label: 'Moyen',
                 unicode: '⚡',
                 fluent: 'Flash',
                 color: '#3b82f6',
             },
             {
                 id: 'high',
-                label: 'High',
+                label: 'Élevé',
                 unicode: '⚡',
                 fluent: 'Flash',
                 color: '#1d4ed8',
@@ -619,24 +619,24 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'trend',
-        label: 'Trend',
-        category: 'Modern',
+        label: 'Tendance',
+        category: 'Moderne',
         icons: [
             {
                 id: 'up',
-                label: 'Up',
+                label: 'Hausse',
                 unicode: '📈',
                 color: '#16a34a',
             },
             {
                 id: 'flat',
-                label: 'Flat',
+                label: 'Stable',
                 unicode: '➖',
                 color: '#4b5563',
             },
             {
                 id: 'down',
-                label: 'Down',
+                label: 'Baisse',
                 unicode: '📉',
                 color: '#dc2626',
             },
@@ -644,36 +644,36 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'sentiment',
-        label: 'Faces (smile → angry)',
+        label: 'Visages (sourire → en colère)',
         category: 'Sentiment',
         icons: [
             {
                 id: 'smile',
-                label: 'Smile',
+                label: 'Sourire',
                 unicode: '😄',
                 color: '#16a34a',
             },
             {
                 id: 'happy',
-                label: 'Happy',
+                label: 'Content',
                 unicode: '😊',
                 color: '#65a30d',
             },
             {
                 id: 'neutral',
-                label: 'Neutral',
+                label: 'Neutre',
                 unicode: '😐',
                 color: '#4b5563',
             },
             {
                 id: 'sad',
-                label: 'Sad',
+                label: 'Triste',
                 unicode: '😞',
                 color: '#ca8a04',
             },
             {
                 id: 'angry',
-                label: 'Angry',
+                label: 'En colère',
                 unicode: '😠',
                 color: '#dc2626',
             },
@@ -681,24 +681,24 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'faces-smile-angry',
-        label: 'Faces (smile / neutral / angry)',
+        label: 'Visages (sourire / neutre / en colère)',
         category: 'Sentiment',
         icons: [
             {
                 id: 'smile',
-                label: 'Smile',
+                label: 'Sourire',
                 unicode: '😃',
                 color: '#16a34a',
             },
             {
                 id: 'neutral',
-                label: 'Neutral',
+                label: 'Neutre',
                 unicode: '😐',
                 color: '#4b5563',
             },
             {
                 id: 'angry',
-                label: 'Angry',
+                label: 'En colère',
                 unicode: '😠',
                 color: '#dc2626',
             },
@@ -706,26 +706,26 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'target',
-        label: 'Target',
-        category: 'Modern',
+        label: 'Cible',
+        category: 'Moderne',
         icons: [
             {
                 id: 'hit',
-                label: 'Hit Target',
+                label: 'Cible atteinte',
                 unicode: '🎯',
                 fluent: 'Target',
                 color: '#16a34a',
             },
             {
                 id: 'near',
-                label: 'Near',
+                label: 'Proche',
                 unicode: '🎯',
                 fluent: 'Target',
                 color: '#ca8a04',
             },
             {
                 id: 'miss',
-                label: 'Miss',
+                label: 'Raté',
                 unicode: '🎯',
                 fluent: 'Target',
                 color: '#dc2626',
@@ -735,25 +735,25 @@ export const CF_ICON_SETS: CFIconSet[] = [
     {
         id: 'performance',
         label: 'Performance',
-        category: 'Modern',
+        category: 'Moderne',
         icons: [
             {
                 id: 'high',
-                label: 'High',
+                label: 'Élevé',
                 unicode: '🚀',
                 fluent: 'Rocket',
                 color: '#16a34a',
             },
             {
                 id: 'mid',
-                label: 'Medium',
+                label: 'Moyen',
                 unicode: '🚀',
                 fluent: 'Rocket',
                 color: '#ca8a04',
             },
             {
                 id: 'low',
-                label: 'Low',
+                label: 'Bas',
                 unicode: '🚀',
                 fluent: 'Rocket',
                 color: '#dc2626',
@@ -762,8 +762,8 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'progress',
-        label: 'Progress',
-        category: 'Modern',
+        label: 'Progression',
+        category: 'Moderne',
         icons: [
             { id: '0', label: '0%', unicode: '⭕', color: '#9ca3af' },
             { id: '50', label: '50%', unicode: '⏺', color: '#ca8a04' },
@@ -772,8 +772,8 @@ export const CF_ICON_SETS: CFIconSet[] = [
     },
     {
         id: 'financial',
-        label: 'Financial',
-        category: 'Modern',
+        label: 'Financier',
+        category: 'Moderne',
         icons: [
             {
                 id: 'profit',
@@ -784,14 +784,14 @@ export const CF_ICON_SETS: CFIconSet[] = [
             },
             {
                 id: 'break-even',
-                label: 'Break-even',
+                label: 'Équilibre',
                 unicode: '💰',
                 fluent: 'Money',
                 color: '#ca8a04',
             },
             {
                 id: 'loss',
-                label: 'Loss',
+                label: 'Perte',
                 unicode: '💰',
                 fluent: 'Money',
                 color: '#dc2626',

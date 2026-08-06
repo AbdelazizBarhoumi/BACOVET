@@ -621,6 +621,9 @@ export type CalloutStyle = {
     displayUnits: DisplayUnit;
     /** Decimal places; `undefined` follows the unit's default. */
     decimals?: number;
+    /** Custom string appended after the value, overriding the unit's built-in
+     * token (K/M/B/%/$). Empty/`undefined` keeps the built-in token. */
+    suffix?: string;
     textWrap?: boolean;
     /** Extra spacing between the callout and its category label. */
     sourceSpacing?: boolean;
@@ -672,6 +675,8 @@ export type AxisStyle = {
     labelsFont?: FontStyle;
     /** Numeric axis only: display-unit scaling for tick labels. */
     displayUnits: DisplayUnit;
+    /** Custom suffix overriding the unit's built-in token (for axis ticks). */
+    suffix?: string;
     decimals?: number;
     /** Numeric axis only: hard min/max range. */
     min?: number;
@@ -734,6 +739,8 @@ export type DataLabelStyle = {
     position: DataLabelPosition;
     content?: DataLabelContent;
     displayUnits: DisplayUnit;
+    /** Custom suffix overriding the unit's built-in token (for data labels). */
+    suffix?: string;
     decimals?: number;
     font?: FontStyle;
     /** Per-series overrides keyed by series name (legend value or measure label). */
@@ -1897,7 +1904,7 @@ export function buildChartData(
 
     if (capped) {
         const rest = entries.slice(cap);
-        const other: Record<string, string | number> = { category: 'Other' };
+        const other: Record<string, string | number> = { category: 'Autre' };
         const otherRows: Row[] = [];
         for (const [, groupRows] of rest) otherRows.push(...groupRows);
         if (legendCol) {
@@ -2274,18 +2281,22 @@ export const DEFAULT_PLOT_AREA: PlotAreaStyle = {
     borderWidth: 1,
 };
 
-/** Applies display-unit scaling and decimal places to a number. */
-export function formatDisplayUnitValue(
+/**
+ * Applies display-unit scaling/behavior and decimal places to a number. A
+ * custom `suffix` (when non-empty) is appended as a postfix in place of the
+ * unit's built-in token (K/M/B/%/$); an empty/absent suffix keeps the token.
+ */
+function formatUnitValue(
     n: number,
-    displayUnits: DisplayUnit = 'auto',
+    unit: DisplayUnit,
     decimals?: number,
+    suffix?: string,
 ): string {
-    if (!isFinite(n)) return '—';
-    const unit = isDisplayUnit(displayUnits) ? displayUnits : 'auto';
     const d =
         typeof decimals === 'number' && isFinite(decimals)
             ? decimals
             : undefined;
+    const post = suffix && suffix.trim().length > 0 ? suffix : undefined;
     const fixed = (value: number, dp: number | undefined) =>
         value.toLocaleString('en-US', {
             minimumFractionDigits: dp ?? 0,
@@ -2293,38 +2304,59 @@ export function formatDisplayUnitValue(
         });
     switch (unit) {
         case 'none':
-            return fixed(n, d ?? 2);
+            return `${fixed(n, d ?? 2)}${post ?? ''}`;
         case 'thousands':
-            return `${fixed(n / 1_000, d ?? 1)}K`;
+            return `${fixed(n / 1_000, d ?? 1)}${post ?? 'K'}`;
         case 'millions':
-            return `${fixed(n / 1_000_000, d ?? 1)}M`;
+            return `${fixed(n / 1_000_000, d ?? 1)}${post ?? 'M'}`;
         case 'billions':
-            return `${fixed(n / 1_000_000_000, d ?? 1)}B`;
+            return `${fixed(n / 1_000_000_000, d ?? 1)}${post ?? 'B'}`;
         case 'percent':
-            return `${(n * 100).toFixed(d ?? 1)}%`;
+            return `${(n * 100).toFixed(d ?? 1)}${post ?? '%'}`;
         case 'currency':
-            return `$${fixed(n, d ?? 0)}`;
+            return post !== undefined
+                ? `${fixed(n, d ?? 0)}${post}`
+                : `$${fixed(n, d ?? 0)}`;
         default:
-            return formatAutoNumber(n, d);
+            return formatAutoNumber(n, d, post);
     }
+}
+
+/** Applies display-unit scaling and decimal places to a number. */
+export function formatDisplayUnitValue(
+    n: number,
+    displayUnits: DisplayUnit = 'auto',
+    decimals?: number,
+    suffix?: string,
+): string {
+    if (!isFinite(n)) return '—';
+    const unit = isDisplayUnit(displayUnits) ? displayUnits : 'auto';
+    return formatUnitValue(n, unit, decimals, suffix);
 }
 
 /**
  * Auto display-unit formatting: keeps the compact K/M scaling for large
  * values but honors the decimal-places cap, and shows raw decimals rather
- * than a surprise percentage for values below 1.
+ * than a surprise percentage for values below 1. A custom `post` suffix
+ * overrides the built-in K/M token (and is appended to small values too).
  */
-function formatAutoNumber(n: number, decimals?: number): string {
+function formatAutoNumber(
+    n: number,
+    decimals?: number,
+    post?: string,
+): string {
     const dp =
         typeof decimals === 'number' && isFinite(decimals) ? decimals : undefined;
     const abs = Math.abs(n);
-    const scaled = (value: number, suffix: string) =>
+    const scaled = (value: number, token: string) =>
         `${value.toLocaleString('en-US', {
             maximumFractionDigits: dp ?? 1,
-        })}${suffix}`;
+        })}${post ?? token}`;
     if (abs >= 1_000_000) return scaled(n / 1_000_000, 'M');
     if (abs >= 1_000) return scaled(n / 1_000, 'K');
-    return n.toLocaleString('en-US', { maximumFractionDigits: dp ?? 0 });
+    return `${n.toLocaleString('en-US', {
+        maximumFractionDigits: dp ?? 0,
+    })}${post ?? ''}`;
 }
 
 /**
@@ -2338,6 +2370,8 @@ export function formatCallout(
         displayUnits?: DisplayUnit;
         decimals?: number;
         valueFormat?: ValueFormat;
+        /** Custom suffix overriding the unit's built-in token. */
+        suffix?: string;
     },
     wf?: Pick<WellField, 'format'>,
     type: FieldType = 'number',
@@ -2358,27 +2392,7 @@ export function formatCallout(
         typeof style.decimals === 'number' && isFinite(style.decimals)
             ? style.decimals
             : undefined;
-    const fixed = (value: number, d: number | undefined) =>
-        value.toLocaleString('en-US', {
-            minimumFractionDigits: d ?? 0,
-            maximumFractionDigits: d ?? 0,
-        });
-    switch (unit) {
-        case 'none':
-            return fixed(n, decimals ?? 2);
-        case 'thousands':
-            return `${fixed(n / 1_000, decimals ?? 1)}K`;
-        case 'millions':
-            return `${fixed(n / 1_000_000, decimals ?? 1)}M`;
-        case 'billions':
-            return `${fixed(n / 1_000_000_000, decimals ?? 1)}B`;
-        case 'percent':
-            return `${(n * 100).toFixed(decimals ?? 1)}%`;
-        case 'currency':
-            return `$${fixed(n, decimals ?? 0)}`;
-        default:
-            return formatAutoNumber(n, decimals);
-    }
+    return formatUnitValue(n, unit, decimals, style.suffix);
 }
 
 export function normalizeFxFormat(input: unknown): FxFormat {
@@ -2431,6 +2445,8 @@ export function normalizeCalloutStyle(input: unknown): CalloutStyle {
                 : DEFAULT_CALLOUT.sourceSpacing,
         fx: normalizeFxFormat(value.fx),
     };
+    if (typeof value.suffix === 'string' && value.suffix.trim())
+        style.suffix = value.suffix.trim();
     if (typeof value.fontFamily === 'string' && value.fontFamily.trim())
         style.fontFamily = value.fontFamily.trim();
     if (typeof value.fontSize === 'number' && isFinite(value.fontSize))
@@ -2543,6 +2559,8 @@ export function normalizeAxisStyle(input: unknown): AxisStyle {
             ? value.displayUnits
             : DEFAULT_AXIS_STYLE.displayUnits,
     };
+    if (typeof value.suffix === 'string' && value.suffix.trim())
+        style.suffix = value.suffix.trim();
     if (typeof value.title === 'string') style.title = value.title;
     const titleFont = normalizeFontStyle(value.titleFont);
     if (titleFont) style.titleFont = titleFont;
@@ -2648,6 +2666,8 @@ export function normalizeDataLabelStyle(input: unknown): DataLabelStyle {
                 ? value.decimals
                 : DEFAULT_DATA_LABELS.decimals,
     };
+    if (typeof value.suffix === 'string' && value.suffix.trim())
+        style.suffix = value.suffix.trim();
     const font = normalizeFontStyle(value.font);
     if (font) style.font = font;
     if (value.seriesStyles && typeof value.seriesStyles === 'object') {
@@ -2841,7 +2861,7 @@ export function formatValue(value: unknown, type: FieldType = 'text'): string {
     if (type === 'number' && typeof value === 'number')
         return formatNumber(value);
     if (type === 'boolean')
-        return value === true ? 'Yes' : value === false ? 'No' : String(value);
+        return value === true ? 'Oui' : value === false ? 'Non' : String(value);
     if (type === 'date') {
         const parsed = value instanceof Date ? value : new Date(String(value));
         if (!Number.isNaN(parsed.getTime()))

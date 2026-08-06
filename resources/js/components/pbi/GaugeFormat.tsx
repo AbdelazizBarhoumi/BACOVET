@@ -70,7 +70,7 @@ function GaugeBoundRow({
             </div>
             {hasValue && !style.auto && (
                 <TextInput
-                    label="Format string"
+                    label="Chaîne de format"
                     value={style.format ?? ''}
                     placeholder="$#,##0"
                     onChange={(v) => onPatch({ format: v || undefined })}
@@ -95,14 +95,14 @@ function GaugeLabelSection({
     return (
         <Section title={title}>
             <Toggle
-                label="Show"
+                label="Afficher"
                 checked={style.show}
                 onChange={(v) => onPatch({ show: v })}
             />
             {style.show && (
                 <>
                     <Select
-                        label="Font family"
+                        label="Police"
                         value={style.fontFamily ?? ''}
                         options={FONT_OPTIONS}
                         onChange={(v) =>
@@ -111,33 +111,33 @@ function GaugeLabelSection({
                     />
                     <div className="grid grid-cols-2 gap-2">
                         <NumberInput
-                            label="Font size"
+                            label="Taille de police"
                             min={8}
                             max={96}
                             value={style.fontSize ?? 11}
                             onChange={(v) => onPatch({ fontSize: v })}
                         />
                         <ColorInput
-                            label="Color"
+                            label="Couleur"
                             value={style.color}
                             onChange={(v) => onPatch({ color: v })}
                         />
                     </div>
                     <Biu
-                        label="Font style"
+                        label="Style de police"
                         bold={style.bold}
                         italic={style.italic}
                         underline={style.underline}
                         onChange={(p) => onPatch(p)}
                     />
                     <ValueFormatControl
-                        label="Number format"
+                        label="Format numérique"
                         value={style.valueFormat ?? { auto: true }}
                         onChange={(vf) => onPatch({ valueFormat: vf })}
                     />
                     <ConditionalFormatControl
                         visual={visual}
-                        label={`fx — ${title} color`}
+                        label={`fx — couleur ${title}`}
                         value={normalizeConditionalFormat(style.fx)}
                         onCommit={(cf) => onPatch({ fx: cf })}
                         hideFieldValue
@@ -174,32 +174,32 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                 onPatch={(p) => updateVisual(visual.id, p)}
             />
 
-            <Section title="Gauge axis" defaultOpen>
+            <Section title="Axe de la jauge" defaultOpen>
                 <div className="text-muted-foreground">
-                    Min / Max / Target number formatting. Auto derives the
-                    display format from the field or typed value; off unlocks a
-                    custom format string.
+                    Format numérique Min / Max / Cible. Auto dérive le format
+                    d'affichage du champ ou de la valeur saisie ; désactivé,
+                    déverrouille une chaîne de format personnalisée.
                 </div>
                 {(
                     [
                         {
                             key: 'min',
                             title: 'Minimum',
-                            wellLabel: 'Minimum value',
+                            wellLabel: 'Valeur minimum',
                             field: visual.minimum[0],
                             constant: visual.minimumValue,
                         },
                         {
                             key: 'max',
                             title: 'Maximum',
-                            wellLabel: 'Maximum value',
+                            wellLabel: 'Valeur maximum',
                             field: visual.maximum[0],
                             constant: visual.maximumValue,
                         },
                         {
                             key: 'target',
-                            title: 'Target',
-                            wellLabel: 'Target value',
+                            title: 'Cible',
+                            wellLabel: 'Valeur cible',
                             field: visual.target[0],
                             constant: visual.targetValue,
                         },
@@ -219,29 +219,29 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                 )}
             </Section>
 
-            <Section title="Colors">
+            <Section title="Couleurs">
                 <div className="grid grid-cols-2 gap-2">
                     <ColorInput
-                        label="Fill color"
+                        label="Couleur de remplissage"
                         value={gauge.fillColor}
                         onChange={(v) => patchGauge({ fillColor: v })}
                     />
                     <ColorInput
-                        label="Target color"
+                        label="Couleur cible"
                         value={gauge.targetColor}
                         onChange={(v) => patchGauge({ targetColor: v })}
                     />
                 </div>
                 <ConditionalFormatControl
                     visual={visual}
-                    label="fx — Fill"
+                    label="fx — Remplissage"
                     value={normalizeConditionalFormat(gauge.fillFx)}
                     onCommit={(cf) => patchGauge({ fillFx: cf })}
                     hideFieldValue
                 />
                 <ConditionalFormatControl
                     visual={visual}
-                    label="fx — Target"
+                    label="fx — Cible"
                     value={normalizeConditionalFormat(gauge.targetFx)}
                     onCommit={(cf) => patchGauge({ targetFx: cf })}
                     hideFieldValue
@@ -249,7 +249,7 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
             </Section>
 
             <ToggleGroup
-                title="Data labels"
+                title="Étiquettes de données"
                 checked={gauge.dataLabels.show}
                 onToggle={(v) =>
                     patchGauge({
@@ -258,19 +258,19 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                 }
             >
                 <GaugeLabelSection
-                    title="Values"
+                    title="Valeurs"
                     style={gauge.dataLabels.values}
                     visual={visual}
                     onPatch={(p) => patchLabel('values', p)}
                 />
                 <GaugeLabelSection
-                    title="Target label"
+                    title="Étiquette cible"
                     style={gauge.dataLabels.targetLabel}
                     visual={visual}
                     onPatch={(p) => patchLabel('targetLabel', p)}
                 />
                 <GaugeLabelSection
-                    title="Callout value"
+                    title="Valeur principale"
                     style={gauge.dataLabels.callout}
                     visual={visual}
                     onPatch={(p) => patchLabel('callout', p)}

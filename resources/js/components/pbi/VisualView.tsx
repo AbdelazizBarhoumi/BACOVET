@@ -245,7 +245,7 @@ function valueAxisProps(
             fontFamily: visual.fontFamily,
         }),
         tickFormatter: (v: number) =>
-            formatDisplayUnitValue(v, axis.displayUnits, axis.decimals),
+            formatDisplayUnitValue(v, axis.displayUnits, axis.decimals, axis.suffix),
     };
     const label = axisTitle(axis, vertical, gutterWidth);
     if (label) props.label = label;
@@ -869,11 +869,13 @@ function ChartBody({
 
     const labelFormatter = (v: number) =>
         dataLabels.displayUnits !== 'auto' ||
+        dataLabels.suffix ||
         (dataLabels.decimals !== undefined && dataLabels.decimals !== null)
             ? formatDisplayUnitValue(
                   v,
                   dataLabels.displayUnits,
                   dataLabels.decimals,
+                  dataLabels.suffix,
               )
             : visualFmt(v, visual, visual.values[0]);
 
@@ -2585,22 +2587,25 @@ function SmartNarrative({
     return (
         <div className="h-full overflow-auto p-2 text-[11px] leading-relaxed text-foreground">
             <p>
-                <strong>{key}</strong> totalled{' '}
+                <strong>{key}</strong> totalise{' '}
                 <strong>{visualFmt(total, visual, visual.values[0])}</strong>{' '}
-                across {data.length}{' '}
-                {visual.axis[0] ? fieldLabel(visual.axis[0]) : 'categories'} and{' '}
-                {rows.length.toLocaleString()} rows in the current filter
-                context.
+                sur {data.length}{' '}
+                {visual.axis[0] ? fieldLabel(visual.axis[0]) : 'catégories'} et{' '}
+                {rows.length.toLocaleString()} lignes dans le contexte de filtre
+                actuel.
             </p>
             <p className="mt-2">
-                <strong>{top['category']}</strong> had the highest value at{' '}
+                <strong>{top['category']}</strong> a enregistré la valeur la
+                plus élevée, soit{' '}
                 {visualFmt(Number(top[key]), visual, visual.values[0])} (
-                {((Number(top[key]) / (total || 1)) * 100).toFixed(1)}% of
-                total), while <strong>{bottom['category']}</strong> was lowest
-                at {visualFmt(Number(bottom[key]), visual, visual.values[0])}.
+                {((Number(top[key]) / (total || 1)) * 100).toFixed(1)}% du
+                total), tandis que <strong>{bottom['category']}</strong> a été
+                la plus faible à{' '}
+                {visualFmt(Number(bottom[key]), visual, visual.values[0])}.
             </p>
             <p className="mt-2 text-muted-foreground">
-                Summary updates automatically as filters change.
+                Le résumé se met à jour automatiquement lorsque les filtres
+                changent.
             </p>
         </div>
     );
@@ -2611,7 +2616,7 @@ function KeyInfluencers({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const measure = visual.values[0];
     if (!dim || !measure)
         return (
-            <EmptyVisual label="Key influencers — add a field and a measure" />
+            <EmptyVisual label="Facteurs principaux — ajoutez un champ et une mesure" />
         );
     const groups = new Map<string, Row[]>();
     for (const r of rows) {
@@ -2625,8 +2630,8 @@ function KeyInfluencers({ visual, rows }: { visual: Visual; rows: Row[] }) {
     return (
         <div className="h-full overflow-auto p-1 text-[11px]">
             <p className="mb-2 text-muted-foreground">
-                What influences <strong>{measureLabel(measure)}</strong> to
-                increase?
+                Quels facteurs influencent <strong>{measureLabel(measure)}</strong> à
+                la hausse ?
             </p>
             {scored.slice(0, 8).map((s) => (
                 <div key={s.k} className="mb-1">
@@ -2656,7 +2661,7 @@ function DecompositionTree({ visual, rows }: { visual: Visual; rows: Row[] }) {
     ).map((f) => f.name);
     if (!measure || !levels.length)
         return (
-            <EmptyVisual label="Decomposition tree — add Explain by fields and a measure" />
+            <EmptyVisual label="Arbre de décomposition — ajoutez des champs d'explication et une mesure" />
         );
 
     let scoped = rows;
@@ -2823,7 +2828,7 @@ function MapVisual({
     onPointClick: (p: { category?: string | number }) => void;
 }) {
     const key = series[0];
-    if (!key) return <EmptyVisual label="Map — add a location and a measure" />;
+    if (!key) return <EmptyVisual label="Carte — ajoutez un emplacement et une mesure" />;
     const max = Math.max(...data.map((d) => Number(d[key]) || 0), 1);
     return (
         <div className="grid h-full grid-cols-3 content-start gap-1 overflow-auto rounded bg-muted/40 p-1">

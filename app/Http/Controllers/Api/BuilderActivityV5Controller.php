@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\BuilderActivityLogV5;
+use App\Models\V5User;
+use App\Support\V5PageAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -48,9 +50,16 @@ class BuilderActivityV5Controller extends Controller
 
     /**
      * Query endpoint — filterable + paginated trace table feed.
+     * Admin roles only.
      */
     public function index(Request $request): JsonResponse
     {
+        $user = auth()->guard('v5_users')->user();
+
+        if (! V5PageAccess::isAdmin($user)) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
+        }
+
         $query = BuilderActivityLogV5::with('user');
 
         if ($request->filled('page_id')) {
@@ -95,6 +104,24 @@ class BuilderActivityV5Controller extends Controller
 
         return response()->json(
             $query->orderByDesc('created_at')->paginate($request->integer('per_page', 50))
+        );
+    }
+
+    /**
+     * User dropdown options for the trace filter. Admin roles only.
+     */
+    public function users(Request $request): JsonResponse
+    {
+        $user = auth()->guard('v5_users')->user();
+
+        if (! V5PageAccess::isAdmin($user)) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
+        }
+
+        return response()->json(
+            V5User::select('id', 'name', 'role')
+                ->orderBy('name')
+                ->get()
         );
     }
 }

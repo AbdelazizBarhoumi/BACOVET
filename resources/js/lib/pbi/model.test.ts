@@ -532,6 +532,30 @@ describe('callout formatting', () => {
         ).toBe('$2,500');
     });
 
+    it('uses a custom callout suffix while keeping unit behavior', () => {
+        expect(
+            formatCallout(12_345, {
+                displayUnits: 'thousands',
+                decimals: 1,
+                suffix: 'kg',
+            }),
+        ).toBe('12.3kg');
+        expect(
+            formatCallout(2500, {
+                displayUnits: 'currency',
+                decimals: 0,
+                suffix: '€',
+            }),
+        ).toBe('2,500€');
+        expect(
+            formatCallout(0.5, {
+                displayUnits: 'percent',
+                decimals: 1,
+                suffix: '',
+            }),
+        ).toBe('50.0%');
+    });
+
     it('backfills missing numbers with an em dash', () => {
         expect(formatCallout(NaN, { displayUnits: 'auto', decimals: 1 })).toBe(
             '—',
@@ -547,8 +571,8 @@ describe('callout formatting', () => {
         expect(formatCallout('2026-08-02', style, undefined, 'date')).toContain(
             '2026',
         );
-        expect(formatCallout(true, style, undefined, 'boolean')).toBe('Yes');
-        expect(formatCallout(false, style, undefined, 'boolean')).toBe('No');
+        expect(formatCallout(true, style, undefined, 'boolean')).toBe('Oui');
+        expect(formatCallout(false, style, undefined, 'boolean')).toBe('Non');
         expect(formatCallout(null, style, undefined, 'text')).toBe('—');
         expect(formatCallout(12_345, style, undefined, 'number')).toBe('12.3K');
     });
@@ -638,6 +662,35 @@ describe('formatDisplayUnitValue — axis ticks / data labels', () => {
         expect(formatDisplayUnitValue(0.5, 'percent', 1)).toBe('50.0%');
         expect(formatDisplayUnitValue(4_200, 'none', 2)).toBe('4,200.00');
         expect(formatDisplayUnitValue(2500, 'currency', 0)).toBe('$2,500');
+    });
+
+    it('uses a custom suffix to override the built-in token', () => {
+        expect(formatDisplayUnitValue(12_345, 'thousands', 1, 'kW')).toBe(
+            '12.3kW',
+        );
+        expect(formatDisplayUnitValue(1_200_000, 'millions', 1, ' €')).toBe(
+            '1.2 €',
+        );
+        expect(formatDisplayUnitValue(2_500, 'auto', undefined, 'x')).toBe(
+            '2.5x',
+        );
+        expect(formatDisplayUnitValue(250, 'auto', undefined, 'x')).toBe(
+            '250x',
+        );
+    });
+
+    it('replaces percent and currency tokens with a custom postfix', () => {
+        expect(formatDisplayUnitValue(0.5, 'percent', 1, 'pts')).toBe('50.0pts');
+        expect(formatDisplayUnitValue(2500, 'currency', 0, '€')).toBe('2,500€');
+    });
+
+    it('treats an empty/whitespace suffix as the built-in token', () => {
+        expect(formatDisplayUnitValue(12_345, 'thousands', 1, '')).toBe(
+            '12.3K',
+        );
+        expect(formatDisplayUnitValue(2500, 'currency', 0, '   ')).toBe(
+            '$2,500',
+        );
     });
 
     it('renders non-finite values as an em dash', () => {

@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Plus,
     Copy,
@@ -9,6 +9,8 @@ import {
     FileText,
     Loader2,
     LogOut,
+    History,
+    Share2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -29,6 +31,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import ShareDialog from '@/components/v5/ShareDialog';
 import { useSidebarStructureV5 } from '@/lib/groups-registry-v5';
 import { usePagesRegistryV5 } from '@/lib/pages-registry-v5';
 
@@ -38,6 +41,9 @@ function getCsrfToken(): string {
 }
 
 export default function V5PageBuilder() {
+    const { props } = usePage();
+    const authRole = (props as unknown as { authRole?: string }).authRole;
+    const isSuperAdmin = authRole === 'it' || authRole === 'direction';
     const {
         pages,
         loading,
@@ -57,6 +63,10 @@ export default function V5PageBuilder() {
         group_id: number | null;
     } | null>(null);
     const [busy, setBusy] = useState(false);
+    const [sharing, setSharing] = useState<{
+        id: number;
+        name: string;
+    } | null>(null);
 
     const doCreate = async () => {
         setBusy(true);
@@ -109,12 +119,12 @@ export default function V5PageBuilder() {
 
     return (
         <div className="min-h-screen bg-background text-foreground">
-            <Head title="Pages Builder V5 — BACOVET" />
+            <Head title="Constructeur de pages V5 — BACOVET" />
             <div className="mx-auto max-w-5xl px-4 py-8">
                 <div className="mb-6 flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-black tracking-tight uppercase">
-                            Pages Builder V5
+                            Constructeur de pages V5
                         </h1>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Constructeur unifié — créez autant de tableaux de
@@ -122,6 +132,17 @@ export default function V5PageBuilder() {
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
+                        {isSuperAdmin && (
+                            <Link href="/v5/trace">
+                                <Button
+                                    variant="outline"
+                                    className="text-xs tracking-wider uppercase"
+                                >
+                                    <History className="mr-1.5 h-4 w-4" />
+                                    Traçabilité
+                                </Button>
+                            </Link>
+                        )}
                         <Button
                             onClick={() => setCreating(true)}
                             className="text-xs tracking-wider uppercase"
@@ -183,83 +204,111 @@ export default function V5PageBuilder() {
                                             ?.name ?? p.group_id}
                                     </div>
                                 )}
-                                <div className="flex flex-wrap gap-1.5">
-                                    <Link href={`/v5/p/${p.slug}`}>
+                                <div className="mt-auto flex flex-wrap items-center justify-between gap-1.5 border-t border-border pt-3">
+                                    <div className="flex flex-nowrap items-center gap-1.5">
+                                        <Link href={`/v5/p/${p.slug}`}>
+                                            <Button
+                                                size="sm"
+                                                className="h-7 text-[11px] tracking-wider uppercase"
+                                            >
+                                                <ExternalLink className="mr-1 h-3 w-3" />{' '}
+                                                Ouvrir
+                                            </Button>
+                                        </Link>
+                                        {p.can_edit && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-[11px]"
+                                                onClick={() =>
+                                                    setEditing({
+                                                        id: p.id,
+                                                        name: p.name,
+                                                        slug: p.slug,
+                                                        group_id: p.group_id,
+                                                    })
+                                                }
+                                            >
+                                                <Pencil className="mr-1 h-3 w-3" />{' '}
+                                                Éditer
+                                            </Button>
+                                        )}
                                         <Button
                                             size="sm"
-                                            className="h-7 text-[11px] tracking-wider uppercase"
-                                        >
-                                            <ExternalLink className="mr-1 h-3 w-3" />{' '}
-                                            Ouvrir
-                                        </Button>
-                                    </Link>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 text-[11px]"
-                                        onClick={() =>
-                                            setEditing({
-                                                id: p.id,
-                                                name: p.name,
-                                                slug: p.slug,
-                                                group_id: p.group_id,
-                                            })
-                                        }
-                                    >
-                                        <Pencil className="mr-1 h-3 w-3" />{' '}
-                                        Éditer
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 text-[11px]"
-                                        onClick={() => copyUrl(p.slug)}
-                                    >
-                                        <LinkIcon className="mr-1 h-3 w-3" />{' '}
-                                        URL
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 text-[11px]"
-                                        onClick={async () => {
-                                            setBusy(true);
-                                            const c = await duplicatePage(p.id);
-                                            setBusy(false);
-                                            if (c)
-                                                toast.success(
-                                                    `Dupliqué : ${c.name}`,
-                                                );
-                                        }}
-                                    >
-                                        <Copy className="mr-1 h-3 w-3" />{' '}
-                                        Dupliquer
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        className="ml-auto h-7 text-[11px]"
-                                        disabled={busy}
-                                        onClick={async () => {
-                                            if (
-                                                confirm(
-                                                    `Supprimer « ${p.name} » ? Cette action est irréversible.`,
-                                                )
-                                            ) {
+                                            variant="outline"
+                                            className="h-7 text-[11px]"
+                                            onClick={async () => {
                                                 setBusy(true);
-                                                const ok = await deletePage(
+                                                const c = await duplicatePage(
                                                     p.id,
                                                 );
                                                 setBusy(false);
-                                                if (ok)
+                                                if (c)
                                                     toast.success(
-                                                        'Page supprimée',
+                                                        `Dupliqué : ${c.name}`,
                                                     );
-                                            }
-                                        }}
-                                    >
-                                        <Trash2 className="h-3 w-3" />
-                                    </Button>
+                                            }}
+                                        >
+                                            <Copy className="mr-1 h-3 w-3" />{' '}
+                                            Dupliquer
+                                        </Button>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-[11px]"
+                                            onClick={() => copyUrl(p.slug)}
+                                        >
+                                            <LinkIcon className="mr-1 h-3 w-3" />{' '}
+                                            URL
+                                        </Button>
+                                        {p.can_manage && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-[11px]"
+                                                onClick={() =>
+                                                    setSharing({
+                                                        id: p.id,
+                                                        name: p.name,
+                                                    })
+                                                }
+                                            >
+                                                <Share2 className="mr-1 h-3 w-3" />{' '}
+                                                Partager
+                                            </Button>
+                                        )}
+                                        {p.can_edit && (
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                className="h-7 text-[11px]"
+                                                disabled={busy}
+                                                onClick={async () => {
+                                                    if (
+                                                        confirm(
+                                                            `Supprimer « ${p.name} » ? Cette action est irréversible.`,
+                                                        )
+                                                    ) {
+                                                        setBusy(true);
+                                                        const ok =
+                                                            await deletePage(
+                                                                p.id,
+                                                            );
+                                                        setBusy(false);
+                                                        if (ok)
+                                                            toast.success(
+                                                                'Page supprimée',
+                                                            );
+                                                    }
+                                                }}
+                                            >
+                                                <Trash2 className="mr-1 h-3 w-3" />{' '}
+                                                Supprimer
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -439,6 +488,12 @@ export default function V5PageBuilder() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <ShareDialog
+                open={!!sharing}
+                onOpenChange={(o) => !o && setSharing(null)}
+                pageId={sharing?.id ?? 0}
+                pageName={sharing?.name ?? ''}
+            />
         </div>
     );
 }

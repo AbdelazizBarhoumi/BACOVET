@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\BuilderActivityLogV5;
 use App\Models\BuilderPageV5;
+use App\Models\BuilderPageV5Access;
+use App\Models\V5User;
+use App\Support\V5PageAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -14,11 +17,38 @@ class BuilderPageV5Controller extends Controller
 {
     public function index(): JsonResponse
     {
-        $pages = BuilderPageV5::select('id', 'slug', 'name', 'group_id', 'created_at', 'updated_at')
-            ->orderBy('created_at')
-            ->get();
+        $user = auth()->guard('v5_users')->user();
 
-        return response()->json($pages);
+        $query = BuilderPageV5::select('id', 'slug', 'name', 'owner_user_id', 'group_id', 'created_at', 'updated_at')
+            ->with([
+                'owner:id,name',
+                'accessRows' => fn ($q) => $q->where('user_id', $user->id),
+            ])
+            ->orderBy('created_at');
+
+        if (! V5PageAccess::isAdmin($user)) {
+            $query->where(function ($q) use ($user) {
+                $q->where('owner_user_id', $user->id)
+                    ->orWhereHas('accessRows', fn ($a) => $a->where('user_id', $user->id));
+            });
+        }
+
+        $pages = $query->get();
+
+        return response()->json($pages->map(function ($page) use ($user) {
+            return [
+                'id' => $page->id,
+                'slug' => $page->slug,
+                'name' => $page->name,
+                'owner_user_id' => $page->owner_user_id,
+                'group_id' => $page->group_id,
+                'created_at' => $page->created_at,
+                'updated_at' => $page->updated_at,
+                'is_owner' => $page->owner_user_id === $user->id,
+                'can_edit' => V5PageAccess::canEdit($page, $user),
+                'can_manage' => V5PageAccess::canManage($page, $user),
+            ];
+        }));
     }
 
     public function show(string $slug): JsonResponse
@@ -27,6 +57,11 @@ class BuilderPageV5Controller extends Controller
 
         if (! $page) {
             return response()->json(['message' => 'Page not found'], 404);
+        }
+
+        $user = auth()->guard('v5_users')->user();
+        if (! V5PageAccess::canView($page, $user)) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
         return response()->json($page);
@@ -48,6 +83,7 @@ class BuilderPageV5Controller extends Controller
             'name' => $name,
             'layout' => null,
             'group_id' => $validated['group_id'] ?? null,
+            'owner_user_id' => auth()->guard('v5_users')->id(),
         ]);
 
         $this->logActivity('page.create', [
@@ -70,6 +106,10 @@ class BuilderPageV5Controller extends Controller
 
         if (! $page) {
             return response()->json(['message' => 'Page not found'], 404);
+        }
+
+        if (! V5PageAccess::canEdit($page, auth()->guard('v5_users')->user())) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
         $validated = $request->validate([
@@ -164,6 +204,10 @@ class BuilderPageV5Controller extends Controller
             return response()->json(['message' => 'Page not found'], 404);
         }
 
+        if (! V5PageAccess::canEdit($page, auth()->guard('v5_users')->user())) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
+        }
+
         $this->logActivity('page.delete', [
             'page_id' => $page->id,
             'page_slug' => $page->slug,
@@ -185,11 +229,16 @@ class BuilderPageV5Controller extends Controller
             return response()->json(['message' => 'Page not found'], 404);
         }
 
+        if (! V5PageAccess::canView($src, auth()->guard('v5_users')->user())) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
+        }
+
         $page = BuilderPageV5::create([
             'slug' => $this->uniqueSlug($src->slug.'-copy'),
             'name' => $src->name.' (copie)',
             'layout' => $src->layout,
             'group_id' => $src->group_id,
+            'owner_user_id' => auth()->guard('v5_users')->id(),
         ]);
 
         $this->logActivity('page.duplicate', [
@@ -212,6 +261,10 @@ class BuilderPageV5Controller extends Controller
 
         if (! $page) {
             return response()->json(['message' => 'Page not found'], 404);
+        }
+
+        if (! V5PageAccess::canEdit($page, auth()->guard('v5_users')->user())) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
         $validated = $request->validate([
@@ -239,6 +292,10 @@ class BuilderPageV5Controller extends Controller
             abort(404);
         }
 
+        if (! V5PageAccess::canView($page, auth()->guard('v5_users')->user())) {
+            abort(403);
+        }
+
         if (! preg_match('/^[a-z0-9_-]+\.(jpg|jpeg|png|gif|webp)$/i', $filename)) {
             abort(404);
         }
@@ -252,6 +309,89 @@ class BuilderPageV5Controller extends Controller
         return Storage::disk('public')->response($path, null, [
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
+    }
+
+    /**
+     * List every V5 user with the current access mode for a page.
+     * Only the page owner or an admin may manage permissions.
+     */
+    public function getPermissions(string $id): JsonResponse
+    {
+        $page = BuilderPageV5::find($id);
+
+        if (! $page) {
+            return response()->json(['message' => 'Page not found'], 404);
+        }
+
+        $user = auth()->guard('v5_users')->user();
+        if (! V5PageAccess::canManage($page, $user)) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
+        }
+
+        $modes = $page->accessRows->keyBy('user_id')->map->mode;
+
+        $users = V5User::select('id', 'name', 'email', 'role')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json($users->map(function ($u) use ($modes, $page) {
+            return [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'role' => $u->role,
+                'is_owner' => $page->owner_user_id === $u->id,
+                'is_admin' => V5PageAccess::isAdmin($u),
+                'mode' => $modes->get($u->id),
+            ];
+        }));
+    }
+
+    /**
+     * Persist the access modes chosen by an owner for the other users.
+     * Accepts [{user_id, mode: 'view'|'edit'|'none'}].
+     */
+    public function savePermissions(Request $request, string $id): JsonResponse
+    {
+        $page = BuilderPageV5::find($id);
+
+        if (! $page) {
+            return response()->json(['message' => 'Page not found'], 404);
+        }
+
+        $user = auth()->guard('v5_users')->user();
+        if (! V5PageAccess::canManage($page, $user)) {
+            return response()->json(['message' => 'Accès refusé.'], 403);
+        }
+
+        $validated = $request->validate([
+            'permissions' => 'array',
+            'permissions.*.user_id' => 'required|integer|exists:v5_users,id',
+            'permissions.*.mode' => 'required|in:view,edit,none',
+        ]);
+
+        foreach ($validated['permissions'] ?? [] as $entry) {
+            $userId = $entry['user_id'];
+            // The owner is never demoted through the sharing panel.
+            if ($userId === $page->owner_user_id || $userId === $user->id) {
+                continue;
+            }
+
+            if ($entry['mode'] === 'none') {
+                BuilderPageV5Access::where('page_id', $page->id)
+                    ->where('user_id', $userId)
+                    ->delete();
+
+                continue;
+            }
+
+            BuilderPageV5Access::updateOrCreate(
+                ['page_id' => $page->id, 'user_id' => $userId],
+                ['mode' => $entry['mode']],
+            );
+        }
+
+        return response()->json(['message' => 'Permissions mises à jour.']);
     }
 
     private function uniqueSlug(string $base, $exceptId = null): string

@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import ColorPicker, { themes } from 'react-pick-color';
 import {
@@ -15,25 +15,69 @@ import {
 import { cn } from '@/lib/utils';
 
 export const FONT_OPTIONS = [
-    { value: '', label: 'Report font' },
+    { value: '', label: 'Police du rapport' },
     { value: 'ui-sans-serif, system-ui, sans-serif', label: 'Sans-serif' },
     { value: "Georgia, 'Times New Roman', serif", label: 'Serif' },
     { value: 'ui-monospace, monospace', label: 'Monospace' },
 ];
 
 export const HEADINGS: { value: TitleStyle['heading']; label: string }[] = [
-    { value: 'none', label: 'None' },
+    { value: 'none', label: 'Aucun' },
     { value: 'h1', label: 'H1' },
     { value: 'h2', label: 'H2' },
     { value: 'h3', label: 'H3' },
     { value: 'h4', label: 'H4' },
 ];
 
-export const ALIGNS: { value: 'left' | 'center' | 'right'; label: string }[] = [
-    { value: 'left', label: 'Left' },
-    { value: 'center', label: 'Center' },
-    { value: 'right', label: 'Right' },
+type Align = 'left' | 'center' | 'right';
+
+export const ALIGNS: { value: Align; icon: typeof AlignLeft; label: string }[] = [
+    { value: 'left', icon: AlignLeft, label: 'Aligné à gauche' },
+    { value: 'center', icon: AlignCenter, label: 'Centré' },
+    { value: 'right', icon: AlignRight, label: 'Aligné à droite' },
 ];
+
+/** Alignment segmented control (Power BI Fluent style). */
+export function AlignControls({
+    label,
+    value,
+    options = ALIGNS,
+    onChange,
+}: {
+    label: string;
+    value: Align;
+    options?: typeof ALIGNS;
+    onChange: (v: Align) => void;
+}) {
+    return (
+        <div className="space-y-1">
+            <span className="mb-1 block text-muted-foreground">{label}</span>
+            <div className="flex" role="group" aria-label={label}>
+                {options.map(({ value: v, icon: Icon, label: iconLabel }) => {
+                    const on = value === v;
+                    return (
+                        <button
+                            key={v}
+                            type="button"
+                            onClick={() => onChange(v)}
+                            aria-pressed={on}
+                            title={iconLabel}
+                            className={cn(
+                                'h-7 w-7 flex items-center justify-center border transition-colors',
+                                'first:rounded-l-sm last:rounded-r-sm -ml-px first:ml-0',
+                                on
+                                    ? 'relative z-10 border-[#0078D4] bg-[#EFF6FC] text-[#0078D4]'
+                                    : 'border-[#8A8886] bg-white text-[#323130] hover:bg-[#F3F2F1]',
+                            )}
+                        >
+                            <Icon className="h-4 w-4" strokeWidth={1.75} />
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
 
 export const HEX_FALLBACK = '#000000';
 
@@ -187,7 +231,7 @@ export function ValueFormatControl({
             </div>
             {active && (
                 <TextInput
-                    label="Format string"
+                    label="Chaîne de format"
                     value={value.format ?? ''}
                     placeholder="$#,##0"
                     onChange={(format) => onChange({ ...value, format })}
@@ -259,7 +303,7 @@ export function ColorInput({
                             className,
                         )}
                         style={{ backgroundColor: safe }}
-                        aria-label={ariaLabel ?? label ?? 'Pick a color'}
+                        aria-label={ariaLabel ?? label ?? 'Choisir une couleur'}
                     />
                 </PopoverTrigger>
                 <PopoverContent
@@ -358,7 +402,7 @@ export function Biu({
     return (
         <div>
             <span className="mb-1 block text-muted-foreground">{label}</span>
-            <div className="flex gap-1">
+            <div className="flex">
                 {(
                     [
                         ['bold', 'B'],
@@ -377,9 +421,18 @@ export function Biu({
                             key={key}
                             type="button"
                             onClick={() => onChange({ [key]: !on })}
+                            aria-pressed={!!on}
+                            title={key}
                             className={cn(
-                                'h-6 flex-1 rounded border border-border text-[11px]',
-                                on && 'bg-brand/15 text-brand',
+                                'h-7 w-7 flex items-center justify-center border text-[12px] transition-colors',
+                                'first:rounded-l-sm last:rounded-r-sm -ml-px first:ml-0',
+                                key === 'bold' && 'font-bold',
+                                key === 'italic' && 'italic',
+                                key === 'underline' &&
+                                    'underline underline-offset-2',
+                                on
+                                    ? 'relative z-10 border-[#0078D4] bg-[#EFF6FC] text-[#0078D4]'
+                                    : 'border-[#8A8886] bg-white text-[#323130] hover:bg-[#F3F2F1]',
                             )}
                         >
                             {glyph}
@@ -418,28 +471,28 @@ export function FontStyleControls({
     return (
         <div className="rounded border border-border p-2">
             <Select
-                label={`${label} — font family`}
+                label={`${label} — police`}
                 value={font?.fontFamily ?? ''}
                 options={FONT_OPTIONS}
                 onChange={(v) => onChange({ fontFamily: v || undefined })}
             />
             <div className="mt-2 grid grid-cols-2 gap-2">
                 <NumberInput
-                    label="Font size"
+                    label="Taille de police"
                     min={8}
                     max={48}
                     value={font?.fontSize ?? 11}
                     onChange={(v) => onChange({ fontSize: v })}
                 />
                 <ColorInput
-                    label="Color"
+                    label="Couleur"
                     value={font?.color}
                     onChange={(v) => onChange({ color: v })}
                 />
             </div>
             <div className="mt-2">
                 <Biu
-                    label="Font style"
+                    label="Style de police"
                     bold={font?.bold}
                     italic={font?.italic}
                     underline={font?.underline}
@@ -486,7 +539,7 @@ export function ToggleGroup({
                     type="button"
                     onClick={() => setOpen((o) => !o)}
                     className="text-muted-foreground hover:text-foreground"
-                    aria-label={open ? 'Collapse' : 'Expand'}
+                    aria-label={open ? 'Réduire' : 'Déplier'}
                 >
                     <ChevronDown
                         className={cn(
@@ -515,24 +568,24 @@ export function GeneralSection({
     onPatch: (patch: Partial<Visual>) => void;
 }) {
     return (
-        <Section title="General">
+        <Section title="Général">
             <ColorInput
-                label="Background"
+                label="Arrière-plan"
                 value={visual.background}
                 onChange={(v) => onPatch({ background: v })}
             />
             <Toggle
-                label="Border"
+                label="Bordure"
                 checked={visual.border}
                 onChange={(v) => onPatch({ border: v })}
             />
             <Toggle
-                label="Shadow"
+                label="Ombre"
                 checked={visual.shadow}
                 onChange={(v) => onPatch({ shadow: v })}
             />
             <TextInput
-                label="Alt text (accessibility)"
+                label="Texte alternatif (accessibilité)"
                 value={visual.altText}
                 onChange={(v) => onPatch({ altText: v })}
             />
@@ -542,9 +595,9 @@ export function GeneralSection({
                         key={k}
                         label={
                             k === 'w'
-                                ? 'Width'
+                                ? 'Largeur'
                                 : k === 'h'
-                                  ? 'Height'
+                                  ? 'Hauteur'
                                   : `${k.toUpperCase()} px`
                         }
                         value={visual[k]}
@@ -598,14 +651,14 @@ export function TitleSection({
     const patchTitle = (patch: Partial<TitleStyle>) =>
         onPatch({ titleStyle: { ...title, ...patch } });
     return (
-        <Section title="Title" defaultOpen>
+        <Section title="Titre" defaultOpen>
             <TextInput
-                label="Text"
+                label="Texte"
                 value={visual.title}
                 onChange={(v) => onPatch({ title: v })}
             />
             <Select
-                label="Heading style"
+                label="Style de titre"
                 value={title.heading}
                 options={HEADINGS}
                 onChange={(v) =>
@@ -613,50 +666,49 @@ export function TitleSection({
                 }
             />
             <Select
-                label="Font family"
+                label="Police"
                 value={visual.fontFamily ?? ''}
                 options={FONT_OPTIONS}
                 onChange={(v) => onPatch({ fontFamily: v || undefined })}
             />
-            <Biu
-                label="Font style"
-                bold={title.bold}
-                italic={title.italic}
-                underline={title.underline}
-                onChange={(p) => patchTitle(p)}
-            />
+            <div className="grid grid-cols-2 gap-2">
+                <Biu
+                    label="Style de police"
+                    bold={title.bold}
+                    italic={title.italic}
+                    underline={title.underline}
+                    onChange={(p) => patchTitle(p)}
+                />
+                <AlignControls
+                    label="Alignement horizontal"
+                    value={title.align ?? 'center'}
+                    onChange={(v) => patchTitle({ align: v })}
+                />
+            </div>
             <div className="grid grid-cols-2 gap-2">
                 <ColorInput
-                    label="Text color"
+                    label="Couleur du texte"
                     value={title.color}
                     onChange={(v) => patchTitle({ color: v })}
                 />
                 <ColorInput
-                    label="Background color"
+                    label="Couleur d'arrière-plan"
                     value={title.background}
                     onChange={(v) => patchTitle({ background: v })}
                 />
             </div>
             <OptionalNumberInput
-                label="Font size"
+                label="Taille de police"
                 value={title.fontSize}
                 onChange={(v) => patchTitle({ fontSize: v })}
             />
-            <Select
-                label="Horizontal alignment"
-                value={title.align ?? 'center'}
-                options={ALIGNS}
-                onChange={(v) =>
-                    patchTitle({ align: v as 'left' | 'center' | 'right' })
-                }
-            />
             <Toggle
-                label="Text wrap"
+                label="Renvoi à la ligne"
                 checked={title.textWrap ?? false}
                 onChange={(v) => patchTitle({ textWrap: v })}
             />
             <Toggle
-                label="Show title"
+                label="Afficher le titre"
                 checked={visual.showTitle}
                 onChange={(v) => onPatch({ showTitle: v })}
             />

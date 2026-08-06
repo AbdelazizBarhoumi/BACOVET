@@ -20,7 +20,7 @@ return new class extends Migration
         });
 
         DB::table('v4_users')->insert([
-            ['email' => 'superadmin@bacovet.com', 'name' => 'Super admin', 'role' => 'it', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 'superadmin@novationcity.com', 'name' => 'Super admin', 'role' => 'it', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
             ['email' => 'direction@bacovet.com', 'name' => 'Direction', 'role' => 'direction', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
             ['email' => 'resp.production@bacovet.com', 'name' => 'Resp. Production', 'role' => 'resp_production', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
             ['email' => 'qualite@bacovet.com', 'name' => 'Qualité', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],

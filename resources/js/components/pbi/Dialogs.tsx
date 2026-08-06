@@ -1,5 +1,6 @@
 import { AlertTriangle, Folder, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
     BRACKET_MATCH_CLASS,
@@ -36,8 +37,8 @@ function Modal({
     children: React.ReactNode;
 }) {
     if (!open) return null;
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4">
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-foreground/40 p-4">
             <div
                 className={cn(
                     'flex max-h-[85vh] w-full flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl',
@@ -55,7 +56,8 @@ function Modal({
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto">{children}</div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
 
@@ -528,10 +530,10 @@ export function DaxDialog({
             (s) => s.kind === 'column' || s.kind === 'measure',
         );
         const cols: { title: string; items: DaxSuggestion[] }[] = [];
-        if (fn.length) cols.push({ title: 'Functions', items: fn });
-        if (tb.length) cols.push({ title: 'Datasets', items: tb });
+        if (fn.length) cols.push({ title: 'Fonctions', items: fn });
+        if (tb.length) cols.push({ title: 'Jeux de données', items: tb });
         if (rest.length)
-            cols.push({ title: 'Columns & Measures', items: rest });
+            cols.push({ title: 'Colonnes et mesures', items: rest });
         return cols;
     }, [suggestions]);
 
@@ -579,8 +581,8 @@ export function DaxDialog({
         const eq = expr.indexOf('=');
         const name = (eq >= 0 ? expr.slice(0, eq) : expr).trim();
         const formula = (eq >= 0 ? expr.slice(eq + 1) : expr).trim();
-        if (!name) return 'Enter a measure name before the = sign';
-        if (!formula) return 'Enter a DAX formula after the = sign';
+        if (!name) return "Saisissez un nom de mesure avant le signe =";
+        if (!formula) return "Saisissez une formule DAX après le signe =";
         const columns = tables.flatMap((t) => t.fields.map((f) => f.name));
         const result = validateMeasureExpression(
             formula,
@@ -923,7 +925,7 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                                                 </span>
                                                 {builtin && (
                                                     <span className="shrink-0 text-[10px] text-muted-foreground">
-                                                        built-in
+                                                        Intégrée
                                                     </span>
                                                 )}
                                                 {error && (

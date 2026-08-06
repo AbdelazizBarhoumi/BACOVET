@@ -19,6 +19,7 @@ import {
     Undo2,
     Redo2,
     ZoomIn,
+    Share2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -38,6 +39,7 @@ import {
 import { Ribbon } from '@/components/pbi/Ribbon';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
+import ShareDialog from '@/components/v5/ShareDialog';
 import {
     buildTables,
     fetchEndpointDatasets,
@@ -54,6 +56,7 @@ import type { Interaction } from '@/lib/pbi/model';
 import { PbiProvider, usePbi, type State } from '@/lib/pbi/store';
 import { themeById, themeCssVars } from '@/lib/pbi/themes';
 import { cn } from '@/lib/utils';
+import { logV5Activity, setV5PageContext } from '@/lib/v5-activity';
 import { getV5CsrfToken, handleV5Error, statusOfError } from '@/lib/v5-session';
 import { fetchV5Schema } from '@/services/endpointManagerApi';
 
@@ -64,6 +67,8 @@ type PageProps = {
     layout: { version?: number; pbi?: State } | null;
     layoutDraft?: { version?: number; pbi?: State } | null;
     layoutDraftUpdatedAt?: string | null;
+    canEdit?: boolean;
+    canManage?: boolean;
 };
 
 /** A layout snapshot as persisted: the store state minus the shared measures. */
@@ -115,10 +120,28 @@ export default function V5PageView() {
         layout,
         layoutDraft,
         layoutDraftUpdatedAt,
+        canEdit,
+        canManage,
     } = props as unknown as PageProps;
 
     const initialState = useMemo(() => parseInitialState(layout), [layout]);
     const [dirty, setDirty] = useState(false);
+
+    // Trace who opened this page (and where from) so superadmins can audit
+    // viewership. Fire-and-forget: never blocks the render.
+    useEffect(() => {
+        setV5PageContext({
+            page_id: pageId,
+            page_slug: slug,
+            page_name: pageName,
+        });
+        logV5Activity('page.view', {
+            page_id: pageId,
+            page_slug: slug,
+            page_name: pageName,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     // Bumped on every persistence-relevant edit, so the autosave can debounce
     // against the last real interaction rather than a fixed interval.
     const [editTick, setEditTick] = useState(0);
@@ -285,6 +308,8 @@ export default function V5PageView() {
                     editTick={editTick}
                     layoutDraft={layoutDraft}
                     layoutDraftUpdatedAt={layoutDraftUpdatedAt}
+                    canEdit={canEdit}
+                    canManage={canManage}
                 />
             </PbiProvider>
             <Toaster />
@@ -301,6 +326,8 @@ function Shell({
     editTick,
     layoutDraft,
     layoutDraftUpdatedAt,
+    canEdit,
+    canManage,
 }: {
     pageId: number;
     slug: string;
@@ -310,10 +337,14 @@ function Shell({
     editTick: number;
     layoutDraft?: PageProps['layoutDraft'];
     layoutDraftUpdatedAt?: string | null;
+    canEdit?: boolean;
+    canManage?: boolean;
 }) {
     const { state, setState, undo, redo, canUndo, canRedo, fullscreen } =
         usePbi();
     const [mode, setMode] = useState<'view' | 'edit'>('view');
+    const canEditPage = canEdit ?? true;
+    const [sharing, setSharing] = useState(false);
     const savingRef = useRef(false);
     const draftSavingRef = useRef(false);
     const [checkpointAt, setCheckpointAt] = useState<string | null>(() =>
@@ -516,6 +547,16 @@ function Shell({
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                    {canManage && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-[11px]"
+                            onClick={() => setSharing(true)}
+                        >
+                            <Share2 className="mr-1 h-3.5 w-3.5" /> Partager
+                        </Button>
+                    )}
                     {mode === 'edit' ? (
                         <>
                             <Button
@@ -563,20 +604,22 @@ function Shell({
                     ) : (
                         <>
                             <ExportMenu />
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-[11px]"
-                                onClick={() => setMode('edit')}
-                            >
-                                <Pencil className="mr-1 h-3.5 w-3.5" /> Modifier
-                            </Button>
+                            {canEditPage && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-[11px]"
+                                    onClick={() => setMode('edit')}
+                                >
+                                    <Pencil className="mr-1 h-3 w-3" /> Modifier
+                                </Button>
+                            )}
                         </>
                     )}
                 </div>
             </header>
 
-            {showDraftBanner && (
+            {showDraftBanner && canEditPage && (
                 <div className="flex items-center justify-between gap-3 border-b border-border bg-brand/15 px-3 py-1.5 text-[11px] text-foreground">
                     <span>
                         {checkpointAt
@@ -601,6 +644,12 @@ function Shell({
             )}
 
             {mode === 'view' ? <ViewBody /> : <EditBody />}
+            <ShareDialog
+                open={sharing}
+                onOpenChange={setSharing}
+                pageId={pageId}
+                pageName={pageName}
+            />
         </div>
     );
 }
@@ -761,7 +810,11 @@ function EditBody() {
                                             : 'hover:bg-accent',
                                     )}
                                 >
-                                    {m}
+                                    {m === 'filter'
+                                        ? 'Filtre'
+                                        : m === 'highlight'
+                                          ? 'Surbrillance'
+                                          : 'Aucune'}
                                 </button>
                             ),
                         )}

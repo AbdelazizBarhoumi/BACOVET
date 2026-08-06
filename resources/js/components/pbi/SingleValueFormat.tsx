@@ -23,12 +23,12 @@ import {
 
 const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
     auto: 'Auto',
-    none: 'None',
-    thousands: 'Thousands (K)',
+    none: 'Aucune',
+    thousands: 'Milliers (K)',
     millions: 'Millions (M)',
-    billions: 'Billions (B)',
-    percent: 'Percent (%)',
-    currency: 'Currency ($)',
+    billions: 'Milliards (B)',
+    percent: 'Pourcentage (%)',
+    currency: 'Devise ($)',
 };
 
 /** The format tab for card / kpi / gauge: callout, label, title, general. */
@@ -48,9 +48,9 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
 
     return (
         <div className="space-y-3 text-[11px]">
-            <Section title="Callout value" defaultOpen>
+            <Section title="Valeur principale" defaultOpen>
                 <Select
-                    label="Font family"
+                    label="Police"
                     value={callout.fontFamily ?? ''}
                     options={FONT_OPTIONS}
                     onChange={(v) =>
@@ -59,50 +59,60 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                 />
                 <div className="grid grid-cols-2 gap-2">
                     <NumberInput
-                        label="Font size"
+                        label="Taille de police"
                         min={8}
                         max={96}
                         value={callout.fontSize ?? 24}
                         onChange={(v) => patchCallout({ fontSize: v })}
                     />
                     <ColorInput
-                        label="Color"
+                        label="Couleur"
                         value={callout.color}
                         onChange={(v) => patchCallout({ color: v })}
                     />
                 </div>
                 <Biu
-                    label="Font style"
+                    label="Style de police"
                     bold={callout.bold}
                     italic={callout.italic}
                     underline={callout.underline}
                     onChange={(p) => patchCallout(p)}
                 />
-                <Select
-                    label="Display units"
-                    value={callout.displayUnits}
-                    options={DISPLAY_UNITS.map((u) => ({
-                        value: u,
-                        label: DISPLAY_UNIT_LABELS[u],
-                    }))}
-                    onChange={(v) =>
-                        patchCallout({ displayUnits: v as DisplayUnit })
-                    }
-                />
+                <div className="grid grid-cols-2 gap-2">
+                    <Select
+                        label="Unités d'affichage"
+                        value={callout.displayUnits}
+                        options={DISPLAY_UNITS.map((u) => ({
+                            value: u,
+                            label: DISPLAY_UNIT_LABELS[u],
+                        }))}
+                        onChange={(v) =>
+                            patchCallout({ displayUnits: v as DisplayUnit })
+                        }
+                    />
+                    <TextInput
+                        label="Suffixe"
+                        placeholder="ex. kW"
+                        value={callout.suffix ?? ''}
+                        onChange={(v) =>
+                            patchCallout({ suffix: v.trim() || undefined })
+                        }
+                    />
+                </div>
                 <NumberInput
-                    label="Value decimal places"
+                    label="Décimales des valeurs"
                     min={0}
                     max={10}
                     value={callout.decimals ?? 1}
                     onChange={(v) => patchCallout({ decimals: v })}
                 />
                 <Toggle
-                    label="Text wrap"
+                    label="Renvoi à la ligne"
                     checked={callout.textWrap ?? false}
                     onChange={(v) => patchCallout({ textWrap: v })}
                 />
                 <Toggle
-                    label="Source spacing"
+                    label="Espacement de la source"
                     checked={callout.sourceSpacing ?? false}
                     onChange={(v) => patchCallout({ sourceSpacing: v })}
                 />
@@ -110,16 +120,16 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                 <ConditionalFormatControl visual={visual} />
             </Section>
 
-            <Section title="Category label" defaultOpen>
+            <Section title="Étiquette de catégorie" defaultOpen>
                 <Toggle
-                    label="Show label"
+                    label="Afficher l'étiquette"
                     checked={category.show}
                     onChange={(v) => patchCategory({ show: v })}
                 />
                 {category.show && (
                     <>
                         <Select
-                            label="Font family"
+                            label="Police"
                             value={category.fontFamily ?? ''}
                             options={FONT_OPTIONS}
                             onChange={(v) =>
@@ -128,20 +138,20 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                         />
                         <div className="grid grid-cols-2 gap-2">
                             <NumberInput
-                                label="Font size"
+                                label="Taille de police"
                                 min={8}
                                 max={48}
                                 value={category.fontSize ?? 11}
                                 onChange={(v) => patchCategory({ fontSize: v })}
                             />
                             <ColorInput
-                                label="Color"
+                                label="Couleur"
                                 value={category.color}
                                 onChange={(v) => patchCategory({ color: v })}
                             />
                         </div>
                         <Biu
-                            label="Font style"
+                            label="Style de police"
                             bold={category.bold}
                             italic={category.italic}
                             underline={category.underline}
@@ -156,24 +166,24 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                 onPatch={(p) => updateVisual(visual.id, p)}
             />
 
-            <Section title="General">
+            <Section title="Général">
                 <ColorInput
-                    label="Background"
+                    label="Arrière-plan"
                     value={visual.background}
                     onChange={(v) => updateVisual(visual.id, { background: v })}
                 />
                 <Toggle
-                    label="Border"
+                    label="Bordure"
                     checked={visual.border}
                     onChange={(v) => updateVisual(visual.id, { border: v })}
                 />
                 <Toggle
-                    label="Shadow"
+                    label="Ombre"
                     checked={visual.shadow}
                     onChange={(v) => updateVisual(visual.id, { shadow: v })}
                 />
                 <TextInput
-                    label="Alt text (accessibility)"
+                    label="Texte alternatif (accessibilité)"
                     value={visual.altText}
                     onChange={(v) => updateVisual(visual.id, { altText: v })}
                 />
@@ -183,9 +193,9 @@ export function SingleValueFormat({ visual }: { visual: Visual }) {
                             key={k}
                             label={
                                 k === 'w'
-                                    ? 'Width'
+                                    ? 'Largeur'
                                     : k === 'h'
-                                      ? 'Height'
+                                      ? 'Hauteur'
                                       : `${k.toUpperCase()} px`
                             }
                             value={visual[k]}

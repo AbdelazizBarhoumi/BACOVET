@@ -8,6 +8,7 @@ import {
     useState,
     type ReactNode,
 } from 'react';
+import { logV5WidgetActivity } from '@/lib/v5-activity';
 import {
     createMeasure as apiCreateMeasure,
     deleteMeasure as apiDeleteMeasure,
@@ -1230,17 +1231,18 @@ export function PbiProvider({
                 type === 'gauge' ? 280 : big ? 260 : 420,
                 type === 'gauge' ? 180 : big ? 130 : 260,
                 {
-                    title: type === 'text' ? 'Text box' : '',
+                    title: type === 'text' ? 'Zone de texte' : '',
                     text:
                         type === 'text'
-                            ? 'Text'
+                            ? 'Texte'
                             : type === 'button'
-                              ? 'Button'
+                              ? 'Bouton'
                               : undefined,
                 },
             );
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
+            logV5WidgetActivity('widget.add', { id: v.id, type: type as string });
             return v.id;
         },
         [mapVisuals, setState],
@@ -1258,6 +1260,10 @@ export function PbiProvider({
             });
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
+            logV5WidgetActivity('widget.add', {
+                id: v.id,
+                type: `shape:${kind}`,
+            });
         },
         [mapVisuals, setState],
     );
@@ -1534,6 +1540,15 @@ export function PbiProvider({
         updateVisual,
         removeVisual: (id) =>
             setState((s) => {
+                const removed = s.pages
+                    .find((p) => p.id === s.activePageId)
+                    ?.visuals.find((v) => v.id === id);
+                if (removed) {
+                    logV5WidgetActivity('widget.delete', {
+                        id: removed.id,
+                        type: removed.type ?? '',
+                    });
+                }
                 const selectedIds = (s.selectedIds ?? []).filter(
                     (x) => x !== id,
                 );
@@ -1562,11 +1577,16 @@ export function PbiProvider({
                 const v = vs.find((x) => x.id === id);
                 if (!v) return vs;
                 zTop += 1;
+                const copyId = uid();
+                logV5WidgetActivity('widget.duplicate', {
+                    id: copyId,
+                    type: v.type ?? '',
+                });
                 return [
                     ...vs,
                     {
                         ...v,
-                        id: uid(),
+                        id: copyId,
                         x: v.x + 24,
                         y: v.y + 24,
                         z: zTop,

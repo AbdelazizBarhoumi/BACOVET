@@ -106,23 +106,23 @@ describe('buildChartData — empty data handling', () => {
     });
 });
 
-describe('buildChartData — maxCategories cap rolls into Other', () => {
-    it('keeps top-N categories and aggregates the rest into Other', () => {
+describe('buildChartData — maxCategories cap rolls into Autre', () => {
+    it('keeps top-N categories and aggregates the rest into Autre', () => {
         const rows = Array.from({ length: 100 }, (_, i) => ({
             Region: `R${String(i % 10).padStart(2, '0')}`,
             Amount: i,
         }));
         const { data } = buildChartData(rows, [field('Region')], [], [field('Amount')], [], 4);
         expect(data).toHaveLength(5);
-        const other = data.find((d) => d['category'] === 'Other')!;
+        const other = data.find((d) => d['category'] === 'Autre')!;
         expect(other['Somme de Amount']).toBeGreaterThan(0);
-        const categories = data.map((d) => d['category']).filter((c) => c !== 'Other');
+        const categories = data.map((d) => d['category']).filter((c) => c !== 'Autre');
         expect(categories.length).toBe(4);
     });
 
     it('leaves data untouched when under the cap', () => {
         const { data } = buildChartData(sales.rows, [field('Region')], [], [field('Amount')], [], 100);
-        expect(data.some((d) => d['category'] === 'Other')).toBe(false);
+        expect(data.some((d) => d['category'] === 'Autre')).toBe(false);
         expect(data).toHaveLength(2);
     });
 });

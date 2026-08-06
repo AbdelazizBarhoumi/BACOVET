@@ -114,5 +114,5 @@ export function iconSizeForDensity(
 }
 
 export function iconSetLabel(set: CFIconSet | undefined): string {
-    return set?.label ?? 'Icons';
+    return set?.label ?? 'Icônes';
 }

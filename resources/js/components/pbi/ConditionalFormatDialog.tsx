@@ -46,40 +46,40 @@ import { ColorInput } from './formatControls';
 import { IconPicker, IconSetPicker } from './IconPicker';
 
 const STYLE_OPTIONS: { value: ConditionalFormat['style']; label: string }[] = [
-    { value: 'none', label: 'None' },
-    { value: 'gradient', label: 'Gradient' },
-    { value: 'rules', label: 'Rules' },
-    { value: 'icons', label: 'Icons' },
-    { value: 'fieldValue', label: 'Field value' },
+    { value: 'none', label: 'Aucun' },
+    { value: 'gradient', label: 'Dégradé' },
+    { value: 'rules', label: 'Règles' },
+    { value: 'icons', label: 'Icônes' },
+    { value: 'fieldValue', label: 'Valeur de champ' },
 ];
 
 const BOUND_LABELS: Record<CfBoundType, string> = {
-    none: 'None',
-    lowest: 'Lowest value',
-    highest: 'Highest value',
-    number: 'Number',
-    percent: 'Percent',
-    percentile: 'Percentile',
+    none: 'Aucun',
+    lowest: 'Valeur la plus basse',
+    highest: 'Valeur la plus haute',
+    number: 'Nombre',
+    percent: 'Pourcentage',
+    percentile: 'Centile',
 };
 
 const COMPARATOR_LABELS: Record<CfComparator, string> = {
-    between: 'between',
-    greaterThan: 'greater than',
-    lessThan: 'less than',
-    greaterThanOrEqual: 'greater than or equal to',
-    lessThanOrEqual: 'less than or equal to',
+    between: 'entre',
+    greaterThan: 'supérieur à',
+    lessThan: 'inférieur à',
+    greaterThanOrEqual: 'supérieur ou égal à',
+    lessThanOrEqual: 'inférieur ou égal à',
 };
 
 const CONDITION_LABELS: Record<CfRuleCondition, string> = {
-    is: 'is',
-    isBlank: 'is blank',
-    isNotBlank: 'is not blank',
+    is: 'est',
+    isBlank: 'est vide',
+    isNotBlank: "n'est pas vide",
 };
 
 const VALUE_TYPE_LABELS: Record<CfValueType, string> = {
-    number: 'Number',
-    percent: 'Percent',
-    percentile: 'Percentile',
+    number: 'Nombre',
+    percent: 'Pourcentage',
+    percentile: 'Centile',
 };
 
 /** shadcn/Radix wrapper exposing the same API as the old native <select>. */
@@ -192,7 +192,7 @@ function BoundEditor({
                 />
                 <div className="w-9 pb-0.5">
                     <span className="mb-1 block text-[11px] text-muted-foreground">
-                        Color
+                        Couleur
                     </span>
                     <ColorInput
                         value={bound.color}
@@ -203,7 +203,7 @@ function BoundEditor({
             </div>
             {['number', 'percent', 'percentile'].includes(bound.type) && (
                 <NumberInput
-                    label="Value"
+                    label="Valeur"
                     value={bound.value ?? 0}
                     onChange={(v) => onChange({ value: v })}
                 />
@@ -266,13 +266,13 @@ function RuleCard({
         <div className="rounded-lg border border-border bg-card p-3">
             <div className="mb-2 flex items-center justify-between">
                 <span className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                    Rule {index + 1}
+                    Règle {index + 1}
                 </span>
                 <button
                     type="button"
                     onClick={onRemove}
                     className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
-                    aria-label="Delete rule"
+                    aria-label="Supprimer la règle"
                 >
                     <Trash2 className="size-3.5" />
                 </button>
@@ -295,7 +295,7 @@ function RuleCard({
                     <>
                         <div className="w-44">
                             <Select
-                                label="Operator"
+                                label="Opérateur"
                                 value={rule.comparator}
                                 options={CF_COMPARATORS.map((c) => ({
                                     value: c,
@@ -308,7 +308,7 @@ function RuleCard({
                         </div>
                         <div className="w-20">
                             <NumberInput
-                                label="Value"
+                                label="Valeur"
                                 value={rule.value}
                                 onChange={(v) => onPatch({ value: v })}
                             />
@@ -316,7 +316,7 @@ function RuleCard({
                         {rule.comparator === 'between' && (
                             <div className="w-20">
                                 <NumberInput
-                                    label="to"
+                                    label="à"
                                     value={rule.value2 ?? rule.value}
                                     onChange={(v) => onPatch({ value2: v })}
                                 />
@@ -340,7 +340,7 @@ function RuleCard({
                 {iconMode ? (
                     <div className="w-44">
                         <span className="mb-1 block text-[11px] text-muted-foreground">
-                            Icon
+                            Icône
                         </span>
                         <IconPicker
                             value={rule.icon}
@@ -352,7 +352,7 @@ function RuleCard({
                 ) : (
                     <div className="w-24">
                         <span className="mb-1 block text-[11px] text-muted-foreground">
-                            Color
+                            Couleur
                         </span>
                         <ColorInput
                             value={rule.color}
@@ -384,7 +384,7 @@ function PreviewStrip({
         <div className="rounded-lg border border-border bg-panel p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                    Preview
+                    Aperçu
                 </span>
                 <span className="truncate text-[10px] text-muted-foreground">
                     {basedOnLabel}
@@ -601,15 +601,15 @@ export function ConditionalFormatDialog({
     const aggOptions: { value: CfAgg; label: string }[] =
         basedOnType === 'number'
             ? [
-                  { value: 'sum', label: 'Sum' },
-                  { value: 'average', label: 'Average' },
+                  { value: 'sum', label: 'Somme' },
+                  { value: 'average', label: 'Moyenne' },
                   { value: 'min', label: 'Min' },
                   { value: 'max', label: 'Max' },
-                  { value: 'count', label: 'Count' },
+                  { value: 'count', label: 'Nombre' },
               ]
             : [
-                  { value: 'count', label: 'Count' },
-                  { value: 'first', label: 'First value' },
+                  { value: 'count', label: 'Nombre' },
+                  { value: 'first', label: 'Première valeur' },
               ];
     const effectiveAgg = aggOptions.some((o) => o.value === draft.agg)
         ? draft.agg
@@ -626,7 +626,7 @@ export function ConditionalFormatDialog({
         if (visual.values[0]) {
             push(
                 qualified(visual.values[0].table ?? '', visual.values[0].name),
-                `${visual.values[0].name} (value)`,
+                `${visual.values[0].name} (valeur)`,
             );
         }
         for (const f of fields)
@@ -685,7 +685,7 @@ export function ConditionalFormatDialog({
                 <header className="flex items-center justify-between border-b border-border bg-panel px-5 py-3">
                     <div className="flex items-center gap-3">
                         <h2 className="text-sm font-semibold">
-                            Conditional formatting
+                            Mise en forme conditionnelle
                         </h2>
                         <span
                             className={cn(
@@ -702,7 +702,7 @@ export function ConditionalFormatDialog({
                         type="button"
                         onClick={onClose}
                         className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        aria-label="Close"
+                        aria-label="Fermer"
                     >
                         <X className="size-4" />
                     </button>
@@ -711,7 +711,7 @@ export function ConditionalFormatDialog({
                 <div className="min-h-0 flex-1 space-y-5 overflow-auto p-5 text-[12px]">
                     <section>
                         <span className="mb-1.5 block text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                            Format style
+                            Style de format
                         </span>
                         <StylePicker
                             value={draft.style}
@@ -731,7 +731,7 @@ export function ConditionalFormatDialog({
                     {draft.style !== 'none' && (
                         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <Select
-                                label="What field should we base this on?"
+                                label="Sur quel champ nous baser ?"
                                 value={basedOnSelectValue}
                                 options={basedOnOptions}
                                 onChange={(v) => {
@@ -744,7 +744,7 @@ export function ConditionalFormatDialog({
                                 }}
                             />
                             <Select
-                                label="Summarization"
+                                label="Agrégation"
                                 value={effectiveAgg}
                                 options={aggOptions}
                                 onChange={(v) =>
@@ -757,7 +757,7 @@ export function ConditionalFormatDialog({
                     {draft.style === 'gradient' && (
                         <section className="space-y-3">
                             <Toggle
-                                label="Diverging (3-color scale)"
+                                label="Divergente (échelle 3 couleurs)"
                                 checked={draft.diverging}
                                 onChange={(v) => patch({ diverging: v })}
                             />
@@ -776,7 +776,7 @@ export function ConditionalFormatDialog({
                                 />
                                 {draft.diverging && (
                                     <BoundEditor
-                                        label="Center"
+                                        label="Centre"
                                         bound={draft.center}
                                         allowNone
                                         onChange={(p) =>
@@ -792,7 +792,7 @@ export function ConditionalFormatDialog({
                         <section className="space-y-3">
                             <div>
                                 <span className="mb-1 block text-[11px] text-muted-foreground">
-                                    Icon set
+                                    Jeu d'icônes
                                 </span>
                                 <IconSetPicker
                                     value={iconSet.id}
@@ -812,14 +812,14 @@ export function ConditionalFormatDialog({
                         <section className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                                    Rules
+                                    Règles
                                 </span>
                                 <button
                                     type="button"
                                     onClick={addRule}
                                     className="flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium transition-colors hover:bg-accent"
                                 >
-                                    <Plus className="size-3.5" /> New rule
+                                    <Plus className="size-3.5" /> Nouvelle règle
                                 </button>
                             </div>
                             {draft.rules.map((rule, i) => (
@@ -843,7 +843,7 @@ export function ConditionalFormatDialog({
                     {draft.style === 'fieldValue' && (
                         <section className="space-y-2">
                             <Select
-                                label="What field should we use?"
+                                label="Quel champ utiliser ?"
                                 value={fieldValueKey}
                                 options={colorColumns.map((f) => ({
                                     value: qualified(f.table, f.name),
@@ -860,8 +860,9 @@ export function ConditionalFormatDialog({
                             />
                             {!colorColumns.length && (
                                 <p className="text-[11px] text-muted-foreground">
-                                    No columns contain valid color values (hex
-                                    codes) in the current dataset.
+                                    Aucune colonne ne contient de valeurs de
+                                    couleur valides (codes hex) dans le jeu de
+                                    données actuel.
                                 </p>
                             )}
                         </section>
@@ -869,7 +870,7 @@ export function ConditionalFormatDialog({
 
                     {['table', 'matrix'].includes(visual.type) && (
                         <Toggle
-                            label="Show data bars"
+                            label="Afficher les barres de données"
                             checked={draft.showDataBars}
                             onChange={(v) => patch({ showDataBars: v })}
                         />
@@ -883,7 +884,7 @@ export function ConditionalFormatDialog({
                                 basedOnLabel={
                                     effectiveBasedOn
                                         ? `${effectiveBasedOnTable ? `${effectiveBasedOnTable} · ` : ''}${effectiveBasedOn}`
-                                        : 'based on…'
+                                        : 'basé sur…'
                                 }
                             />
                         )}
@@ -896,7 +897,7 @@ export function ConditionalFormatDialog({
                         size="sm"
                         onClick={reset}
                     >
-                        Reset to default
+                        Réinitialiser par défaut
                     </Button>
                     <div className="flex gap-2">
                         <Button
@@ -905,7 +906,7 @@ export function ConditionalFormatDialog({
                             size="sm"
                             onClick={onClose}
                         >
-                            Cancel
+                            Annuler
                         </Button>
                         <Button type="button" size="sm" onClick={apply}>
                             OK
@@ -918,11 +919,11 @@ export function ConditionalFormatDialog({
 }
 
 const STYLE_LABELS: Record<ConditionalFormat['style'], string> = {
-    none: 'None',
-    gradient: 'Gradient',
-    rules: 'Rules',
-    icons: 'Icons',
-    fieldValue: 'Field value',
+    none: 'Aucun',
+    gradient: 'Dégradé',
+    rules: 'Règles',
+    icons: 'Icônes',
+    fieldValue: 'Valeur de champ',
 };
 
 /**
@@ -932,7 +933,7 @@ const STYLE_LABELS: Record<ConditionalFormat['style'], string> = {
  */
 export function ConditionalFormatControl({
     visual,
-    label = 'Conditional formatting (fx)',
+    label = 'Mise en forme conditionnelle (fx)',
     value,
     onCommit,
     hideFieldValue,

@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::store
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:16
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:18
  * @route '/api/v5-activity'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::store
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:16
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:18
  * @route '/api/v5-activity'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::store
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:16
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:18
  * @route '/api/v5-activity'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -35,7 +35,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::store
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:16
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:18
  * @route '/api/v5-activity'
  */
     const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -45,7 +45,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::store
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:16
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:18
  * @route '/api/v5-activity'
  */
         storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -56,7 +56,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     store.form = storeForm
 /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::index
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:52
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:55
  * @route '/api/v5-activity'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -71,7 +71,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::index
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:52
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:55
  * @route '/api/v5-activity'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -80,7 +80,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::index
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:52
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:55
  * @route '/api/v5-activity'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -89,7 +89,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::index
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:52
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:55
  * @route '/api/v5-activity'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -99,7 +99,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::index
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:52
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:55
  * @route '/api/v5-activity'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -109,7 +109,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::index
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:52
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:55
  * @route '/api/v5-activity'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -118,7 +118,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\Api\BuilderActivityV5Controller::index
- * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:52
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:55
  * @route '/api/v5-activity'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -132,6 +132,84 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
     
     index.form = indexForm
-const BuilderActivityV5Controller = { store, index }
+/**
+* @see \App\Http\Controllers\Api\BuilderActivityV5Controller::users
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:113
+ * @route '/api/v5-activity/users'
+ */
+export const users = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: users.url(options),
+    method: 'get',
+})
+
+users.definition = {
+    methods: ["get","head"],
+    url: '/api/v5-activity/users',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\Api\BuilderActivityV5Controller::users
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:113
+ * @route '/api/v5-activity/users'
+ */
+users.url = (options?: RouteQueryOptions) => {
+    return users.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Api\BuilderActivityV5Controller::users
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:113
+ * @route '/api/v5-activity/users'
+ */
+users.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: users.url(options),
+    method: 'get',
+})
+/**
+* @see \App\Http\Controllers\Api\BuilderActivityV5Controller::users
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:113
+ * @route '/api/v5-activity/users'
+ */
+users.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: users.url(options),
+    method: 'head',
+})
+
+    /**
+* @see \App\Http\Controllers\Api\BuilderActivityV5Controller::users
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:113
+ * @route '/api/v5-activity/users'
+ */
+    const usersForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: users.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\Api\BuilderActivityV5Controller::users
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:113
+ * @route '/api/v5-activity/users'
+ */
+        usersForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: users.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\Api\BuilderActivityV5Controller::users
+ * @see app/Http/Controllers/Api/BuilderActivityV5Controller.php:113
+ * @route '/api/v5-activity/users'
+ */
+        usersForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: users.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    users.form = usersForm
+const BuilderActivityV5Controller = { store, index, users }
 
 export default BuilderActivityV5Controller

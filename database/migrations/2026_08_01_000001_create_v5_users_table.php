@@ -20,10 +20,19 @@ return new class extends Migration
         });
 
         DB::table('v5_users')->insert([
-            ['email' => 'superadmin@bacovet.com', 'name' => 'Super admin', 'role' => 'it', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
-            ['email' => 'direction@bacovet.com', 'name' => 'Direction', 'role' => 'direction', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
-            ['email' => 'resp.production@bacovet.com', 'name' => 'Resp. Production', 'role' => 'resp_production', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
-            ['email' => 'qualite@bacovet.com', 'name' => 'Qualité', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            // Super admin
+            ['email' => 'superadmin@novationcity.com', 'name' => 'Super admin', 'role' => 'it', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            // Admin users
+            ['email' => 'm.chrifa@novationcity.com', 'name' => 'M. Chrifa', 'role' => 'direction', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 'benhadjmbareknourhene@gmail.com', 'name' => 'Ben Hadj Mbarek Nourhene', 'role' => 'direction', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 's.lafi@novationcity.com', 'name' => 'Samar Lafi', 'role' => 'direction', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            // Normal users
+            ['email' => 'intissar@bacovet.com', 'name' => 'Intissar', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 'azer.boughrara@bacovet.com', 'name' => 'Azer Boughrara', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 'amira@bacovet.com', 'name' => 'Amira', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 'qualite@bacovet.com', 'name' => 'Qualite', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 'saadia@bacovet.com', 'name' => 'Saadia', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
+            ['email' => 'wassim@bacovet.com', 'name' => 'Wassim', 'role' => 'resp_qualite', 'password' => '', 'has_password' => false, 'created_at' => now(), 'updated_at' => now()],
         ]);
     }
 

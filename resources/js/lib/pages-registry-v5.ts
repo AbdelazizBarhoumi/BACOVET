@@ -5,10 +5,26 @@ export type BuilderPageV5 = {
     id: number;
     slug: string;
     name: string;
+    owner_user_id: number | null;
     group_id: number | null;
     sort_order: number;
     created_at: string;
     updated_at: string;
+    is_owner?: boolean;
+    can_edit?: boolean;
+    can_manage?: boolean;
+};
+
+export type V5AccessMode = 'view' | 'edit' | 'none';
+
+export type PageAccessUser = {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+    is_owner: boolean;
+    is_admin?: boolean;
+    mode: V5AccessMode | null;
 };
 
 const API_BASE = '/api/v5/builder-pages';
@@ -131,6 +147,49 @@ async function apiDeletePage(id: number): Promise<boolean> {
         if (!res.ok) handleV5Error(res.status);
 
         return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+export async function getPagePermissions(
+    id: number,
+): Promise<PageAccessUser[] | null> {
+    try {
+        const res = await fetch(`${API_BASE}/${id}/permissions`, {
+            credentials: 'include',
+            headers: apiHeaders(),
+        });
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return null;
+        }
+
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
+export async function savePagePermissions(
+    id: number,
+    permissions: { user_id: number; mode: V5AccessMode }[],
+): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_BASE}/${id}/permissions`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: apiHeaders(),
+            body: JSON.stringify({ permissions }),
+        });
+        if (!res.ok) {
+            handleV5Error(res.status);
+
+            return false;
+        }
+
+        return true;
     } catch {
         return false;
     }

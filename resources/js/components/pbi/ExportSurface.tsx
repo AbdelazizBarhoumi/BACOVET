@@ -45,7 +45,7 @@ export function ExportSurface({
                 >
                     {!page.visuals.length && (
                         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                            Blank page
+                            Page vide
                         </div>
                     )}
                     {[...page.visuals]

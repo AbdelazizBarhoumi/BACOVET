@@ -44,12 +44,12 @@ const HORIZONTAL_TYPES = ['bar', 'stackedBar', 'stacked100Bar'];
 
 const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
     auto: 'Auto',
-    none: 'None',
-    thousands: 'Thousands (K)',
+    none: 'Aucune',
+    thousands: 'Milliers (K)',
     millions: 'Millions (M)',
-    billions: 'Billions (B)',
-    percent: 'Percent (%)',
-    currency: 'Currency ($)',
+    billions: 'Milliards (B)',
+    percent: 'Pourcentage (%)',
+    currency: 'Devise ($)',
 };
 
 const LABEL_POSITIONS: {
@@ -57,33 +57,33 @@ const LABEL_POSITIONS: {
     label: string;
 }[] = [
     { value: 'auto', label: 'Auto' },
-    { value: 'insideEnd', label: 'Inside end' },
-    { value: 'outsideEnd', label: 'Outside end' },
-    { value: 'insideCenter', label: 'Inside center' },
-    { value: 'insideBase', label: 'Inside base' },
+    { value: 'insideEnd', label: 'Fin intérieure' },
+    { value: 'outsideEnd', label: 'Fin extérieure' },
+    { value: 'insideCenter', label: 'Centre intérieur' },
+    { value: 'insideBase', label: 'Base intérieure' },
 ];
 
 const DATA_LABEL_CONTENTS: { value: DataLabelContent; label: string }[] = [
-    { value: 'category', label: 'Category' },
-    { value: 'value', label: 'Data value' },
-    { value: 'percentOfTotal', label: 'Percent of total' },
-    { value: 'categoryValue', label: 'Category + value' },
-    { value: 'categoryPercent', label: 'Category + percent' },
-    { value: 'valuePercent', label: 'Value + percent' },
-    { value: 'all', label: 'All details' },
+    { value: 'category', label: 'Catégorie' },
+    { value: 'value', label: 'Valeur' },
+    { value: 'percentOfTotal', label: '% du total' },
+    { value: 'categoryValue', label: 'Catégorie + valeur' },
+    { value: 'categoryPercent', label: 'Catégorie + %' },
+    { value: 'valuePercent', label: 'Valeur + %' },
+    { value: 'all', label: 'Tous les détails' },
 ];
 
 const GRIDLINE_STYLES: { value: GridlineStyle; label: string }[] = [
-    { value: 'solid', label: 'Solid' },
-    { value: 'dashed', label: 'Dashed' },
-    { value: 'dotted', label: 'Dotted' },
+    { value: 'solid', label: 'Plein' },
+    { value: 'dashed', label: 'Tirets' },
+    { value: 'dotted', label: 'Points' },
 ];
 
 const LEGEND_POSITIONS: { value: LegendPosition; label: string }[] = [
-    { value: 'top', label: 'Top' },
-    { value: 'bottom', label: 'Bottom' },
-    { value: 'left', label: 'Left' },
-    { value: 'right', label: 'Right' },
+    { value: 'top', label: 'Haut' },
+    { value: 'bottom', label: 'Bas' },
+    { value: 'left', label: 'Gauche' },
+    { value: 'right', label: 'Droite' },
 ];
 
 /** One axis section. Numeric-axis-only controls (units, range) render only
@@ -102,20 +102,20 @@ function AxisSection({
     return (
         <Section title={title}>
             <Toggle
-                label="Show axis"
+                label="Afficher l'axe"
                 checked={axis.show}
                 onChange={(v) => onPatch({ show: v })}
             />
             {axis.show && (
                 <>
                     <TextInput
-                        label="Title"
+                        label="Titre"
                         value={axis.title ?? ''}
-                        placeholder="None"
+                        placeholder="Aucun"
                         onChange={(v) => onPatch({ title: v })}
                     />
                     <FontStyleControls
-                        label="Title font"
+                        label="Police du titre"
                         font={axis.titleFont}
                         onChange={(p) =>
                             onPatch({
@@ -124,7 +124,7 @@ function AxisSection({
                         }
                     />
                     <FontStyleControls
-                        label="Values font"
+                        label="Police des valeurs"
                         font={axis.labelsFont}
                         onChange={(p) =>
                             onPatch({
@@ -134,19 +134,33 @@ function AxisSection({
                     />
                     {isValue && (
                         <>
-                            <Select
-                                label="Display units"
-                                value={axis.displayUnits}
-                                options={DISPLAY_UNITS.map((u) => ({
-                                    value: u,
-                                    label: DISPLAY_UNIT_LABELS[u],
-                                }))}
-                                onChange={(v) =>
-                                    onPatch({ displayUnits: v as DisplayUnit })
-                                }
-                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                <Select
+                                    label="Unités d'affichage"
+                                    value={axis.displayUnits}
+                                    options={DISPLAY_UNITS.map((u) => ({
+                                        value: u,
+                                        label: DISPLAY_UNIT_LABELS[u],
+                                    }))}
+                                    onChange={(v) =>
+                                        onPatch({
+                                            displayUnits: v as DisplayUnit,
+                                        })
+                                    }
+                                />
+                                <TextInput
+                                    label="Suffixe"
+                                    placeholder="ex. kW"
+                                    value={axis.suffix ?? ''}
+                                    onChange={(v) =>
+                                        onPatch({
+                                            suffix: v.trim() || undefined,
+                                        })
+                                    }
+                                />
+                            </div>
                             <NumberInput
-                                label="Value decimal places"
+                                label="Décimales des valeurs"
                                 min={0}
                                 max={10}
                                 value={axis.decimals ?? 1}
@@ -239,19 +253,19 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
             />
 
             <AxisSection
-                title="X-axis"
+                title="Axe X"
                 axis={xAxis}
                 isValue={horizontal}
                 onPatch={(p) => patchAxis('xAxis', p)}
             />
             <AxisSection
-                title="Y-axis"
+                title="Axe Y"
                 axis={yAxis}
                 isValue={!horizontal}
                 onPatch={(p) => patchAxis('yAxis', p)}
             />
 
-            <Section title="Gridlines">
+            <Section title="Repères">
                 <Toggle
                     label="Horizontal"
                     checked={gridlines.horizontal}
@@ -263,7 +277,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                     onChange={(v) => patchGridlines({ vertical: v })}
                 />
                 <ColorInput
-                    label="Color"
+                    label="Couleur"
                     value={gridlines.color}
                     onChange={(v) => patchGridlines({ color: v })}
                 />
@@ -277,13 +291,13 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 />
             </Section>
 
-            <Section title="Bars" defaultOpen>
+            <Section title="Barres" defaultOpen>
                 <Select
-                    label="Apply settings to"
+                    label="Appliquer les réglages à"
                     value={bars.applyTo}
                     options={[
-                        { value: 'all', label: 'All categories' },
-                        { value: 'perCategory', label: 'Per category' },
+                        { value: 'all', label: 'Toutes les catégories' },
+                        { value: 'perCategory', label: 'Par catégorie' },
                     ]}
                     onChange={(v) =>
                         patchBars({
@@ -293,7 +307,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 />
                 {bars.applyTo === 'all' && (
                     <ColorInput
-                        label="Color"
+                        label="Couleur"
                         value={bars.color}
                         onChange={(v) => patchBars({ color: v })}
                     />
@@ -301,11 +315,13 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 {bars.applyTo === 'perCategory' && (
                     <div className="space-y-2">
                         <div className="text-muted-foreground">
-                            Category colors — empty keeps the palette color.
+                            Couleurs de catégorie — laissez vide pour garder la
+                            couleur de la palette.
                         </div>
                         {categories.length === 0 && (
                             <p className="text-[10px] text-muted-foreground">
-                                Add an X-axis field to see categories.
+                                Ajoutez un champ sur l'axe X pour voir les
+                                catégories.
                             </p>
                         )}
                         {categories.map((cat) => (
@@ -333,7 +349,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 </div>
                 <div>
                     <div className="mb-1 flex items-center justify-between text-muted-foreground">
-                        <span>Transparency</span>
+                        <span>Transparence</span>
                         <span className="tabular-nums">
                             {bars.transparency}%
                         </span>
@@ -345,11 +361,11 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         onValueChange={([v]) =>
                             patchBars({ transparency: v ?? 0 })
                         }
-                        aria-label="Bar transparency"
+                        aria-label="Transparence des barres"
                     />
                 </div>
                 <NumberInput
-                    label="Corner radius (px)"
+                    label="Rayon des coins (px)"
                     min={0}
                     max={24}
                     value={bars.radius ?? 2}
@@ -357,9 +373,9 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 />
             </Section>
 
-            <Section title="Data labels">
+            <Section title="Étiquettes de données">
                 <Toggle
-                    label="Show labels"
+                    label="Afficher les étiquettes"
                     checked={dataLabels.show}
                     onChange={(v) =>
                         updateVisual(visual.id, {
@@ -371,11 +387,11 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 {dataLabels.show && (
                     <>
                         <Select
-                            label="Apply settings to"
+                            label="Appliquer les réglages à"
                             value={dataLabels.applyTo}
                             options={[
-                                { value: 'all', label: 'All series' },
-                                { value: 'perSeries', label: 'Per series' },
+                                { value: 'all', label: 'Toutes les séries' },
+                                { value: 'perSeries', label: 'Par série' },
                             ]}
                             onChange={(v) =>
                                 patchDataLabels({
@@ -386,13 +402,13 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         {dataLabels.applyTo === 'perSeries' && (
                             <div className="space-y-2">
                                 <div className="text-muted-foreground">
-                                    Series overrides — empty keeps the shared
-                                    label style below.
+                                    Remplacements de série — vide garde le
+                                    style d'étiquette partagé ci-dessous.
                                 </div>
                                 {seriesNames.length === 0 && (
                                     <p className="text-[10px] text-muted-foreground">
-                                        Add a Legend or Values field to see
-                                        series.
+                                        Ajoutez un champ Légende ou Valeurs
+                                        pour voir les séries.
                                     </p>
                                 )}
                                 {seriesNames.map((name) => {
@@ -435,7 +451,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                             <div className="flex items-end gap-2">
                                                 <div className="flex-1">
                                                     <Biu
-                                                        label="Font style"
+                                                        label="Style de police"
                                                         bold={ov.font?.bold}
                                                         italic={ov.font?.italic}
                                                         underline={
@@ -454,7 +470,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                                 </div>
                                                 <div className="w-20">
                                                     <NumberInput
-                                                        label="Size"
+                                                        label="Taille"
                                                         min={8}
                                                         max={48}
                                                         value={
@@ -489,7 +505,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                             }
                         />
                         <Select
-                            label="Content"
+                            label="Contenu"
                             value={dataLabels.content ?? 'value'}
                             options={DATA_LABEL_CONTENTS}
                             onChange={(v) =>
@@ -498,28 +514,40 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                 })
                             }
                         />
-                        <Select
-                            label="Display units"
-                            value={dataLabels.displayUnits}
-                            options={DISPLAY_UNITS.map((u) => ({
-                                value: u,
-                                label: DISPLAY_UNIT_LABELS[u],
-                            }))}
-                            onChange={(v) =>
-                                patchDataLabels({
-                                    displayUnits: v as DisplayUnit,
-                                })
-                            }
-                        />
+                        <div className="grid grid-cols-2 gap-2">
+                            <Select
+                                label="Unités d'affichage"
+                                value={dataLabels.displayUnits}
+                                options={DISPLAY_UNITS.map((u) => ({
+                                    value: u,
+                                    label: DISPLAY_UNIT_LABELS[u],
+                                }))}
+                                onChange={(v) =>
+                                    patchDataLabels({
+                                        displayUnits: v as DisplayUnit,
+                                    })
+                                }
+                            />
+                            <TextInput
+                                label="Suffixe"
+                                placeholder="ex. kW"
+                                value={dataLabels.suffix ?? ''}
+                                onChange={(v) =>
+                                    patchDataLabels({
+                                        suffix: v.trim() || undefined,
+                                    })
+                                }
+                            />
+                        </div>
                         <NumberInput
-                            label="Value decimal places"
+                            label="Décimales des valeurs"
                             min={0}
                             max={10}
                             value={dataLabels.decimals ?? 1}
                             onChange={(v) => patchDataLabels({ decimals: v })}
                         />
                         <FontStyleControls
-                            label="Label font"
+                            label="Police des étiquettes"
                             font={dataLabels.font}
                             onChange={(p) =>
                                 patchDataLabels({
@@ -531,9 +559,9 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 )}
             </Section>
 
-            <Section title="Legend">
+            <Section title="Légende">
                 <Toggle
-                    label="Show legend"
+                    label="Afficher la légende"
                     checked={legend.show}
                     onChange={(v) =>
                         updateVisual(visual.id, {
@@ -555,7 +583,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                             }
                         />
                         <FontStyleControls
-                            label="Legend font"
+                            label="Police de la légende"
                             font={legend.font}
                             onChange={(p) =>
                                 patchLegend({ font: { ...legend.font, ...p } })
@@ -563,33 +591,34 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         />
                         {!hasLegendField && (
                             <p className="text-[10px] text-muted-foreground">
-                                Add a Legend field to show the legend.
+                                Ajoutez un champ Légende pour afficher la
+                                légende.
                             </p>
                         )}
                     </>
                 )}
             </Section>
 
-            <Section title="Plot area">
+            <Section title="Zone de tracé">
                 <ColorInput
-                    label="Background"
+                    label="Arrière-plan"
                     value={plotArea.background}
                     onChange={(v) => patchPlotArea({ background: v })}
                 />
                 <Toggle
-                    label="Border"
+                    label="Bordure"
                     checked={plotArea.border}
                     onChange={(v) => patchPlotArea({ border: v })}
                 />
                 {plotArea.border && (
                     <div className="grid grid-cols-2 gap-2">
                         <ColorInput
-                            label="Border color"
+                            label="Couleur de bordure"
                             value={plotArea.borderColor}
                             onChange={(v) => patchPlotArea({ borderColor: v })}
                         />
                         <NumberInput
-                            label="Border width"
+                            label="Épaisseur de bordure"
                             min={1}
                             max={8}
                             value={plotArea.borderWidth ?? 1}
@@ -599,24 +628,24 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 )}
             </Section>
 
-            <Section title="General">
+            <Section title="Général">
                 <ColorInput
-                    label="Background"
+                    label="Arrière-plan"
                     value={visual.background}
                     onChange={(v) => updateVisual(visual.id, { background: v })}
                 />
                 <Toggle
-                    label="Border"
+                    label="Bordure"
                     checked={visual.border}
                     onChange={(v) => updateVisual(visual.id, { border: v })}
                 />
                 <Toggle
-                    label="Shadow"
+                    label="Ombre"
                     checked={visual.shadow}
                     onChange={(v) => updateVisual(visual.id, { shadow: v })}
                 />
                 <TextInput
-                    label="Alt text (accessibility)"
+                    label="Texte alternatif (accessibilité)"
                     value={visual.altText}
                     onChange={(v) => updateVisual(visual.id, { altText: v })}
                 />
@@ -626,9 +655,9 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                             key={k}
                             label={
                                 k === 'w'
-                                    ? 'Width'
+                                    ? 'Largeur'
                                     : k === 'h'
-                                      ? 'Height'
+                                      ? 'Hauteur'
                                       : `${k.toUpperCase()} px`
                             }
                             value={visual[k]}
