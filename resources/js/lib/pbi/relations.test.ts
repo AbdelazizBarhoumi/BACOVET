@@ -1,9 +1,47 @@
 import { describe, expect, it } from 'vitest';
 import type { RelationGraph } from './graph';
 import type { Row, TableDef } from './model';
-import { buildRelationMap } from './relations';
+import { buildRelationMap, type RelationNode } from './relations';
 
 const pad = (v: string, n: number) => `${v}${' '.repeat(n)}`;
+
+const sourceNode = (
+    table: string,
+    count: number,
+    column = 'Key',
+): Partial<RelationNode> => ({
+    table,
+    level: 0,
+    count,
+    parent: null,
+    edgeKind: null,
+    edgeConfidence: null,
+    joinColumns: [column],
+    emptyReason: null,
+    emptyDetail: null,
+});
+
+const childNode = (
+    table: string,
+    level: number,
+    count: number,
+    parent: string,
+    columns: string,
+    kind: 'shared' | 'fk_pk',
+    emptyReason: RelationNode['emptyReason'] = null,
+    emptyDetail: string | null = null,
+    joinColumns: string[] = [],
+): Partial<RelationNode> => ({
+    table,
+    level,
+    count,
+    parent: { table: parent, columns },
+    edgeKind: kind,
+    edgeConfidence: 1,
+    joinColumns,
+    emptyReason,
+    emptyDetail,
+});
 
 function rowsMap(tables: TableDef[]): Record<string, Row[]> {
     const map: Record<string, Row[]> = {};
@@ -52,8 +90,18 @@ describe('buildRelationMap', () => {
         );
 
         expect(map.nodes).toEqual([
-            { table: 'WipChaine', level: 0, count: 1 },
-            { table: 'EmpDefectEff', level: 1, count: 1 },
+            sourceNode('WipChaine', 1, 'ProdGroup'),
+            childNode(
+                'EmpDefectEff',
+                1,
+                1,
+                'WipChaine',
+                'ProdGroup',
+                'shared',
+                null,
+                null,
+                ['ProdGroup'],
+            ),
         ]);
         expect(map.links).toEqual([
             {
@@ -63,9 +111,7 @@ describe('buildRelationMap', () => {
                 kind: 'shared',
             },
         ]);
-        expect(map.records.WipChaine).toEqual([
-            { ProdGroup: pad('CH14', 36) },
-        ]);
+        expect(map.records.WipChaine).toEqual([{ ProdGroup: pad('CH14', 36) }]);
         expect(map.records.EmpDefectEff).toEqual([
             { ProdGroup: pad('CH14', 6), ShiftCode: 'JOUR' },
         ]);
@@ -126,9 +172,29 @@ describe('buildRelationMap', () => {
         );
 
         expect(map.nodes).toEqual([
-            { table: 'Families', level: 0, count: 1 },
-            { table: 'ProductFamilies', level: 1, count: 1 },
-            { table: 'SalesByProduct', level: 2, count: 1 },
+            sourceNode('Families', 1, 'FamilyId'),
+            childNode(
+                'ProductFamilies',
+                1,
+                1,
+                'Families',
+                'FamilyId ↔ FamilyRef',
+                'fk_pk',
+                null,
+                null,
+                ['FamilyRef'],
+            ),
+            childNode(
+                'SalesByProduct',
+                2,
+                1,
+                'ProductFamilies',
+                'ProductId ↔ ProductRef',
+                'fk_pk',
+                null,
+                null,
+                ['ProductRef'],
+            ),
         ]);
         expect(map.records.SalesByProduct).toEqual([
             { ProductRef: 'P1', Amount: 10 },
@@ -169,7 +235,131 @@ describe('buildRelationMap', () => {
         const orphanNode = map.nodes.find((n) => n.table === 'ItemTrxEnq')!;
         expect(orphanNode.level).toBe(1);
         expect(orphanNode.count).toBe(0);
+        expect(orphanNode.emptyReason).toBe('missing_value');
+        expect(orphanNode.emptyDetail).toBe(
+            'Aucune valeur « CH14 » dans ItemTrxEnq.ProdGroup',
+        );
+        expect(orphanNode.parent).toEqual({
+            table: 'WipChaine',
+            columns: 'ProdGroup',
+        });
+        expect(orphanNode.joinColumns).toEqual(['ProdGroup']);
         expect(map.records.ItemTrxEnq).toEqual([]);
+    });
+
+    it('blames the nearest empty ancestor when a chain breaks', () => {
+        const a: TableDef = {
+            name: 'A',
+            fields: [{ table: 'A', name: 'Key', type: 'text' }],
+            rows: [{ Key: 'X1' }, { Key: 'X2' }],
+        };
+        const b: TableDef = {
+            name: 'B',
+            fields: [{ table: 'B', name: 'Key', type: 'text' }],
+            rows: [{ Key: 'X1' }, { Key: 'X2' }],
+        };
+        const c: TableDef = {
+            name: 'C',
+            fields: [{ table: 'C', name: 'Key', type: 'text' }],
+            rows: [{ Key: 'X1' }, { Key: 'X2' }],
+        };
+        const graph: RelationGraph = {
+            edges: [
+                {
+                    a: 'A',
+                    b: 'B',
+                    columns: [{ colA: 'Key', colB: 'Key' }],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+                {
+                    a: 'B',
+                    b: 'C',
+                    columns: [{ colA: 'Key', colB: 'Key' }],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+            ],
+        };
+        // Live context: B is already emptied by a report filter (a seed).
+        const rows: Record<string, Row[]> = {
+            A: a.rows,
+            B: [],
+            C: c.rows,
+        };
+
+        const map = buildRelationMap([a, b, c], rows, graph, {
+            table: 'A',
+            column: 'Key',
+            value: 'X1',
+        });
+
+        const aNode = map.nodes.find((n) => n.table === 'A')!;
+        expect(aNode.count).toBe(0);
+        expect(aNode.emptyReason).toBe('missing_value');
+        expect(aNode.emptyDetail).toBe(
+            "La valeur « X1 » est présente, mais un filtre sur une table liée vide l'ensemble.",
+        );
+
+        const bNode = map.nodes.find((n) => n.table === 'B')!;
+        expect(bNode.count).toBe(0);
+        expect(bNode.emptyReason).toBe('missing_value');
+        expect(bNode.emptyDetail).toBe('Aucune valeur « X1 » dans B.Key');
+
+        const cNode = map.nodes.find((n) => n.table === 'C')!;
+        expect(cNode.count).toBe(0);
+        expect(cNode.emptyReason).toBe('chain_break');
+        expect(cNode.emptyDetail).toBe('Chaîne rompue à B');
+    });
+
+    it('reports a non-matching value present on the table without claiming it is absent', () => {
+        const a: TableDef = {
+            name: 'A',
+            fields: [
+                { table: 'A', name: 'Key', type: 'text' },
+                { table: 'A', name: 'Extra', type: 'text' },
+            ],
+            rows: [
+                { Key: 'X1', Extra: 'E1' },
+                { Key: 'X2', Extra: 'E2' },
+            ],
+        };
+        const b: TableDef = {
+            name: 'B',
+            fields: [
+                { table: 'B', name: 'Key', type: 'text' },
+                { table: 'B', name: 'Extra', type: 'text' },
+            ],
+            rows: [{ Key: 'X1', Extra: 'E2' }],
+        };
+        // Composite edge: B carries X1 but not the full tuple the seed needs.
+        const graph: RelationGraph = {
+            edges: [
+                {
+                    a: 'A',
+                    b: 'B',
+                    columns: [
+                        { colA: 'Key', colB: 'Key' },
+                        { colA: 'Extra', colB: 'Extra' },
+                    ],
+                    kind: 'shared',
+                    confidence: 1,
+                },
+            ],
+        };
+
+        const map = buildRelationMap([a, b], rowsMap([a, b]), graph, {
+            table: 'A',
+            column: 'Key',
+            value: 'X1',
+        });
+
+        const bNode = map.nodes.find((n) => n.table === 'B')!;
+        expect(bNode.count).toBe(0);
+        expect(bNode.emptyReason).toBe('missing_value');
+        expect(bNode.emptyDetail).toBe(
+            'La valeur « X1 » ne correspond pas via Key · Extra',
+        );
     });
 
     it('returns an empty map for an unknown source table or column', () => {
@@ -180,21 +370,19 @@ describe('buildRelationMap', () => {
         };
         const graph: RelationGraph = { edges: [] };
 
-        const unknownTable = buildRelationMap(
-            [t],
-            rowsMap([t]),
-            graph,
-            { table: 'Nope', column: 'Region', value: 'x' },
-        );
+        const unknownTable = buildRelationMap([t], rowsMap([t]), graph, {
+            table: 'Nope',
+            column: 'Region',
+            value: 'x',
+        });
         expect(unknownTable.nodes).toEqual([]);
         expect(unknownTable.records).toEqual({});
 
-        const unknownColumn = buildRelationMap(
-            [t],
-            rowsMap([t]),
-            graph,
-            { table: 'Sales', column: 'Nope', value: 'x' },
-        );
+        const unknownColumn = buildRelationMap([t], rowsMap([t]), graph, {
+            table: 'Sales',
+            column: 'Nope',
+            value: 'x',
+        });
         expect(unknownColumn.nodes).toEqual([]);
     });
 
@@ -224,13 +412,18 @@ describe('buildRelationMap', () => {
             ],
         };
 
-        const map = buildRelationMap(
-            [a, b],
-            rowsMap([a, b]),
-            graph,
-            { table: 'A', column: 'ShiftCode', value: 'S1' },
-        );
+        const map = buildRelationMap([a, b], rowsMap([a, b]), graph, {
+            table: 'A',
+            column: 'ShiftCode',
+            value: 'S1',
+        });
 
         expect(map.links[0]!.columns).toBe('ShiftCode · ProdGroup');
+        const bNode = map.nodes.find((n) => n.table === 'B')!;
+        expect(bNode.parent).toEqual({
+            table: 'A',
+            columns: 'ShiftCode · ProdGroup',
+        });
+        expect(bNode.joinColumns).toEqual(['ShiftCode', 'ProdGroup']);
     });
 });

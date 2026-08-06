@@ -1,6 +1,7 @@
-import { ChevronDown, Eye, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { datasetToCsv, type ExportDataset } from '@/lib/pbi/exportData';
 import {
     distinctValuesForTableColumn,
     isCustomFilter,
@@ -51,8 +52,7 @@ export function JoinMapDialog({
         if (!source) return '';
         if (isCustomFilter(filter)) {
             const col = (filter.columns ?? []).find(
-                (c) =>
-                    c.table === source.table && c.column === source.column,
+                (c) => c.table === source.table && c.column === source.column,
             );
             return col?.values?.[0] ?? '';
         }
@@ -66,12 +66,11 @@ export function JoinMapDialog({
 
     const map = useMemo(() => {
         if (!source || !value) return null;
-        return buildRelationMap(
-            tables,
-            tableRows,
-            graph,
-            { table: source.table, column: source.column, value },
-        );
+        return buildRelationMap(tables, tableRows, graph, {
+            table: source.table,
+            column: source.column,
+            value,
+        });
     }, [tables, tableRows, graph, source, value]);
 
     useEffect(() => {
@@ -102,6 +101,28 @@ export function JoinMapDialog({
             ),
         [renderedRecords, map?.records],
     );
+
+    const [searchByTable, setSearchByTable] = useState<Record<string, string>>(
+        {},
+    );
+
+    const downloadCsv = (table: string, rows: Record<string, unknown>[]) => {
+        const cols = rows[0] ? Object.keys(rows[0]) : [];
+        const ds: ExportDataset = {
+            title: table,
+            columns: cols,
+            rows: rows.map((r) => cols.map((c) => String(r[c] ?? ''))),
+        };
+        const blob = new Blob([datasetToCsv(ds)], {
+            type: 'text/csv;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `relations-${table}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
 
     return createPortal(
         <div
@@ -173,7 +194,7 @@ export function JoinMapDialog({
                                         </option>
                                     ))}
                                 </select>
-                                <ChevronDown className="pointer-events-none absolute right-1 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+                                <ChevronDown className="pointer-events-none absolute top-1/2 right-1 size-3 -translate-y-1/2 text-muted-foreground" />
                             </span>
                         ) : (
                             <span className="flex flex-wrap gap-1">
@@ -196,8 +217,8 @@ export function JoinMapDialog({
                     </label>
                     {map && (
                         <span className="ml-auto text-muted-foreground">
-                            {map.nodes.length} table(s) ·
-                            {map.links.length} relation(s)
+                            {map.nodes.length} table(s) ·{map.links.length}{' '}
+                            relation(s)
                         </span>
                     )}
                 </div>
@@ -219,78 +240,184 @@ export function JoinMapDialog({
                                 </h3>
                                 <div className="space-y-3">
                                     {populatedNodes.map((node) => {
-                                        const rows = map.records[node.table] ?? [];
-                                        const cols =
-                                            rows[0]
-                                                ? Object.keys(rows[0])
-                                                : [];
+                                        const allRows =
+                                            map.records[node.table] ?? [];
+                                        const query = (
+                                            searchByTable[node.table] ?? ''
+                                        )
+                                            .trim()
+                                            .toLowerCase();
+                                        const rows = query
+                                            ? allRows.filter((r) =>
+                                                  Object.values(r).some((v) =>
+                                                      String(v ?? '')
+                                                          .toLowerCase()
+                                                          .includes(query),
+                                                  ),
+                                              )
+                                            : allRows;
+                                        const cols = rows[0]
+                                            ? Object.keys(rows[0])
+                                            : [];
+                                        const joinSet = new Set(
+                                            node.joinColumns,
+                                        );
                                         return (
                                             <div
                                                 key={node.table}
                                                 className="rounded border border-border/70 bg-background/40"
                                             >
-                                                <div className="flex items-center justify-between px-2 py-1 text-[10px] font-medium">
-                                                    <span>
+                                                <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-medium">
+                                                    <span className="min-w-0">
                                                         {node.table}
                                                         <span className="ml-2 text-muted-foreground">
-                                                            (saut{' '}
-                                                            {node.level})
+                                                            (saut {node.level})
                                                         </span>
+                                                        {node.parent && (
+                                                            <span className="ml-2 text-muted-foreground">
+                                                                via{' '}
+                                                                <span className="font-mono">
+                                                                    {
+                                                                        node
+                                                                            .parent
+                                                                            .columns
+                                                                    }
+                                                                </span>
+                                                            </span>
+                                                        )}
                                                     </span>
-                                                    <span className="text-muted-foreground">
-                                                        {rows.length.toLocaleString()}{' '}
+                                                    {node.edgeKind && (
+                                                        <span
+                                                            className={cn(
+                                                                'shrink-0 rounded px-1 py-0.5 text-[9px]',
+                                                                node.edgeKind ===
+                                                                    'shared'
+                                                                    ? 'bg-emerald-500/10 text-emerald-600'
+                                                                    : 'bg-amber-500/10 text-amber-600',
+                                                            )}
+                                                            title={
+                                                                node.edgeKind ===
+                                                                'shared'
+                                                                    ? 'Jointure confirmée par le schéma'
+                                                                    : `Jointure inférée par chevauchement (confiance ${Math.round((node.edgeConfidence ?? 0) * 100)} %)`
+                                                            }
+                                                        >
+                                                            {node.edgeKind ===
+                                                            'shared'
+                                                                ? 'Confirmé'
+                                                                : `Inféré · ${Math.round((node.edgeConfidence ?? 0) * 100)} %`}
+                                                        </span>
+                                                    )}
+                                                    <span className="ml-auto shrink-0 text-muted-foreground">
+                                                        {allRows.length.toLocaleString()}{' '}
                                                         ligne(s)
                                                     </span>
                                                 </div>
+                                                <div className="flex items-center gap-1 px-2 pb-1">
+                                                    <Search className="size-3 text-muted-foreground" />
+                                                    <input
+                                                        value={
+                                                            searchByTable[
+                                                                node.table
+                                                            ] ?? ''
+                                                        }
+                                                        onChange={(e) =>
+                                                            setSearchByTable(
+                                                                (s) => ({
+                                                                    ...s,
+                                                                    [node.table]:
+                                                                        e.target
+                                                                            .value,
+                                                                }),
+                                                            )
+                                                        }
+                                                        placeholder="Filtrer…"
+                                                        className="w-40 rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+                                                    />
+                                                    <button
+                                                        onClick={() =>
+                                                            downloadCsv(
+                                                                node.table,
+                                                                allRows,
+                                                            )
+                                                        }
+                                                        title={`Exporter ${node.table} en CSV`}
+                                                        className="ml-auto flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                                                    >
+                                                        <Download className="size-3" />
+                                                        CSV
+                                                    </button>
+                                                </div>
                                                 <div className="max-h-44 overflow-auto">
-                                                        <table className="w-full text-[10px]">
-                                                            <thead className="sticky top-0 bg-panel">
-                                                                <tr>
-                                                                    {cols.map(
-                                                                        (c) => (
-                                                                            <th
-                                                                                key={c}
-                                                                                className="border-b border-border px-2 py-1 text-left font-medium text-muted-foreground"
-                                                                            >
-                                                                                {c}
-                                                                            </th>
-                                                                        ),
-                                                                    )}
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {rows
-                                                                    .slice(0, 50)
-                                                                    .map(
-                                                                        (
-                                                                            r,
-                                                                            i,
-                                                                        ) => (
-                                                                            <tr
-                                                                                key={i}
-                                                                                className="border-b border-border/50"
-                                                                            >
-                                                                                {cols.map(
-                                                                                    (
-                                                                                        c,
-                                                                                    ) => (
-                                                                                        <td
-                                                                                            key={c}
-                                                                                            className="px-2 py-0.5"
-                                                                                        >
-                                                                                            {String(
-                                                                                                r[c] ??
-                                                                                                    '',
-                                                                                            )}
-                                                                                        </td>
-                                                                                    ),
-                                                                                )}
-                                                                            </tr>
-                                                                        ),
-                                                                    )}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
+                                                    <table className="w-full text-[10px]">
+                                                        <thead className="sticky top-0 bg-panel">
+                                                            <tr>
+                                                                {cols.map(
+                                                                    (c) => (
+                                                                        <th
+                                                                            key={
+                                                                                c
+                                                                            }
+                                                                            className={cn(
+                                                                                'border-b border-border px-2 py-1 text-left font-medium',
+                                                                                joinSet.has(
+                                                                                    c,
+                                                                                )
+                                                                                    ? 'text-brand'
+                                                                                    : 'text-muted-foreground',
+                                                                            )}
+                                                                        >
+                                                                            {c}
+                                                                            {joinSet.has(
+                                                                                c,
+                                                                            ) && (
+                                                                                <span className="ml-1 text-[8px] uppercase opacity-70">
+                                                                                    clé
+                                                                                </span>
+                                                                            )}
+                                                                        </th>
+                                                                    ),
+                                                                )}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {rows
+                                                                .slice(0, 50)
+                                                                .map((r, i) => (
+                                                                    <tr
+                                                                        key={i}
+                                                                        className="border-b border-border/50"
+                                                                    >
+                                                                        {cols.map(
+                                                                            (
+                                                                                c,
+                                                                            ) => (
+                                                                                <td
+                                                                                    key={
+                                                                                        c
+                                                                                    }
+                                                                                    className={cn(
+                                                                                        'px-2 py-0.5',
+                                                                                        joinSet.has(
+                                                                                            c,
+                                                                                        ) &&
+                                                                                            'font-medium text-brand',
+                                                                                    )}
+                                                                                >
+                                                                                    {String(
+                                                                                        r[
+                                                                                            c
+                                                                                        ] ??
+                                                                                            '',
+                                                                                    )}
+                                                                                </td>
+                                                                            ),
+                                                                        )}
+                                                                    </tr>
+                                                                ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -306,11 +433,24 @@ export function JoinMapDialog({
                                                 {emptyNodes.map((node) => (
                                                     <span
                                                         key={node.table}
-                                                        className="rounded border border-border/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                                        className={cn(
+                                                            'rounded border px-1.5 py-0.5 text-[10px]',
+                                                            node.emptyReason ===
+                                                                'chain_break'
+                                                                ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                                                                : 'border-border/60 text-muted-foreground',
+                                                        )}
+                                                        title={
+                                                            node.emptyDetail ??
+                                                            ''
+                                                        }
                                                     >
                                                         {node.table}
-                                                        <span className="ml-1 opacity-70">
-                                                            (saut {node.level})
+                                                        <span className="ml-1 opacity-80">
+                                                            (
+                                                            {node.emptyDetail ??
+                                                                `saut ${node.level}`}
+                                                            )
                                                         </span>
                                                     </span>
                                                 ))}
