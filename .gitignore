@@ -27,3 +27,4 @@ google-drive-mock
 extract_endpoints.py
 json
 endpoints_methods.txt
+resources/node_modules

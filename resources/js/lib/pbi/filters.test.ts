@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     applyFilter,
+    applyTableRows,
     customFilterColumnsContainingValue,
     customFilterPooledValues,
     customFilterSelectedValues,
@@ -713,6 +714,98 @@ describe('propagateNetwork', () => {
         expect(out.ItemTrxEnq).toEqual([]);
     });
 
+    it('does not let an empty seed wipe its neighbours (CH01 vs Chaine)', () => {
+        // Mirrors the real report: a custom filter merges ProdGroup (which
+        // holds CH01) with Chaine (whose domain is only SRG). Selecting CH01
+        // empties the Chaine-keyed table directly, but that emptiness must not
+        // cascade outward and wipe the neighbouring serigraphie table.
+        const qte: TableDef = {
+            name: 'Qte',
+            fields: [
+                { table: 'Qte', name: 'Chaine', type: 'text' },
+                { table: 'Qte', name: 'OF_No', type: 'text' },
+            ],
+            rows: [{ Chaine: 'SRG', OF_No: 'OF1' }],
+        };
+        const sortie: TableDef = {
+            name: 'Sortie',
+            fields: [{ table: 'Sortie', name: 'Commande', type: 'text' }],
+            rows: [{ Commande: 'OF1' }, { Commande: 'OF2' }],
+        };
+        const net: RelationGraph = {
+            edges: [
+                {
+                    a: 'Qte',
+                    b: 'Sortie',
+                    columns: [{ colA: 'OF_No', colB: 'Commande' }],
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+            ],
+        };
+        const out = propagateNetwork(
+            [qte, sortie],
+            { Qte: [], Sortie: sortie.rows },
+            net,
+            true,
+        );
+        expect(out.Qte).toEqual([]);
+        expect(out.Sortie).toEqual(sortie.rows);
+    });
+
+    it('empty seed still allows its non-empty neighbour to constrain onward', () => {
+        // qte becomes empty (no CH01), but a full chain exists and must still
+        // propagate its constraint through the graph without being erased by
+        // the empty sibling.
+        const chain: TableDef = {
+            name: 'Chain',
+            fields: [{ table: 'Chain', name: 'Commande', type: 'text' }],
+            rows: [{ Commande: 'OF1' }, { Commande: 'OF2' }],
+        };
+        const qte: TableDef = {
+            name: 'Qte',
+            fields: [
+                { table: 'Qte', name: 'Chaine', type: 'text' },
+                { table: 'Qte', name: 'OF_No', type: 'text' },
+            ],
+            rows: [{ Chaine: 'SRG', OF_No: 'OF1' }],
+        };
+        const sortie: TableDef = {
+            name: 'Sortie',
+            fields: [{ table: 'Sortie', name: 'Commande', type: 'text' }],
+            rows: [{ Commande: 'OF1' }, { Commande: 'OF2' }],
+        };
+        const net: RelationGraph = {
+            edges: [
+                {
+                    a: 'Qte',
+                    b: 'Sortie',
+                    columns: [{ colA: 'OF_No', colB: 'Commande' }],
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+                {
+                    a: 'Sortie',
+                    b: 'Chain',
+                    columns: [{ colA: 'Commande', colB: 'Commande' }],
+                    kind: 'fk_pk',
+                    confidence: 1,
+                },
+            ],
+        };
+        const out = propagateNetwork(
+            [chain, qte, sortie],
+            {
+                Chain: chain.rows,
+                Qte: [],
+                Sortie: [{ Commande: 'OF1' }],
+            },
+            net,
+            true,
+        );
+        expect(out.Chain).toEqual([{ Commande: 'OF1' }]);
+    });
+
     it('does not constrain a seed back through a cyclic graph', () => {
         const a: TableDef = {
             name: 'A',
@@ -1321,5 +1414,42 @@ describe('custom filter pooled values (consolidated single list)', () => {
             { ProdGroup: 'SRG', Rows: 2 },
         ]);
         expect(out.eff).toEqual([{ ProdGroup: 'SRG', Rows: 3 }]);
+    });
+});
+
+describe('applyTableRows', () => {
+    it('replaces rows per table while preserving identity and schema', () => {
+        const tables: TableDef[] = [
+            { ...sales, slug: 'sales/1', label: 'Sales', object: 'sales' },
+            {
+                name: 'Empty',
+                fields: [{ table: 'Empty', name: 'X', type: 'number' }],
+                rows: [{ X: 1 }],
+                slug: 'empty/1',
+            },
+        ];
+        const out = applyTableRows(tables, {
+            Sales: [sales.rows[0]!],
+            Empty: [],
+        });
+        expect(out[0]).toEqual({
+            ...tables[0],
+            rows: [sales.rows[0]],
+        });
+        expect(out[0]!.slug).toBe('sales/1');
+        expect(out[1]!.rows).toEqual([]);
+    });
+
+    it('keeps the full row set for tables with no filtered entry', () => {
+        const out = applyTableRows([sales], {});
+        expect(out[0]!.rows).toEqual(sales.rows);
+    });
+
+    it('keeps field schemas intact after filtering rows', () => {
+        const out = applyTableRows([sales], {
+            Sales: sales.rows.slice(0, 2),
+        });
+        expect(out[0]!.fields).toEqual(sales.fields);
+        expect(out[0]!.rows).toEqual(sales.rows.slice(0, 2));
     });
 });

@@ -30,6 +30,16 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
     applyFilter,
     customFilterColumnsForTable,
     customFilterPooledValues,
@@ -41,6 +51,7 @@ import {
     type ReportFilter,
 } from '@/lib/pbi/filters';
 import {
+    LIST_AGG_NUMERIC_MODES,
     MEASURES,
     NUMBER_FORMATS,
     PAGE_PRESETS,
@@ -50,7 +61,10 @@ import {
     fieldLabel,
     fieldNumericIssue,
     fieldType,
+    isListMeasure,
     isMeasure,
+    listAggIgnoredCount,
+    listMeasureValue,
     measureError,
     measureLabel,
     type Agg,
@@ -59,6 +73,7 @@ import {
     type ValueAggregationMode,
     type Visual,
     type VisualType,
+    type WellField,
 } from '@/lib/pbi/model';
 import { SHAPE_KINDS, SHAPES, type ShapeKind } from '@/lib/pbi/shapes';
 import {
@@ -1992,6 +2007,7 @@ const AGGS: Agg[] = [
     'first',
     'latest',
     'raw',
+    'nth',
 ];
 
 const AGG_LABELS: Record<Agg, string> = {
@@ -2004,12 +2020,14 @@ const AGG_LABELS: Record<Agg, string> = {
     first: 'Premier',
     latest: 'Dernier',
     raw: 'Valeur réelle',
+    nth: 'Nième valeur',
 };
 
 const VALUE_AGGREGATION_LABELS: Record<ValueAggregationMode, string> = {
     first: 'Premier',
     latest: 'Dernier',
     count: 'Nombre',
+    nth: 'Nième valeur',
 };
 
 /** Wells that collapse a column to a single displayed value (rather than
@@ -2068,6 +2086,63 @@ function BoundValueInput({
     );
 }
 
+/** Small controlled integer input for the single-value list options (Nth
+ * position, window size). Commits live as you type; blur / Enter finalize and
+ * snap invalid text back to the last committed value. */
+function InlineIntInput({
+    value,
+    min = 1,
+    placeholder,
+    onCommit,
+}: {
+    value: number | undefined;
+    min?: number;
+    placeholder?: string;
+    onCommit: (value: number | undefined) => void;
+}) {
+    const [text, setText] = useState(value === undefined ? '' : String(value));
+    const [prev, setPrev] = useState(value);
+    if (value !== prev) {
+        setPrev(value);
+        setText(value === undefined ? '' : String(value));
+    }
+
+    const apply = (raw: string) => {
+        const trimmed = raw.trim();
+        if (trimmed === '') {
+            onCommit(undefined);
+            return;
+        }
+        const n = Math.floor(Number(trimmed));
+        if (Number.isFinite(n) && n >= min) onCommit(n);
+    };
+
+    const finalize = () => {
+        const trimmed = text.trim();
+        const n = Math.floor(Number(trimmed));
+        if (trimmed !== '' && Number.isFinite(n) && n >= min) onCommit(n);
+        else setText(value === undefined ? '' : String(value));
+    };
+
+    return (
+        <input
+            type="number"
+            min={min}
+            value={text}
+            placeholder={placeholder}
+            onChange={(e) => {
+                setText(e.target.value);
+                apply(e.target.value);
+            }}
+            onBlur={finalize}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            className="w-14 rounded border border-border bg-background px-1 py-0.5 text-[10px] outline-none focus:border-brand"
+        />
+    );
+}
+
 export function VisualizationsPane({
     onCollapse,
 }: {
@@ -2082,15 +2157,54 @@ export function VisualizationsPane({
         moveWellField,
         setWellAgg,
         setWellValueAgg,
+        patchWellField,
         toggleAnalytics,
         setAnalyticsValue,
         page,
         pages,
         setPageFormat,
+        filteredTables,
     } = usePbi();
     const [tab, setTab] = useState<'fields' | 'format' | 'analytics'>('fields');
     const [listOpen, setListOpen] = useState(true);
     const [dragOverWell, setDragOverWell] = useState<WellName | null>(null);
+    const [listAggConfirm, setListAggConfirm] = useState<{
+        visualId: string;
+        well: WellName;
+        index: number;
+        mode: Agg;
+        ignored: number;
+    } | null>(null);
+
+    const listCodes = (f: WellField) =>
+        isListMeasure(f.name)
+            ? listMeasureValue([], f.name, { tables: filteredTables })
+            : [];
+
+    const handleListAggChange = (
+        visualId: string,
+        well: WellName,
+        index: number,
+        f: WellField,
+        raw: string,
+    ) => {
+        if (raw === 'list') {
+            patchWellField(visualId, well, index, { listAgg: undefined });
+            return;
+        }
+        const mode = raw as Agg;
+        const codes = listCodes(f);
+        const ignored = listAggIgnoredCount(codes, mode);
+        if (
+            LIST_AGG_NUMERIC_MODES.includes(mode) &&
+            ignored > 0 &&
+            codes.length
+        ) {
+            setListAggConfirm({ visualId, well, index, mode, ignored });
+            return;
+        }
+        patchWellField(visualId, well, index, { listAgg: mode });
+    };
 
     const config = selected ? visualConfig(selected.type) : null;
     // Text/image elements are format-only: no field wells, no analytics.
@@ -2205,108 +2319,248 @@ export function VisualizationsPane({
                                     fieldType(f.name, f.table) === 'number' &&
                                     !isMeasure(f.name);
                                 return (
-                                    <div
-                                        key={`${f.name}-${i}`}
-                                        draggable
-                                        onDragStart={(e) => {
-                                            e.dataTransfer.setData(
-                                                'text/plain',
-                                                JSON.stringify({
-                                                    table: f.table,
-                                                    name: f.name,
-                                                    measure: isMeasure(f.name),
-                                                    fromWell: name,
-                                                    fromIndex: i,
-                                                }),
-                                            );
-                                            e.dataTransfer.effectAllowed =
-                                                'move';
-                                        }}
-                                        className="mb-1 flex cursor-grab items-center gap-1 rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
-                                    >
-                                        {issue && (
-                                            <TriangleAlert
-                                                className="size-3 shrink-0 text-warning"
-                                                aria-label={issue}
-                                            />
-                                        )}
-                                        <span className="flex-1 truncate">
-                                            {numericField
-                                                ? measureLabel(f)
-                                                : fieldLabel(f)}
-                                        </span>
-                                        {numericField && (
-                                            <select
-                                                value={f.agg}
-                                                onChange={(e) =>
-                                                    setWellAgg(
-                                                        selected.id,
-                                                        name,
-                                                        i,
-                                                        e.target.value as Agg,
-                                                    )
-                                                }
-                                                className="rounded border border-border bg-background text-[10px]"
-                                            >
-                                                {AGGS.map((a) => (
-                                                    <option key={a} value={a}>
-                                                        {AGG_LABELS[a]}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        )}
-                                        {SINGLE_VALUE_WELLS.has(name) &&
-                                            !numericField &&
-                                            !isMeasure(f.name) && (
+                                    <Fragment key={`${f.name}-${i}`}>
+                                        <div
+                                            draggable
+                                            onDragStart={(e) => {
+                                                e.dataTransfer.setData(
+                                                    'text/plain',
+                                                    JSON.stringify({
+                                                        table: f.table,
+                                                        name: f.name,
+                                                        measure: isMeasure(
+                                                            f.name,
+                                                        ),
+                                                        fromWell: name,
+                                                        fromIndex: i,
+                                                    }),
+                                                );
+                                                e.dataTransfer.effectAllowed =
+                                                    'move';
+                                            }}
+                                            className="mb-0.5 flex cursor-grab items-center gap-1 rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
+                                        >
+                                            {issue && (
+                                                <TriangleAlert
+                                                    className="size-3 shrink-0 text-warning"
+                                                    aria-label={issue}
+                                                />
+                                            )}
+                                            <span className="flex-1 truncate">
+                                                {numericField
+                                                    ? measureLabel(f)
+                                                    : fieldLabel(f)}
+                                            </span>
+                                            {numericField && (
                                                 <select
-                                                    value={
-                                                        f.valueAggregation ??
-                                                        'first'
-                                                    }
+                                                    value={f.agg}
                                                     onChange={(e) =>
-                                                        setWellValueAgg(
+                                                        setWellAgg(
                                                             selected.id,
                                                             name,
                                                             i,
                                                             e.target
-                                                                .value as ValueAggregationMode,
+                                                                .value as Agg,
                                                         )
                                                     }
                                                     className="rounded border border-border bg-background text-[10px]"
                                                 >
-                                                    {VALUE_AGGREGATION_MODES.map(
-                                                        (m) => (
-                                                            <option
-                                                                key={m}
-                                                                value={m}
-                                                            >
-                                                                {
-                                                                    VALUE_AGGREGATION_LABELS[
-                                                                        m
-                                                                    ]
-                                                                }
-                                                            </option>
-                                                        ),
-                                                    )}
+                                                    {AGGS.map((a) => (
+                                                        <option
+                                                            key={a}
+                                                            value={a}
+                                                        >
+                                                            {AGG_LABELS[a]}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             )}
-                                        {issue && (
-                                            <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
-                                                {issue}
-                                            </span>
-                                        )}
-                                        <button
-                                            onClick={() =>
-                                                removeWellField(
-                                                    selected.id,
-                                                    name,
-                                                    i,
-                                                )
-                                            }
-                                        >
-                                            <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                        </button>
-                                    </div>
+                                            {SINGLE_VALUE_WELLS.has(name) &&
+                                                !numericField &&
+                                                !isMeasure(f.name) && (
+                                                    <select
+                                                        value={
+                                                            f.valueAggregation ??
+                                                            'first'
+                                                        }
+                                                        onChange={(e) =>
+                                                            setWellValueAgg(
+                                                                selected.id,
+                                                                name,
+                                                                i,
+                                                                e.target
+                                                                    .value as ValueAggregationMode,
+                                                            )
+                                                        }
+                                                        className="rounded border border-border bg-background text-[10px]"
+                                                    >
+                                                        {VALUE_AGGREGATION_MODES.map(
+                                                            (m) => (
+                                                                <option
+                                                                    key={m}
+                                                                    value={m}
+                                                                >
+                                                                    {
+                                                                        VALUE_AGGREGATION_LABELS[
+                                                                            m
+                                                                        ]
+                                                                    }
+                                                                </option>
+                                                            ),
+                                                        )}
+                                                    </select>
+                                                )}
+                                            {SINGLE_VALUE_WELLS.has(name) &&
+                                                isListMeasure(f.name) && (
+                                                    <select
+                                                        title="Traitement de la liste"
+                                                        aria-label="Traitement de la liste"
+                                                        value={
+                                                            f.listAgg ?? 'list'
+                                                        }
+                                                        onChange={(e) =>
+                                                            handleListAggChange(
+                                                                selected.id,
+                                                                name,
+                                                                i,
+                                                                f,
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        className="rounded border border-border bg-background text-[10px]"
+                                                    >
+                                                        <option value="list">
+                                                            Liste
+                                                        </option>
+                                                        <option value="count">
+                                                            {AGG_LABELS.count}
+                                                        </option>
+                                                        <option value="distinct">
+                                                            {
+                                                                AGG_LABELS.distinct
+                                                            }
+                                                        </option>
+                                                        <option value="first">
+                                                            {AGG_LABELS.first}
+                                                        </option>
+                                                        <option value="latest">
+                                                            {AGG_LABELS.latest}
+                                                        </option>
+                                                        <option value="raw">
+                                                            {AGG_LABELS.raw}
+                                                        </option>
+                                                        <option value="nth">
+                                                            {AGG_LABELS.nth}
+                                                        </option>
+                                                        <option value="sum">
+                                                            {AGG_LABELS.sum}
+                                                        </option>
+                                                        <option value="avg">
+                                                            {AGG_LABELS.avg}
+                                                        </option>
+                                                        <option value="min">
+                                                            {AGG_LABELS.min}
+                                                        </option>
+                                                        <option value="max">
+                                                            {AGG_LABELS.max}
+                                                        </option>
+                                                    </select>
+                                                )}
+                                            {issue && (
+                                                <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
+                                                    {issue}
+                                                </span>
+                                            )}
+                                            <button
+                                                onClick={() =>
+                                                    removeWellField(
+                                                        selected.id,
+                                                        name,
+                                                        i,
+                                                    )
+                                                }
+                                            >
+                                                <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                            </button>
+                                        </div>
+                                        {SINGLE_VALUE_WELLS.has(name) &&
+                                            !isMeasure(f.name) && (
+                                                <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-dashed border-border/60 bg-background/60 px-2 py-1 text-[10px] text-muted-foreground">
+                                                    {((numericField &&
+                                                        f.agg === 'nth') ||
+                                                        (!numericField &&
+                                                            (f.valueAggregation ??
+                                                                'first') ===
+                                                                'nth')) && (
+                                                        <label className="flex items-center gap-1">
+                                                            Position
+                                                            <InlineIntInput
+                                                                value={f.index}
+                                                                min={1}
+                                                                placeholder="1"
+                                                                onCommit={(v) =>
+                                                                    patchWellField(
+                                                                        selected.id,
+                                                                        name,
+                                                                        i,
+                                                                        {
+                                                                            index: v,
+                                                                        },
+                                                                    )
+                                                                }
+                                                            />
+                                                        </label>
+                                                    )}
+                                                    <label className="flex items-center gap-1">
+                                                        <select
+                                                            value={
+                                                                f.windowDir ??
+                                                                'last'
+                                                            }
+                                                            onChange={(e) =>
+                                                                patchWellField(
+                                                                    selected.id,
+                                                                    name,
+                                                                    i,
+                                                                    {
+                                                                        windowDir:
+                                                                            e
+                                                                                .target
+                                                                                .value as
+                                                                                | 'first'
+                                                                                | 'last',
+                                                                    },
+                                                                )
+                                                            }
+                                                            className="rounded border border-border bg-background text-[10px]"
+                                                        >
+                                                            <option value="last">
+                                                                Derniers
+                                                            </option>
+                                                            <option value="first">
+                                                                Premiers
+                                                            </option>
+                                                        </select>
+                                                        <InlineIntInput
+                                                            value={f.window}
+                                                            min={1}
+                                                            placeholder="toutes"
+                                                            onCommit={(v) =>
+                                                                patchWellField(
+                                                                    selected.id,
+                                                                    name,
+                                                                    i,
+                                                                    {
+                                                                        window: v,
+                                                                    },
+                                                                )
+                                                            }
+                                                        />
+                                                        <span>lignes</span>
+                                                    </label>
+                                                </div>
+                                            )}
+                                    </Fragment>
                                 );
                             })
                         ) : boundInput ? (
@@ -2622,6 +2876,41 @@ export function VisualizationsPane({
                     </div>
                 </>
             )}
+            <AlertDialog
+                open={listAggConfirm !== null}
+                onOpenChange={(o) => {
+                    if (!o) setListAggConfirm(null);
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            Codes non numériques ignorés
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {listAggConfirm
+                                ? `${listAggConfirm.ignored} code(s) non numérique(s) seront ignorés. Continuer ?`
+                                : ''}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (!listAggConfirm) return;
+                                const { visualId, well, index, mode } =
+                                    listAggConfirm;
+                                patchWellField(visualId, well, index, {
+                                    listAgg: mode,
+                                });
+                                setListAggConfirm(null);
+                            }}
+                        >
+                            Continuer
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
@@ -3504,7 +3793,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         isCustomFilter(f) ? (f.label ?? f.column) : f.column;
 
     const pooledOptions = (f: (typeof filters)[number]) =>
-        customFilterPooledValues(f, tables, tableRows);
+        customFilterPooledValues(f, tables);
 
     const pooledSelected = (f: (typeof filters)[number]) =>
         customFilterSelectedValues(f);
@@ -3900,9 +4189,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                         <button
                                             onClick={() =>
                                                 removeFilter(
-                                                    isCustom
-                                                        ? name
-                                                        : f.column,
+                                                    isCustom ? name : f.column,
                                                     isCustom
                                                         ? undefined
                                                         : f.table,

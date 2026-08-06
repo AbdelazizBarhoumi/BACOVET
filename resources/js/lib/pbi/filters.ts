@@ -338,10 +338,11 @@ export function applyFilter(
 
     switch (f.type) {
         case 'list':
-        case 'dropdown':
+        case 'dropdown': {
             if (!f.values.length) return rows;
             const allowed = new Set(f.values.map(normValue));
             return rows.filter((r) => allowed.has(normValue(r[f.column])));
+        }
         case 'search': {
             const q = (f.query ?? '').toLowerCase();
             if (!q) return rows;
@@ -445,10 +446,11 @@ export function propagateNetwork(
                 continue;
             }
             if (seeds.has(neighbor) && !seeds.has(t)) continue;
-            // A derived (non-seed) table that became empty must not cascade
-            // that emptiness onto its neighbours; only explicit seeds may
-            // wipe (orphan semantics).
-            if (!seeds.has(t) && tArr.length === 0) continue;
+            // A table that became empty — seed or derived — must not cascade
+            // that emptiness onto its neighbours: an empty row set expresses
+            // no join keys, so wiping neighbours would collapse the whole
+            // report to "Aucune donnée". Only non-empty rows may constrain.
+            if (tArr.length === 0) continue;
             const nArr = current.get(neighbor);
             if (!nArr) continue;
             const allowed = new Set<string>();
@@ -500,4 +502,21 @@ export function filterTableRows(
         map[t.name] = out;
     }
     return graph ? propagateNetwork(tables, map, graph, smartNetwork) : map;
+}
+
+/**
+ * Rebuild `tables` with the row sets from `rows` (keyed by table name),
+ * preserving table identity (`slug`/`label`/`object`) and field schemas. Used
+ * to feed the store's filtered `tableRows` back into the measure engine so DAX
+ * measures evaluate against the same rows the visuals render. Tables with no
+ * entry in `rows` keep their full row set.
+ */
+export function applyTableRows(
+    tables: TableDef[],
+    rows: Record<string, Row[]>,
+): TableDef[] {
+    return tables.map((t) => ({
+        ...t,
+        rows: rows[t.name] ?? t.rows,
+    }));
 }

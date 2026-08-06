@@ -1,5 +1,7 @@
 // Data model, dataset tables and aggregation engine for the report canvas.
 
+import { applyTableRows, filterTableRows, type ReportFilter } from './filters';
+import type { RelationGraph } from './graph';
 import type { ShapeKind } from './shapes';
 
 export type FieldType = 'number' | 'text' | 'date' | 'boolean';
@@ -24,20 +26,22 @@ export type Agg =
     | 'sum'
     | 'avg'
     | 'count'
+    | 'distinct'
     | 'min'
     | 'max'
-    | 'distinct'
     | 'first'
     | 'latest'
-    | 'raw';
+    | 'raw'
+    | 'nth';
 
 /** How a card/gauge shows a non-numeric field across multiple rows. */
-export type ValueAggregationMode = 'first' | 'latest' | 'count';
+export type ValueAggregationMode = 'first' | 'latest' | 'count' | 'nth';
 
 export const VALUE_AGGREGATION_MODES: ValueAggregationMode[] = [
     'first',
     'latest',
     'count',
+    'nth',
 ];
 
 export function isValueAggregationMode(
@@ -70,9 +74,31 @@ export type WellField = {
     /**
      * How a non-numeric (text/date/boolean) field is collapsed to one value:
      * `first` shows the first non-null cell, `latest` the last, `count` the
-     * number of non-null cells. Numeric fields always use `agg`.
+     * number of non-null cells, `nth` the cell at `index`. Numeric fields
+     * always use `agg`.
      */
     valueAggregation?: ValueAggregationMode;
+    /**
+     * 1-based row position used by `agg === 'nth'` (numeric) and
+     * `valueAggregation === 'nth'` (non-numeric). `1` = first value.
+     */
+    index?: number;
+    /**
+     * When set (positive integer), the aggregation operates on a window of
+     * `window` rows only: the first `window` rows when `windowDir` is `first`,
+     * the last `window` rows otherwise. Applies to every aggregation.
+     */
+    window?: number;
+    /** Direction of the `window` slice; defaults to `last`. */
+    windowDir?: 'first' | 'last';
+    /**
+     * Aggregation treatment applied to a list measure (VALUES) rendered in a
+     * single-value visual. Undefined (or 'list') shows every distinct code;
+     * numeric modes (sum/avg/min/max) operate on numeric codes only and ignore
+     * the rest; `count`/`distinct` return the code count; `first`/`latest`/
+     * `raw` return a single code; `nth` returns the code at `index`.
+     */
+    listAgg?: Agg;
 };
 
 export type FieldReference = {
@@ -90,6 +116,7 @@ const AGGREGATIONS: Agg[] = [
     'first',
     'latest',
     'raw',
+    'nth',
 ];
 
 export const NUMBER_FORMATS: NumberFormat[] = [
@@ -140,6 +167,16 @@ export function parseFieldReference(
     return { name: name.name, table: table || undefined };
 }
 
+/** Coerces an arbitrary value to a positive integer, or `undefined`. */
+function positiveInt(value: unknown): number | undefined {
+    if (typeof value !== 'number' && typeof value !== 'string')
+        return undefined;
+    const n = Number(value);
+    if (!Number.isFinite(n)) return undefined;
+    const int = Math.floor(n);
+    return int >= 1 ? int : undefined;
+}
+
 export function normalizeWellField(
     input: unknown,
     fallbackTable?: string,
@@ -168,6 +205,12 @@ export function normalizeWellField(
     const valueAggregation = isValueAggregationMode(value.valueAggregation)
         ? value.valueAggregation
         : undefined;
+    const index = positiveInt(value.index);
+    const window = positiveInt(value.window);
+    const windowDir =
+        value.windowDir === 'first' || value.windowDir === 'last'
+            ? value.windowDir
+            : undefined;
     return {
         table: reference.table ?? '',
         name: reference.name,
@@ -175,6 +218,9 @@ export function normalizeWellField(
         ...(label ? { label } : {}),
         ...(format ? { format } : {}),
         ...(valueAggregation ? { valueAggregation } : {}),
+        ...(index !== undefined ? { index } : {}),
+        ...(window !== undefined ? { window } : {}),
+        ...(windowDir ? { windowDir } : {}),
     };
 }
 
@@ -250,12 +296,7 @@ export type AnalyticsLine = {
 };
 
 /** Format style for a visual's conditional formatting (Power BI-style). */
-export type CfStyle =
-    | 'none'
-    | 'gradient'
-    | 'rules'
-    | 'fieldValue'
-    | 'icons';
+export type CfStyle = 'none' | 'gradient' | 'rules' | 'fieldValue' | 'icons';
 
 /** How the based-on field is summarized into a number per category. */
 export type CfAgg =
@@ -1000,6 +1041,13 @@ export const MEASURE_IMPL: Record<string, MeasureImpl> = {
     'Nombre de lignes': (rows) => rows.length,
 };
 
+/** A compiled list measure (e.g. `VALUES(<column>)`): returns the distinct
+ *  non-empty values of the column in the current (possibly ctx-filtered)
+ *  table set, as a string list for the single-value visual. */
+export type ListMeasureImpl = (rows: Row[], ctx?: EvalCtx) => string[];
+
+export const LIST_MEASURE_IMPL: Record<string, ListMeasureImpl> = {};
+
 function numericValues(rows: Row[], col: string): number[] {
     return rows
         .map((row) => row[col])
@@ -1050,16 +1098,24 @@ export type MeasureEvalError = Error;
 class MeasureSyntaxError extends Error {}
 
 /** Runtime context for a single measure evaluation. */
-type EvalCtx = {
+export type EvalCtx = {
     errors?: string[];
     /** Other page measures, resolved by `[Name]` refs. */
     measures?: Record<string, MeasureImpl | null>;
     /** Recursion depth guard for measures that reference other measures. */
     depth?: number;
+    /** Enclosing iterator rows (table + row), innermost last, so conditions
+     *  inside FILTER / SUMX / COUNTX can reach the outer row context. */
+    iter?: { table: string; row: Row }[];
+    /** Table set to resolve table/column lookups against (a per-group filter
+     *  context, e.g. a chain axis slice). When absent, the module-level
+     *  `TABLES` (the store's currently filtered set) is used. */
+    tables?: TableDef[];
 };
 
 type MeasureNode =
     | { kind: 'num'; value: number }
+    | { kind: 'string'; value: string }
     | { kind: 'col'; table?: string; column: string }
     | { kind: 'func'; name: string; args: MeasureNode[] }
     | {
@@ -1068,8 +1124,21 @@ type MeasureNode =
           left: MeasureNode;
           right: MeasureNode;
       }
+    | {
+          kind: 'cmp';
+          op: '=' | '<>' | '<' | '>' | '<=' | '>=';
+          left: MeasureNode;
+          right: MeasureNode;
+      }
+    | {
+          kind: 'logic';
+          op: '&&' | '||';
+          left: MeasureNode;
+          right: MeasureNode;
+      }
     | { kind: 'ref'; name: string }
-    | { kind: 'table'; name: string };
+    | { kind: 'table'; name: string }
+    | { kind: 'tablecol'; base: MeasureNode; column: string };
 
 const AGGREGATION_FUNCS = new Set([
     'SUM',
@@ -1086,14 +1155,59 @@ const AGGREGATION_FUNCS = new Set([
     'COUNTROWS',
 ]);
 
+/** Row-context functions: evaluated once per row of an enclosing iterator. */
+const SCALAR_FUNCS = new Set(['IF', 'AND', 'OR', 'TRIM']);
+
+/** List-returning functions: valid only at the top level of a measure and
+ *  resolved to a distinct-value list instead of a scalar. */
+const LIST_FUNCS = new Set(['VALUES']);
+
+/** Table-iteration aggregators: iterate a table and aggregate an expression. */
+const ITERATOR_FUNCS = new Set([
+    'SUMX',
+    'COUNTX',
+    'AVERAGEX',
+    'MINX',
+    'MAXX',
+    'PRODUCTX',
+]);
+
+/** Functions that return a table expression (usable as an iterator's table). */
+const TABLE_FUNCS = new Set(['FILTER']);
+
+type CmpOp = '=' | '<>' | '<' | '>' | '<=' | '>=';
+
+const CMP_OPS = new Set<CmpOp>(['=', '<>', '<', '>', '<=', '>=']);
+
+/** Type guard narrowing a token operator to a comparison operator. */
+function isCmpOp(v: string): v is CmpOp {
+    return CMP_OPS.has(v as CmpOp);
+}
+
 type Token =
     | { type: 'num'; value: number }
+    | { type: 'string'; value: string }
     | { type: 'word'; value: string }
     | { type: 'qword'; value: string }
     | { type: 'bracket'; value: string }
     | { type: 'table'; value: string }
     | { type: 'lparen' | 'rparen' | 'comma' }
-    | { type: 'op'; value: '+' | '-' | '*' | '/' };
+    | {
+          type: 'op';
+          value:
+              | '+'
+              | '-'
+              | '*'
+              | '/'
+              | '='
+              | '<>'
+              | '<'
+              | '>'
+              | '<='
+              | '>='
+              | '&&'
+              | '||';
+      };
 
 function tokenize(src: string): Token[] {
     const tokens: Token[] = [];
@@ -1129,8 +1243,69 @@ function tokenize(src: string): Token[] {
             i += 1;
             continue;
         }
+        if (c === '"') {
+            const end = src.indexOf('"', i + 1);
+            if (end < 0) throw new MeasureSyntaxError('Guillemet non fermé');
+            tokens.push({ type: 'string', value: src.slice(i + 1, end) });
+            i = end + 1;
+            continue;
+        }
+        if (c === '<') {
+            // `<table>` placeholder (used by COUNTROWS docs) — only when the
+            // angle brackets enclose a non-empty identifier, so `<=`/`<>`
+            // still reach the comparison operator handling below.
+            const end = src.indexOf('>', i + 1);
+            if (end >= 0 && src.slice(i + 1, end).trim()) {
+                tokens.push({
+                    type: 'table',
+                    value: src.slice(i + 1, end).trim(),
+                });
+                i = end + 1;
+                continue;
+            }
+        }
+        if (c === '<' && src[i + 1] === '=') {
+            tokens.push({ type: 'op', value: '<=' });
+            i += 2;
+            continue;
+        }
+        if (c === '>' && src[i + 1] === '=') {
+            tokens.push({ type: 'op', value: '>=' });
+            i += 2;
+            continue;
+        }
+        if (c === '<' && src[i + 1] === '>') {
+            tokens.push({ type: 'op', value: '<>' });
+            i += 2;
+            continue;
+        }
+        if (c === '&' && src[i + 1] === '&') {
+            tokens.push({ type: 'op', value: '&&' });
+            i += 2;
+            continue;
+        }
+        if (c === '|' && src[i + 1] === '|') {
+            tokens.push({ type: 'op', value: '||' });
+            i += 2;
+            continue;
+        }
         if (c === '+' || c === '-' || c === '*' || c === '/') {
             tokens.push({ type: 'op', value: c });
+            i += 1;
+            continue;
+        }
+        if (c === '=') {
+            tokens.push({ type: 'op', value: '=' });
+            i += 1;
+            continue;
+        }
+        if (c === '<') {
+            tokens.push({ type: 'op', value: '<' });
+            i += 1;
+            continue;
+        }
+        if (c === '>') {
+            tokens.push({ type: 'op', value: '>' });
             i += 1;
             continue;
         }
@@ -1138,14 +1313,6 @@ function tokenize(src: string): Token[] {
             const end = src.indexOf("'", i + 1);
             if (end < 0) throw new MeasureSyntaxError('Guillemet non fermé');
             tokens.push({ type: 'qword', value: src.slice(i + 1, end) });
-            i = end + 1;
-            continue;
-        }
-        if (c === '<') {
-            const end = src.indexOf('>', i + 1);
-            if (end < 0)
-                throw new MeasureSyntaxError('Balise « < » non fermée');
-            tokens.push({ type: 'table', value: src.slice(i + 1, end).trim() });
             i = end + 1;
             continue;
         }
@@ -1198,6 +1365,50 @@ function parseExpr(t: ParseState): MeasureNode {
     return left;
 }
 
+function parseCompare(t: ParseState): MeasureNode {
+    let left = parseExpr(t);
+    for (;;) {
+        const tok = peekToken(t);
+        if (
+            tok?.type === 'op' &&
+            tok.value !== '&&' &&
+            tok.value !== '||' &&
+            isCmpOp(tok.value)
+        ) {
+            takeToken(t);
+            const right = parseExpr(t);
+            left = { kind: 'cmp', op: tok.value, left, right };
+        } else break;
+    }
+    return left;
+}
+
+function parseAnd(t: ParseState): MeasureNode {
+    let left = parseCompare(t);
+    for (;;) {
+        const tok = peekToken(t);
+        if (tok?.type === 'op' && tok.value === '&&') {
+            takeToken(t);
+            const right = parseCompare(t);
+            left = { kind: 'logic', op: '&&', left, right };
+        } else break;
+    }
+    return left;
+}
+
+function parseOr(t: ParseState): MeasureNode {
+    let left = parseAnd(t);
+    for (;;) {
+        const tok = peekToken(t);
+        if (tok?.type === 'op' && tok.value === '||') {
+            takeToken(t);
+            const right = parseAnd(t);
+            left = { kind: 'logic', op: '||', left, right };
+        } else break;
+    }
+    return left;
+}
+
 function parseTerm(t: ParseState): MeasureNode {
     let left = parseFactor(t);
     for (;;) {
@@ -1209,6 +1420,17 @@ function parseTerm(t: ParseState): MeasureNode {
         } else break;
     }
     return left;
+}
+
+/** Wraps a table expression followed by `[Column]` (e.g. `FILTER(...)[Col]`)
+ *  into a `tablecol` node, so `VALUES(<table-expr>[<column>])` can extract the
+ *  column's values from the produced table. */
+function maybeTableCol(t: ParseState, node: MeasureNode): MeasureNode {
+    if (peekToken(t)?.type === 'bracket') {
+        const column = takeToken(t) as { type: 'bracket'; value: string };
+        return { kind: 'tablecol', base: node, column: column.value };
+    }
+    return node;
 }
 
 function parseFactor(t: ParseState): MeasureNode {
@@ -1224,26 +1446,28 @@ function parseFactor(t: ParseState): MeasureNode {
             right: inner,
         };
     }
+    if (tok.type === 'string') return { kind: 'string', value: tok.value };
     if (tok.type === 'lparen') {
-        const inner = parseExpr(t);
+        const inner = parseOr(t);
         expectToken(t, 'rparen');
-        return inner;
+        return maybeTableCol(t, inner);
     }
     if (tok.type === 'bracket') return { kind: 'ref', name: tok.value };
-    if (tok.type === 'table') return { kind: 'table', name: tok.value };
+    if (tok.type === 'table')
+        return maybeTableCol(t, { kind: 'table', name: tok.value });
     if (tok.type === 'word') {
         if (peekToken(t)?.type === 'lparen') {
             takeToken(t);
             const args: MeasureNode[] = [];
             if (peekToken(t)?.type !== 'rparen') {
-                args.push(parseExpr(t));
+                args.push(parseOr(t));
                 while (peekToken(t)?.type === 'comma') {
                     takeToken(t);
-                    args.push(parseExpr(t));
+                    args.push(parseOr(t));
                 }
             }
             expectToken(t, 'rparen');
-            return { kind: 'func', name: tok.value, args };
+            return maybeTableCol(t, { kind: 'func', name: tok.value, args });
         }
         if (peekToken(t)?.type === 'bracket') {
             const column = takeToken(t) as { type: 'bracket'; value: string };
@@ -1264,10 +1488,14 @@ function parseFactor(t: ParseState): MeasureNode {
 function walkNode(node: MeasureNode, visit: (n: MeasureNode) => void): void {
     visit(node);
     if (node.kind === 'func') for (const a of node.args) walkNode(a, visit);
-    else if (node.kind === 'binop') {
+    else if (
+        node.kind === 'binop' ||
+        node.kind === 'cmp' ||
+        node.kind === 'logic'
+    ) {
         walkNode(node.left, visit);
         walkNode(node.right, visit);
-    }
+    } else if (node.kind === 'tablecol') walkNode(node.base, visit);
 }
 
 function tryCompile(
@@ -1280,7 +1508,7 @@ function tryCompile(
         const tokens = tokenize(rhs);
         if (!tokens.length) return { ok: false, error: 'Expression vide.' };
         const state: ParseState = { tokens, pos: 0 };
-        const node = parseExpr(state);
+        const node = parseOr(state);
         if (state.pos < tokens.length) {
             return {
                 ok: false,
@@ -1317,11 +1545,12 @@ function resolveColumn(
     if (!present) {
         const candidates: string[] = table && table !== '' ? [table] : [];
         if (!candidates.length) {
-            const found = findTableForField(column);
+            const found = findTableForField(column, ctx.tables);
             if (found) candidates.push(found);
         }
+        const sourceTables = ctx.tables ?? TABLES;
         for (const name of candidates) {
-            const source = TABLES.find((t) => t.name === name);
+            const source = sourceTables.find((t) => t.name === name);
             if (source && source.rows.length && column in source.rows[0]) {
                 return source.rows.map((r) => r[column] ?? null);
             }
@@ -1349,6 +1578,232 @@ function columnNameOf(node: MeasureNode): string {
     throw new MeasureSyntaxError('Une colonne est attendue en argument.');
 }
 
+function isTruthy(value: unknown): boolean {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    return String(value).trim() !== '';
+}
+
+function compareScalar(a: unknown, b: unknown, op: CmpOp): boolean {
+    // DAX semantics: text values always compare as text (case-insensitive for
+    // equality). Only genuine numbers use numeric comparison — this keeps
+    // padded string keys like "1140342334          " distinct from
+    // "1140342334     " until they are explicitly TRIM()med.
+    const aNum = typeof a === 'number' ? a : Number.NaN;
+    const bNum = typeof b === 'number' ? b : Number.NaN;
+    const numeric = Number.isFinite(aNum) && Number.isFinite(bNum);
+    if (numeric) {
+        switch (op) {
+            case '=':
+                return aNum === bNum;
+            case '<>':
+                return aNum !== bNum;
+            case '<':
+                return aNum < bNum;
+            case '>':
+                return aNum > bNum;
+            case '<=':
+                return aNum <= bNum;
+            case '>=':
+                return aNum >= bNum;
+        }
+    }
+    const as = String(a ?? '').toLowerCase();
+    const bs = String(b ?? '').toLowerCase();
+    switch (op) {
+        case '=':
+            return as === bs;
+        case '<>':
+            return as !== bs;
+        case '<':
+            return as < bs;
+        case '>':
+            return as > bs;
+        case '<=':
+            return as <= bs;
+        case '>=':
+            return as >= bs;
+    }
+    return false;
+}
+
+/** Rows of a named table from the loaded dataset (or a ctx table set). */
+function tableRowsFor(table: string, tables?: TableDef[]): Row[] {
+    const source = (tables ?? TABLES).find((t) => t.name === table);
+    return source?.rows ?? [];
+}
+
+/**
+ * Resolves a single cell of a table-qualified (or bare) column inside an
+ * iterator context: the current iteration row first, then enclosing iterator
+ * rows (outermost last), then falls back to the loaded table's first row.
+ */
+function cellValue(
+    table: string | undefined,
+    column: string,
+    frame: { table: string; row: Row } | null,
+    ctx: EvalCtx,
+): unknown {
+    if (frame && column in frame.row) {
+        if (!table || table === frame.table) return frame.row[column] ?? null;
+    }
+    const stack = ctx.iter ?? [];
+    for (let i = stack.length - 1; i >= 0; i -= 1) {
+        const f = stack[i]!;
+        if (column in f.row) {
+            if (!table || table === f.table) return f.row[column] ?? null;
+        }
+    }
+    return null;
+}
+
+/**
+ * Evaluates a scalar node against a single iteration frame (row) plus the
+ * enclosing row context. Used for FILTER conditions, IF branches and the
+ * per-row expression of SUMX / COUNTX.
+ */
+function evalCondition(
+    node: MeasureNode,
+    frame: { table: string; row: Row } | null,
+    ctx: EvalCtx,
+): unknown {
+    switch (node.kind) {
+        case 'num':
+            return node.value;
+        case 'string':
+            return node.value;
+        case 'col':
+            return cellValue(node.table, node.column, frame, ctx);
+        case 'ref': {
+            const known = ctx.measures;
+            const fn =
+                known && node.name in known
+                    ? known[node.name]
+                    : (MEASURE_IMPL[node.name] ?? null);
+            if (fn)
+                return fn(frame ? [frame.row] : [], {
+                    ...ctx,
+                    iter: frame
+                        ? [...(ctx.iter ?? []), frame]
+                        : (ctx.iter ?? []),
+                });
+            return cellValue(undefined, node.name, frame, ctx);
+        }
+        case 'func':
+            return evalConditionFunction(node, frame, ctx);
+        case 'binop': {
+            const left = Number(evalCondition(node.left, frame, ctx) ?? 0);
+            const right = Number(evalCondition(node.right, frame, ctx) ?? 0);
+            if (node.op === '+') return left + right;
+            if (node.op === '-') return left - right;
+            if (node.op === '*') return left * right;
+            if (node.op === '/') return right === 0 ? 0 : left / right;
+            return 0;
+        }
+        case 'cmp': {
+            const left = evalCondition(node.left, frame, ctx);
+            const right = evalCondition(node.right, frame, ctx);
+            return compareScalar(left, right, node.op);
+        }
+        case 'logic': {
+            const left = evalCondition(node.left, frame, ctx);
+            if (node.op === '&&')
+                return (
+                    isTruthy(left) &&
+                    isTruthy(evalCondition(node.right, frame, ctx))
+                );
+            return (
+                isTruthy(left) ||
+                isTruthy(evalCondition(node.right, frame, ctx))
+            );
+        }
+        case 'table':
+            return null;
+        case 'tablecol':
+            return null;
+    }
+}
+
+function evalConditionFunction(
+    node: Extract<MeasureNode, { kind: 'func' }>,
+    frame: { table: string; row: Row } | null,
+    ctx: EvalCtx,
+): unknown {
+    const name = node.name.toUpperCase();
+    const args = node.args;
+
+    if (name === 'IF') {
+        const cond = args[0];
+        const thenValue = args[1];
+        const elseValue = args[2];
+        return isTruthy(evalCondition(cond, frame, ctx))
+            ? evalCondition(thenValue, frame, ctx)
+            : elseValue
+              ? evalCondition(elseValue, frame, ctx)
+              : 0;
+    }
+    if (name === 'AND')
+        return (
+            isTruthy(evalCondition(args[0], frame, ctx)) &&
+            isTruthy(evalCondition(args[1], frame, ctx))
+        );
+    if (name === 'OR')
+        return (
+            isTruthy(evalCondition(args[0], frame, ctx)) ||
+            isTruthy(evalCondition(args[1], frame, ctx))
+        );
+    if (name === 'TRIM') {
+        const value = evalCondition(args[0], frame, ctx);
+        return typeof value === 'string' ? value.trim() : value;
+    }
+    // Aggregate calls (SUM, COUNTROWS, …) used inside a condition. Thread the
+    // current row into the iterator stack so nested FILTER conditions can still
+    // reach the enclosing row's columns.
+    return evalFunction(node, frame ? [frame.row] : [], {
+        ...ctx,
+        iter: frame ? [...(ctx.iter ?? []), frame] : (ctx.iter ?? []),
+    });
+}
+
+/**
+ * Resolves a table expression argument: a table name, a bare column (the table
+ * owning the column), or a FILTER(...) over another table expression.
+ */
+function evalTableArg(
+    node: MeasureNode,
+    ctx: EvalCtx,
+): { table: string; row: Row }[] {
+    if (node.kind === 'table') {
+        return tableRowsFor(node.name, ctx.tables).map((row) => ({
+            table: node.name,
+            row,
+        }));
+    }
+    if (node.kind === 'col') {
+        // A bare table name parses as a column ref; prefer a table with that
+        // name over a column lookup so COUNTROWS(wip_chaine) works.
+        const tables = ctx.tables ?? TABLES;
+        const table =
+            node.table ||
+            (tables.some((t) => t.name === node.column)
+                ? node.column
+                : findTableForField(node.column, tables));
+        return tableRowsFor(table, tables).map((row) => ({ table, row }));
+    }
+    if (node.kind === 'func' && node.name.toUpperCase() === 'FILTER') {
+        const base = evalTableArg(node.args[0], ctx);
+        const cond = node.args[1];
+        return base.filter((frame) =>
+            isTruthy(evalCondition(cond, frame, ctx)),
+        );
+    }
+    if (node.kind === 'tablecol') {
+        return evalTableArg(node.base, ctx);
+    }
+    throw new MeasureSyntaxError('Une table est attendue.');
+}
+
 function evalFunction(
     node: Extract<MeasureNode, { kind: 'func' }>,
     rows: Row[],
@@ -1357,7 +1812,96 @@ function evalFunction(
     const name = node.name.toUpperCase();
     const arg = node.args[0];
 
-    if (name === 'COUNTROWS') return rows.length;
+    if (name === 'IF') {
+        return isTruthy(evalCondition(arg, null, ctx))
+            ? evalIteratorValue(node.args[1]!, null, ctx)
+            : evalIteratorValue(
+                  node.args[2] ?? { kind: 'num', value: 0 },
+                  null,
+                  ctx,
+              );
+    }
+    if (name === 'AND')
+        return isTruthy(evalCondition(node.args[0], null, ctx)) &&
+            isTruthy(evalCondition(node.args[1], null, ctx))
+            ? 1
+            : 0;
+    if (name === 'OR')
+        return isTruthy(evalCondition(node.args[0], null, ctx)) ||
+            isTruthy(evalCondition(node.args[1], null, ctx))
+            ? 1
+            : 0;
+
+    if (ITERATOR_FUNCS.has(name)) {
+        const frames = evalTableArg(node.args[0]!, ctx);
+        const expr = node.args[1];
+        const values = frames.map((frame) =>
+            evalCondition(expr, frame, {
+                ...ctx,
+                iter: [...(ctx.iter ?? []), frame],
+            }),
+        );
+        switch (name) {
+            case 'SUMX': {
+                let total = 0;
+                for (const v of values) {
+                    if (typeof v === 'number') total += v;
+                    else if (typeof v === 'string') {
+                        const n = Number(v);
+                        if (Number.isFinite(n)) total += n;
+                    } else if (v === true) total += 1;
+                }
+                return total;
+            }
+            case 'COUNTX':
+                return values.filter(
+                    (v) => v !== null && v !== undefined && v !== '',
+                ).length;
+            case 'AVERAGEX': {
+                const nums = values.map(Number).filter(Number.isFinite);
+                return nums.length
+                    ? nums.reduce((total, value) => total + value, 0) /
+                          nums.length
+                    : 0;
+            }
+            case 'MINX': {
+                const nums = values.map(Number).filter(Number.isFinite);
+                return nums.length ? Math.min(...nums) : 0;
+            }
+            case 'MAXX': {
+                const nums = values.map(Number).filter(Number.isFinite);
+                return nums.length ? Math.max(...nums) : 0;
+            }
+            case 'PRODUCTX': {
+                const nums = values.map(Number).filter(Number.isFinite);
+                return nums.reduce((total, value) => total * value, 1);
+            }
+            default:
+                return 0;
+        }
+    }
+
+    if (name === 'COUNTROWS') {
+        const first = node.args[0];
+        if (
+            first &&
+            (first.kind === 'table' ||
+                first.kind === 'col' ||
+                (first.kind === 'func' &&
+                    first.name.toUpperCase() === 'FILTER'))
+        ) {
+            return evalTableArg(first, ctx).length;
+        }
+        return rows.length;
+    }
+    if (name === 'FILTER') {
+        return evalTableArg(node, ctx).length;
+    }
+    if (name === 'VALUES') {
+        throw new MeasureSyntaxError(
+            'VALUES renvoie une liste de valeurs et ne peut être utilisé qu’au niveau supérieur de la mesure.',
+        );
+    }
 
     if (!AGGREGATION_FUNCS.has(name)) {
         throw new MeasureSyntaxError(
@@ -1414,10 +1958,28 @@ function evalFunction(
     }
 }
 
+/** Coerces a per-row scalar (condition result) into an aggregate number. */
+function evalIteratorValue(
+    node: MeasureNode,
+    frame: { table: string; row: Row } | null,
+    ctx: EvalCtx,
+): number {
+    const value = evalCondition(node, frame, ctx);
+    if (typeof value === 'number') return value;
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (typeof value === 'string') {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+}
+
 function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
     switch (node.kind) {
         case 'num':
             return node.value;
+        case 'string':
+            return 0;
         case 'col':
             return numericOf(
                 resolveColumn(node.column, rows, ctx, node.table),
@@ -1438,11 +2000,13 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
                     node.name,
                     rows,
                     ctx,
-                    findTableForField(node.name) || undefined,
+                    findTableForField(node.name, ctx.tables) || undefined,
                 ),
             ).reduce((total, value) => total + value, 0);
         }
         case 'table':
+            return 0;
+        case 'tablecol':
             return 0;
         case 'binop': {
             const left = evalNode(node.left, rows, ctx);
@@ -1452,6 +2016,23 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
             if (node.op === '*') return left * right;
             if (node.op === '/') return right === 0 ? 0 : left / right;
             return 0;
+        }
+        case 'cmp': {
+            const left = evalCondition(node.left, null, ctx);
+            const right = evalCondition(node.right, null, ctx);
+            return compareScalar(left, right, node.op) ? 1 : 0;
+        }
+        case 'logic': {
+            const left = evalCondition(node.left, null, ctx);
+            if (node.op === '&&')
+                return isTruthy(left) &&
+                    isTruthy(evalCondition(node.right, null, ctx))
+                    ? 1
+                    : 0;
+            return isTruthy(left) ||
+                isTruthy(evalCondition(node.right, null, ctx))
+                ? 1
+                : 0;
         }
         case 'func':
             return evalFunction(node, rows, ctx);
@@ -1478,6 +2059,63 @@ export function compileMeasure(expression: string): MeasureImpl {
 }
 
 /**
+ * Compiles a top-level `VALUES(<column>)` or
+ * `VALUES(<table-expr>[<column>])` measure into a list aggregator. The latter
+ * form (e.g. `VALUES(FILTER(codestyle, …)[StyleCode])`) evaluates the table
+ * expression first, then collects the distinct values of `<column>` from the
+ * produced rows. Returns `null` when the expression is not a VALUES measure,
+ * so the numeric `compileMeasure` path keeps handling everything else.
+ */
+export function compileListMeasure(expression: string): ListMeasureImpl | null {
+    const compiled = tryCompile(expression);
+    if (!compiled.ok) return null;
+    const node = compiled.node;
+    if (node.kind !== 'func' || node.name.toUpperCase() !== 'VALUES')
+        return null;
+    const arg = node.args[0];
+    if (!arg) throw new MeasureSyntaxError('VALUES() attend une colonne.');
+    let column: string;
+    let table: string | undefined;
+    let base: MeasureNode | null = null;
+    if (arg.kind === 'col') {
+        column = arg.column;
+        table = arg.table;
+    } else if (arg.kind === 'tablecol') {
+        column = arg.column;
+        base = arg.base;
+    } else if (arg.kind === 'ref') {
+        column = arg.name;
+    } else {
+        throw new MeasureSyntaxError('VALUES() attend une colonne.');
+    }
+    if (base) {
+        return (rows, ctx = {}) => {
+            const frames = evalTableArg(base, ctx);
+            return [
+                ...new Set(
+                    frames
+                        .map((f) => f.row[column] ?? null)
+                        .filter(
+                            (v) => v !== null && v !== undefined && v !== '',
+                        )
+                        .map((v) => String(v)),
+                ),
+            ].sort();
+        };
+    }
+    return (rows, ctx = {}) => {
+        const values = resolveColumn(column, rows, ctx, table);
+        return [
+            ...new Set(
+                values
+                    .filter((v) => v !== null && v !== undefined && v !== '')
+                    .map((v) => String(v)),
+            ),
+        ].sort();
+    };
+}
+
+/**
  * Returns the `Table[Column]` / `[Column]` references a measure expression
  * depends on, so callers can resolve the rows the measure should be evaluated
  * against (enrichment, measure-only visuals). Table names are kept as written
@@ -1494,6 +2132,7 @@ export function measureColumnRefs(
         if (node.kind === 'col')
             refs.push({ table: node.table, column: node.column });
         else if (node.kind === 'ref') refs.push({ column: node.name });
+        else if (node.kind === 'tablecol') refs.push({ column: node.column });
     });
     return refs;
 }
@@ -1525,11 +2164,25 @@ export function validateMeasureExpression(
         if (missing) return;
         if (
             node.kind === 'func' &&
-            !AGGREGATION_FUNCS.has(node.name.toUpperCase())
+            !AGGREGATION_FUNCS.has(node.name.toUpperCase()) &&
+            !SCALAR_FUNCS.has(node.name.toUpperCase()) &&
+            !ITERATOR_FUNCS.has(node.name.toUpperCase()) &&
+            !TABLE_FUNCS.has(node.name.toUpperCase()) &&
+            !LIST_FUNCS.has(node.name.toUpperCase())
         ) {
             missing = `Fonction « ${node.name} » non supportée.`;
         } else if (
             node.kind === 'col' &&
+            knownColumns.size > 0 &&
+            node.column
+        ) {
+            if (!node.table && TABLES.some((t) => t.name === node.column))
+                return;
+            if (!knownColumns.has(node.column.trim().toLowerCase())) {
+                missing = `Colonne « ${node.column} » introuvable.`;
+            }
+        } else if (
+            node.kind === 'tablecol' &&
             knownColumns.size > 0 &&
             node.column
         ) {
@@ -1605,6 +2258,13 @@ export function registerMeasure(
     impl?: MeasureImpl,
 ): void {
     MEASURE_IMPL[name] = impl ?? compileMeasure(expression);
+    try {
+        const list = compileListMeasure(expression);
+        if (list) LIST_MEASURE_IMPL[name] = list;
+        else delete LIST_MEASURE_IMPL[name];
+    } catch {
+        delete LIST_MEASURE_IMPL[name];
+    }
     const validation = validateMeasureExpression(
         expression,
         availableColumns(),
@@ -1617,6 +2277,7 @@ export function registerMeasure(
 /** Removes a custom measure (and any recorded error) from the engine. */
 export function unregisterMeasure(name: string): void {
     delete MEASURE_IMPL[name];
+    delete LIST_MEASURE_IMPL[name];
     delete MEASURE_ERRORS[name];
 }
 
@@ -1628,9 +2289,82 @@ export function isMeasure(name: string) {
     return name in MEASURE_IMPL;
 }
 
+/** True when the measure returns a distinct-value list (VALUES) instead of a
+ *  scalar, so the single-value visual can render it as a list. */
+export function isListMeasure(name: string) {
+    return name in LIST_MEASURE_IMPL;
+}
+
+/** Distinct-value list of a list measure in the current (or ctx-filtered)
+ *  table set. Falls back to `[]` for scalar measures. */
+export function listMeasureValue(
+    rows: Row[],
+    name: string,
+    ctx?: EvalCtx,
+): string[] {
+    const impl = LIST_MEASURE_IMPL[name];
+    return impl ? impl(rows, ctx) : [];
+}
+
+/** Numeric modes of `listAgg`: they operate on numeric codes only. */
+export const LIST_AGG_NUMERIC_MODES: Agg[] = ['sum', 'avg', 'min', 'max'];
+
+/** Number of codes ignored by a numeric `listAgg` mode (non-numeric codes). */
+export function listAggIgnoredCount(codes: string[], mode?: Agg): number {
+    if (!mode || !LIST_AGG_NUMERIC_MODES.includes(mode)) return 0;
+    return codes.filter((c) => !isFinite(Number(String(c).trim()))).length;
+}
+
+/**
+ * Collapse a distinct-value list to a single value for a given `listAgg`
+ * treatment. Undefined shows the whole list; `count`/`distinct` yield the
+ * code count; `first`/`latest`/`raw` yield one code; `nth` yields the code at
+ * 1-based `index`; numeric modes aggregate the numeric codes only.
+ */
+export function listTreatment(
+    codes: string[],
+    mode?: Agg,
+    index = 1,
+): string | null {
+    if (!codes.length) return null;
+    switch (mode) {
+        case 'count':
+        case 'distinct':
+            return String(codes.length);
+        case 'first':
+        case 'raw':
+            return codes[0] ?? null;
+        case 'latest':
+            return codes[codes.length - 1] ?? null;
+        case 'nth':
+            return (
+                codes[Math.min(Math.max(index, 1), codes.length) - 1] ?? null
+            );
+        case 'sum':
+        case 'avg':
+        case 'min':
+        case 'max': {
+            const nums = codes
+                .map((c) => Number(String(c).trim()))
+                .filter((n) => isFinite(n));
+            if (!nums.length) return null;
+            let acc = nums[0];
+            for (let i = 1; i < nums.length; i++) {
+                if (mode === 'min') acc = Math.min(acc, nums[i]);
+                else if (mode === 'max') acc = Math.max(acc, nums[i]);
+                else acc += nums[i];
+            }
+            if (mode === 'avg') acc = acc / nums.length;
+            return String(acc);
+        }
+        default:
+            return null;
+    }
+}
+
 /** First table that exposes a column with the given name. */
-export function findTableForField(name: string): string {
-    for (const t of TABLES) {
+export function findTableForField(name: string, tables?: TableDef[]): string {
+    for (const t of tables ?? TABLES) {
         if (t.fields.some((f) => f.name === name)) return t.name;
     }
     return '';
@@ -1684,49 +2418,68 @@ export function fieldNumericIssue(f: WellField): string | null {
     return `« ${fieldLabel(f)} » est un champ texte.`;
 }
 
-export function aggregate(rows: Row[], wf: WellField): number {
-    if (isMeasure(wf.name)) return MEASURE_IMPL[wf.name]!(rows);
+/**
+ * Restricts rows to the aggregation window configured on the field, or returns
+ * the rows untouched when no window is set. `first` keeps the first `window`
+ * rows, anything else keeps the last `window` rows.
+ */
+export function scopedRows(rows: Row[], wf: WellField): Row[] {
+    const n = wf.window;
+    if (!n || !Number.isFinite(n) || n <= 0) return rows;
+    const count = Math.min(Math.floor(n), rows.length);
+    if (count <= 0) return rows;
+    return wf.windowDir === 'first' ? rows.slice(0, count) : rows.slice(-count);
+}
+
+export function aggregate(rows: Row[], wf: WellField, ctx?: EvalCtx): number {
+    if (isMeasure(wf.name)) return MEASURE_IMPL[wf.name]!(rows, ctx);
+    const scoped = scopedRows(rows, wf);
     const col = wf.name;
     switch (wf.agg) {
         case 'count':
-            return rows.filter(
+            return scoped.filter(
                 (row) => row[col] !== null && row[col] !== undefined,
             ).length;
         case 'distinct':
-            return new Set(rows.map((r) => r[col])).size;
+            return new Set(scoped.map((r) => r[col])).size;
         case 'avg': {
-            const values = numericValues(rows, col);
+            const values = numericValues(scoped, col);
             return values.length
                 ? values.reduce((total, value) => total + value, 0) /
                       values.length
                 : 0;
         }
         case 'min': {
-            const values = numericValues(rows, col);
+            const values = numericValues(scoped, col);
             return values.length ? Math.min(...values) : 0;
         }
         case 'max': {
-            const values = numericValues(rows, col);
+            const values = numericValues(scoped, col);
             return values.length ? Math.max(...values) : 0;
         }
         case 'first': {
-            const values = numericValues(rows, col);
+            const values = numericValues(scoped, col);
             return values.length ? values[0] : 0;
         }
         case 'latest': {
-            const values = numericValues(rows, col);
+            const values = numericValues(scoped, col);
             const last = values[values.length - 1];
             return last === undefined ? 0 : last;
+        }
+        case 'nth': {
+            const values = numericValues(scoped, col);
+            const at = Math.max(0, Math.floor((wf.index ?? 1) - 1));
+            return values[at] ?? 0;
         }
         case 'raw': {
             // Actual value mode: show the field's value as-is from the first
             // row that has a non-null value, instead of an aggregate. For a
             // row-unique axis this surfaces the real per-row measurement.
-            const nums = numericValues(rows, col);
+            const nums = numericValues(scoped, col);
             return nums.length ? nums[0] : 0;
         }
         default:
-            return sum(rows, col);
+            return sum(scoped, col);
     }
 }
 
@@ -1734,8 +2487,10 @@ export function aggregate(rows: Row[], wf: WellField): number {
  * Collapses a single-value visual's rows into one displayed value.
  * Measures and numeric columns aggregate via `wf.agg`; non-numeric fields
  * (text/date/boolean) use the field's `valueAggregation` mode: `first`
- * (first non-null cell), `latest` (last non-null cell) or `count` (number
- * of non-null cells). Returns `null` when no value can be shown.
+ * (first non-null cell), `latest` (last non-null cell), `count` (number
+ * of non-null cells) or `nth` (cell at `wf.index`). A `window` on the field
+ * scopes every mode to a slice of rows. Returns `null` when no value can be
+ * shown.
  */
 export function singleValue(
     rows: Row[],
@@ -1744,17 +2499,25 @@ export function singleValue(
 ): string | number | boolean | null {
     if (isMeasure(wf.name)) return aggregate(rows, wf);
     if (fieldType(wf.name, wf.table) === 'number') return aggregate(rows, wf);
+    const scoped = scopedRows(rows, wf);
     const aggregation = mode ?? wf.valueAggregation ?? 'first';
     if (aggregation === 'count') {
-        return rows.filter(
+        return scoped.filter(
             (row) => row[wf.name] !== null && row[wf.name] !== undefined,
         ).length;
     }
-    const cells = rows
+    const cells = scoped
         .map((row) => row[wf.name])
         .filter((v) => v !== null && v !== undefined && v !== '');
-    const value = aggregation === 'latest' ? cells[cells.length - 1] : cells[0];
-    return value === undefined ? null : value;
+    if (aggregation === 'latest') {
+        const last = cells[cells.length - 1];
+        return last === undefined ? null : last;
+    }
+    if (aggregation === 'nth') {
+        const nth = cells[(wf.index ?? 1) - 1];
+        return nth === undefined ? null : nth;
+    }
+    return cells[0] ?? null;
 }
 
 /**
@@ -1782,16 +2545,29 @@ export function singleValueLabel(
     mode?: ValueAggregationMode,
 ): string {
     if (isMeasure(wf.name)) return wf.name;
-    if (type === 'number' || (mode ?? wf.valueAggregation) === 'count')
-        return measureLabel(wf);
+    const aggregation = mode ?? wf.valueAggregation;
+    if (aggregation === 'nth' && type !== 'number') return nthLabel(wf);
+    if (type === 'number' || aggregation === 'count') return measureLabel(wf);
     return fieldLabel(wf);
+}
+
+function nthLabel(wf: WellField): string {
+    return `Valeur N°${wf.index ?? 1} de ${fieldLabel(wf)}${windowSuffix(wf)}`;
+}
+
+function windowSuffix(wf: WellField): string {
+    if (!wf.window || !Number.isFinite(wf.window) || wf.window <= 0) return '';
+    const n = Math.floor(wf.window);
+    const dir = wf.windowDir === 'first' ? 'premiers' : 'derniers';
+    return ` (${dir} ${n} lignes)`;
 }
 
 export function measureLabel(wf: WellField) {
     if (isMeasure(wf.name)) return wf.name;
     if (wf.label?.trim()) return wf.label.trim();
     if (fieldType(wf.name, wf.table) === 'number') {
-        if (wf.agg === 'raw') return fieldLabel(wf);
+        if (wf.agg === 'raw') return fieldLabel(wf) + windowSuffix(wf);
+        if (wf.agg === 'nth') return nthLabel(wf);
         const p =
             wf.agg === 'sum'
                 ? 'Somme de'
@@ -1808,9 +2584,9 @@ export function measureLabel(wf: WellField) {
                           : wf.agg === 'min'
                             ? 'Min de'
                             : 'Max de';
-        return `${p} ${fieldLabel(wf)}`;
+        return `${p} ${fieldLabel(wf)}${windowSuffix(wf)}`;
     }
-    return `Nombre de ${fieldLabel(wf)}`;
+    return `Nombre de ${fieldLabel(wf)}${windowSuffix(wf)}`;
 }
 
 export function buildChartData(
@@ -1822,9 +2598,50 @@ export function buildChartData(
     maxCategories?: number,
     extra?: WellField,
     extraColor?: string,
+    graph?: RelationGraph,
 ) {
     const axisCol = axis[0]?.name;
+    const axisTable = axis[0]?.table;
     const legendCol = legend[0]?.name;
+
+    const hasMeasure = (list: WellField[]) =>
+        list.some((f) => isMeasure(f.name));
+
+    // When measures are aggregated per chain (or legend) slice, resolve their
+    // table lookups against a network-filtered table set so counts such as
+    // DISTINCTCOUNT(codestyle[StyleCode]) reflect the related rows only.
+    const needsContext =
+        !!graph &&
+        !!axisCol &&
+        (hasMeasure(values) ||
+            hasMeasure(tooltips) ||
+            hasMeasure(legend) ||
+            (extra != null && isMeasure(extra.name)));
+
+    const ctxCache = new Map<string, EvalCtx | undefined>();
+    const ctxFor = (key: string): EvalCtx | undefined => {
+        if (!needsContext) return undefined;
+        if (ctxCache.has(key)) return ctxCache.get(key);
+        const table =
+            axisTable ||
+            (TABLES.find((td) => td.fields.some((f) => f.name === axisCol))
+                ?.name ??
+                '');
+        if (!table) return undefined;
+        const filter: ReportFilter = {
+            column: axisCol,
+            table,
+            values: [key],
+            scope: 'report',
+            type: 'list',
+        };
+        const filtered = filterTableRows(TABLES, [filter], graph);
+        const ctx: EvalCtx | undefined = {
+            tables: applyTableRows(TABLES, filtered),
+        };
+        ctxCache.set(key, ctx);
+        return ctx;
+    };
 
     /** First non-null/non-empty cell of a column across a group. */
     const firstNonNull = (groupRows: Row[], col: string): unknown => {
@@ -1838,11 +2655,12 @@ export function buildChartData(
     const withTooltips = (
         item: Record<string, string | number>,
         groupRows: Row[],
+        ctx: EvalCtx | undefined,
     ) => {
         for (const t of tooltips) {
-            item[`tt:${t.name}`] = aggregate(groupRows, t);
+            item[`tt:${t.name}`] = aggregate(groupRows, t, ctx);
         }
-        if (extra) item['_cf'] = aggregate(groupRows, extra);
+        if (extra) item['_cf'] = aggregate(groupRows, extra, ctx);
         if (extraColor)
             item['_cfx'] = firstNonNull(groupRows, extraColor) as
                 | string
@@ -1854,7 +2672,7 @@ export function buildChartData(
         const single: Record<string, string | number> = { category: 'Total' };
         values.forEach((v) => (single[measureLabel(v)] = aggregate(rows, v)));
         return {
-            data: [withTooltips(single, rows)],
+            data: [withTooltips(single, rows, undefined)],
             series: values.map(measureLabel),
         };
     }
@@ -1873,8 +2691,12 @@ export function buildChartData(
 
     if (capped) {
         entries.sort((a, b) => {
-            const av = values[0] ? aggregate(a[1], values[0]) : a[1].length;
-            const bv = values[0] ? aggregate(b[1], values[0]) : b[1].length;
+            const av = values[0]
+                ? aggregate(a[1], values[0], ctxFor(a[0]))
+                : a[1].length;
+            const bv = values[0]
+                ? aggregate(b[1], values[0], ctxFor(b[0]))
+                : b[1].length;
             return Number(bv) - Number(av);
         });
     }
@@ -1884,6 +2706,7 @@ export function buildChartData(
     const seriesSet = new Set<string>();
     const data: Record<string, string | number>[] = kept.map(
         ([key, groupRows]) => {
+            const ctx = ctxFor(key);
             const item: Record<string, string | number> = { category: key };
             if (legendCol) {
                 const byLegend = new Map<string, Row[]>();
@@ -1896,16 +2719,16 @@ export function buildChartData(
                 for (const [lk, lrows] of byLegend) {
                     seriesSet.add(lk);
                     item[lk] = values[0]
-                        ? aggregate(lrows, values[0])
+                        ? aggregate(lrows, values[0], ctx)
                         : lrows.length;
                 }
             } else {
                 values.forEach((v) => {
                     seriesSet.add(measureLabel(v));
-                    item[measureLabel(v)] = aggregate(groupRows, v);
+                    item[measureLabel(v)] = aggregate(groupRows, v, ctx);
                 });
             }
-            return withTooltips(item, groupRows);
+            return withTooltips(item, groupRows, ctx);
         },
     );
 
@@ -1914,6 +2737,30 @@ export function buildChartData(
         const other: Record<string, string | number> = { category: 'Autre' };
         const otherRows: Row[] = [];
         for (const [, groupRows] of rest) otherRows.push(...groupRows);
+        const otherCtx = needsContext
+            ? (() => {
+                  const table =
+                      axisTable ||
+                      (TABLES.find((td) =>
+                          td.fields.some((f) => f.name === axisCol),
+                      )?.name ??
+                          '');
+                  if (!table) return undefined;
+                  const filter: ReportFilter = {
+                      column: axisCol,
+                      table,
+                      values: rest.map(([key]) => key),
+                      scope: 'report',
+                      type: 'list',
+                  };
+                  return {
+                      tables: applyTableRows(
+                          TABLES,
+                          filterTableRows(TABLES, [filter], graph),
+                      ),
+                  };
+              })()
+            : undefined;
         if (legendCol) {
             const byLegend = new Map<string, Row[]>();
             for (const r of otherRows) {
@@ -1925,16 +2772,16 @@ export function buildChartData(
             for (const [lk, lrows] of byLegend) {
                 seriesSet.add(lk);
                 other[lk] = values[0]
-                    ? aggregate(lrows, values[0])
+                    ? aggregate(lrows, values[0], otherCtx)
                     : lrows.length;
             }
         } else {
             values.forEach((v) => {
                 seriesSet.add(measureLabel(v));
-                other[measureLabel(v)] = aggregate(otherRows, v);
+                other[measureLabel(v)] = aggregate(otherRows, v, otherCtx);
             });
         }
-        data.push(withTooltips(other, otherRows));
+        data.push(withTooltips(other, otherRows, otherCtx));
     }
 
     if (fieldType(axisCol, axis[0]?.table) === 'number') {
@@ -2347,13 +3194,11 @@ export function formatDisplayUnitValue(
  * than a surprise percentage for values below 1. A custom `post` suffix
  * overrides the built-in K/M token (and is appended to small values too).
  */
-function formatAutoNumber(
-    n: number,
-    decimals?: number,
-    post?: string,
-): string {
+function formatAutoNumber(n: number, decimals?: number, post?: string): string {
     const dp =
-        typeof decimals === 'number' && isFinite(decimals) ? decimals : undefined;
+        typeof decimals === 'number' && isFinite(decimals)
+            ? decimals
+            : undefined;
     const abs = Math.abs(n);
     const scaled = (value: number, token: string) =>
         `${value.toLocaleString('en-US', {

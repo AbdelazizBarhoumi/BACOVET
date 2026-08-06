@@ -54,7 +54,10 @@ import {
     formatValue,
     formatWellValue,
     gaugeBoundValue,
+    isListMeasure,
     isMeasure,
+    listMeasureValue,
+    listTreatment,
     measureLabel,
     normalizeAxisStyle,
     normalizeBarStyle,
@@ -245,7 +248,12 @@ function valueAxisProps(
             fontFamily: visual.fontFamily,
         }),
         tickFormatter: (v: number) =>
-            formatDisplayUnitValue(v, axis.displayUnits, axis.decimals, axis.suffix),
+            formatDisplayUnitValue(
+                v,
+                axis.displayUnits,
+                axis.decimals,
+                axis.suffix,
+            ),
     };
     const label = axisTitle(axis, vertical, gutterWidth);
     if (label) props.label = label;
@@ -551,10 +559,7 @@ function CalloutValue({
         cf.style === 'icons'
             ? conditionalIcon(cf, n, n !== null ? [n] : [])
             : null;
-    const icon =
-        iconId !== null
-            ? iconById(cf.iconSet, iconId)
-            : undefined;
+    const icon = iconId !== null ? iconById(cf.iconSet, iconId) : undefined;
     return (
         <div
             className="font-semibold tracking-tight"
@@ -722,7 +727,13 @@ function ChartBody({
     match: ((r: Row) => boolean) | null;
     static?: boolean;
 }) {
-    const { applyCrossFilter, setTooltipHover, tooltipHover } = usePbi();
+    const {
+        applyCrossFilter,
+        setTooltipHover,
+        tooltipHover,
+        graph,
+        filteredTables,
+    } = usePbi();
 
     const animate = staticRender ? false : undefined;
     const cf = normalizeConditionalFormat(visual.conditionalFormat);
@@ -751,6 +762,7 @@ function ChartBody({
                 visual.maxCategories,
                 extra,
                 extraColor,
+                graph,
             ),
         [
             rows,
@@ -761,6 +773,7 @@ function ChartBody({
             visual.maxCategories,
             extra,
             extraColor,
+            graph,
         ],
     );
 
@@ -1195,6 +1208,73 @@ function ChartBody({
             return wrap(
                 <div className="flex h-full flex-wrap items-center justify-around gap-2">
                     {visual.values.map((v, i) => {
+                        if (isListMeasure(v.name)) {
+                            const codes = listMeasureValue(rows, v.name, {
+                                tables: filteredTables,
+                            });
+                            const treated = listTreatment(
+                                codes,
+                                v.listAgg,
+                                v.index,
+                            );
+                            if (v.listAgg) {
+                                return (
+                                    <div
+                                        key={i}
+                                        className="flex flex-col items-center"
+                                    >
+                                        <span className="text-xl font-semibold tabular-nums">
+                                            {treated ?? '—'}
+                                        </span>
+                                        <CategoryLabel
+                                            visual={visual}
+                                            label={singleValueLabel(v, 'text')}
+                                        />
+                                        {visual.axis[0] && (
+                                            <div className="text-[10px] text-muted-foreground">
+                                                par {fieldLabel(visual.axis[0])}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+                            const listed =
+                                v.valueAggregation === 'latest'
+                                    ? [...codes].reverse()
+                                    : codes;
+                            return (
+                                <div
+                                    key={i}
+                                    className="flex flex-col items-center"
+                                >
+                                    {listed.length ? (
+                                        <div className="max-h-full overflow-auto text-center text-sm">
+                                            {listed.map((code) => (
+                                                <div
+                                                    key={code}
+                                                    className="leading-snug whitespace-nowrap"
+                                                >
+                                                    {code}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-sm text-muted-foreground">
+                                            —
+                                        </span>
+                                    )}
+                                    <CategoryLabel
+                                        visual={visual}
+                                        label={singleValueLabel(v, 'text')}
+                                    />
+                                    {visual.axis[0] && (
+                                        <div className="text-[10px] text-muted-foreground">
+                                            par {fieldLabel(visual.axis[0])}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
                         const type = fieldType(v.name, v.table);
                         const raw = singleValue(rows, v);
                         const numeric =
@@ -2006,6 +2086,7 @@ function TableVisual({
     rows: Row[];
     match: ((r: Row) => boolean) | null;
 }) {
+    const { graph } = usePbi();
     const groupCol = visual.axis[0]?.name;
     const legendCol = visual.legend[0]?.name;
     /** Row group values that match an active cross-highlight (null = none). */
@@ -2038,6 +2119,7 @@ function TableVisual({
         undefined,
         extra,
         extraColor,
+        graph,
     );
     if (!groupCol && !visual.values.length)
         return <EmptyVisual label="Table" />;
@@ -2125,9 +2207,7 @@ function TableVisual({
                                             {cf.style === 'icons' && (
                                                 <CfCellIcon
                                                     cf={cf}
-                                                    value={
-                                                        d['_cf'] ?? null
-                                                    }
+                                                    value={d['_cf'] ?? null}
                                                     values={cfValues}
                                                 />
                                             )}
@@ -2194,9 +2274,9 @@ function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             className="flex w-full items-center gap-1.5 rounded border border-border bg-background px-2 py-1.5 text-left text-[11px] hover:bg-accent"
                             onClick={() => setOpen((o) => !o)}
                         >
-<span className="min-w-0 flex-1 truncate">
-    {selectedValue ?? 'Tous'}
-</span>
+                            <span className="min-w-0 flex-1 truncate">
+                                {selectedValue ?? 'Tous'}
+                            </span>
                             <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
                         </button>
                     </PopoverTrigger>
@@ -2630,8 +2710,8 @@ function KeyInfluencers({ visual, rows }: { visual: Visual; rows: Row[] }) {
     return (
         <div className="h-full overflow-auto p-1 text-[11px]">
             <p className="mb-2 text-muted-foreground">
-                Quels facteurs influencent <strong>{measureLabel(measure)}</strong> à
-                la hausse ?
+                Quels facteurs influencent{' '}
+                <strong>{measureLabel(measure)}</strong> à la hausse ?
             </p>
             {scored.slice(0, 8).map((s) => (
                 <div key={s.k} className="mb-1">
@@ -2729,6 +2809,7 @@ function DecompositionTree({ visual, rows }: { visual: Visual; rows: Row[] }) {
 }
 
 function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
+    const { graph } = usePbi();
     const [q, setQ] = useState('');
     const firstRow = rows[0] ?? {};
     const textKey =
@@ -2742,6 +2823,11 @@ function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         visual.values.length
             ? visual.values
             : [{ table: 'Measures', name: 'Nombre de lignes', agg: 'sum' }],
+        [],
+        undefined,
+        undefined,
+        undefined,
+        graph,
     );
     return (
         <div className="flex h-full flex-col gap-1">
@@ -2828,7 +2914,10 @@ function MapVisual({
     onPointClick: (p: { category?: string | number }) => void;
 }) {
     const key = series[0];
-    if (!key) return <EmptyVisual label="Carte — ajoutez un emplacement et une mesure" />;
+    if (!key)
+        return (
+            <EmptyVisual label="Carte — ajoutez un emplacement et une mesure" />
+        );
     const max = Math.max(...data.map((d) => Number(d[key]) || 0), 1);
     return (
         <div className="grid h-full grid-cols-3 content-start gap-1 overflow-auto rounded bg-muted/40 p-1">

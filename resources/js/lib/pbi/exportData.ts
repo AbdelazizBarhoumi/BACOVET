@@ -176,6 +176,11 @@ export function visualExportData(
         visual.axis,
         visual.type === 'matrix' ? visual.legend : [],
         visual.values,
+        [],
+        undefined,
+        undefined,
+        undefined,
+        deps.graph,
     );
     if (!series.length) return null;
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { applyTableRows, filterTableRows, type ReportFilter } from './filters';
 import {
     aggregate,
     applyFx,
     buildChartData,
+    compileListMeasure,
     compileMeasure,
     evaluateMeasure,
     fieldLabel,
@@ -11,7 +13,11 @@ import {
     formatNumberPattern,
     gaugeBoundValue,
     inferFieldType,
+    isListMeasure,
     isMeasure,
+    listAggIgnoredCount,
+    listMeasureValue,
+    listTreatment,
     measureColumnRefs,
     measureError,
     measureLabel,
@@ -24,6 +30,7 @@ import {
     parseDaxRef,
     parseFieldReference,
     registerMeasure,
+    scopedRows,
     setTables,
     singleValue,
     singleValueLabel,
@@ -581,12 +588,12 @@ describe('callout formatting', () => {
         expect(
             formatCallout(62.567, { displayUnits: 'auto', decimals: 2 }),
         ).toBe('62.57');
-        expect(
-            formatCallout(0.5, { displayUnits: 'auto', decimals: 1 }),
-        ).toBe('0.5');
-        expect(
-            formatCallout(250, { displayUnits: 'auto', decimals: 2 }),
-        ).toBe('250');
+        expect(formatCallout(0.5, { displayUnits: 'auto', decimals: 1 })).toBe(
+            '0.5',
+        );
+        expect(formatCallout(250, { displayUnits: 'auto', decimals: 2 })).toBe(
+            '250',
+        );
         expect(
             formatCallout(1_500_000, { displayUnits: 'auto', decimals: 1 }),
         ).toBe('1.5M');
@@ -680,7 +687,9 @@ describe('formatDisplayUnitValue — axis ticks / data labels', () => {
     });
 
     it('replaces percent and currency tokens with a custom postfix', () => {
-        expect(formatDisplayUnitValue(0.5, 'percent', 1, 'pts')).toBe('50.0pts');
+        expect(formatDisplayUnitValue(0.5, 'percent', 1, 'pts')).toBe(
+            '50.0pts',
+        );
         expect(formatDisplayUnitValue(2500, 'currency', 0, '€')).toBe('2,500€');
     });
 
@@ -725,7 +734,9 @@ describe('singleValue — string/date support for single-value visuals', () => {
         expect(singleValue(rows, text, 'latest')).toBe('Closed');
         expect(singleValue(rows, text, 'count')).toBe(2);
         expect(singleValueLabel(text, 'text', 'first')).toBe('Status');
-        expect(singleValueLabel(text, 'text', 'count')).toBe('Nombre de Status');
+        expect(singleValueLabel(text, 'text', 'count')).toBe(
+            'Nombre de Status',
+        );
         expect(
             singleValue(
                 rows,
@@ -784,6 +795,186 @@ describe('singleValue — string/date support for single-value visuals', () => {
             normalizeWellField({ table: 'log', name: 'Status' })
                 ?.valueAggregation,
         ).toBeUndefined();
+    });
+});
+
+describe('singleValue — list-style aggregations (nth + window)', () => {
+    const rows = [
+        { Amount: 1, Status: 'Open', LoggedAt: '2026-07-01' },
+        { Amount: 2, Status: null, LoggedAt: '2026-07-02' },
+        { Amount: 3, Status: 'Closed', LoggedAt: '2026-07-03' },
+        { Amount: 4, Status: 'Paused', LoggedAt: '2026-07-04' },
+        { Amount: 5, Status: 'Open', LoggedAt: '2026-07-05' },
+    ];
+
+    beforeAll(() => {
+        setTables([
+            {
+                name: 'log',
+                fields: [
+                    { table: 'log', name: 'Amount', type: 'number' },
+                    { table: 'log', name: 'Status', type: 'text' },
+                    { table: 'log', name: 'LoggedAt', type: 'date' },
+                ],
+                rows: [],
+            },
+        ]);
+    });
+
+    it('picks the nth numeric value (1-based)', () => {
+        const wf = { table: 'log', name: 'Amount', agg: 'nth' as const };
+        expect(aggregate(rows, { ...wf, index: 2 })).toBe(2);
+        expect(aggregate(rows, { ...wf, index: 1 })).toBe(1);
+        expect(aggregate(rows, { ...wf, index: 5 })).toBe(5);
+        expect(aggregate(rows, { ...wf, index: 99 })).toBe(0);
+        expect(singleValue(rows, { ...wf, index: 2 })).toBe(2);
+    });
+
+    it('picks the nth non-null cell for text fields', () => {
+        const wf = {
+            table: 'log',
+            name: 'Status',
+            agg: 'count' as const,
+            valueAggregation: 'nth' as const,
+            index: 2,
+        };
+        expect(singleValue(rows, wf)).toBe('Closed');
+        expect(singleValueLabel(wf, 'text')).toBe('Valeur N°2 de Status');
+    });
+
+    it('scopes aggregations to the last N rows', () => {
+        const sum = { table: 'log', name: 'Amount', agg: 'sum' as const };
+        expect(aggregate(rows, { ...sum, window: 2 })).toBe(9);
+        expect(aggregate(rows, { ...sum, window: 3 })).toBe(12);
+        expect(aggregate(rows, { ...sum, window: 10 })).toBe(15);
+    });
+
+    it('scopes aggregations to the first N rows', () => {
+        const sum = {
+            table: 'log',
+            name: 'Amount',
+            agg: 'sum' as const,
+            window: 2,
+            windowDir: 'first' as const,
+        };
+        expect(aggregate(rows, sum)).toBe(3);
+        expect(singleValue(rows, sum)).toBe(3);
+    });
+
+    it('combines windows with latest / nth / avg', () => {
+        const base = { table: 'log', name: 'Amount', window: 3 };
+        expect(aggregate(rows, { ...base, agg: 'latest' as const })).toBe(5);
+        expect(
+            aggregate(rows, { ...base, agg: 'nth' as const, index: 2 }),
+        ).toBe(4);
+        expect(
+            aggregate(rows, { ...base, agg: 'avg' as const, window: 2 }),
+        ).toBeCloseTo(4.5);
+    });
+
+    it('applies windows to non-numeric modes', () => {
+        const base = { table: 'log', name: 'Status', agg: 'count' as const };
+        expect(
+            singleValue(rows, {
+                ...base,
+                valueAggregation: 'latest' as const,
+                window: 3,
+                windowDir: 'first' as const,
+            }),
+        ).toBe('Closed');
+        expect(
+            singleValue(rows, {
+                ...base,
+                valueAggregation: 'count' as const,
+                window: 2,
+            }),
+        ).toBe(2);
+        expect(
+            singleValue(rows, {
+                ...base,
+                valueAggregation: 'nth' as const,
+                index: 2,
+                window: 3,
+            }),
+        ).toBe('Paused');
+    });
+
+    it('scopedRows respects window and direction', () => {
+        const wf = { table: 'log', name: 'Amount', agg: 'sum' as const };
+        expect(scopedRows(rows, { ...wf, window: 2 })).toHaveLength(2);
+        expect(
+            scopedRows(rows, { ...wf, window: 2, windowDir: 'first' as const }),
+        ).toEqual([rows[0], rows[1]]);
+        expect(scopedRows(rows, wf)).toHaveLength(5);
+        expect(scopedRows(rows, { ...wf, window: 0 })).toHaveLength(5);
+        expect(scopedRows(rows, { ...wf, window: -1 })).toHaveLength(5);
+    });
+
+    it('labels include window and nth info', () => {
+        const base = { table: 'log', name: 'Amount' };
+        expect(measureLabel({ ...base, agg: 'sum' as const, window: 2 })).toBe(
+            'Somme de Amount (derniers 2 lignes)',
+        );
+        expect(
+            measureLabel({
+                ...base,
+                agg: 'sum' as const,
+                window: 2,
+                windowDir: 'first' as const,
+            }),
+        ).toBe('Somme de Amount (premiers 2 lignes)');
+        expect(measureLabel({ ...base, agg: 'nth' as const, index: 2 })).toBe(
+            'Valeur N°2 de Amount',
+        );
+        expect(
+            singleValueLabel(
+                {
+                    table: 'log',
+                    name: 'LoggedAt',
+                    agg: 'count' as const,
+                    valueAggregation: 'nth' as const,
+                    index: 3,
+                },
+                'date',
+            ),
+        ).toBe('Valeur N°3 de LoggedAt');
+    });
+
+    it('normalizes index, window and windowDir on well fields', () => {
+        expect(
+            normalizeWellField({
+                table: 'log',
+                name: 'Amount',
+                agg: 'sum',
+                index: 2,
+                window: 10,
+                windowDir: 'first',
+            }),
+        ).toMatchObject({ index: 2, window: 10, windowDir: 'first' });
+        expect(
+            normalizeWellField({
+                table: 'log',
+                name: 'Amount',
+                agg: 'sum',
+                index: 0,
+            }),
+        ).not.toHaveProperty('index');
+        expect(
+            normalizeWellField({
+                table: 'log',
+                name: 'Amount',
+                agg: 'sum',
+                window: -3,
+            }),
+        ).not.toHaveProperty('window');
+        expect(
+            normalizeWellField({
+                table: 'log',
+                name: 'Amount',
+                agg: 'sum',
+                index: 'abc',
+            }),
+        ).not.toHaveProperty('index');
     });
 });
 
@@ -969,5 +1160,674 @@ describe('Power BI-style format strings', () => {
         expect(formatNumberPattern(1.27, '0.00')).toBe('1.27');
         expect(formatNumberPattern(7, '0000')).toBe('0007');
         expect(formatNumberPattern(1234567, '#,##0')).toBe('1,234,567');
+    });
+});
+
+describe('DAX comparison operators and string literals', () => {
+    it('compares numbers', () => {
+        expect(evaluateMeasure('Total = 5 = 5', [])).toEqual({ value: 1 });
+        expect(evaluateMeasure('Total = 5 <> 5', [])).toEqual({ value: 0 });
+        expect(evaluateMeasure('Total = 3 < 5', [])).toEqual({ value: 1 });
+        expect(evaluateMeasure('Total = 5 > 6', [])).toEqual({ value: 0 });
+        expect(evaluateMeasure('Total = 3 <= 3', [])).toEqual({ value: 1 });
+        expect(evaluateMeasure('Total = 3 >= 4', [])).toEqual({ value: 0 });
+    });
+
+    it('compares string literals case-insensitively', () => {
+        expect(evaluateMeasure('Total = "abc" = "abc"', [])).toEqual({
+            value: 1,
+        });
+        expect(evaluateMeasure('Total = "ABC" = "abc"', [])).toEqual({
+            value: 1,
+        });
+        expect(evaluateMeasure('Total = "abc" = "abd"', [])).toEqual({
+            value: 0,
+        });
+        expect(evaluateMeasure('Total = "abc" <> "abd"', [])).toEqual({
+            value: 1,
+        });
+    });
+});
+
+describe('DAX IF / AND / OR / TRIM', () => {
+    it('evaluates IF branches', () => {
+        expect(evaluateMeasure('Total = IF(1 = 1, 10, 20)', [])).toEqual({
+            value: 10,
+        });
+        expect(evaluateMeasure('Total = IF(1 = 2, 10, 20)', [])).toEqual({
+            value: 20,
+        });
+        expect(evaluateMeasure('Total = IF(1 = 1, 7)', [])).toEqual({
+            value: 7,
+        });
+    });
+
+    it('evaluates logical operators and functions', () => {
+        expect(
+            evaluateMeasure('Total = IF("a" = "a" && 1 < 2, 7, 8)', []),
+        ).toEqual({ value: 7 });
+        expect(evaluateMeasure('Total = IF(1 = 2 || 3 = 3, 9, 8)', [])).toEqual(
+            { value: 9 },
+        );
+        expect(
+            evaluateMeasure('Total = IF(AND(1 = 1, 2 = 2), 5, 6)', []),
+        ).toEqual({ value: 5 });
+        expect(
+            evaluateMeasure('Total = IF(OR(1 = 2, 2 = 2), 5, 6)', []),
+        ).toEqual({ value: 5 });
+    });
+
+    it('accepts the new functions at validation time', () => {
+        const ok =
+            validateMeasureExpression(
+                'Total = IF(TRIM(" x ") = "x" && 1 > 0, SUM(Amount), 0)',
+                ['Amount'],
+            ).ok === true;
+        expect(ok).toBe(true);
+        expect(validateMeasureExpression('Total = SUMX(Sales, 1)').ok).toBe(
+            true,
+        );
+        expect(
+            validateMeasureExpression('Total = FILTER(Sales, 1 = 1)').ok,
+        ).toBe(true);
+    });
+});
+
+describe('DAX table iteration (FILTER / SUMX / COUNTX)', () => {
+    const stock: TableDef = {
+        name: 'stock',
+        fields: [
+            { table: 'stock', name: 'Code', type: 'text' },
+            { table: 'stock', name: 'Qty', type: 'number' },
+            { table: 'stock', name: 'Active', type: 'text' },
+        ],
+        rows: [
+            { Code: 'A', Qty: 10, Active: 'Y' },
+            { Code: 'B', Qty: 5, Active: 'N' },
+            { Code: 'C', Qty: 2, Active: 'Y' },
+        ],
+    };
+
+    it('filters rows and counts with COUNTROWS', () => {
+        setTables([stock]);
+        expect(
+            evaluateMeasure(
+                'Total = COUNTROWS(FILTER(stock, stock[Active] = "Y"))',
+                [],
+            ),
+        ).toEqual({ value: 2 });
+        expect(evaluateMeasure('Total = COUNTROWS(stock)', [])).toEqual({
+            value: 3,
+        });
+    });
+
+    it('aggregates an expression per row with SUMX / COUNTX', () => {
+        setTables([stock]);
+        expect(evaluateMeasure('Total = SUMX(stock, stock[Qty])', [])).toEqual({
+            value: 17,
+        });
+        expect(
+            evaluateMeasure(
+                'Total = SUMX(FILTER(stock, stock[Active] = "Y"), stock[Qty])',
+                [],
+            ),
+        ).toEqual({ value: 12 });
+        expect(
+            evaluateMeasure(
+                'Total = COUNTX(stock, IF(stock[Active] = "Y", stock[Code], ""))',
+                [],
+            ),
+        ).toEqual({ value: 2 });
+        expect(evaluateMeasure('Total = MAXX(stock, stock[Qty])', [])).toEqual({
+            value: 10,
+        });
+    });
+});
+
+describe('chain -> distinct styles (codestyle[StyleCode], filtered by chain)', () => {
+    const pad = (s: string, n: number) => s.padEnd(n, ' ');
+    const taging: TableDef = {
+        name: 'taging_reel',
+        fields: [
+            { table: 'taging_reel', name: 'MONo', type: 'text' },
+            { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+        ],
+        rows: [
+            { MONo: pad('4524091437', 15), ProdGroup: pad('CH10', 40) },
+            { MONo: pad('4524093564', 15), ProdGroup: pad('CH10', 40) },
+            { MONo: pad('4524091437', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524093564', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524153967', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524154323', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524287160', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524736457', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524757987', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524757991', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('4524418026', 15), ProdGroup: pad('Departage', 40) },
+            { MONo: pad('1140342334', 15), ProdGroup: pad('DEP-J', 40) },
+        ],
+    };
+    const codestyle: TableDef = {
+        name: 'codestyle',
+        fields: [
+            { table: 'codestyle', name: 'SONo', type: 'text' },
+            { table: 'codestyle', name: 'StyleCode', type: 'text' },
+        ],
+        rows: [
+            { SONo: '4524091437', StyleCode: '311837' },
+            { SONo: '4524093564', StyleCode: '311837' },
+            { SONo: '4524153967', StyleCode: '340497' },
+            { SONo: '4524154323', StyleCode: '340497' },
+            { SONo: '4524287160', StyleCode: '340497' },
+            { SONo: '4524736457', StyleCode: '348049' },
+            { SONo: '4524757987', StyleCode: '302806' },
+            { SONo: '4524757991', StyleCode: '302806' },
+        ],
+    };
+
+    const formula = 'Nb Styles = DISTINCTCOUNT(codestyle[StyleCode])';
+
+    it('counts distinct styles in the codestyle table (global = 4)', () => {
+        setTables([taging, codestyle]);
+        const result = evaluateMeasure(formula, []);
+        expect(result).toEqual({ value: 4 });
+        expect(result.error).toBeUndefined();
+    });
+
+    it('resolves CH10 to 1 distinct style (311837) once codestyle is chain-filtered', () => {
+        // The store feeds the filtered tables into the engine: taging is
+        // reduced to the CH10 rows, which propagates to codestyle via MONo.
+        const ch10MOns = new Set(
+            taging.rows
+                .filter((r) => String(r.ProdGroup ?? '').trim() === 'CH10')
+                .map((r) => String(r.MONo).trim()),
+        );
+        const ch10Codestyle: TableDef = {
+            ...codestyle,
+            rows: codestyle.rows.filter((r) =>
+                ch10MOns.has(String(r.SONo).trim()),
+            ),
+        };
+        setTables([ch10Codestyle]);
+        const result = evaluateMeasure(formula, []);
+        expect(result).toEqual({ value: 1 });
+    });
+
+    it('shows raw equality fails on the padded keys and TRIM fixes it', () => {
+        setTables([taging, codestyle]);
+        // MONo is padded to 15 chars; an unpadded literal never matches.
+        expect(
+            evaluateMeasure(
+                'Total = COUNTROWS(FILTER(taging_reel, taging_reel[MONo] = "4524153967"))',
+                [],
+            ),
+        ).toEqual({ value: 0 });
+        expect(
+            evaluateMeasure(
+                'Total = COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = "4524153967"))',
+                [],
+            ),
+        ).toEqual({ value: 1 });
+    });
+
+    it('lists the tables the formula depends on (codestyle only)', () => {
+        setTables([taging, codestyle]);
+        const refs = measureColumnRefs(formula);
+        expect(refs.some((r) => r.column === 'StyleCode')).toBe(true);
+        // No taging / qte_depart leg in the expression; the chain scoping
+        // comes from the filtered tables the store feeds the engine.
+        expect(refs.some((r) => r.column === 'MONo')).toBe(false);
+        expect(refs.some((r) => r.column === 'OF_No')).toBe(false);
+    });
+});
+
+describe('VALUES list measures (style codes)', () => {
+    const codestyle: TableDef = {
+        name: 'codestyle',
+        fields: [
+            { table: 'codestyle', name: 'SONo', type: 'text' },
+            { table: 'codestyle', name: 'StyleCode', type: 'text' },
+        ],
+        rows: [
+            { SONo: '4524091437', StyleCode: '311837' },
+            { SONo: '4524093564', StyleCode: '311837' },
+            { SONo: '4524153967', StyleCode: '340497' },
+            { SONo: '4524154323', StyleCode: '340497' },
+            { SONo: '4524287160', StyleCode: '340497' },
+            { SONo: '4524736457', StyleCode: '348049' },
+            { SONo: '4524757987', StyleCode: '302806' },
+            { SONo: '4524757991', StyleCode: '302806' },
+        ],
+    };
+
+    const formula = 'Style Codes = VALUES(codestyle[StyleCode])';
+
+    it('returns the distinct style codes as a list (global)', () => {
+        setTables([codestyle]);
+        const fn = compileListMeasure(formula);
+        expect(fn).not.toBeNull();
+        expect(fn!([], {})).toEqual(['302806', '311837', '340497', '348049']);
+    });
+
+    it('scopes the codes to the filtered (per-chain) table set', () => {
+        // The store feeds the engine the chain-filtered tables: codestyle
+        // reduced to the rows linked to CH10 (via MONo/SONo), i.e. 311837.
+        const ch10: TableDef = {
+            ...codestyle,
+            rows: codestyle.rows.filter((r) =>
+                ['4524091437', '4524093564'].includes(String(r.SONo)),
+            ),
+        };
+        setTables([ch10]);
+        const fn = compileListMeasure(formula)!;
+        expect(fn([], {})).toEqual(['311837']);
+    });
+
+    it('registers and exposes list measures', () => {
+        setTables([codestyle]);
+        registerMeasure('Style Codes', formula);
+        registerMeasure(
+            'Nb Styles',
+            'Nb Styles = DISTINCTCOUNT(codestyle[StyleCode])',
+        );
+        expect(isListMeasure('Style Codes')).toBe(true);
+        expect(isListMeasure('Nb Styles')).toBe(false);
+        expect(listMeasureValue([], 'Style Codes')).toEqual([
+            '302806',
+            '311837',
+            '340497',
+            '348049',
+        ]);
+        expect(listMeasureValue([], 'Nb Styles')).toEqual([]);
+        unregisterMeasure('Style Codes');
+        unregisterMeasure('Nb Styles');
+    });
+
+    it('validates a VALUES measure without a missing-function error', () => {
+        setTables([codestyle]);
+        const result = validateMeasureExpression(formula, ['StyleCode'], []);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('rejects VALUES nested in a scalar context', () => {
+        setTables([codestyle]);
+        const result = evaluateMeasure(
+            'Total = SUM(VALUES(codestyle[StyleCode]))',
+            [],
+        );
+        expect(result.value).toBe(0);
+        expect(result.error).toBeTruthy();
+    });
+
+    it('parses and evaluates VALUES(FILTER(...)[Column]) (global)', () => {
+        const taging: TableDef = {
+            name: 'taging_reel',
+            fields: [
+                { table: 'taging_reel', name: 'MONo', type: 'text' },
+                { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    MONo: '4524091437'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524153967'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524736457'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524757987'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '1140342334'.padEnd(15, ' '),
+                    ProdGroup: 'DEP-J'.padEnd(40, ' '),
+                },
+            ],
+        };
+        setTables([taging, codestyle]);
+        const formula =
+            'Style Codes = VALUES(FILTER(codestyle, COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]))) > 0)[StyleCode])';
+        const fn = compileListMeasure(formula);
+        expect(fn).not.toBeNull();
+        expect(fn!([], {})).toEqual(['302806', '311837', '340497', '348049']);
+    });
+
+    it('scopes VALUES(FILTER(...)[Column]) to the chain-filtered taging_reel', () => {
+        const taging: TableDef = {
+            name: 'taging_reel',
+            fields: [
+                { table: 'taging_reel', name: 'MONo', type: 'text' },
+                { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    MONo: '4524091437'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524093564'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+            ],
+        };
+        // codestyle is left FULL: the chain scoping must come from the explicit
+        // in-measure join on taging_reel, not from pre-filtered codestyle rows.
+        setTables([taging, codestyle]);
+        const formula =
+            'Style Codes = VALUES(FILTER(codestyle, COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]))) > 0)[StyleCode])';
+        const fn = compileListMeasure(formula)!;
+        expect(fn([], {})).toEqual(['311837']);
+    });
+
+    it('returns an empty list for a chain with no matching codestyle rows', () => {
+        const taging: TableDef = {
+            name: 'taging_reel',
+            fields: [
+                { table: 'taging_reel', name: 'MONo', type: 'text' },
+                { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    MONo: '1140342334'.padEnd(15, ' '),
+                    ProdGroup: 'DEP-J'.padEnd(40, ' '),
+                },
+            ],
+        };
+        setTables([taging, codestyle]);
+        const formula =
+            'Style Codes = VALUES(FILTER(codestyle, COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]))) > 0)[StyleCode])';
+        const fn = compileListMeasure(formula)!;
+        expect(fn([], {})).toEqual([]);
+    });
+
+    it('validates the extracted column of a VALUES(FILTER(...)[Column]) measure', () => {
+        setTables([codestyle]);
+        const formula =
+            'Style Codes = VALUES(FILTER(codestyle, COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]))) > 0)[StyleCode])';
+        // Bare FILTER bases are table names: they must resolve without being
+        // columns. Register both tables so taging_reel/codestyle are known.
+        const taging: TableDef = {
+            name: 'taging_reel',
+            fields: [
+                { table: 'taging_reel', name: 'MONo', type: 'text' },
+                { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    MONo: '4524091437'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+            ],
+        };
+        setTables([taging, codestyle]);
+        expect(
+            validateMeasureExpression(
+                formula,
+                ['StyleCode', 'SONo', 'MONo'],
+                [],
+            ),
+        ).toEqual({ ok: true });
+        expect(
+            validateMeasureExpression(formula, ['SONo', 'MONo'], []),
+        ).toEqual({ ok: false, error: 'Colonne « StyleCode » introuvable.' });
+    });
+
+    it('narrows to CH10 through the store pipeline in BOTH interaction orders', () => {
+        // Faithful to the real layout: the `chain` custom filter maps
+        // taging_reel → ProdGroup (codestyle is NOT a chain column, so it is
+        // never reduced by the filter — matching the missing graph edge).
+        const taging: TableDef = {
+            name: 'taging_reel',
+            fields: [
+                { table: 'taging_reel', name: 'MONo', type: 'text' },
+                { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    MONo: '4524091437'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524093564'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524153967'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524736457'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524757987'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+            ],
+        };
+        const chainInactive: ReportFilter = {
+            kind: 'custom',
+            type: 'list',
+            column: 'chain',
+            label: 'chain',
+            scope: 'report',
+            values: [],
+            columns: [
+                { table: 'taging_reel', column: 'ProdGroup', values: [] },
+            ],
+        };
+        const chainActive: ReportFilter = {
+            kind: 'custom',
+            type: 'list',
+            column: 'chain',
+            label: 'chain',
+            scope: 'report',
+            values: [],
+            columns: [
+                { table: 'taging_reel', column: 'ProdGroup', values: ['CH10'] },
+            ],
+        };
+        const tables = [taging, codestyle];
+        const apply = (filters: ReportFilter[]) =>
+            applyTableRows(tables, filterTableRows(tables, filters));
+        const formula =
+            'Style Codes = VALUES(FILTER(codestyle, COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]))) > 0)[StyleCode])';
+
+        // Order A: chain filter selected first, then the measure is added.
+        setTables(apply([chainActive]));
+        registerMeasure('Style Codes', formula);
+        expect(listMeasureValue([], 'Style Codes')).toEqual(['311837']);
+
+        // Order B: measure added first, then the chain filter is applied.
+        unregisterMeasure('Style Codes');
+        setTables(apply([chainInactive]));
+        registerMeasure('Style Codes', formula);
+        expect(listMeasureValue([], 'Style Codes')).toEqual([
+            '302806',
+            '311837',
+            '340497',
+            '348049',
+        ]);
+        setTables(apply([chainActive]));
+        expect(listMeasureValue([], 'Style Codes')).toEqual(['311837']);
+        unregisterMeasure('Style Codes');
+    });
+
+    it('legacy VALUES(codestyle[StyleCode]) does NOT narrow with the chain filter', () => {
+        // With no taging_reel↔codestyle graph edge, codestyle stays full: the
+        // old measure always shows every style, which is why the explicit
+        // in-measure join is required for chain scoping.
+        const taging: TableDef = {
+            name: 'taging_reel',
+            fields: [
+                { table: 'taging_reel', name: 'MONo', type: 'text' },
+                { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    MONo: '4524091437'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+            ],
+        };
+        const chainActive: ReportFilter = {
+            kind: 'custom',
+            type: 'list',
+            column: 'chain',
+            label: 'chain',
+            scope: 'report',
+            values: [],
+            columns: [
+                { table: 'taging_reel', column: 'ProdGroup', values: ['CH10'] },
+            ],
+        };
+        const tables = [taging, codestyle];
+        setTables(
+            applyTableRows(tables, filterTableRows(tables, [chainActive])),
+        );
+        registerMeasure(
+            'Legacy Codes',
+            'Legacy Codes = VALUES(codestyle[StyleCode])',
+        );
+        expect(listMeasureValue([], 'Legacy Codes')).toEqual([
+            '302806',
+            '311837',
+            '340497',
+            '348049',
+        ]);
+        unregisterMeasure('Legacy Codes');
+    });
+
+    it('re-scopes a REGISTERED measure across OFF→ON→OFF→ON filter toggles (no re-drop)', () => {
+        // Reproduces the reported symptom: the card evaluates once at drop
+        // time then reads stale state. The fix feeds the card the freshly
+        // filtered tables on every render, so a plain filter toggle must keep
+        // re-scoping without the measure being re-dragged or re-registered.
+        const taging: TableDef = {
+            name: 'taging_reel',
+            fields: [
+                { table: 'taging_reel', name: 'MONo', type: 'text' },
+                { table: 'taging_reel', name: 'ProdGroup', type: 'text' },
+            ],
+            rows: [
+                {
+                    MONo: '4524091437'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524093564'.padEnd(15, ' '),
+                    ProdGroup: 'CH10'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524153967'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524736457'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+                {
+                    MONo: '4524757987'.padEnd(15, ' '),
+                    ProdGroup: 'Departage'.padEnd(40, ' '),
+                },
+            ],
+        };
+        const tables = [taging, codestyle];
+        const formula =
+            'Style Codes = VALUES(FILTER(codestyle, COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]))) > 0)[StyleCode])';
+
+        // Faithful to toggleCustomFilterPooledValue: flipping CH10 in/out of
+        // the mapped column always yields a new filter object, so the store
+        // recomputes the filtered tables on every click.
+        const toggle = (on: boolean): ReportFilter => ({
+            kind: 'custom',
+            type: 'list',
+            column: 'chain',
+            label: 'chain',
+            scope: 'report',
+            values: [],
+            columns: [
+                {
+                    table: 'taging_reel',
+                    column: 'ProdGroup',
+                    values: on ? ['CH10'] : [],
+                },
+            ],
+        });
+        const filtered = (on: boolean) =>
+            applyTableRows(tables, filterTableRows(tables, [toggle(on)]));
+
+        registerMeasure('Style Codes', formula);
+        try {
+            setTables(filtered(false));
+            expect(listMeasureValue([], 'Style Codes')).toEqual([
+                '302806',
+                '311837',
+                '340497',
+                '348049',
+            ]);
+            setTables(filtered(true));
+            expect(listMeasureValue([], 'Style Codes')).toEqual(['311837']);
+            // Toggle OFF must work after it has been ON once (the "frozen
+            // until re-drag" symptom).
+            setTables(filtered(false));
+            expect(listMeasureValue([], 'Style Codes')).toEqual([
+                '302806',
+                '311837',
+                '340497',
+                '348049',
+            ]);
+            // And back ON, still without re-registering.
+            setTables(filtered(true));
+            expect(listMeasureValue([], 'Style Codes')).toEqual(['311837']);
+        } finally {
+            unregisterMeasure('Style Codes');
+        }
+    });
+});
+
+describe('listTreatment (list-aggregation)', () => {
+    const mixed = ['302806', '311837', '340497', '340497 AW25'];
+    const allNumeric = ['302806', '311837', '340497'];
+
+    it('returns the full list when no mode is given', () => {
+        expect(listTreatment(mixed)).toBeNull();
+    });
+
+    it('counts every code for count/distinct regardless of type', () => {
+        expect(listTreatment(mixed, 'count')).toBe('4');
+        expect(listTreatment(mixed, 'distinct')).toBe('4');
+    });
+
+    it('selects a single code for first/latest/raw/nth', () => {
+        expect(listTreatment(mixed, 'first')).toBe('302806');
+        expect(listTreatment(mixed, 'latest')).toBe('340497 AW25');
+        expect(listTreatment(mixed, 'raw')).toBe('302806');
+        expect(listTreatment(mixed, 'nth', 2)).toBe('311837');
+    });
+
+    it('ignores non-numeric codes for numeric modes', () => {
+        const total = 302806 + 311837 + 340497;
+        expect(listTreatment(mixed, 'sum')).toBe(String(total));
+        expect(listTreatment(mixed, 'avg')).toBe(String(total / 3));
+        expect(listTreatment(mixed, 'min')).toBe('302806');
+        expect(listTreatment(mixed, 'max')).toBe('340497');
+    });
+
+    it('reports how many codes a numeric mode will ignore', () => {
+        expect(listAggIgnoredCount(mixed, 'sum')).toBe(1);
+        expect(listAggIgnoredCount(allNumeric, 'avg')).toBe(0);
+        expect(listAggIgnoredCount(mixed, 'count')).toBe(0);
+        expect(listAggIgnoredCount(mixed, undefined)).toBe(0);
+    });
+
+    it('returns null when numeric mode meets no numeric code', () => {
+        expect(listTreatment(['340497 AW25', 'STYLE X'], 'sum')).toBeNull();
+        expect(listTreatment([], 'sum')).toBeNull();
     });
 });

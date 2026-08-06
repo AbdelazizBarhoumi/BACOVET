@@ -18,7 +18,9 @@ import {
 } from '@/services/measureApi';
 import {
     applyFilter,
+    applyTableRows,
     customFilterColumnsContainingValue,
+    customFilterPooledValues,
     isCustomFilter,
     normValue,
     propagateNetwork,
@@ -828,6 +830,10 @@ type Ctx = State & {
     selected: Visual | null;
     rows: Row[];
     tables: TableDef[];
+    /** Filtered table set the measure engine evaluates against. Exposed so
+     *  visuals (e.g. list-measure cards) re-scope from React state on every
+     *  render instead of relying on the module-global TABLES registry. */
+    filteredTables: TableDef[];
     tableRows: Record<string, Row[]>;
     joins: JoinRegistry;
     graph: RelationGraph;
@@ -877,6 +883,13 @@ type Ctx = State & {
         well: WellName,
         index: number,
         mode: ValueAggregationMode,
+    ) => void;
+    /** Applies a partial patch to a well field (e.g. `index`, `window`). */
+    patchWellField: (
+        visualId: string,
+        well: WellName,
+        index: number,
+        patch: Partial<WellField>,
     ) => void;
     toggleAnalytics: (visualId: string, kind: AnalyticsLine['kind']) => void;
     setAnalyticsValue: (
@@ -1053,9 +1066,11 @@ export function PbiProvider({
     // Keep model helpers correct during the initial state construction too.
     setTables(tables);
 
-    useEffect(() => {
-        setTables(tables);
-    }, [tables]);
+    // The authoritative table set for the measure engine is the filtered one;
+    // the authoritative sync happens right after `measureTables` is derived
+    // below, so the full `tables` set here is only a pre-state-construction
+    // fallback. On a dataset refresh the parent re-renders with new `tables`
+    // and the memo-derived sync below re-applies the active filters.
 
     const [rawState, setRawState] = useState<State>(() =>
         initialState?.pages?.length
@@ -1095,9 +1110,12 @@ export function PbiProvider({
             historyLockRef.current = true;
             lastGestureRef.current = null;
             const current = rawStateRef.current;
+            // History snapshots never carry `measures`, so `?? current.measures`
+            // keeps the registry untouched on undo/redo instead of treating a
+            // missing list as "every measure was removed".
             syncMeasureRegistry(
                 current.measures ?? [],
-                snapshot.measures ?? [],
+                snapshot.measures ?? current.measures ?? [],
             );
             const next = { ...current, ...snapshot };
             rawStateRef.current = next;
@@ -1578,6 +1596,15 @@ export function PbiProvider({
 
     const rows = tableRows[tables[0]?.name ?? ''] ?? [];
 
+    // Measures evaluate against the module-level TABLES registry, so feed the
+    // filtered row sets back in. Derived in the render body so child visuals
+    // (which render after this provider's body) always see filtered tables.
+    const measureTables = useMemo(
+        () => applyTableRows(tables, tableRows),
+        [tables, tableRows],
+    );
+    setTables(measureTables);
+
     const interactionFor = useCallback(
         (sourceId: string, targetId: string): Interaction =>
             state.interactions[sourceId]?.[targetId] ??
@@ -1592,6 +1619,7 @@ export function PbiProvider({
         selected,
         rows,
         tables,
+        filteredTables: measureTables,
         tableRows,
         joins,
         graph,
@@ -1774,6 +1802,19 @@ export function PbiProvider({
                                   i === index
                                       ? { ...f, valueAggregation: mode }
                                       : f,
+                              ),
+                          }
+                        : v,
+                ),
+            ),
+        patchWellField: (visualId, well, index, patch) =>
+            mapVisuals((vs) =>
+                vs.map((v) =>
+                    v.id === visualId
+                        ? {
+                              ...v,
+                              [well]: v[well].map((f, i) =>
+                                  i === index ? { ...f, ...patch } : f,
                               ),
                           }
                         : v,
@@ -2278,12 +2319,25 @@ export function PbiProvider({
                     (f) => isCustomFilter(f) && (f.label ?? f.column) === label,
                 );
                 if (!target || !isCustomFilter(target)) return s;
-                const affected = customFilterColumnsContainingValue(
+                // Only columns that can actually hold `value` receive it. When
+                // none currently expose it but the value is part of the pooled
+                // domain, fall back to every mapped column — never silently drop
+                // the click, which would keep `filters` identity unchanged and
+                // skip the row recompute (making the filter appear dead).
+                const inPool = customFilterPooledValues(target, tables).some(
+                    (v) => normValue(v) === normValue(value),
+                );
+                let affected = customFilterColumnsContainingValue(
                     target,
                     tables,
                     value,
                 );
-                if (!affected.length) return s;
+                if (!affected.length) {
+                    if (!inPool) return s;
+                    affected = (target.columns ?? []).filter(
+                        (c) => c.table && c.column,
+                    );
+                }
                 const remove = affected.every((col) =>
                     (col.values ?? []).some((v) => String(v) === value),
                 );

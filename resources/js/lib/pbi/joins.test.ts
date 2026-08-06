@@ -595,7 +595,7 @@ describe('joins', () => {
             ]);
         });
 
-        it('empties the fact table when the seed matches nothing (orphan)', () => {
+        it('leaves the fact table intact when the seed matches nothing', () => {
             const { rows } = networkCrossFilter(
                 orders.rows,
                 [products, orders],
@@ -604,7 +604,7 @@ describe('joins', () => {
                 'Orders',
                 'filter',
             );
-            expect(rows).toEqual([]);
+            expect(rows).toEqual(orders.rows);
         });
 
         it('is a no-op when the source table is unknown', () => {

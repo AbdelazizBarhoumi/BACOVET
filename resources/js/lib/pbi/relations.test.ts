@@ -247,7 +247,11 @@ describe('buildRelationMap', () => {
         expect(map.records.ItemTrxEnq).toEqual([]);
     });
 
-    it('blames the nearest empty ancestor when a chain breaks', () => {
+    it('keeps neighbours populated when an empty seeded table cannot cascade', () => {
+        // A chain A-B-C with B already emptied by a report filter (a seed).
+        // Empty seeds must not wipe their neighbours: A keeps its X1 record
+        // and C keeps its rows instead of collapsing the whole chain to
+        // "Aucune donnée".
         const a: TableDef = {
             name: 'A',
             fields: [{ table: 'A', name: 'Key', type: 'text' }],
@@ -295,21 +299,16 @@ describe('buildRelationMap', () => {
         });
 
         const aNode = map.nodes.find((n) => n.table === 'A')!;
-        expect(aNode.count).toBe(0);
-        expect(aNode.emptyReason).toBe('missing_value');
-        expect(aNode.emptyDetail).toBe(
-            "La valeur « X1 » est présente, mais un filtre sur une table liée vide l'ensemble.",
-        );
+        expect(aNode.count).toBe(1);
+        expect(aNode.emptyReason).toBeNull();
 
         const bNode = map.nodes.find((n) => n.table === 'B')!;
         expect(bNode.count).toBe(0);
         expect(bNode.emptyReason).toBe('missing_value');
-        expect(bNode.emptyDetail).toBe('Aucune valeur « X1 » dans B.Key');
 
         const cNode = map.nodes.find((n) => n.table === 'C')!;
-        expect(cNode.count).toBe(0);
-        expect(cNode.emptyReason).toBe('chain_break');
-        expect(cNode.emptyDetail).toBe('Chaîne rompue à B');
+        expect(cNode.count).toBe(2);
+        expect(cNode.emptyReason).toBeNull();
     });
 
     it('reports a non-matching value present on the table without claiming it is absent', () => {
