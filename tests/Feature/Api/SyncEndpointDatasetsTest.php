@@ -181,6 +181,67 @@ class SyncEndpointDatasetsTest extends TestCase
         $this->artisan('sync:endpoint-datasets')->assertFailed();
     }
 
+    public function test_updates_data_json_for_ok_endpoints(): void
+    {
+        $this->writeFixture([
+            [
+                'name' => 'ItemTrxEnq',
+                'method' => 'GET',
+                'endpoint' => 'http://novacity/api/data/itemtrxenq',
+                'status' => 500,
+                'response' => ['success' => true, 'data' => [['code' => 'stale']]],
+            ],
+        ]);
+
+        Http::fake([
+            'novacity/api/data/itemtrxenq*' => Http::response([
+                'success' => true,
+                'query' => 'itemtrxenq',
+                'count' => 1,
+                'data' => [['code' => 'fresh']],
+            ]),
+        ]);
+
+        $this->artisan('sync:endpoint-datasets')->assertSuccessful();
+
+        $items = json_decode(file_get_contents(storage_path(self::FIXTURE)), true);
+        $entry = $items[0];
+
+        $this->assertSame(200, $entry['status']);
+        $this->assertSame('fresh', $entry['response']['data'][0]['code']);
+        $this->assertSame('itemtrxenq', $entry['response']['query']);
+        $this->assertNotNull($entry['checked_at']);
+        $this->assertNotNull($entry['last_ok_at']);
+        $this->assertNull($entry['last_error']);
+    }
+
+    public function test_does_not_update_data_json_when_fetch_fails(): void
+    {
+        $this->writeFixture([
+            [
+                'name' => 'ItemTrxEnq',
+                'method' => 'GET',
+                'endpoint' => 'http://novacity/api/data/itemtrxenq',
+                'status' => 200,
+                'response' => ['success' => true, 'data' => [['code' => 'stale']]],
+            ],
+        ]);
+
+        Http::fake([
+            'novacity/api/data/itemtrxenq*' => Http::failedConnection('Connection refused'),
+        ]);
+
+        $this->artisan('sync:endpoint-datasets')->assertSuccessful();
+
+        $items = json_decode(file_get_contents(storage_path(self::FIXTURE)), true);
+        $entry = $items[0];
+
+        $this->assertSame(200, $entry['status']);
+        $this->assertSame('stale', $entry['response']['data'][0]['code']);
+        $this->assertArrayNotHasKey('checked_at', $entry);
+        $this->assertArrayNotHasKey('last_error', $entry);
+    }
+
     private function writeFixture(array $data): void
     {
         $path = storage_path(self::FIXTURE);

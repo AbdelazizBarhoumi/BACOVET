@@ -44,6 +44,109 @@ class EndpointDatasetRegistry
         Cache::forget(self::CACHE_KEY);
     }
 
+    /**
+     * Apply fresh live responses (HTTP 200 only) to data.json entries.
+     *
+     * Entries whose slug is present are patched with status 200, the full
+     * response body and refreshed timestamps; everything else keeps its
+     * last-known-good snapshot. One read + one atomic write.
+     *
+     * @param  array<string, array<string, mixed>>  $responsesBySlug  slug => full response body
+     */
+    public function applyLiveResponses(array $responsesBySlug): int
+    {
+        if ($responsesBySlug === []) {
+            return 0;
+        }
+
+        $path = $this->path();
+
+        if (! file_exists($path)) {
+            return 0;
+        }
+
+        $raw = file_get_contents($path);
+
+        if ($raw === false) {
+            return 0;
+        }
+
+        $items = json_decode($raw, true);
+
+        if (! is_array($items)) {
+            return 0;
+        }
+
+        $now = now()->toIso8601String();
+        $updated = 0;
+
+        foreach ($items as $i => $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $slug = $this->slugOf((string) ($item['endpoint'] ?? ''));
+
+            if ($slug === '' || ! array_key_exists($slug, $responsesBySlug)) {
+                continue;
+            }
+
+            $items[$i]['status'] = 200;
+            $items[$i]['response'] = $responsesBySlug[$slug];
+            $items[$i]['checked_at'] = $now;
+            $items[$i]['last_ok_at'] = $now;
+            $items[$i]['last_error'] = null;
+            $updated++;
+        }
+
+        if ($updated === 0) {
+            return 0;
+        }
+
+        if (! $this->persistItems($path, $items)) {
+            return 0;
+        }
+
+        $this->forgetCache();
+
+        return $updated;
+    }
+
+    /**
+     * Persist entries atomically (temp file + rename), with a backup first.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function persistItems(string $path, array $items): bool
+    {
+        $json = json_encode($items, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        if ($json === false) {
+            return false;
+        }
+
+        @copy($path, storage_path((string) config('novacity.data_backup', 'app/public/data.json.bak')));
+
+        $tmp = $path.'.tmp.'.getmypid();
+
+        if (file_put_contents($tmp, $json, LOCK_EX) === false) {
+            @unlink($tmp);
+
+            return false;
+        }
+
+        if (! @rename($tmp, $path)) {
+            @unlink($path);
+            if (! @rename($tmp, $path)) {
+                @unlink($tmp);
+
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function readFromFile(): array
     {
         $path = storage_path((string) config('novacity.data_file', 'app/public/data.json'));

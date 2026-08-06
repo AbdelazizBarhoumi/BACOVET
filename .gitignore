@@ -24,3 +24,6 @@ novacity-mock
 gpro-consulting-mock
 google-drive-mock
 !/public/storage/app/public
+extract_endpoints.py
+json
+endpoints_methods.txt

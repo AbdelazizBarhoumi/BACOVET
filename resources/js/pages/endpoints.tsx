@@ -27,6 +27,7 @@ import { inferEntryKeys } from '@/lib/relationship-utils';
 import {
     fetchEndpoint,
     triggerEndpointRefresh,
+    triggerRefresh,
     type EndpointEntry,
     type EndpointFilters,
     type EndpointPayload,
@@ -103,6 +104,7 @@ export default function EndpointsPage() {
     );
     const [saving, setSaving] = useState(false);
     const [refreshingId, setRefreshingId] = useState<string | null>(null);
+    const [refreshAll, setRefreshAll] = useState(false);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const rootTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const editAbortRef = useRef<AbortController | null>(null);
@@ -201,6 +203,28 @@ export default function EndpointsPage() {
     const handleRefresh = useCallback(() => {
         applyFilters(toFilters(toolbar));
     }, [applyFilters, toolbar]);
+
+    const handleRefreshAll = useCallback(async () => {
+        if (refreshAll) return;
+        setRefreshAll(true);
+        try {
+            const result = await triggerRefresh();
+            if (result.success) {
+                toast.success(
+                    `Refresh done — ${result.meta?.ok ?? 0} ok, ${result.meta?.failed ?? 0} failed`,
+                );
+            } else {
+                toast.error(
+                    `Refresh command failed (exit code ${result.exit_code})`,
+                );
+            }
+            applyFilters(toFilters(toolbar));
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Refresh failed');
+        } finally {
+            setRefreshAll(false);
+        }
+    }, [refreshAll, applyFilters, toolbar]);
 
     const handleNew = useCallback(() => {
         setEditingEntry(null);
@@ -424,10 +448,10 @@ export default function EndpointsPage() {
                                 <EndpointsToolbar
                                     value={toolbar}
                                     onChange={handleToolbarChange}
-                                    onRefresh={handleRefresh}
+                                    onRefresh={handleRefreshAll}
                                     onNew={handleNew}
                                     loading={loading}
-                                    refreshing={refreshing}
+                                    refreshing={refreshAll || refreshing}
                                     sources={sources}
                                 />
                             }

@@ -146,6 +146,8 @@ class NovacityEndpointsController extends Controller
             '--timeout' => (int) config('novacity.timeout', 60),
         ]);
 
+        self::flushCache();
+
         return response()->json([
             'success' => $exitCode === 0,
             'exit_code' => $exitCode,
@@ -171,6 +173,8 @@ class NovacityEndpointsController extends Controller
             '--timeout' => (int) config('novacity.timeout', 60),
             '--id' => $id,
         ]);
+
+        self::flushCache();
 
         return response()->json([
             'success' => $exitCode === 0,
@@ -959,7 +963,7 @@ class NovacityEndpointsController extends Controller
         $columns = $item['response']['columns'] ?? [];
 
         if (empty($columns) && isset($item['response']['data']) && is_array($item['response']['data']) && count($item['response']['data']) > 0) {
-            $firstRecord = $item['response']['data'][0];
+            $firstRecord = array_values($item['response']['data'])[0] ?? null;
             if (is_array($firstRecord)) {
                 $columns = array_keys($firstRecord);
             }

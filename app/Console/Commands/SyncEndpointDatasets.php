@@ -71,6 +71,7 @@ class SyncEndpointDatasets extends Command
         $syncedAt = now();
         $ok = 0;
         $errors = 0;
+        $responsesBySlug = [];
 
         foreach ($endpoints as $i => $endpoint) {
             $result = $this->fetchResult($responses[(string) $i] ?? null);
@@ -102,6 +103,7 @@ class SyncEndpointDatasets extends Command
             );
 
             if ($result['ok']) {
+                $responsesBySlug[(string) $endpoint['slug']] = $result['data'];
                 $ok++;
             } else {
                 $errors++;
@@ -114,8 +116,14 @@ class SyncEndpointDatasets extends Command
             }
         }
 
+        $updatedJson = $registry->applyLiveResponses($responsesBySlug);
+
         $elapsed = round(microtime(true) - $start, 2);
         $this->info("Done: {$ok} ok, {$errors} errors | {$elapsed}s");
+
+        if ($updatedJson > 0) {
+            $this->info("data.json refreshed for {$updatedJson} endpoint(s) (HTTP 200 only).");
+        }
 
         return self::SUCCESS;
     }
