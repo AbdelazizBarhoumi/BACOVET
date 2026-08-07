@@ -8,7 +8,6 @@ import {
     Layers,
     Link2,
     MousePointerClick,
-    Network,
     Palette,
     Shapes as ShapesIcon,
     SquareMousePointer,
@@ -132,8 +131,6 @@ export function Ribbon({
         addBookmark,
         editInteractions,
         toggleEditInteractions,
-        smartNetwork,
-        setSmartNetworkFilter,
     } = usePbi();
     const [collapsed, setCollapsed] = useState(false);
 
@@ -229,12 +226,6 @@ export function Ribbon({
                         icon: MousePointerClick,
                         active: editInteractions,
                         onClick: () => toggleEditInteractions(),
-                    },
-                    {
-                        label: 'Filtrage réseau',
-                        icon: Network,
-                        active: smartNetwork,
-                        onClick: () => setSmartNetworkFilter(!smartNetwork),
                     },
                 ],
             },

@@ -3719,8 +3719,6 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         tableRows,
         measures,
         graph,
-        smartNetwork,
-        setSmartNetworkFilter,
         state,
     } = usePbi();
     const columns = tables.flatMap((t) =>
@@ -3747,6 +3745,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         { table: string; column: string }[]
     >([]);
     const [customSearchQuery, setCustomSearchQuery] = useState('');
+    const [editingCustom, setEditingCustom] = useState<string | null>(null);
     const [mapFor, setMapFor] = useState<ReportFilter | null>(null);
 
     const filteredCustomTables = useMemo(() => {
@@ -3890,15 +3889,23 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
             );
             return;
         }
-        addCustomFilter(
-            customLabel || 'Filtre personnalisé',
-            customColumns,
-            'report',
-        );
+        if (editingCustom) {
+            setCustomFilterColumns(editingCustom, customColumns);
+            const newLabel = customLabel.trim() || editingCustom;
+            if (newLabel !== editingCustom)
+                setCustomFilterLabel(editingCustom, newLabel);
+        } else {
+            addCustomFilter(
+                customLabel || 'Filtre personnalisé',
+                customColumns,
+                'report',
+            );
+        }
         setCustomOpen(false);
         setCustomLabel('');
         setCustomColumns([]);
         setCustomSearchQuery('');
+        setEditingCustom(null);
     };
 
     const relativePresets: { value: RelativePreset; label: string }[] = [
@@ -4016,13 +4023,36 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                         )}
                     </div>
                     <button
-                        onClick={() => setCustomOpen((v) => !v)}
+                        onClick={() => {
+                            setEditingCustom(null);
+                            setCustomOpen((v) => !v);
+                        }}
                         className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-border px-2 py-1 text-[11px] hover:bg-accent"
                     >
                         <Plus className="size-3" /> Créer un filtre personnalisé
                     </button>
                     {customOpen && (
                         <div className="mt-2 rounded border border-border bg-background p-2">
+                            <div className="mb-2 flex items-center justify-between">
+                                <span className="text-[11px] font-medium">
+                                    {editingCustom
+                                        ? 'Modifier le filtre'
+                                        : 'Créer un filtre personnalisé'}
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        setCustomOpen(false);
+                                        setEditingCustom(null);
+                                        setCustomLabel('');
+                                        setCustomColumns([]);
+                                        setCustomSearchQuery('');
+                                    }}
+                                    className="rounded p-0.5 text-muted-foreground hover:bg-accent"
+                                    aria-label="Fermer"
+                                >
+                                    <X className="size-3" />
+                                </button>
+                            </div>
                             <input
                                 value={customLabel}
                                 onChange={(e) => setCustomLabel(e.target.value)}
@@ -4098,24 +4128,12 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                 disabled={customColumns.length < 2}
                                 className="w-full rounded bg-brand px-2 py-1 text-[11px] text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                Ajouter ({customColumns.length})
+                                {editingCustom
+                                    ? `Modifier (${customColumns.length})`
+                                    : `Ajouter (${customColumns.length})`}
                             </button>
                         </div>
                     )}
-                    <div className="mt-2 rounded border border-border/70 bg-background p-2 text-[10px] text-muted-foreground">
-                        <label className="mb-1 flex items-center justify-between gap-2">
-                            <span>Réseau intelligent</span>
-                            <input
-                                type="checkbox"
-                                checked={smartNetwork}
-                                onChange={(e) =>
-                                    setSmartNetworkFilter(e.target.checked)
-                                }
-                                className="size-3 accent-[var(--brand)]"
-                            />
-                        </label>
-                        <div>{graph.edges.length} relation(s) détectée(s)</div>
-                    </div>
                 </div>
                 <div className="space-y-2">
                     {!filters.length && (
@@ -4179,6 +4197,28 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                         </span>
                                     </span>
                                     <div className="flex shrink-0 items-center gap-0.5">
+                                        {isCustom && (
+                                            <button
+                                                onClick={() => {
+                                                    setCustomLabel(name);
+                                                    setCustomColumns(
+                                                        (f.columns ?? []).map(
+                                                            ({ table, column }) => ({
+                                                                table,
+                                                                column,
+                                                            }),
+                                                        ),
+                                                    );
+                                                    setCustomSearchQuery('');
+                                                    setEditingCustom(name);
+                                                    setCustomOpen(true);
+                                                }}
+                                                title="Modifier le filtre"
+                                                className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                            >
+                                                <Pencil className="size-3" />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => setMapFor(f)}
                                             title="Voir la carte des relations"
@@ -4201,94 +4241,6 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                         </button>
                                     </div>
                                 </div>
-                                {isCustom && (
-                                    <div className="mb-1 rounded border border-border/60 p-1">
-                                        <div className="mb-1 text-[10px] text-muted-foreground">
-                                            Colonnes fusionnées
-                                        </div>
-                                        <div className="max-h-20 overflow-auto">
-                                            {tables.flatMap((t) =>
-                                                t.fields
-                                                    .filter(
-                                                        (field) =>
-                                                            field.type !==
-                                                            'boolean',
-                                                    )
-                                                    .map((field) => {
-                                                        const checked = (
-                                                            f.columns ?? []
-                                                        ).some(
-                                                            (c) =>
-                                                                c.table ===
-                                                                    t.name &&
-                                                                c.column ===
-                                                                    field.name,
-                                                        );
-                                                        return (
-                                                            <label
-                                                                key={`${name}::${t.name}::${field.name}`}
-                                                                className="flex items-center gap-2 py-[1px] text-[10px]"
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={
-                                                                        checked
-                                                                    }
-                                                                    onChange={() => {
-                                                                        const current =
-                                                                            f.columns ??
-                                                                            [];
-                                                                        const next =
-                                                                            checked
-                                                                                ? current.filter(
-                                                                                      (
-                                                                                          c,
-                                                                                      ) =>
-                                                                                          !(
-                                                                                              c.table ===
-                                                                                                  t.name &&
-                                                                                              c.column ===
-                                                                                                  field.name
-                                                                                          ),
-                                                                                  )
-                                                                                : [
-                                                                                      ...current,
-                                                                                      {
-                                                                                          table: t.name,
-                                                                                          column: field.name,
-                                                                                          values: [],
-                                                                                      },
-                                                                                  ];
-                                                                        const broken =
-                                                                            disconnectedPair(
-                                                                                next,
-                                                                            );
-                                                                        if (
-                                                                            broken
-                                                                        ) {
-                                                                            toast.error(
-                                                                                `Connexion introuvable entre ${broken[0]} et ${broken[1]}.`,
-                                                                            );
-                                                                            return;
-                                                                        }
-                                                                        setCustomFilterColumns(
-                                                                            name,
-                                                                            next,
-                                                                        );
-                                                                    }}
-                                                                    className="size-3 accent-[var(--brand)]"
-                                                                />
-                                                                <span className="truncate">
-                                                                    {field.name}{' '}
-                                                                    ({t.name})
-                                                                </span>
-                                                            </label>
-                                                        );
-                                                    }),
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
                                 <select
                                     aria-label={`Type de filtre pour ${name}`}
                                     value={f.type}

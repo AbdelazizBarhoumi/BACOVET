@@ -588,9 +588,10 @@ export function DaxDialog({
         const formula = (eq >= 0 ? expr.slice(eq + 1) : expr).trim();
         if (!name) return 'Saisissez un nom de mesure avant le signe =';
         if (!formula) return 'Saisissez une formule DAX après le signe =';
+        if (eq < 0) return 'Ajoutez un signe = après le nom de la mesure';
         const columns = tables.flatMap((t) => t.fields.map((f) => f.name));
         const result = validateMeasureExpression(
-            formula,
+            expr,
             columns,
             measures.map((m) => m.name),
         );

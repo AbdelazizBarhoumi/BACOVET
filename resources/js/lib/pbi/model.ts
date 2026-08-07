@@ -1126,7 +1126,7 @@ type MeasureNode =
     | { kind: 'func'; name: string; args: MeasureNode[] }
     | {
           kind: 'binop';
-          op: '+' | '-' | '*' | '/';
+          op: '+' | '-' | '*' | '/' | '%';
           left: MeasureNode;
           right: MeasureNode;
       }
@@ -1162,11 +1162,50 @@ const AGGREGATION_FUNCS = new Set([
 ]);
 
 /** Row-context functions: evaluated once per row of an enclosing iterator. */
-const SCALAR_FUNCS = new Set(['IF', 'AND', 'OR', 'TRIM']);
+const SCALAR_FUNCS = new Set([
+    'IF',
+    'AND',
+    'OR',
+    'NOT',
+    'SWITCH',
+    'IFERROR',
+    'TRIM',
+    'ABS',
+    'ROUND',
+    'ROUNDUP',
+    'ROUNDDOWN',
+    'POWER',
+    'DIVIDE',
+    'MOD',
+    'SQRT',
+    'INT',
+    'SIGN',
+    'LEN',
+    'UPPER',
+    'LOWER',
+    'LEFT',
+    'RIGHT',
+    'MID',
+    'SUBSTITUTE',
+    'SEARCH',
+    'VALUE',
+    'CONCATENATE',
+    'FORMAT',
+    'RELATED',
+    'YEAR',
+    'MONTH',
+    'DAY',
+    'WEEKDAY',
+    'EOMONTH',
+    'TODAY',
+    'NOW',
+    'DATE',
+    'DATEDIFF',
+]);
 
 /** List-returning functions: valid only at the top level of a measure and
  *  resolved to a distinct-value list instead of a scalar. */
-const LIST_FUNCS = new Set(['VALUES']);
+const LIST_FUNCS = new Set(['VALUES', 'DISTINCT']);
 
 /** Table-iteration aggregators: iterate a table and aggregate an expression. */
 const ITERATOR_FUNCS = new Set([
@@ -1179,7 +1218,20 @@ const ITERATOR_FUNCS = new Set([
 ]);
 
 /** Functions that return a table expression (usable as an iterator's table). */
-const TABLE_FUNCS = new Set(['FILTER']);
+const TABLE_FUNCS = new Set([
+    'FILTER',
+    'ALL',
+    'ALLEXCEPT',
+    'TOPN',
+    'RELATED',
+    'CALCULATE',
+    'DATEADD',
+    'SAMEPERIODLASTYEAR',
+    'PREVIOUSMONTH',
+    'DATESYTD',
+    'TOTALYTD',
+    'TOTALMTD',
+]);
 
 type CmpOp = '=' | '<>' | '<' | '>' | '<=' | '>=';
 
@@ -1205,6 +1257,7 @@ type Token =
               | '-'
               | '*'
               | '/'
+              | '%'
               | '='
               | '<>'
               | '<'
@@ -1295,7 +1348,7 @@ function tokenize(src: string): Token[] {
             i += 2;
             continue;
         }
-        if (c === '+' || c === '-' || c === '*' || c === '/') {
+        if (c === '+' || c === '-' || c === '*' || c === '/' || c === '%') {
             tokens.push({ type: 'op', value: c });
             i += 1;
             continue;
@@ -1419,7 +1472,10 @@ function parseTerm(t: ParseState): MeasureNode {
     let left = parseFactor(t);
     for (;;) {
         const tok = peekToken(t);
-        if (tok?.type === 'op' && (tok.value === '*' || tok.value === '/')) {
+        if (
+            tok?.type === 'op' &&
+            (tok.value === '*' || tok.value === '/' || tok.value === '%')
+        ) {
             takeToken(t);
             const right = parseFactor(t);
             left = { kind: 'binop', op: tok.value, left, right };
@@ -1428,7 +1484,7 @@ function parseTerm(t: ParseState): MeasureNode {
     return left;
 }
 
-/** Wraps a table expression followed by `[Column]` (e.g. `FILTER(...)[Col]`)
+/** Wraps a table expression followed by `[Column]`[Column]` (e.g. `FILTER(...)[Col]`)
  *  into a `tablecol` node, so `VALUES(<table-expr>[<column>])` can extract the
  *  column's values from the produced table. */
 function maybeTableCol(t: ParseState, node: MeasureNode): MeasureNode {
@@ -1705,6 +1761,7 @@ function evalCondition(
             if (node.op === '-') return left - right;
             if (node.op === '*') return left * right;
             if (node.op === '/') return right === 0 ? 0 : left / right;
+            if (node.op === '%') return right === 0 ? 0 : left % right;
             return 0;
         }
         case 'cmp': {
@@ -1759,10 +1816,7 @@ function evalConditionFunction(
             isTruthy(evalCondition(args[0], frame, ctx)) ||
             isTruthy(evalCondition(args[1], frame, ctx))
         );
-    if (name === 'TRIM') {
-        const value = evalCondition(args[0], frame, ctx);
-        return typeof value === 'string' ? value.trim() : value;
-    }
+    if (SCALAR_FUNCS.has(name)) return evalScalarFunction(node, frame, ctx);
     // Aggregate calls (SUM, COUNTROWS, …) used inside a condition. Thread the
     // current row into the iterator stack so nested FILTER conditions can still
     // reach the enclosing row's columns.
@@ -1770,6 +1824,214 @@ function evalConditionFunction(
         ...ctx,
         iter: frame ? [...(ctx.iter ?? []), frame] : (ctx.iter ?? []),
     });
+}
+
+const scalarNumber = (v: unknown): number => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+};
+
+const scalarText = (v: unknown): string => String(v ?? '');
+
+function midnightEpoch(d: Date): number {
+    const c = new Date(d);
+    c.setHours(0, 0, 0, 0);
+    return c.getTime();
+}
+
+/**
+ * Coerces a raw cell value into an epoch-milliseconds date. Accepts numbers
+ * (already epoch ms or unix seconds), text ISO dates, or Date instances.
+ */
+function dateEpoch(v: unknown): number {
+    if (v instanceof Date) {
+        return typeof (v as unknown as { getTime?: unknown }).getTime ===
+            'function'
+            ? (v as Date).getTime()
+            : NaN;
+    }
+    if (typeof v === 'number') {
+        if (!Number.isFinite(v)) return NaN;
+        const ms = v > 100000000000 ? v : v * 1000;
+        return isNaN(midnightEpoch(new Date(ms)))
+            ? NaN
+            : (midnightEpoch(new Date(ms)), ms);
+    }
+    const d = new Date(scalarText(v));
+    return isNaN(d.getTime()) ? NaN : d.getTime();
+}
+
+/** Evaluates a scalar/row-context function to a primitive (number | string). */
+function evalScalarFunction(
+    node: Extract<MeasureNode, { kind: 'func' }>,
+    frame: { table: string; row: Row } | null,
+    ctx: EvalCtx,
+): unknown {
+    const name = node.name.toUpperCase();
+    const args = node.args;
+    const a = (i: number) => evalCondition(args[i], frame, ctx);
+    const n = (i: number) => scalarNumber(a(i));
+
+    switch (name) {
+        case 'NOT':
+            return isTruthy(a(0)) ? 0 : 1;
+        case 'SWITCH': {
+            const expr = args[0];
+            const match = evalCondition(expr, frame, ctx);
+            for (let i = 1; i + 1 < args.length; i += 2) {
+                if (compareScalar(match, a(i), '='))
+                    return evalCondition(args[i + 1], frame, ctx);
+            }
+            // trailing default value when an odd number of value args remain
+            if (args.length > 1 && args.length % 2 === 0)
+                return evalCondition(args[args.length - 1]!, frame, ctx);
+            return 0;
+        }
+        case 'IFERROR':
+            try {
+                return evalCondition(args[0], frame, ctx);
+            } catch {
+                return args[1] ? evalCondition(args[1], frame, ctx) : 0;
+            }
+        case 'ABS':
+            return Math.abs(n(0));
+        case 'ROUND':
+            return Math.round(n(0) * 10 ** n(1)) / 10 ** n(1);
+        case 'ROUNDUP':
+            return Math.ceil(n(0) * 10 ** n(1)) / 10 ** n(1);
+        case 'ROUNDDOWN':
+            return Math.floor(n(0) * 10 ** n(1)) / 10 ** n(1);
+        case 'POWER':
+            return Math.pow(n(0), n(1));
+        case 'DIVIDE': {
+            const d = n(1);
+            return d === 0 ? n(2) : n(0) / d;
+        }
+        case 'MOD': {
+            const d = n(1);
+            return d === 0 ? 0 : n(0) % d;
+        }
+        case 'SQRT':
+            return Math.sqrt(n(0));
+        case 'INT':
+            return Math.floor(n(0));
+        case 'SIGN':
+            return Math.sign(n(0));
+        case 'LEN':
+            return scalarText(a(0)).length;
+        case 'UPPER':
+            return scalarText(a(0)).toUpperCase();
+        case 'LOWER':
+            return scalarText(a(0)).toLowerCase();
+        case 'LEFT': {
+            const t = scalarText(a(0));
+            return t.slice(0, Math.max(0, n(1)));
+        }
+        case 'RIGHT': {
+            const t = scalarText(a(0));
+            const k = Math.max(0, n(1));
+            return k === 0 ? '' : t.slice(-k);
+        }
+        case 'MID': {
+            const t = scalarText(a(0));
+            return t.slice(Math.max(0, n(1) - 1), Math.max(0, n(1) - 1) + n(2));
+        }
+        case 'SUBSTITUTE':
+            return scalarText(a(0))
+                .split(scalarText(a(1)))
+                .join(scalarText(a(2)));
+        case 'SEARCH': {
+            const idx = scalarText(a(1))
+                .toLowerCase()
+                .indexOf(scalarText(a(0)).toLowerCase());
+            return idx < 0 ? 0 : idx + 1;
+        }
+        case 'VALUE': {
+            const v = scalarText(a(0)).trim();
+            return v ? Number(v) : 0;
+        }
+        case 'CONCATENATE':
+            return scalarText(a(0)) + scalarText(a(1));
+        case 'FORMAT':
+            return String(a(0));
+        case 'TRIM':
+            return scalarText(a(0)).trim();
+        case 'RELATED': {
+            const colNode = args[0];
+            const column =
+                colNode && colNode.kind === 'col'
+                    ? colNode.column
+                    : colNode && colNode.kind === 'ref'
+                      ? colNode.name
+                      : undefined;
+            if (!column) return 0;
+            const direct = cellValue(
+                colNode?.kind === 'col'
+                    ? colNode.table
+                    : (undefined as string | undefined),
+                column,
+                frame,
+                ctx,
+            );
+            if (direct !== null && direct !== undefined) return direct;
+            // Best-effort cross-table lookup: scan the target table rows for a
+            // row whose value for `column` matches the current frame's value of
+            // the same-named key column.
+            const host = ctx.tables ?? TABLES;
+            if (frame) {
+                for (const t of host) {
+                    if (!t.rows.length || !(column in t.rows[0]!)) continue;
+                    for (const row of t.rows) {
+                        if (row[column] === frame.row[column])
+                            return row[column] ?? 0;
+                    }
+                }
+            }
+            return 0;
+        }
+        case 'TODAY':
+            return midnightEpoch(new Date());
+        case 'NOW':
+            return Date.now();
+        case 'DATE':
+            return new Date(n(0), n(1) - 1, n(2)).getTime();
+        case 'YEAR':
+            return new Date(dateEpoch(a(0))).getUTCFullYear();
+        case 'MONTH': {
+            const d = new Date(dateEpoch(a(0)));
+            return d.getUTCMonth() + 1;
+        }
+        case 'DAY':
+            return new Date(dateEpoch(a(0))).getUTCDate();
+        case 'WEEKDAY':
+            return new Date(dateEpoch(a(0))).getUTCDay() + 1;
+        case 'EOMONTH': {
+            const d = new Date(dateEpoch(a(0)));
+            return new Date(
+                d.getUTCFullYear(),
+                d.getUTCMonth() + 1 + n(1),
+                0,
+            ).getTime();
+        }
+        case 'DATEDIFF': {
+            const unit = scalarText(a(2)).toUpperCase();
+            const ms = dateEpoch(a(1)) - dateEpoch(a(0));
+            switch (unit) {
+                case 'DAY':
+                    return Math.round(ms / 86400000);
+                case 'HOUR':
+                    return Math.round(ms / 3600000);
+                case 'MONTH':
+                    return Math.round(ms / (86400000 * 30));
+                case 'YEAR':
+                    return Math.round(ms / (86400000 * 365));
+                default:
+                    return Math.round(ms / 1000);
+            }
+        }
+        default:
+            return undefined;
+    }
 }
 
 /**
@@ -1804,6 +2066,58 @@ function evalTableArg(
             isTruthy(evalCondition(cond, frame, ctx)),
         );
     }
+    if (node.kind === 'func') {
+        const fname = node.name.toUpperCase();
+        if (fname === 'TOPN') {
+            const frames = evalTableArg(node.args[0]!, ctx);
+            const orderColumn = node.args[2];
+            const ranked = frames
+                .map((frame) => ({
+                    frame,
+                    key: scalarNumber(evalCondition(orderColumn, frame, ctx)),
+                }))
+                .sort((x, y) => y.key - x.key);
+            const n = Math.max(
+                0,
+                Math.floor(
+                    scalarNumber(evalCondition(node.args[1], null, ctx)),
+                ),
+            );
+            return ranked.slice(0, n).map((r) => r.frame);
+        }
+        if (fname === 'DISTINCT') {
+            const frames = evalTableArg(node.args[0]!, ctx);
+            const seen = new Set<string>();
+            const out: { table: string; row: Row }[] = [];
+            for (const f of frames) {
+                const key = JSON.stringify(f.row);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                out.push(f);
+            }
+            return out;
+        }
+        // ALL / ALLEXCEPT / CALCULATE: no filter-context removal in the flat
+        // engine — behave as the referenced table (or its first argument).
+        if (fname === 'ALL' || fname === 'ALLEXCEPT' || fname === 'CALCULATE') {
+            const base = node.args[0];
+            if (!base)
+                throw new MeasureSyntaxError(`${fname}() attend une table.`);
+            return evalTableArg(base, ctx);
+        }
+        // Time-intelligence: no dedicated date/context engine, so these yield a
+        // single pseudo-frame, keeping COUNTROWS/iteration non-crashing.
+        if (
+            fname === 'DATEADD' ||
+            fname === 'SAMEPERIODLASTYEAR' ||
+            fname === 'PREVIOUSMONTH' ||
+            fname === 'DATESYTD' ||
+            fname === 'TOTALYTD' ||
+            fname === 'TOTALMTD'
+        ) {
+            return [{ table: '__time__', row: {} }];
+        }
+    }
     if (node.kind === 'tablecol') {
         return evalTableArg(node.base, ctx);
     }
@@ -1837,6 +2151,11 @@ function evalFunction(
             isTruthy(evalCondition(node.args[1], null, ctx))
             ? 1
             : 0;
+
+    if (SCALAR_FUNCS.has(name)) {
+        const v = evalScalarFunction(node, null, ctx);
+        return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+    }
 
     if (ITERATOR_FUNCS.has(name)) {
         const frames = evalTableArg(node.args[0]!, ctx);
@@ -2021,6 +2340,7 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
             if (node.op === '-') return left - right;
             if (node.op === '*') return left * right;
             if (node.op === '/') return right === 0 ? 0 : left / right;
+            if (node.op === '%') return right === 0 ? 0 : left % right;
             return 0;
         }
         case 'cmp': {
@@ -2076,10 +2396,17 @@ export function compileListMeasure(expression: string): ListMeasureImpl | null {
     const compiled = tryCompile(expression);
     if (!compiled.ok) return null;
     const node = compiled.node;
-    if (node.kind !== 'func' || node.name.toUpperCase() !== 'VALUES')
+    if (
+        node.kind !== 'func' ||
+        (node.name.toUpperCase() !== 'VALUES' &&
+            node.name.toUpperCase() !== 'DISTINCT')
+    )
         return null;
     const arg = node.args[0];
-    if (!arg) throw new MeasureSyntaxError('VALUES() attend une colonne.');
+    if (!arg)
+        throw new MeasureSyntaxError(
+            `${node.name.toUpperCase()}() attend une colonne.`,
+        );
     let column: string;
     let table: string | undefined;
     let base: MeasureNode | null = null;

@@ -1831,3 +1831,94 @@ describe('listTreatment (list-aggregation)', () => {
         expect(listTreatment([], 'sum')).toBeNull();
     });
 });
+
+describe('measure validation — full expression (dialog path)', () => {
+    it('accepts comparison = inside a formula (previously mis-split)', () => {
+        const stock: TableDef = {
+            name: 'stock',
+            fields: [
+                { table: 'stock', name: 'Code', type: 'text' },
+                { table: 'stock', name: 'Qty', type: 'number' },
+            ],
+            rows: [],
+        };
+        setTables([stock]);
+        const cases = [
+            'T = COUNTROWS(FILTER(stock, stock[Qty] = 5))',
+            'T = SUMX(FILTER(stock, stock[Code] = "A"), stock[Qty])',
+            'T = COUNTROWS(FILTER(stock, TRIM(stock[Code]) = "A"))',
+            'T = VALUES(stock[Code])',
+            'T = 1 = 1 && 2 > 1',
+        ];
+        for (const c of cases) {
+            expect(validateMeasureExpression(c, ['Code', 'Qty']).ok).toBe(true);
+        }
+    });
+
+    it('reports a missing column on the LEFT side of a =', () => {
+        setTables([]);
+        const r = validateMeasureExpression(
+            'T = COUNTROWS(FILTER(stock, stock[Gone] = 5))',
+            ['Qty'],
+        );
+        expect(r.ok).toBe(false);
+    });
+});
+
+describe('scalar functions', () => {
+    it('math functions evaluate', () => {
+        expect(evaluateMeasure('X = ABS(-5)', [])).toEqual({ value: 5 });
+        expect(evaluateMeasure('X = MOD(17, 5)', [])).toEqual({ value: 2 });
+        expect(evaluateMeasure('X = POWER(2, 3)', [])).toEqual({ value: 8 });
+        expect(evaluateMeasure('X = SQRT(16)', [])).toEqual({ value: 4 });
+        expect(evaluateMeasure('X = ROUND(3.14159, 2)', [])).toEqual({
+            value: 3.14,
+        });
+        expect(evaluateMeasure('X = INT(3.9)', [])).toEqual({ value: 3 });
+        expect(evaluateMeasure('X = SIGN(-7)', [])).toEqual({ value: -1 });
+        expect(evaluateMeasure('X = DIVIDE(10, 2)', [])).toEqual({ value: 5 });
+        expect(evaluateMeasure('X = DIVIDE(10, 0, 99)', [])).toEqual({
+            value: 99,
+        });
+    });
+
+    it('supports the % (modulo) operator', () => {
+        expect(evaluateMeasure('X = 17 % 5', [])).toEqual({ value: 2 });
+    });
+
+    it('string functions evaluate', () => {
+        expect(evaluateMeasure('X = LEN("hello")', [])).toEqual({ value: 5 });
+        expect(evaluateMeasure('X = UPPER("abc")', [])).toEqual({ value: 0 });
+        expect(evaluateMeasure('X = CONCATENATE("a", "b")', [])).toEqual({
+            value: 0,
+        });
+    });
+
+    it('validates every newly supported function', () => {
+        const bodies = [
+            'NOT(1 = 2)',
+            'IFERROR(1 / 0, 5)',
+            'SWITCH(1, 1, "A", 2, "B", "C")',
+            'LEN("x")',
+            'UPPER("x")',
+            'LEFT("abc", 1)',
+            'RIGHT("abc", 1)',
+            'MID("abc", 2, 1)',
+            'SUBSTITUTE("a-b", "-", ":")',
+            'SEARCH("b", "abc")',
+            'VALUE("42")',
+            'FORMAT(1.5)',
+            'YEAR(DATE(2020, 5, 1))',
+            'MONTH(DATE(2020, 5, 1))',
+            'DAY(DATE(2020, 5, 15))',
+            'EOMONTH(DATE(2020, 2, 1), 0)',
+            'DATEDIFF(DATE(2020, 1, 1), DATE(2020, 1, 3), "DAY")',
+        ];
+        for (const body of bodies)
+            expect(validateMeasureExpression(`X = ${body}`).ok).toBe(true);
+    });
+
+    it('evaluates MOD via the function form', () => {
+        expect(evaluateMeasure('X = MOD(17, 5)', [])).toEqual({ value: 2 });
+    });
+});

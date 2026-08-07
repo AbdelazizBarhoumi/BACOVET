@@ -1067,10 +1067,10 @@ export function PbiProvider({
     const graph = graphProp;
     const sharedJoins = sharedJoinsProp;
 
-    // Runtime preference (default ON): network propagation is a safe no-op
+    // Runtime preference (default OFF): network propagation is a safe no-op
     // when nothing is reduced, so it never wipes visuals. Kept out of the
     // undo history and out of the persisted layout (see HISTORY_KEYS).
-    const [smartNetwork, setSmartNetwork] = useState(true);
+    const [smartNetwork, setSmartNetwork] = useState(false);
 
     // Keep model helpers correct during the initial state construction too.
     setTables(tables);
