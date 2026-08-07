@@ -1,0 +1,14 @@
+{
+    "agents": [
+        "opencode"
+    ],
+    "cloud": false,
+    "skills": [
+        "infer-conventions",
+        "laravel-best-practices",
+        "wayfinder-development",
+        "pest-testing",
+        "inertia-react-development",
+        "tailwindcss-development"
+    ]
+}
