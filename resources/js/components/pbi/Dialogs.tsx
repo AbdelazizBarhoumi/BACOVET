@@ -2,7 +2,6 @@ import {
     AlertTriangle,
     Folder,
     Pencil,
-    Plus,
     Sparkles,
     Trash2,
 } from 'lucide-react';
@@ -902,12 +901,6 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                         Bibliothèque de mesures partagée — utilisable sur chaque
                         page.
                     </span>
-                    <button
-                        onClick={() => setCreateOpen(true)}
-                        className="flex items-center gap-1 rounded bg-brand px-3 py-1 text-[12px] font-medium text-brand-foreground"
-                    >
-                        <Plus className="size-3.5" /> Nouvelle mesure
-                    </button>
                     <div className="flex overflow-hidden rounded border border-border">
                         <button
                             onClick={() => setWizardOpen(true)}
@@ -1005,7 +998,7 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                 {!items.length && (
                     <p className="py-6 text-center text-[12px] text-muted-foreground">
                         Aucune mesure pour l’instant — créez-en une avec «
-                        Nouvelle mesure ».
+                        DAX ».
                     </p>
                 )}
             </div>

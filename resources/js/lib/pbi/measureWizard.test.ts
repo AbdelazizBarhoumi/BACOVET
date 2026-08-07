@@ -7,6 +7,7 @@ import {
     joinCandidates,
     measureExpression,
     proposePath,
+    proposePaths,
     type WizardSpec,
 } from './measureWizard';
 import {
@@ -290,6 +291,79 @@ describe('proposePath', () => {
         expect(path.hops.length).toBeGreaterThan(0);
         expect(path.hops.every((h) => h.verified === false)).toBe(true);
         expect(isReliablePath(path.hops)).toBe(false);
+    });
+});
+
+describe('proposePaths', () => {
+    it('returns up to the requested number of distinct alternatives', () => {
+        const paths = proposePaths([taging, codestyle], 'taging_reel', 'codestyle');
+        expect(paths.length).toBeGreaterThanOrEqual(1);
+        expect(paths.length).toBeLessThanOrEqual(5);
+        expect(paths.every((p) => p.blocked === null)).toBe(true);
+    });
+
+    it('orders shortest routes first by default and reliable routes when asked', () => {
+        const mkShared = (name: string, col: string, vals: string[]): TableDef => ({
+            name,
+            fields: [{ table: name, name: col, type: 'text' }],
+            rows: vals.map((v) => ({ [col]: v })),
+        });
+        // A → X → D: two verified shared-name hops.
+        const a = mkShared('A', 'grp', ['P1', 'P2', 'P3', 'P4']);
+        const x = mkShared('X', 'grp', ['P1', 'P2', 'P3', 'P4', 'P5']);
+        const d = mkShared('D', 'grp', ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
+
+        const shortest = proposePaths([a, x, d], 'A', 'D', [], 5, 'shortest');
+        expect(shortest[0]!.hops.length).toBe(1);
+
+        const reliable = proposePaths([a, x, d], 'A', 'D', [], 5, 'reliable');
+        // Both hops are verified, so 'reliable' prefers the 2-hop route
+        // (more confirmed links) over the direct single hop.
+        expect(reliable[0]!.blocked).toBeNull();
+        expect(reliable[0]!.hops.length).toBe(2);
+        expect(reliable[0]!.hops[0]!.to).toBe('X');
+        expect(reliable[0]!.hops[1]!.to).toBe('D');
+    });
+
+    it('top-ranked alternative equals proposePath’s chosen hops', () => {
+        const single = proposePaths([taging, codestyle], 'taging_reel', 'codestyle')[0]!;
+        const best = proposePath([taging, codestyle], 'taging_reel', 'codestyle');
+        expect(single.hops).toEqual(best.hops);
+        expect(single.hops[0]!.from).toBe('taging_reel');
+        expect(single.hops[0]!.to).toBe('codestyle');
+    });
+
+    it('surfaces all distinct routes when the graph has several', () => {
+        const mk = (name: string): TableDef => ({
+            name,
+            fields: [{ table: name, name: 'id', type: 'text' }],
+            rows: [{ id: '1' }, { id: '2' }, { id: '3' }],
+        });
+        const a = mk('A');
+        const x = mk('X');
+        const y = mk('Y');
+        const d = mk('D');
+        // A → D directly, and A → X → D, and A → Y → D: three distinct routes.
+        const paths = proposePaths([a, x, y, d], 'A', 'D', [], 5);
+        expect(paths.length).toBeGreaterThanOrEqual(3);
+        expect(
+            new Set(
+                paths.map((p) =>
+                    p.hops.map((h) => `${h.from}→${h.to}`).join('|'),
+                ),
+            ).size,
+        ).toBe(paths.length);
+    });
+
+    it('blocks with the same message when no route exists', () => {
+        const other: TableDef = {
+            name: 'orphan',
+            fields: [{ table: 'orphan', name: 'X', type: 'text' }],
+            rows: [{ X: 'unique-only' }],
+        };
+        const paths = proposePaths([taging, codestyle, other], 'taging_reel', 'orphan');
+        expect(paths).toHaveLength(1);
+        expect(paths[0]!.blocked?.reason).toBe('Chemin introuvable');
     });
 });
 

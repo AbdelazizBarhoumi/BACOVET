@@ -20,6 +20,7 @@ import {
     Plus,
     Search,
     Sigma,
+    Sparkles,
     Table2,
     Trash2,
     TriangleAlert,
@@ -110,6 +111,7 @@ import {
 } from './formatControls';
 import { GaugeFormat } from './GaugeFormat';
 import { JoinMapDialog } from './JoinMapDialog';
+import { MeasureWizardDialog } from './MeasureWizardDialog';
 import { SingleValueFormat } from './SingleValueFormat';
 
 /** Visual types that expose the conditional-formatting (fx) dialog. */
@@ -1129,6 +1131,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
         rect: AnchorRect;
     } | null>(null);
     const [createCategory, setCreateCategory] = useState<string | null>(null);
+    const [wizardCategory, setWizardCategory] = useState<string | null>(null);
     const [renameTarget, setRenameTarget] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
     const [confirmFolderDelete, setConfirmFolderDelete] = useState<
@@ -1507,6 +1510,30 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                                             </button>
                                                             <button
                                                                 onClick={() => {
+                                                                    setFolderMenuFor(
+                                                                        null,
+                                                                    );
+                                                                    setWizardCategory(
+                                                                        folder,
+                                                                    );
+                                                                    setFolderOpen(
+                                                                        (
+                                                                            o,
+                                                                        ) => ({
+                                                                            ...o,
+                                                                            [
+                                                                                folder
+                                                                            ]: true,
+                                                                        }),
+                                                                    );
+                                                                }}
+                                                                className="flex w-full items-center gap-2 px-2 py-1 hover:bg-accent"
+                                                            >
+                                                                <Sparkles className="size-3" />
+                                                                Assistant
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
                                                                     setRenameValue(
                                                                         folder,
                                                                     );
@@ -1840,6 +1867,13 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                     key={`new-${createCategory}`}
                     createCategory={createCategory}
                     onClose={() => setCreateCategory(null)}
+                />
+            )}
+            {wizardCategory !== null && (
+                <MeasureWizardDialog
+                    key={`wizard-${wizardCategory}`}
+                    createCategory={wizardCategory}
+                    onClose={() => setWizardCategory(null)}
                 />
             )}
         </div>

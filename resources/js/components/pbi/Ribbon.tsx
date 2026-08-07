@@ -10,6 +10,7 @@ import {
     MousePointerClick,
     Palette,
     Shapes as ShapesIcon,
+    Sparkles,
     SquareMousePointer,
     Type,
 } from 'lucide-react';
@@ -30,6 +31,8 @@ type Action = {
     icon: React.ElementType;
     onClick?: () => void;
     active?: boolean;
+    /** when present, renders a custom control instead of a plain click button */
+    menu?: React.ReactNode;
 };
 
 type Group = {
@@ -114,12 +117,61 @@ function ShapesMenu() {
     );
 }
 
+/** A "Nouvelle mesure" button that opens a chooser for the two creation modes. */
+function MeasureMenu({
+    onOpenDax,
+    onOpenAssistant,
+}: {
+    onOpenDax: () => void;
+    onOpenAssistant: () => void;
+}) {
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <button
+                    aria-label="Créer une nouvelle mesure"
+                    className="flex h-[62px] w-[74px] flex-col items-center justify-center gap-1 rounded px-1 text-[10px] leading-tight text-foreground transition-colors hover:bg-accent"
+                >
+                    <Braces
+                        className="size-5 text-foreground"
+                        strokeWidth={1.6}
+                    />
+                    <span className="flex items-center gap-0.5">
+                        Nouvelle mesure
+                        <ChevronDown className="size-2.5 text-muted-foreground" />
+                    </span>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" sideOffset={8} className="w-auto p-1">
+                <div className="flex flex-col">
+                    <button
+                        onClick={onOpenAssistant}
+                        className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] hover:bg-accent"
+                    >
+                        <Sparkles className="size-4 text-brand" />
+                        Assistant
+                    </button>
+                    <button
+                        onClick={onOpenDax}
+                        className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] hover:bg-accent"
+                    >
+                        <Braces className="size-4 text-muted-foreground" />
+                        DAX
+                    </button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 export function Ribbon({
     onOpenDax,
+    onOpenAssistant,
     onOpenManage,
     onOpenDataJson,
 }: {
     onOpenDax: () => void;
+    onOpenAssistant: () => void;
     onOpenManage: () => void;
     onOpenDataJson: () => void;
 }) {
@@ -174,7 +226,12 @@ export function Ribbon({
                     {
                         label: 'Nouvelle mesure',
                         icon: Braces,
-                        onClick: onOpenDax,
+                        menu: (
+                            <MeasureMenu
+                                onOpenDax={onOpenDax}
+                                onOpenAssistant={onOpenAssistant}
+                            />
+                        ),
                     },
                     {
                         label: 'Gérer les mesures',
@@ -289,9 +346,13 @@ export function Ribbon({
                     {active.map((g) => (
                         <Group key={g.title} title={g.title}>
                             {g.menu ??
-                                g.actions.map((a) => (
-                                    <RibbonButton key={a.label} {...a} />
-                                ))}
+                                g.actions.map((a) =>
+                                    a.menu ? (
+                                        <div key={a.label}>{a.menu}</div>
+                                    ) : (
+                                        <RibbonButton key={a.label} {...a} />
+                                    ),
+                                )}
                         </Group>
                     ))}
                 </div>

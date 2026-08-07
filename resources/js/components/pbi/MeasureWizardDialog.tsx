@@ -7,6 +7,7 @@ import {
     Save,
     Sparkles,
     Table2,
+    X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -20,11 +21,13 @@ import {
     isReliablePath,
     joinCandidates,
     measureExpression,
-    proposePath,
+    proposePaths,
     type JoinCandidate,
     type MeasureKind,
     type NumericAgg,
     type PathHop,
+    type ProposedPath,
+    type ProposalRankBy,
     type ValueCondition,
     type WizardSpec,
 } from '@/lib/pbi/measureWizard';
@@ -47,6 +50,7 @@ type StepKey = (typeof STEPS)[number]['key'];
 
 const OP_KEYS = Object.keys(COND_LABELS) as ValueCondition['op'][];
 const AGG_KEYS = Object.keys(AGG_LABELS) as NumericAgg[];
+const EMPTY_HOPS: PathHop[] = [];
 
 export function MeasureWizardDialog({
     onClose,
@@ -61,7 +65,8 @@ export function MeasureWizardDialog({
 
     const [fromTable, setFromTable] = useState(tables[0]?.name ?? '');
     const [toTable, setToTable] = useState('');
-    const [hops, setHops] = useState<PathHop[]>([]);
+    const [paths, setPaths] = useState<PathHop[][]>([]);
+    const [activeVariant, setActiveVariant] = useState(0);
     const [kind, setKind] = useState<MeasureKind>('number');
     const [agg, setAgg] = useState<NumericAgg>('sum');
     const [column, setColumn] = useState('');
@@ -72,6 +77,21 @@ export function MeasureWizardDialog({
     const [name, setName] = useState('');
     const [saving, setSaving] = useState(false);
     const [allowWeak, setAllowWeak] = useState(false);
+    const [rankBy, setRankBy] = useState<ProposalRankBy>('shortest');
+
+    // The active chain is the hops of the currently selected variant. Edits
+    // write back into its slot so switching variant keeps each one's tweaks.
+    const hops = useMemo<PathHop[]>(
+        () => paths[activeVariant] ?? EMPTY_HOPS,
+        [paths, activeVariant],
+    );
+    const setHops = (next: PathHop[]) =>
+        setPaths((prev) => {
+            if (activeVariant >= prev.length) return prev;
+            const copy = prev.slice();
+            copy[activeVariant] = next;
+            return copy;
+        });
 
     const pathReliable = isReliablePath(hops);
     const hasWeakHop = hops.some((h) => !isReliableHop(h));
@@ -90,9 +110,9 @@ export function MeasureWizardDialog({
         [sharedJoins],
     );
 
-    const proposed = useMemo(
-        () => proposePath(tables, fromTable, toTable, manual),
-        [tables, fromTable, toTable, manual],
+    const proposals = useMemo(
+        () => proposePaths(tables, fromTable, toTable, manual, 5, rankBy),
+        [tables, fromTable, toTable, manual, rankBy],
     );
 
     const toDef = tables.find((t) => t.name === toTable);
@@ -172,9 +192,26 @@ export function MeasureWizardDialog({
         (stepIndex === 2 && column !== '') ||
         (stepIndex === 3 && name.trim() !== '');
 
+    const changeRankBy = (r: ProposalRankBy) => {
+        // Recompute ordering for the new ranking, then reseed the editable
+        // variants from it (avoids the memo lagging one render behind).
+        const reordered = proposePaths(
+            tables,
+            fromTable,
+            toTable,
+            manual,
+            5,
+            r,
+        );
+        setRankBy(r);
+        setPaths(reordered.map((p) => p.hops));
+        setActiveVariant(0);
+    };
+
     const goNext = async () => {
         if (step === 'start') {
-            if (!proposed.blocked) setHops(proposed.hops);
+            setPaths(proposals.map((p) => p.hops));
+            setActiveVariant(0);
             setStep('path');
             return;
         }
@@ -248,6 +285,14 @@ export function MeasureWizardDialog({
                         <span className="text-[11px] font-semibold">
                             Assistant de mesure
                         </span>
+                        <button
+                            onClick={onClose}
+                            aria-label="Fermer l'assistant"
+                            title="Fermer"
+                            className="ml-1 inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        >
+                            <X className="size-4" />
+                        </button>
                     </div>
                 </div>
 
@@ -271,7 +316,12 @@ export function MeasureWizardDialog({
                         {step === 'path' && (
                             <PathStep
                                 tables={tables}
-                                proposed={proposed}
+                                proposals={proposals}
+                                paths={paths}
+                                activeVariant={activeVariant}
+                                setActiveVariant={setActiveVariant}
+                                rankBy={rankBy}
+                                setRankBy={changeRankBy}
                                 hops={hops}
                                 setHops={setHops}
                                 hasWeakHop={hasWeakHop}
@@ -616,7 +666,12 @@ function StopCard({
 
 function PathStep({
     tables,
-    proposed,
+    proposals,
+    paths,
+    activeVariant,
+    setActiveVariant,
+    rankBy,
+    setRankBy,
     hops,
     setHops,
     hasWeakHop,
@@ -624,15 +679,18 @@ function PathStep({
     setAllowWeak,
 }: {
     tables: TableDef[];
-    proposed: ReturnType<typeof proposePath>;
+    proposals: ProposedPath[];
+    paths: PathHop[][];
+    activeVariant: number;
+    setActiveVariant: (i: number) => void;
+    rankBy: ProposalRankBy;
+    setRankBy: (r: ProposalRankBy) => void;
     hops: PathHop[];
     setHops: (h: PathHop[]) => void;
     hasWeakHop: boolean;
     allowWeak: boolean;
     setAllowWeak: (b: boolean) => void;
 }) {
-    const [mode, setMode] = useState<'auto' | 'manual'>('auto');
-
     const replaceEdge = (index: number, hop: PathHop) =>
         setHops(hops.map((h, i) => (i === index ? hop : h)));
 
@@ -653,68 +711,93 @@ function PathStep({
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[12px] font-semibold">
                     Chemin de relation
                 </div>
                 <div className="flex items-center gap-1 rounded-full border border-border p-0.5 text-[11px]">
                     <button
-                        onClick={() => setMode('auto')}
+                        onClick={() => setRankBy('shortest')}
                         className={cn(
                             'rounded-full px-2.5 py-0.5',
-                            mode === 'auto'
+                            rankBy === 'shortest'
                                 ? 'bg-brand text-brand-foreground'
                                 : 'text-muted-foreground',
                         )}
+                        title="Prioriser les chemins les plus courts"
                     >
-                        Automatique
+                        Plus court
                     </button>
                     <button
-                        onClick={() => setMode('manual')}
+                        onClick={() => setRankBy('reliable')}
                         className={cn(
                             'rounded-full px-2.5 py-0.5',
-                            mode === 'manual'
+                            rankBy === 'reliable'
                                 ? 'bg-brand text-brand-foreground'
                                 : 'text-muted-foreground',
                         )}
+                        title="Prioriser les liaisons vérifiées"
                     >
-                        Manuel
+                        Fiable
                     </button>
                 </div>
             </div>
 
-            {proposed.blocked ? (
+            {proposals.every((p) => p.blocked) ? (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-[12px] text-amber-700">
                     <div className="font-semibold">
-                        {proposed.blocked.reason}
+                        {proposals[0]?.blocked?.reason ?? 'Chemin introuvable'}
                     </div>
                     <div className="mt-0.5 opacity-80">
-                        {proposed.blocked.detail}
+                        {proposals[0]?.blocked?.detail ??
+                            'Aucune colonne ne relie ces deux tables.'}
                     </div>
                     <p className="mt-2 text-[11px]">
                         Construisez le chemin à la main ci-dessous.
                     </p>
                 </div>
             ) : (
-                <PathVisualizer hops={hops} />
+                <>
+                    <div className="space-y-1.5">
+                        <div className="text-[11px] font-semibold text-muted-foreground">
+                            Variantes générées — sélectionnez celle à appliquer
+                        </div>
+                        {proposals.map((p, i) =>
+                            p.blocked ? null : (
+                                <VariantCard
+                                    key={i}
+                                    index={i}
+                                    hops={paths[i] ?? p.hops}
+                                    active={i === activeVariant}
+                                    hasWeakHop={(paths[i] ?? p.hops).some(
+                                        (h) => !isReliableHop(h),
+                                    )}
+                                    onClick={() => setActiveVariant(i)}
+                                />
+                            ),
+                        )}
+                    </div>
+                    <PathVisualizer hops={hops} />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                            onClick={() =>
+                                setHops(proposals[activeVariant]?.hops ?? [])
+                            }
+                            disabled={activeVariant >= proposals.length}
+                            className="rounded border border-brand/40 bg-brand/5 px-2.5 py-1 text-[11px] text-brand hover:bg-brand/10 disabled:opacity-40"
+                        >
+                            Réinitialiser la variante activée
+                        </button>
+                        <button
+                            onClick={() => setHops([])}
+                            disabled={hops.length === 0}
+                            className="rounded border border-border px-2.5 py-1 text-[11px] disabled:opacity-30"
+                        >
+                            Vider le chemin
+                        </button>
+                    </div>
+                </>
             )}
-
-            <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                    onClick={() => setHops(proposed.hops)}
-                    disabled={proposed.blocked !== null}
-                    className="rounded border border-brand/40 bg-brand/5 px-2.5 py-1 text-[11px] text-brand hover:bg-brand/10 disabled:opacity-40"
-                >
-                    Reprendre le chemin proposé
-                </button>
-                <button
-                    onClick={() => setHops([])}
-                    disabled={hops.length === 0}
-                    className="rounded border border-border px-2.5 py-1 text-[11px] disabled:opacity-30"
-                >
-                    Vider le chemin
-                </button>
-            </div>
 
             {hasWeakHop && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-[12px] text-red-700">
@@ -1011,6 +1094,87 @@ function SaveStep({
                 restera valide même sans relation enregistrée.
             </p>
         </div>
+    );
+}
+
+/* ─────────────────────── Variante générée ───────────────────────────── */
+
+function VariantCard({
+    index,
+    hops,
+    active,
+    hasWeakHop,
+    onClick,
+}: {
+    index: number;
+    hops: PathHop[];
+    active: boolean;
+    hasWeakHop: boolean;
+    onClick: () => void;
+}) {
+    const nodes = hops.length ? [hops[0]!.from, ...hops.map((h) => h.to)] : [];
+    return (
+        <button
+            onClick={onClick}
+            className={cn(
+                'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12px] transition-colors',
+                active
+                    ? 'border-brand bg-brand/10'
+                    : 'border-border hover:bg-accent',
+            )}
+        >
+            <span
+                className={cn(
+                    'flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold',
+                    active
+                        ? 'bg-brand text-brand-foreground'
+                        : 'bg-foreground/10',
+                )}
+            >
+                {index + 1}
+            </span>
+            {nodes.length === 0 ? (
+                <span className="text-muted-foreground">(vide)</span>
+            ) : (
+                <span className="flex min-w-0 items-center gap-1 font-mono text-[11px]">
+                    {nodes.map((n, i) => (
+                        <span
+                            key={`${n}-${i}`}
+                            className="flex items-center gap-1"
+                        >
+                            {i > 0 && (
+                                <ArrowRight className="size-3 text-muted-foreground" />
+                            )}
+                            <span
+                                className={cn(
+                                    'rounded px-1.5 py-0.5',
+                                    i === 0
+                                        ? 'text-muted-foreground'
+                                        : hasWeakHop &&
+                                            !isReliableHop(hops[i - 1]!)
+                                          ? 'bg-red-50 text-red-700'
+                                          : 'bg-brand/10 text-brand',
+                                )}
+                            >
+                                {n}
+                            </span>
+                        </span>
+                    ))}
+                </span>
+            )}
+            <span
+                className={cn(
+                    'ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                    hasWeakHop
+                        ? 'bg-red-50 text-red-600'
+                        : 'bg-emerald-50 text-emerald-600',
+                )}
+            >
+                {hasWeakHop
+                    ? 'liaison non vérifiée'
+                    : `${hops.length} arrêt(s)`}
+            </span>
+        </button>
     );
 }
 

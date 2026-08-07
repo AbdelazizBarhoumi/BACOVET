@@ -28,6 +28,7 @@ import { DataJsonDialog } from '@/components/pbi/DataJsonDialog';
 import { DaxDialog, ManageMeasuresDialog } from '@/components/pbi/Dialogs';
 import { ExportMenu } from '@/components/pbi/ExportMenu';
 import { FullscreenView } from '@/components/pbi/FullscreenView';
+import { MeasureWizardDialog } from '@/components/pbi/MeasureWizardDialog';
 import {
     BookmarksPane,
     FieldsPane,
@@ -786,6 +787,7 @@ function EditBody() {
         customThemes,
     } = usePbi();
     const [dax, setDax] = useState(false);
+    const [wizard, setWizard] = useState(false);
     const [manage, setManage] = useState(false);
     const [dataJson, setDataJson] = useState(false);
     const [paneCollapsed, setPaneCollapsed] = useState<Record<string, boolean>>(
@@ -813,6 +815,7 @@ function EditBody() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Ribbon
                 onOpenDax={() => setDax(true)}
+                onOpenAssistant={() => setWizard(true)}
                 onOpenManage={() => setManage(true)}
                 onOpenDataJson={() => setDataJson(true)}
             />
@@ -1029,6 +1032,9 @@ function EditBody() {
             </footer>
 
             {dax && <DaxDialog onClose={() => setDax(false)} />}
+            {wizard && (
+                <MeasureWizardDialog onClose={() => setWizard(false)} />
+            )}
             {manage && (
                 <ManageMeasuresDialog onClose={() => setManage(false)} />
             )}

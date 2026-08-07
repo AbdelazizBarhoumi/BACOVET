@@ -275,9 +275,79 @@ export function joinCandidates(a: TableDef, b: TableDef): JoinCandidate[] {
 }
 
 /**
+ * Directed-adjacency graph over the lenient candidate links + manual joins.
+ * Shared by `proposePath` (single best) and `proposePaths` (alternatives).
+ * A hop is "reliable" when its value match was confirmed (or persisted).
+ * Costs prefer real, value-verified links; manual joins are free.
+ */
+type PathGraph = {
+    adjacency: Map<string, PathHop[]>;
+    hopCost: (h: PathHop) => number;
+    isReliable: (h: PathHop) => boolean;
+    vertices: string[];
+};
+
+function buildGraph(
+    tables: TableDef[],
+    manual: JoinCandidate[],
+): PathGraph {
+    const adjacency = new Map<string, PathHop[]>();
+    const addDir = (hop: PathHop) => {
+        const list = adjacency.get(hop.from) ?? [];
+        list.push(hop);
+        adjacency.set(hop.from, list);
+    };
+    const link = (c: JoinCandidate) => {
+        addDir({
+            from: c.a,
+            to: c.b,
+            fromCol: c.aCol,
+            toCol: c.bCol,
+            kind: c.kind,
+            overlap: c.overlap,
+            confidence: c.confidence,
+            verified: c.verified,
+        });
+        addDir({
+            from: c.b,
+            to: c.a,
+            fromCol: c.bCol,
+            toCol: c.aCol,
+            kind: c.kind,
+            overlap: c.overlap,
+            confidence: c.confidence,
+            verified: c.verified,
+        });
+    };
+
+    for (let i = 0; i < tables.length; i++) {
+        for (let j = i + 1; j < tables.length; j++) {
+            for (const c of joinCandidates(tables[i]!, tables[j]!)) link(c);
+        }
+    }
+    for (const c of manual) link(c);
+
+    const hopCost = (h: PathHop): number => {
+        if (h.kind === 'manual') return 0;
+        if (h.kind === 'shared') {
+            return h.confidence >= FUZZY_OVERLAP_THRESHOLD
+                ? 0.1 + (1 - Math.min(1, h.confidence)) * 0.6
+                : 2;
+        }
+        return 1 - Math.min(1, h.confidence);
+    };
+
+    const isReliable = (h: PathHop): boolean =>
+        h.kind === 'manual' || h.verified !== false;
+
+    const vertices = tables.map((t) => t.name);
+    return { adjacency, hopCost, isReliable, vertices };
+}
+
+/**
  * Dijkstra hop search from `from` to `to` over the lenient candidate links
  * (plus any persisted `manual` joins). Edges are weighted so the *most
- * plausible* chain wins (few unreliable hops over many), falling back to the
+ * plausible* chain wins (ties repeatedly over hops), falling back to the
  * shortest when the quality is equal. Manual/persisted joins are free.
  */
 export function proposePath(
@@ -302,60 +372,7 @@ export function proposePath(
     if (!target)
         return blocked('Table inconnue', `« ${to} » n'est pas chargée.`);
 
-    const adjacency = new Map<string, PathHop[]>();
-    const addDir = (hop: PathHop) => {
-        const list = adjacency.get(hop.from) ?? [];
-        list.push(hop);
-        adjacency.set(hop.from, list);
-    };
-    const link = (c: JoinCandidate) => {
-        const seed = (hop: PathHop) => addDir(hop);
-        seed({
-            from: c.a,
-            to: c.b,
-            fromCol: c.aCol,
-            toCol: c.bCol,
-            kind: c.kind,
-            overlap: c.overlap,
-            confidence: c.confidence,
-            verified: c.verified,
-        });
-        seed({
-            from: c.b,
-            to: c.a,
-            fromCol: c.bCol,
-            toCol: c.aCol,
-            kind: c.kind,
-            overlap: c.overlap,
-            confidence: c.confidence,
-            verified: c.verified,
-        });
-    };
-
-    for (let i = 0; i < tables.length; i++) {
-        for (let j = i + 1; j < tables.length; j++) {
-            for (const c of joinCandidates(tables[i]!, tables[j]!)) link(c);
-        }
-    }
-    for (const c of manual) link(c);
-
-    const hopCost = (h: PathHop): number => {
-        if (h.kind === 'manual') return 0;
-        if (h.kind === 'shared') {
-            // verified shared name: cheap; same name but no shared value: expensive
-            return h.confidence >= FUZZY_OVERLAP_THRESHOLD
-                ? 0.1 + (1 - Math.min(1, h.confidence)) * 0.6
-                : 2;
-        }
-        // fk_pk: cheaper as overlap grows
-        return 1 - Math.min(1, h.confidence);
-    };
-
-    // A hop is "reliable" when its value match was confirmed (or the user
-    // persisted it manually). Unverified name-only links are excluded unless
-    // no fully-reliable route exists.
-    const isReliable = (h: PathHop): boolean =>
-        h.kind === 'manual' || h.verified !== false;
+    const { adjacency, hopCost, isReliable } = buildGraph(tables, manual);
 
     const shortest = (reliableOnly: boolean): PathHop[] | null => {
         const dist = new Map<string, number>();
@@ -414,6 +431,130 @@ export function proposePath(
         'Chemin introuvable',
         `Aucune colonne ne relie « ${from} » à « ${to} », même sur les valeurs partagées.`,
     );
+}
+
+/**
+ * How `proposePaths` orders the alternatives.
+ *   - 'shortest': fewest hops first (even if a hop needs "à vérifier" approval).
+ *   - 'reliable': most value-verified hops first, then cost, then fewest hops.
+ */
+export type ProposalRankBy = 'shortest' | 'reliable';
+
+/**
+ * Enumerate up to `max` *distinct* simple paths `from → to` over the same graph
+ * used by `proposePath`, ranked by the chosen quality rule. Lets the user flip
+ * between several plausible chains when testing which produces the best
+ * measure. Returns a single `blocked` entry when no route exists at all.
+ */
+export function proposePaths(
+    tables: TableDef[],
+    from: string,
+    to: string,
+    manual: JoinCandidate[] = [],
+    max = 5,
+    rankBy: ProposalRankBy = 'shortest',
+): ProposedPath[] {
+    const blocked = (reason: string, detail: string): ProposedPath => ({
+        from,
+        to,
+        hops: [],
+        blocked: { reason, detail },
+    });
+
+    if (from === to)
+        return [{ from, to, hops: [], blocked: null }];
+
+    const start = tables.find((t) => t.name === from);
+    const target = tables.find((t) => t.name === to);
+    if (!start)
+        return [blocked('Table inconnue', `« ${from} » n'est pas chargée.`)];
+    if (!target)
+        return [blocked('Table inconnue', `« ${to} » n'est pas chargée.`)];
+
+    const { adjacency, hopCost, isReliable, vertices } = buildGraph(
+        tables,
+        manual,
+    );
+    const inGraph = new Set(vertices);
+
+    // DFS over simple paths (no repeated vertex). Bounded enumeration: the
+    // graph is small (loaded tables); cap on total hops explored.
+    const paths: PathHop[][] = [];
+    const stack: { node: string; hops: PathHop[]; seen: Set<string> }[] = [
+        { node: from, hops: [], seen: new Set([from]) },
+    ];
+    let expansions = 0;
+    const EXPANSION_LIMIT = 6000;
+    const MAX_HOPS = 8;
+
+    while (stack.length > 0 && expansions < EXPANSION_LIMIT) {
+        const cur = stack.pop()!;
+        expansions++;
+        if (cur.node === to && cur.hops.length > 0) {
+            paths.push(cur.hops);
+            continue;
+        }
+        if (cur.hops.length >= MAX_HOPS) continue; // skip absurd hub-mazes
+        const next = adjacency.get(cur.node) ?? [];
+        for (const hop of next) {
+            if (!inGraph.has(hop.to)) continue;
+            if (cur.seen.has(hop.to)) continue;
+            const seen = new Set(cur.seen);
+            seen.add(hop.to);
+            stack.push({
+                node: hop.to,
+                hops: [...cur.hops, hop],
+                seen,
+            });
+        }
+    }
+
+    if (paths.length === 0)
+        return [
+            blocked(
+                'Chemin introuvable',
+                `Aucune colonne ne relie « ${from} » à « ${to} », même sur les valeurs partagées.`,
+            ),
+        ];
+
+    const score = (hops: PathHop[]): [number, number, number] => {
+        const reliable = hops.filter((h) => isReliable(h)).length;
+        const cost = hops.reduce((s, h) => s + hopCost(h), 0);
+        return rankBy === 'shortest'
+            ? [hops.length, -reliable, cost]
+            : [-reliable, cost, hops.length];
+    };
+    const signature = (hops: PathHop[]): string =>
+        hops.map((h) => `${h.from}→${h.to}:${h.fromCol}~${h.toCol}`).join('|');
+
+    const ranked = paths
+        .slice()
+        .sort((a, b) => {
+            const sa = score(a);
+            const sb = score(b);
+            for (let i = 0; i < 3; i++) {
+                const d = sa[i]! - sb[i]!;
+                if (d !== 0) return d;
+            }
+            return signature(a).localeCompare(signature(b));
+        });
+
+    const seen = new Set<string>();
+    const unique: PathHop[][] = [];
+    for (const p of ranked) {
+        const sig = signature(p);
+        if (seen.has(sig)) continue;
+        seen.add(sig);
+        unique.push(p);
+        if (unique.length >= max) break;
+    }
+
+    return unique.map((hops) => ({
+        from,
+        to,
+        hops,
+        blocked: null,
+    }));
 }
 
 /**
