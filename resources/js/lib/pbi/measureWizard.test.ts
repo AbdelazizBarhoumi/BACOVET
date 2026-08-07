@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildMeasureDax,
+    chainRowCount,
     deriveMeasureSpec,
+    firstFailingHop,
     isReliableHop,
     isReliablePath,
     joinCandidates,
     measureExpression,
     proposePath,
     proposePaths,
+    type PathHop,
     type WizardSpec,
 } from './measureWizard';
 import {
@@ -166,6 +169,38 @@ describe('joinCandidates', () => {
         expect(real).toBeDefined();
         expect(real!.confidence).toBeGreaterThan(fake!.confidence);
     });
+
+    it('ranks identifier keys above generic name-coincidence at equal confidence', () => {
+        // Two candidate links with the same value-overlap confidence: one on a
+        // real identifier column (MONo), one on a generic shared name (chaine).
+        // Both are verified; the solver must surface the identifier first.
+        const a: TableDef = {
+            name: 'CA',
+            fields: [
+                { table: 'CA', name: 'MONo', type: 'text' },
+                { table: 'CA', name: 'chaine', type: 'text' },
+            ],
+            rows: [
+                { MONo: '1111111111', chaine: 'CH01' },
+                { MONo: '2222222222', chaine: 'CH01' },
+                { MONo: '3333333333', chaine: 'CH02' },
+            ],
+        };
+        const b: TableDef = {
+            name: 'CB',
+            fields: [
+                { table: 'CB', name: 'MONo', type: 'text' },
+                { table: 'CB', name: 'chaine', type: 'text' },
+            ],
+            rows: [
+                { MONo: '1111111111', chaine: 'CH01' },
+                { MONo: '2222222222', chaine: 'CH02' },
+                { MONo: '3333333333', chaine: 'CH02' },
+            ],
+        };
+        const cands = joinCandidates(a, b);
+        expect(cands[0]!.aCol).toBe('MONo');
+    });
 });
 
 describe('proposePath', () => {
@@ -296,14 +331,22 @@ describe('proposePath', () => {
 
 describe('proposePaths', () => {
     it('returns up to the requested number of distinct alternatives', () => {
-        const paths = proposePaths([taging, codestyle], 'taging_reel', 'codestyle');
+        const paths = proposePaths(
+            [taging, codestyle],
+            'taging_reel',
+            'codestyle',
+        );
         expect(paths.length).toBeGreaterThanOrEqual(1);
         expect(paths.length).toBeLessThanOrEqual(5);
         expect(paths.every((p) => p.blocked === null)).toBe(true);
     });
 
     it('orders shortest routes first by default and reliable routes when asked', () => {
-        const mkShared = (name: string, col: string, vals: string[]): TableDef => ({
+        const mkShared = (
+            name: string,
+            col: string,
+            vals: string[],
+        ): TableDef => ({
             name,
             fields: [{ table: name, name: col, type: 'text' }],
             rows: vals.map((v) => ({ [col]: v })),
@@ -326,8 +369,16 @@ describe('proposePaths', () => {
     });
 
     it('top-ranked alternative equals proposePath’s chosen hops', () => {
-        const single = proposePaths([taging, codestyle], 'taging_reel', 'codestyle')[0]!;
-        const best = proposePath([taging, codestyle], 'taging_reel', 'codestyle');
+        const single = proposePaths(
+            [taging, codestyle],
+            'taging_reel',
+            'codestyle',
+        )[0]!;
+        const best = proposePath(
+            [taging, codestyle],
+            'taging_reel',
+            'codestyle',
+        );
         expect(single.hops).toEqual(best.hops);
         expect(single.hops[0]!.from).toBe('taging_reel');
         expect(single.hops[0]!.to).toBe('codestyle');
@@ -361,9 +412,257 @@ describe('proposePaths', () => {
             fields: [{ table: 'orphan', name: 'X', type: 'text' }],
             rows: [{ X: 'unique-only' }],
         };
-        const paths = proposePaths([taging, codestyle, other], 'taging_reel', 'orphan');
+        const paths = proposePaths(
+            [taging, codestyle, other],
+            'taging_reel',
+            'orphan',
+        );
         expect(paths).toHaveLength(1);
         expect(paths[0]!.blocked?.reason).toBe('Chemin introuvable');
+    });
+
+    it('finds the verified 2-hop through a dense name-coincidence hub maze', () => {
+        // Mirrors the real report: every KPI table carries a `chaine` column
+        // sharing the same values, so the full graph forms a near-complete
+        // hub cloud with astronomically many deep (7-8 hop) simple paths. A
+        // naive LIFO search burns its 6000-expansion budget inside that cloud
+        // and silently drops the shallow verified route wip→taging→codestyle.
+        const mkHub = (name: string): TableDef => ({
+            name,
+            fields: [
+                { table: name, name: 'chaine', type: 'text' },
+                { table: name, name: 'N', type: 'number' },
+            ],
+            rows: ['CH01', 'CH02', 'CH03', 'CH04', 'CH05', 'CH06'].map(
+                (chaine, i) => ({ chaine, N: i }),
+            ),
+        });
+        const hubs = Array.from({ length: 14 }, (_, i) => mkHub(`kpi_${i}`));
+
+        // wip_chaine connects to the hub cloud by name (Chaine) AND carries
+        // the verified ProdGroup link into taging_reel.
+        const wipChaine: TableDef = {
+            name: 'wip_chaine',
+            fields: [
+                { table: 'wip_chaine', name: 'Chaine', type: 'text' },
+                { table: 'wip_chaine', name: 'ProdGroup', type: 'text' },
+                { table: 'wip_chaine', name: 'WIP', type: 'number' },
+            ],
+            rows: [
+                { Chaine: 'CH01', ProdGroup: pad('CH10', 40), WIP: 10 },
+                { Chaine: 'CH02', ProdGroup: pad('CH10', 40), WIP: 20 },
+                { Chaine: 'CH03', ProdGroup: pad('CH16', 40), WIP: 30 },
+            ],
+        };
+
+        const all = [wipChaine, taging, codestyle, ...hubs];
+        const paths = proposePaths(all, 'wip_chaine', 'codestyle');
+        expect(paths.length).toBeGreaterThan(0);
+        expect(paths[0]!.blocked).toBeNull();
+        // The best-first frontier must enumerate the verified 2-hop ahead of
+        // the deep hub-mazes.
+        const twoHop = paths.find(
+            (p) =>
+                p.hops.length === 2 &&
+                p.hops[0]!.to === 'taging_reel' &&
+                p.hops[1]!.to === 'codestyle',
+        );
+        expect(twoHop).toBeDefined();
+        expect(twoHop!.hops.every((h) => h.verified)).toBe(true);
+        expect(paths[0]!.hops.length).toBeLessThanOrEqual(2);
+    });
+});
+
+describe('estimate: chaîne → IDOFabrication', () => {
+    // Real-shaped fixtures from data.json: the sewing world (qte_depart /
+    // codestyle) carries ORDER numbers (4524091437…) and STYLE codes
+    // (311837…); the DIVATEX world (OFabrication) carries internal IDArticle
+    // ids (5024…) and the IDOFabrication we want at the end. The only bridge
+    // between them is an article master mapping code → IDArticle, mirroring
+    // `sync_gpro_article_master`, which is absent from the snapshot.
+    const qteDepart: TableDef = {
+        name: 'qte_depart_chaine_article_of',
+        fields: [
+            {
+                table: 'qte_depart_chaine_article_of',
+                name: 'Chaine',
+                type: 'text',
+            },
+            {
+                table: 'qte_depart_chaine_article_of',
+                name: 'Article',
+                type: 'text',
+            },
+            {
+                table: 'qte_depart_chaine_article_of',
+                name: 'OF_No',
+                type: 'text',
+            },
+        ],
+        rows: [
+            {
+                Chaine: pad('DEP-J', 40),
+                Article: '311837',
+                OF_No: '4524830572',
+            },
+            {
+                Chaine: pad('DEP-J', 40),
+                Article: '311837',
+                OF_No: '4524847793',
+            },
+            {
+                Chaine: pad('Departage', 40),
+                Article: '340497',
+                OF_No: '4524154323',
+            },
+            {
+                Chaine: pad('Departage', 40),
+                Article: '302806',
+                OF_No: '4524757991',
+            },
+        ],
+    };
+
+    const articleMaster: TableDef = {
+        name: 'article_master',
+        fields: [
+            { table: 'article_master', name: 'code_article', type: 'text' },
+            { table: 'article_master', name: 'IDArticle', type: 'text' },
+        ],
+        rows: [
+            { code_article: '311837', IDArticle: '5024' },
+            { code_article: '340497', IDArticle: '5018' },
+            { code_article: '302806', IDArticle: '5011' },
+            { code_article: '501414', IDArticle: '1092' },
+        ],
+    };
+
+    const ofabrication: TableDef = {
+        name: 'OFabrication',
+        fields: [
+            { table: 'OFabrication', name: 'IDArticle', type: 'text' },
+            { table: 'OFabrication', name: 'IDOFabrication', type: 'text' },
+            { table: 'OFabrication', name: 'IDChaineMontage', type: 'number' },
+        ],
+        rows: [
+            { IDArticle: '5024', IDOFabrication: '18842', IDChaineMontage: 1 },
+            { IDArticle: '5018', IDOFabrication: '18933', IDChaineMontage: 1 },
+            { IDArticle: '5011', IDOFabrication: '19001', IDChaineMontage: 11 },
+        ],
+    };
+
+    it('blocks the route when no article bridge is loaded', () => {
+        const paths = proposePaths(
+            [qteDepart, articleMaster, ofabrication].filter(
+                (t) => t.name !== 'article_master',
+            ),
+            'qte_depart_chaine_article_of',
+            'OFabrication',
+        );
+        expect(paths).toHaveLength(1);
+        expect(paths[0]!.blocked?.reason).toBe('Chemin introuvable');
+    });
+
+    it('finds the two verified hops once the article master is present', () => {
+        const paths = proposePaths(
+            [qteDepart, articleMaster, ofabrication],
+            'qte_depart_chaine_article_of',
+            'OFabrication',
+        );
+        expect(paths[0]!.blocked).toBeNull();
+        const best = proposePath(
+            [qteDepart, articleMaster, ofabrication],
+            'qte_depart_chaine_article_of',
+            'OFabrication',
+        );
+        // qte_depart.Articles.stampa → master.code_article → master.IDArticle
+        // → ofabrication.IDArticle → the OF number column.
+        expect(best.hops).toHaveLength(2);
+        expect(best.hops[0]!.from).toBe('qte_depart_chaine_article_of');
+        expect(best.hops[0]!.to).toBe('article_master');
+        expect(best.hops[0]!.fromCol).toBe('Article');
+        expect(best.hops[0]!.toCol).toBe('code_article');
+        expect(best.hops[1]!.to).toBe('OFabrication');
+        expect(best.hops[1]!.fromCol).toBe('IDArticle');
+        expect(best.hops[1]!.toCol).toBe('IDArticle');
+        expect(best.hops.every((h) => h.verified)).toBe(true);
+    });
+
+    it('reports live rows and no failing hop for the full chain', () => {
+        const hops: PathHop[] = [
+            {
+                from: 'qte_depart_chaine_article_of',
+                to: 'article_master',
+                fromCol: 'Article',
+                toCol: 'code_article',
+                kind: 'fk_pk' as const,
+                overlap: 0.75,
+                confidence: 0.8,
+            },
+            {
+                from: 'article_master',
+                to: 'OFabrication',
+                fromCol: 'IDArticle',
+                toCol: 'IDArticle',
+                kind: 'shared' as const,
+                overlap: 0.75,
+                confidence: 0.8,
+            },
+        ];
+        setTables([qteDepart, articleMaster, ofabrication]);
+        const rowCount = chainRowCount(
+            'qte_depart_chaine_article_of',
+            'OFabrication',
+            hops,
+        );
+        expect(rowCount.ok).toBe(true);
+        expect(rowCount.count).toBeGreaterThan(0);
+        expect(
+            firstFailingHop(
+                'qte_depart_chaine_article_of',
+                'OFabrication',
+                hops,
+            ),
+        ).toBe(-1);
+    });
+
+    it('extracts the exact IDOFabrication of a chain-filtered page', () => {
+        // Page filtered to the DEP-J chain → the OF number of that chain.
+        const depJ = {
+            ...qteDepart,
+            rows: qteDepart.rows.filter((r) => r.Chaine === pad('DEP-J', 40)),
+        };
+        setTables([depJ, articleMaster, ofabrication]);
+        const spec: WizardSpec = {
+            from: 'qte_depart_chaine_article_of',
+            to: 'OFabrication',
+            hops: [
+                {
+                    from: 'qte_depart_chaine_article_of',
+                    to: 'article_master',
+                    fromCol: 'Article',
+                    toCol: 'code_article',
+                    kind: 'fk_pk' as const,
+                    overlap: 0.75,
+                    confidence: 0.8,
+                },
+                {
+                    from: 'article_master',
+                    to: 'OFabrication',
+                    fromCol: 'IDArticle',
+                    toCol: 'IDArticle',
+                    kind: 'shared' as const,
+                    overlap: 0.75,
+                    confidence: 0.8,
+                },
+            ],
+            kind: 'list' as const,
+            column: 'IDOFabrication',
+            agg: 'sum' as const,
+        };
+        const compile = compileListMeasure(measureExpression('OF IDs', spec));
+        expect(compile).not.toBeNull();
+        expect(compile!([], {})).toEqual(['18842']);
     });
 });
 
@@ -436,6 +735,89 @@ describe('isReliableHop / isReliablePath', () => {
             }),
         ).toBe(false);
         expect(isReliablePath([])).toBe(true);
+    });
+});
+
+describe('chainRowCount / firstFailingHop', () => {
+    it('reports the live row count of a data-producing chain', () => {
+        setTables([taging, codestyle]);
+        const r = chainRowCount('taging_reel', 'codestyle', [
+            {
+                from: 'taging_reel',
+                to: 'codestyle',
+                fromCol: 'MONo',
+                toCol: 'SONo',
+                kind: 'fk_pk' as const,
+                overlap: 0.36,
+                confidence: 0.45,
+            },
+        ]);
+        expect(r.ok).toBe(true);
+        expect(r.count).toBeGreaterThan(0);
+    });
+
+    it('returns -1 when the full chain matches data', () => {
+        setTables([taging, codestyle]);
+        const fail = firstFailingHop('taging_reel', 'codestyle', [
+            {
+                from: 'taging_reel',
+                to: 'codestyle',
+                fromCol: 'MONo',
+                toCol: 'SONo',
+                kind: 'fk_pk' as const,
+                overlap: 0.36,
+                confidence: 0.45,
+            },
+        ]);
+        expect(fail).toBe(-1);
+    });
+
+    it('points at the first hop whose chain produces no rows', () => {
+        // hop 1 matches (shared MONo), hop 2 connects to an empty table → the
+        // diagnostic must flag hop 2 (index 1).
+        const mid: TableDef = {
+            name: 'bridge',
+            fields: [
+                { table: 'bridge', name: 'MONo', type: 'text' },
+                { table: 'bridge', name: 'key', type: 'text' },
+            ],
+            rows: [
+                { MONo: pad('4524091437', 15), key: 'K1' },
+                { MONo: pad('4524093564', 15), key: 'K2' },
+            ],
+        };
+        const empty: TableDef = {
+            name: 'dead_end',
+            fields: [{ table: 'dead_end', name: 'key', type: 'text' }],
+            rows: [{ key: 'K3' }],
+        };
+        setTables([taging, codestyle, mid, empty]);
+        const fail = firstFailingHop('taging_reel', 'dead_end', [
+            {
+                from: 'taging_reel',
+                to: 'bridge',
+                fromCol: 'MONo',
+                toCol: 'MONo',
+                kind: 'shared' as const,
+                overlap: 1,
+                confidence: 1,
+            },
+            {
+                from: 'bridge',
+                to: 'dead_end',
+                fromCol: 'key',
+                toCol: 'key',
+                kind: 'shared' as const,
+                overlap: 1,
+                confidence: 1,
+            },
+        ]);
+        // bridge.key = K2 has no match in dead_end.key (only K1) — but the
+        // correlated chain evaluates from the base table, so rows where
+        // dead_end is reached via bridge are constrained by MONo: 4524093564 →
+        // bridge row (K2) → dead_end needs K2, which does not exist. The first
+        // failing hop is the dead_end join (index 1).
+        expect(fail).toBe(1);
     });
 });
 

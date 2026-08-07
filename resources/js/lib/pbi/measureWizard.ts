@@ -15,7 +15,7 @@
 // what the engine can actually evaluate.
 
 import { normValue } from './filters';
-import type { Row, TableDef } from './model';
+import { evaluateMeasure, type Row, type TableDef } from './model';
 
 /** A single candidate link between two loaded tables. */
 export type JoinCandidate = {
@@ -266,9 +266,16 @@ export function joinCandidates(a: TableDef, b: TableDef): JoinCandidate[] {
         }
     }
 
+    // Rank: confidence first, then prefer genuine identifier columns
+    // (MONo/SONo/StyleCode/OeNo…) over generic name-coincidence columns like
+    // `chaine`, so the UI lists real keys ahead of shared hub names when their
+    // value-overlap confidence is equal. Confidence is left untouched.
+    const identScore = (c: JoinCandidate) =>
+        (keyLikeName(c.aCol) ? 1 : 0) + (keyLikeName(c.bCol) ? 1 : 0);
     out.sort(
         (x, y) =>
             y.confidence - x.confidence ||
+            identScore(y) - identScore(x) ||
             (y.kind === 'shared' ? 1 : 0) - (x.kind === 'shared' ? 1 : 0),
     );
     return out;
@@ -287,10 +294,7 @@ type PathGraph = {
     vertices: string[];
 };
 
-function buildGraph(
-    tables: TableDef[],
-    manual: JoinCandidate[],
-): PathGraph {
+function buildGraph(tables: TableDef[], manual: JoinCandidate[]): PathGraph {
     const adjacency = new Map<string, PathHop[]>();
     const addDir = (hop: PathHop) => {
         const list = adjacency.get(hop.from) ?? [];
@@ -461,8 +465,7 @@ export function proposePaths(
         blocked: { reason, detail },
     });
 
-    if (from === to)
-        return [{ from, to, hops: [], blocked: null }];
+    if (from === to) return [{ from, to, hops: [], blocked: null }];
 
     const start = tables.find((t) => t.name === from);
     const target = tables.find((t) => t.name === to);
@@ -477,21 +480,75 @@ export function proposePaths(
     );
     const inGraph = new Set(vertices);
 
-    // DFS over simple paths (no repeated vertex). Bounded enumeration: the
-    // graph is small (loaded tables); cap on total hops explored.
+    // Best-first search over simple paths (no repeated vertex). A naive DFS
+    // (pop from a LIFO stack) lets a deep name-coincidence hub (e.g. KPI
+    // tables sharing a `chaine` column) burn the whole expansion budget
+    // before the genuinely verified short branch is ever visited, so a real
+    // 2-hop route can be silently dropped. Expanding by (fewest hops, lowest
+    // cost) first guarantees short, value-verified paths are enumerated
+    // ahead of long hub-mazes. Bounded enumeration via a hard expansion cap.
+    type Frontier = { node: string; hops: PathHop[]; seen: Set<string> };
+    // Numeric priority: fewest hops dominates; lower cost breaks ties. Smaller
+    // key = expanded first (the cheapest shortest route wins the ordering).
+    const key = (f: Frontier): number =>
+        f.hops.length * 1000 +
+        Math.round(f.hops.reduce((s, h) => s + hopCost(h), 0) * 1000);
+    const heap: Frontier[] = [{ node: from, hops: [], seen: new Set([from]) }];
+    const less = (a: Frontier, b: Frontier): boolean => key(a) < key(b);
+    const siftUp = (i: number) => {
+        while (i > 0) {
+            const p = (i - 1) >> 1;
+            if (!less(heap[i]!, heap[p]!)) break;
+            [heap[i], heap[p]] = [heap[p]!, heap[i]!];
+            i = p;
+        }
+    };
+    const siftDown = (i: number) => {
+        for (;;) {
+            const l = 2 * i + 1;
+            const r = 2 * i + 2;
+            let m = i;
+            if (l < heap.length && less(heap[l]!, heap[m]!)) m = l;
+            if (r < heap.length && less(heap[r]!, heap[m]!)) m = r;
+            if (m === i) break;
+            [heap[i], heap[m]] = [heap[m]!, heap[i]!];
+            i = m;
+        }
+    };
+    const pushHeap = (f: Frontier) => {
+        heap.push(f);
+        siftUp(heap.length - 1);
+    };
+    const popHeap = (): Frontier | undefined => {
+        if (!heap.length) return undefined;
+        const top = heap[0]!;
+        const last = heap.pop()!;
+        if (heap.length) {
+            heap[0] = last;
+            siftDown(0);
+        }
+        return top;
+    };
+
     const paths: PathHop[][] = [];
-    const stack: { node: string; hops: PathHop[]; seen: Set<string> }[] = [
-        { node: from, hops: [], seen: new Set([from]) },
-    ];
+    const seenPaths = new Set<string>();
     let expansions = 0;
     const EXPANSION_LIMIT = 6000;
     const MAX_HOPS = 8;
 
-    while (stack.length > 0 && expansions < EXPANSION_LIMIT) {
-        const cur = stack.pop()!;
+    while (heap.length > 0 && expansions < EXPANSION_LIMIT) {
+        const cur = popHeap()!;
         expansions++;
         if (cur.node === to && cur.hops.length > 0) {
-            paths.push(cur.hops);
+            const sig = cur.hops
+                .map((h) => `${h.from}→${h.to}:${h.fromCol}~${h.toCol}`)
+                .join('|');
+            if (!seenPaths.has(sig)) {
+                seenPaths.add(sig);
+                paths.push(cur.hops);
+            }
+            // A path ending here is already minimal in (hops, cost); we can
+            // stop exploring deeper routes through this node.
             continue;
         }
         if (cur.hops.length >= MAX_HOPS) continue; // skip absurd hub-mazes
@@ -501,7 +558,7 @@ export function proposePaths(
             if (cur.seen.has(hop.to)) continue;
             const seen = new Set(cur.seen);
             seen.add(hop.to);
-            stack.push({
+            pushHeap({
                 node: hop.to,
                 hops: [...cur.hops, hop],
                 seen,
@@ -527,17 +584,15 @@ export function proposePaths(
     const signature = (hops: PathHop[]): string =>
         hops.map((h) => `${h.from}→${h.to}:${h.fromCol}~${h.toCol}`).join('|');
 
-    const ranked = paths
-        .slice()
-        .sort((a, b) => {
-            const sa = score(a);
-            const sb = score(b);
-            for (let i = 0; i < 3; i++) {
-                const d = sa[i]! - sb[i]!;
-                if (d !== 0) return d;
-            }
-            return signature(a).localeCompare(signature(b));
-        });
+    const ranked = paths.slice().sort((a, b) => {
+        const sa = score(a);
+        const sb = score(b);
+        for (let i = 0; i < 3; i++) {
+            const d = sa[i]! - sb[i]!;
+            if (d !== 0) return d;
+        }
+        return signature(a).localeCompare(signature(b));
+    });
 
     const seen = new Set<string>();
     const unique: PathHop[][] = [];
@@ -569,6 +624,55 @@ export function isReliableHop(h: PathHop | undefined): boolean {
 /** True only when every hop of the path is reliable. */
 export function isReliablePath(hops: PathHop[]): boolean {
     return hops.every(isReliableHop);
+}
+
+/**
+ * Live row-count for the chain `from → … → to` produced by the hops, evaluated
+ * against the currently-loaded tables (module-level `TABLES`). Returns
+ * `{ ok: true, count }` when the expression compiles and runs; `{ ok: false }`
+ * when the chain cannot be evaluated (missing columns, etc.).
+ *
+ * Used by the wizard's per-hop diagnostics: a prefix that yields 0 live rows is
+ * the first failing hop — the join "exists" as a column pairing but matches
+ * nothing, so the produced measure will read 0/vide.
+ */
+export function chainRowCount(
+    from: string,
+    to: string,
+    hops: PathHop[],
+): { ok: boolean; count: number } {
+    const dax = buildMeasureDax({
+        from,
+        to,
+        hops,
+        kind: 'countrows',
+        column: '',
+        agg: 'count',
+    });
+    const r = evaluateMeasure(`Diagnostic = ${dax}`, []);
+    if (r.error) return { ok: false, count: 0 };
+    return { ok: true, count: r.value };
+}
+
+/**
+ * Index of the first hop whose chain produces no live rows (0 / vide), or -1
+ * when every hop (up to the full path) matches data. A hop that cannot even be
+ * evaluated is treated as failing so the UI points at the broken link.
+ */
+export function firstFailingHop(
+    from: string,
+    to: string,
+    hops: PathHop[],
+): number {
+    for (let i = 1; i <= hops.length; i++) {
+        const { ok, count } = chainRowCount(
+            from,
+            hops[i - 1]!.to,
+            hops.slice(0, i),
+        );
+        if (!ok || count <= 0) return i - 1;
+    }
+    return -1;
 }
 
 // --- DAX generation ---------------------------------------------------------

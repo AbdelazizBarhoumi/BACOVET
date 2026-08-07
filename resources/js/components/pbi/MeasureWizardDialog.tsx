@@ -17,6 +17,8 @@ import {
     COND_LABELS,
     KIND_LABELS,
     buildMeasureDax,
+    chainRowCount,
+    firstFailingHop,
     isReliableHop,
     isReliablePath,
     joinCandidates,
@@ -498,6 +500,7 @@ function HopBadge({ c }: { c: JoinCandidate }) {
 function StopCard({
     index,
     hop,
+    isFailing,
     siblings,
     onReplace,
     onRemove,
@@ -507,6 +510,7 @@ function StopCard({
 }: {
     index: number;
     hop: PathHop;
+    isFailing: boolean;
     siblings: TableDef[];
     onReplace: (hop: PathHop) => void;
     onRemove: () => void;
@@ -549,7 +553,14 @@ function StopCard({
         });
 
     return (
-        <div className="rounded-lg border border-border bg-background/50 p-2.5">
+        <div
+            className={cn(
+                'rounded-lg border p-2.5',
+                isFailing
+                    ? 'border-red-400 bg-red-50/40'
+                    : 'border-border bg-background/50',
+            )}
+        >
             <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="text-[11px] font-medium text-muted-foreground">
                     Arrêt {index + 1} —{' '}
@@ -558,6 +569,11 @@ function StopCard({
                     </span>{' '}
                     →{' '}
                     <span className="font-mono text-foreground">{hop.to}</span>
+                    {isFailing && (
+                        <span className="ml-1 inline-flex items-center rounded-full bg-red-500/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-red-700 uppercase">
+                            ne renvoie aucune ligne
+                        </span>
+                    )}
                 </span>
                 <div className="flex items-center gap-1">
                     <button
@@ -709,6 +725,34 @@ function PathStep({
 
     const addHop = (hop: PathHop) => setHops([...hops, hop]);
 
+    // Live diagnostics: does each generated variant actually produce data
+    // against the loaded tables, and where does the active chain first break?
+    const variantHasData = useMemo(
+        () =>
+            paths.map((hp) => {
+                if (hp.length === 0) return false;
+                const to = hp[hp.length - 1]!.to;
+                const r = chainRowCount(hp[0]!.from, to, hp);
+                return r.ok && r.count > 0;
+            }),
+        [paths],
+    );
+    const activeHasData = variantHasData[activeVariant] ?? false;
+    const firstFail = useMemo(
+        () =>
+            hops.length
+                ? firstFailingHop(
+                      hops[0]!.from,
+                      hops[hops.length - 1]!.to,
+                      hops,
+                  )
+                : -1,
+        [hops],
+    );
+    const nextGood = variantHasData.findIndex(
+        (d, i) => d && i !== activeVariant,
+    );
+
     return (
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -772,12 +816,28 @@ function PathStep({
                                     hasWeakHop={(paths[i] ?? p.hops).some(
                                         (h) => !isReliableHop(h),
                                     )}
+                                    hasData={variantHasData[i] ?? false}
                                     onClick={() => setActiveVariant(i)}
                                 />
                             ),
                         )}
                     </div>
-                    <PathVisualizer hops={hops} />
+                    {!activeHasData && nextGood >= 0 && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand/40 bg-brand/10 p-2.5 text-[12px]">
+                            <span>
+                                Cette variante ne produit <b>aucune donnée</b>{' '}
+                                (0 / vide) sur les tables chargées.
+                            </span>
+                            <button
+                                onClick={() => setActiveVariant(nextGood)}
+                                className="rounded bg-brand px-2.5 py-1 text-[11px] font-medium text-brand-foreground"
+                            >
+                                Essayer la variante n°{nextGood + 1} qui produit
+                                des données
+                            </button>
+                        </div>
+                    )}
+                    <PathVisualizer hops={hops} firstFail={firstFail} />
                     <div className="flex flex-wrap items-center gap-1.5">
                         <button
                             onClick={() =>
@@ -829,6 +889,7 @@ function PathStep({
                             key={idx}
                             index={idx}
                             hop={hop}
+                            isFailing={idx === firstFail}
                             siblings={tables}
                             onReplace={(h) => replaceEdge(idx, h)}
                             onRemove={() => removeAt(idx)}
@@ -1104,12 +1165,14 @@ function VariantCard({
     hops,
     active,
     hasWeakHop,
+    hasData,
     onClick,
 }: {
     index: number;
     hops: PathHop[];
     active: boolean;
     hasWeakHop: boolean;
+    hasData: boolean;
     onClick: () => void;
 }) {
     const nodes = hops.length ? [hops[0]!.from, ...hops.map((h) => h.to)] : [];
@@ -1165,14 +1228,20 @@ function VariantCard({
             <span
                 className={cn(
                     'ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium',
-                    hasWeakHop
-                        ? 'bg-red-50 text-red-600'
-                        : 'bg-emerald-50 text-emerald-600',
+                    hasData
+                        ? hasWeakHop
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-emerald-50 text-emerald-600'
+                        : hasWeakHop
+                          ? 'bg-red-50 text-red-600'
+                          : 'bg-amber-50 text-amber-700',
                 )}
             >
-                {hasWeakHop
-                    ? 'liaison non vérifiée'
-                    : `${hops.length} arrêt(s)`}
+                {hasData
+                    ? hasWeakHop
+                        ? 'produit des données'
+                        : 'données ✓'
+                    : '0 résultat'}
             </span>
         </button>
     );
@@ -1180,7 +1249,13 @@ function VariantCard({
 
 /* ─────────────────────── Visuel du chemin ───────────────────────────── */
 
-function PathVisualizer({ hops }: { hops: PathHop[] }) {
+function PathVisualizer({
+    hops,
+    firstFail,
+}: {
+    hops: PathHop[];
+    firstFail: number;
+}) {
     if (hops.length === 0) return null;
     const nodes = [hops[0]!.from, ...hops.map((h) => h.to)];
     const contiguous = hops.every(
@@ -1199,17 +1274,21 @@ function PathVisualizer({ hops }: { hops: PathHop[] }) {
                         <div
                             className={cn(
                                 'flex flex-col items-center text-[10px]',
-                                isReliableHop(hops[i - 1]!)
-                                    ? 'text-muted-foreground'
-                                    : 'text-red-600',
+                                i - 1 === firstFail
+                                    ? 'text-red-700'
+                                    : isReliableHop(hops[i - 1]!)
+                                      ? 'text-muted-foreground'
+                                      : 'text-amber-600',
                             )}
                         >
                             <ArrowRight
                                 className={cn(
                                     'size-4',
-                                    isReliableHop(hops[i - 1]!)
-                                        ? 'text-brand'
-                                        : 'text-red-500',
+                                    i - 1 === firstFail
+                                        ? 'text-red-600'
+                                        : isReliableHop(hops[i - 1]!)
+                                          ? 'text-brand'
+                                          : 'text-amber-500',
                                 )}
                             />
                             <span className="font-mono">
@@ -1220,15 +1299,23 @@ function PathVisualizer({ hops }: { hops: PathHop[] }) {
                     <span
                         className={cn(
                             'rounded-lg border px-3 py-1.5 text-[12px] font-medium',
-                            i > 0 && !isReliableHop(hops[i - 1]!)
+                            i - 1 === firstFail
                                 ? 'border-red-400 bg-red-50 text-red-700'
-                                : 'border-brand/40 bg-brand/10',
+                                : i > 0 && !isReliableHop(hops[i - 1]!)
+                                  ? 'border-amber-400 bg-amber-50 text-amber-700'
+                                  : 'border-brand/40 bg-brand/10',
                         )}
                     >
                         {n}
                     </span>
                 </motion.div>
             ))}
+            {contiguous && firstFail >= 0 && (
+                <span className="w-full text-[11px] font-semibold text-red-600">
+                    ⚠️ L'arrêt {firstFail + 1} ne renvoie aucune ligne : la
+                    mesure produira 0 / vide ici.
+                </span>
+            )}
             {!contiguous && (
                 <span className="text-[11px] font-semibold text-red-600">
                     (chaîne interrompue : les tables ne se suivent pas)
