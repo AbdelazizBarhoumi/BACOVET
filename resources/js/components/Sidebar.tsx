@@ -11,11 +11,8 @@ import {
     Pencil,
     Plus,
     Settings,
-    Terminal,
     Trash2,
     Loader2,
-    BarChart3,
-    History,
 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
@@ -70,7 +67,6 @@ const Sidebar = () => {
 
     const canSeeAdmin = hasAccess('/admin');
     const canSeeV3 = hasAccess('/v3');
-    const canSeeKpi = hasAccess('/kpi-endpoints');
     const canSeeEndpoints = hasAccess('/endpoints');
 
     const toggleCollapse = (id: number) => {
@@ -448,37 +444,6 @@ const Sidebar = () => {
                     </>
                 )}
 
-                <div className="space-y-0.5 pt-4">
-                    <a
-                        href="/v1/data"
-                        className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                            pathname === '/v1/data'
-                                ? 'border-l-2 border-primary bg-primary/15 text-primary'
-                                : 'hover:bg-sidebar-accent'
-                        }`}
-                    >
-                        <BarChart3 className="h-4 w-4" />
-                        <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
-                            Mapping KPIs ↔ Endpoints
-                        </span>
-                    </a>
-                    {canSeeKpi && (
-                        <Link
-                            href="/kpi-endpoints"
-                            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                                pathname === '/kpi-endpoints'
-                                    ? 'border-l-2 border-primary bg-primary/15 text-primary'
-                                    : 'hover:bg-sidebar-accent'
-                            }`}
-                        >
-                            <Database className="h-4 w-4" />
-                            <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
-                                KPI ENDPOINTS
-                            </span>
-                        </Link>
-                    )}
-                </div>
-
                 {canSeeAdmin && (
                     <>
                         <div className="px-3 pt-6 pb-2 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
@@ -516,37 +481,7 @@ const Sidebar = () => {
                                 ADMINISTRATION
                             </span>
                         </Link>
-                        <Link
-                            href="/v3/trace"
-                            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                                pathname === '/v3/trace'
-                                    ? 'border-l-2 border-primary bg-primary/15 text-primary'
-                                    : 'hover:bg-sidebar-accent'
-                            }`}
-                        >
-                            <History
-                                className={`h-4 w-4 ${pathname === '/v3/trace' ? 'text-white' : 'text-primary'}`}
-                            />
-                            <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
-                                TRACES V3
-                            </span>
-                        </Link>
-                        <Link
-                            href="/maintenance"
-                            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                                pathname === '/maintenance'
-                                    ? 'border-l-2 border-primary bg-primary/15 text-primary'
-                                    : 'hover:bg-sidebar-accent'
-                            }`}
-                        >
-                            <Terminal
-                                className={`h-4 w-4 ${pathname === '/maintenance' ? 'text-white' : 'text-primary'}`}
-                            />
-                            <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
-                                MAINTENANCE
-                            </span>
-                        </Link>
-                    </>
+                        </>
                 )}
             </nav>
 

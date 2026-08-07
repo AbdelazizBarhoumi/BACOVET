@@ -28,6 +28,7 @@ const CATEGORY_LABELS: Record<string, string> = {
     queue: "File d'attente & Planificateur",
     sync: 'Synchronisation des données',
     export: 'Exports',
+    maintenance: 'Mode maintenance',
 };
 
 function IconTerminal({ className = '' }: { className?: string }) {

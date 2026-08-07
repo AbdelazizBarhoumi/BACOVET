@@ -10,10 +10,10 @@ return new class extends Migration
     {
         Schema::create('measure_joins', function (Blueprint $table) {
             $table->id();
-            $table->string('table_a');
-            $table->string('column_a');
-            $table->string('table_b');
-            $table->string('column_b');
+            $table->string('table_a', 191);
+            $table->string('column_a', 191);
+            $table->string('table_b', 191);
+            $table->string('column_b', 191);
             $table->boolean('trim_compare')->default(true);
             $table->foreignId('user_id')->nullable()->constrained('v5_users')->nullOnDelete();
             $table->timestamps();

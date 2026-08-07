@@ -21,7 +21,6 @@ return [
     |   - category:    grouping key for the UI
     |   - description: short help text
     |   - confirm:     when true the UI asks for confirmation before running
-    |   - group:       optional sort order within the category
     |
     | Destructive commands such as migrate:fresh / migrate:refresh are
     | intentionally NOT part of the allowlist.
@@ -57,7 +56,7 @@ return [
             'label' => 'Config : purge cache',
             'signature' => 'config:clear',
             'category' => 'cache',
-            'description' => 'Remove la configuration en cache (config:clear).',
+            'description' => 'Supprime la configuration en cache (config:clear).',
             'confirm' => false,
         ],
         [
@@ -65,7 +64,7 @@ return [
             'label' => 'Routes : purge cache',
             'signature' => 'route:clear',
             'category' => 'cache',
-            'description' => 'Remove le cache des routes (route:clear).',
+            'description' => 'Supprime le cache des routes (route:clear).',
             'confirm' => false,
         ],
         [
@@ -73,7 +72,7 @@ return [
             'label' => 'Vues : purge cache',
             'signature' => 'view:clear',
             'category' => 'cache',
-            'description' => 'Remove le cache des vues Blade (view:clear).',
+            'description' => 'Supprime le cache des vues Blade (view:clear).',
             'confirm' => false,
         ],
         [
@@ -81,7 +80,7 @@ return [
             'label' => 'Optimisation : purge complète',
             'signature' => 'optimize:clear',
             'category' => 'cache',
-            'description' => 'Remove tous les caches de bootstrap (config, routes, views, events).',
+            'description' => 'Supprime tous les caches de bootstrap (config, routes, views, events).',
             'confirm' => false,
         ],
         [
@@ -145,111 +144,42 @@ return [
             'confirm' => true,
         ],
 
-        // ── Synchronisation des données ──────────────────────────────────────
+        // ── Mode maintenance (down/up) ───────────────────────────────────────
+        // `down` met tout le site en maintenance (HTTP 503), y compris cette
+        // page. Pour récupérer via le navigateur, accédez à /<secret>; sinon
+        // relancez la commande `up` en CLI.
         [
-            'id' => 'sync:quality',
-            'label' => 'Sync Qualité',
-            'signature' => 'sync:quality',
-            'category' => 'sync',
-            'description' => 'Synchronise les données Qualité (Novacity QCM).',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'sync:production',
-            'label' => 'Sync Production',
-            'signature' => 'sync:production',
-            'category' => 'sync',
-            'description' => 'Synchronise les données Production (Novacity SDT).',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'sync:logistics',
-            'label' => 'Sync Logistique',
-            'signature' => 'sync:logistics',
-            'category' => 'sync',
-            'description' => 'Synchronise les données Logistique (Novacity DIVATEX).',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'sync:drive',
-            'label' => 'Sync Google Drive',
-            'signature' => 'sync:drive',
-            'category' => 'sync',
-            'description' => 'Synchronise les fichiers Google Drive.',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'sync:gpro',
-            'label' => 'Sync GPRO Consulting',
-            'signature' => 'sync:gpro',
-            'category' => 'sync',
-            'description' => 'Synchronise les données GPRO Consulting.',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'sync:full',
-            'label' => 'Sync complète (toutes sources)',
-            'signature' => 'sync:full',
-            'category' => 'sync',
-            'description' => 'Synchronise toutes les sources Novacity + Drive + GPRO.',
+            'id' => 'down',
+            'label' => 'Passer le site en maintenance',
+            'signature' => 'down --secret=baco-vet-secret-2026 --render=errors.503',
+            'category' => 'maintenance',
+            'description' => 'Active le mode maintenance Laravel (503) avec un secret de contournement. La page elle-même devient inaccessible.',
             'confirm' => true,
         ],
         [
-            'id' => 'sync:kpi-endpoints',
-            'label' => 'Sync KPI Endpoints',
-            'signature' => 'sync:kpi-endpoints',
-            'category' => 'sync',
-            'description' => 'Met à jour les endpoints KPI (toutes fréquences).',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'sync:instant-endpoints',
-            'label' => 'Sync endpoints instantanés',
-            'signature' => 'sync:instant-endpoints',
-            'category' => 'sync',
-            'description' => 'Rejoue les endpoints à fréquence instantanée.',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'sync:endpoint-datasets',
-            'label' => 'Sync datasets V5',
-            'signature' => 'sync:endpoint-datasets',
-            'category' => 'sync',
-            'description' => 'Rafraîchit les datasets du builder V5.',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'endpoints:refresh',
-            'label' => 'Rafraîchir le registre endpoints',
-            'signature' => 'endpoints:refresh',
-            'category' => 'sync',
-            'description' => 'Recharge la liste des endpoints Novacity.',
-            'confirm' => false,
+            'id' => 'up',
+            'label' => 'Sortir du mode maintenance',
+            'signature' => 'up',
+            'category' => 'maintenance',
+            'description' => 'Désactive le mode maintenance Laravel (à utiliser en CLI si la page est inaccessible).',
+            'confirm' => true,
         ],
 
-        // ── Export ───────────────────────────────────────────────────────────
+        // ── Synchronisation des données ──────────────────────────────────────
         [
-            'id' => 'export:mappings',
-            'label' => 'Exporter les mappings',
-            'signature' => 'export:mappings',
-            'category' => 'export',
-            'description' => 'Génère le fichier config des data-mappings.',
+            'id' => 'sync:endpoint-data',
+            'label' => 'Sync endpoints builder',
+            'signature' => 'sync:endpoint-data',
+            'category' => 'sync',
+            'description' => 'Rafraîchit le registre endpoints et les datasets du builder depuis NOVACITY_BASE_URL.',
             'confirm' => false,
         ],
         [
-            'id' => 'export:endpoints',
-            'label' => 'Exporter les endpoints',
-            'signature' => 'export:endpoints',
-            'category' => 'export',
-            'description' => 'Génère le fichier config des endpoints.',
-            'confirm' => false,
-        ],
-        [
-            'id' => 'export:page-data',
-            'label' => 'Exporter les données de pages',
-            'signature' => 'export:page-data',
-            'category' => 'export',
-            'description' => 'Génère le JSON des données de pages publiques.',
+            'id' => 'sync:endpoint-data:refresh',
+            'label' => 'Rafraîchir le registre endpoints',
+            'signature' => 'sync:endpoint-data --phase=refresh --force',
+            'category' => 'sync',
+            'description' => 'Recharge la liste des endpoints Novacity (registre forcé).',
             'confirm' => false,
         ],
     ],

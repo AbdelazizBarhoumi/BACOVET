@@ -40,7 +40,7 @@
         <!-- removed remote fonts.bunny.net link to avoid network errors -->
 
         @viteReactRefresh
-        @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+        @vite(['resources/js/app.tsx'])
         @inertiaHead
     </head>
     <body class="font-sans antialiased">
