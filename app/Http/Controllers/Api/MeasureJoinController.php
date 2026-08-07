@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\BuilderActivityLogV5;
+use App\Models\BuilderActivityLog;
 use App\Models\MeasureJoin;
-use App\Support\V5PageAccess;
+use App\Support\PageAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,7 +38,7 @@ class MeasureJoinController extends Controller
             'table_b' => trim($validated['table_b']),
             'column_b' => trim($validated['column_b']),
             'trim_compare' => $trim,
-            'user_id' => V5PageAccess::resolveV5User()?->id,
+            'user_id' => PageAccess::resolveUser()?->id,
         ]);
 
         $this->logActivity('join.create', $join);
@@ -68,8 +68,8 @@ class MeasureJoinController extends Controller
         MeasureJoin $join,
         array $before = [],
     ): void {
-        BuilderActivityLogV5::create([
-            'user_id' => V5PageAccess::resolveV5User()?->id,
+        BuilderActivityLog::create([
+            'user_id' => PageAccess::resolveUser()?->id,
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
             'action' => $action,

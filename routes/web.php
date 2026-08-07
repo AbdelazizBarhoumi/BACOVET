@@ -2,12 +2,12 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\BuilderActivityV5Controller;
-use App\Http\Controllers\Api\BuilderPageGroupV5Controller;
-use App\Http\Controllers\Api\BuilderPageV5Controller;
-use App\Http\Controllers\Api\EndpointDatasetV5Controller;
+use App\Http\Controllers\Api\BuilderActivityController;
+use App\Http\Controllers\Api\BuilderPageController;
+use App\Http\Controllers\Api\BuilderPageGroupController;
+use App\Http\Controllers\Api\EndpointDatasetController;
+use App\Http\Controllers\Api\MeasureController;
 use App\Http\Controllers\Api\MeasureJoinController;
-use App\Http\Controllers\Api\MeasureV5Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -44,20 +44,20 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 
-// ── V5 PAGE BUILDER (auth via the main login; v5_users table kept) ─
+// ── PAGE BUILDER (auth via the main login; users table) ─
 Route::middleware('auth')->group(function () {
     Route::get('/p/{slug}', function ($slug) {
-        $page = \App\Models\BuilderPageV5::where('slug', $slug)->first();
+        $page = \App\Models\BuilderPage::where('slug', $slug)->first();
         if (! $page) {
             abort(404);
         }
 
-        $user = \App\Support\V5PageAccess::resolveV5User();
-        if (! \App\Support\V5PageAccess::canView($page, $user)) {
+        $user = \App\Support\PageAccess::resolveUser();
+        if (! \App\Support\PageAccess::canView($page, $user)) {
             abort(403);
         }
 
-        return Inertia::render('v5/p/[slug]', [
+        return Inertia::render('builder/p/[slug]', [
             'pageId' => $page->id,
             'slug' => $page->slug,
             'pageName' => $page->name,
@@ -65,49 +65,49 @@ Route::middleware('auth')->group(function () {
             'layoutDraft' => $page->layout_draft,
             'layoutDraftUpdatedAt' => $page->layout_draft_updated_at?->toISOString(),
             'isOwner' => $page->owner_user_id === $user->id,
-            'canEdit' => \App\Support\V5PageAccess::canEdit($page, $user),
-            'canManage' => \App\Support\V5PageAccess::canManage($page, $user),
+            'canEdit' => \App\Support\PageAccess::canEdit($page, $user),
+            'canManage' => \App\Support\PageAccess::canManage($page, $user),
         ]);
-    })->name('v5.page');
+    })->name('builder.page');
 
-    Route::get('/api/v5/endpoint-datasets', [EndpointDatasetV5Controller::class, 'index']);
-    Route::get('/api/v5/schema', [EndpointDatasetV5Controller::class, 'schema']);
+    Route::get('/api/endpoint-datasets', [EndpointDatasetController::class, 'index']);
+    Route::get('/api/schema', [EndpointDatasetController::class, 'schema']);
 
-    Route::prefix('api/v5/builder-pages')->group(function () {
-        Route::get('/', [BuilderPageV5Controller::class, 'index']);
-        Route::get('/{slug}', [BuilderPageV5Controller::class, 'show']);
-        Route::post('/', [BuilderPageV5Controller::class, 'store']);
-        Route::put('/{id}', [BuilderPageV5Controller::class, 'update']);
-        Route::delete('/{id}', [BuilderPageV5Controller::class, 'destroy']);
-        Route::post('/{id}/duplicate', [BuilderPageV5Controller::class, 'duplicate']);
-        Route::post('/{id}/images', [BuilderPageV5Controller::class, 'uploadImage'])->name('v5.page.image.upload');
-        Route::get('/{id}/images/{filename}', [BuilderPageV5Controller::class, 'showImage'])->name('v5.page.image');
-        Route::get('/{id}/permissions', [BuilderPageV5Controller::class, 'getPermissions']);
-        Route::put('/{id}/permissions', [BuilderPageV5Controller::class, 'savePermissions']);
+    Route::prefix('api/builder-pages')->group(function () {
+        Route::get('/', [BuilderPageController::class, 'index']);
+        Route::get('/{slug}', [BuilderPageController::class, 'show']);
+        Route::post('/', [BuilderPageController::class, 'store']);
+        Route::put('/{id}', [BuilderPageController::class, 'update']);
+        Route::delete('/{id}', [BuilderPageController::class, 'destroy']);
+        Route::post('/{id}/duplicate', [BuilderPageController::class, 'duplicate']);
+        Route::post('/{id}/images', [BuilderPageController::class, 'uploadImage'])->name('builder.page.image.upload');
+        Route::get('/{id}/images/{filename}', [BuilderPageController::class, 'showImage'])->name('builder.page.image');
+        Route::get('/{id}/permissions', [BuilderPageController::class, 'getPermissions']);
+        Route::put('/{id}/permissions', [BuilderPageController::class, 'savePermissions']);
     });
 
-    Route::prefix('api/v5/builder-page-groups')->group(function () {
-        Route::get('/', [BuilderPageGroupV5Controller::class, 'index']);
-        Route::post('/', [BuilderPageGroupV5Controller::class, 'store']);
-        Route::put('/assign-page', [BuilderPageGroupV5Controller::class, 'assignPage']);
-        Route::put('/reorder-pages', [BuilderPageGroupV5Controller::class, 'reorderPages']);
-        Route::put('/reorder-groups', [BuilderPageGroupV5Controller::class, 'reorderGroups']);
-        Route::put('/{id}', [BuilderPageGroupV5Controller::class, 'update']);
-        Route::delete('/{id}', [BuilderPageGroupV5Controller::class, 'destroy']);
+    Route::prefix('api/builder-page-groups')->group(function () {
+        Route::get('/', [BuilderPageGroupController::class, 'index']);
+        Route::post('/', [BuilderPageGroupController::class, 'store']);
+        Route::put('/assign-page', [BuilderPageGroupController::class, 'assignPage']);
+        Route::put('/reorder-pages', [BuilderPageGroupController::class, 'reorderPages']);
+        Route::put('/reorder-groups', [BuilderPageGroupController::class, 'reorderGroups']);
+        Route::put('/{id}', [BuilderPageGroupController::class, 'update']);
+        Route::delete('/{id}', [BuilderPageGroupController::class, 'destroy']);
     });
 
-    Route::post('/api/v5-activity', [BuilderActivityV5Controller::class, 'store']);
-    Route::get('/api/v5-activity', [BuilderActivityV5Controller::class, 'index']);
-    Route::get('/api/v5-activity/users', [BuilderActivityV5Controller::class, 'users']);
+    Route::post('/api/activity', [BuilderActivityController::class, 'store']);
+    Route::get('/api/activity', [BuilderActivityController::class, 'index']);
+    Route::get('/api/activity/users', [BuilderActivityController::class, 'users']);
 
-    Route::prefix('api/v5/measures')->group(function () {
-        Route::get('/', [MeasureV5Controller::class, 'index']);
-        Route::post('/', [MeasureV5Controller::class, 'store']);
-        Route::put('/{id}', [MeasureV5Controller::class, 'update']);
-        Route::delete('/{id}', [MeasureV5Controller::class, 'destroy']);
+    Route::prefix('api/measures')->group(function () {
+        Route::get('/', [MeasureController::class, 'index']);
+        Route::post('/', [MeasureController::class, 'store']);
+        Route::put('/{id}', [MeasureController::class, 'update']);
+        Route::delete('/{id}', [MeasureController::class, 'destroy']);
     });
 
-    Route::prefix('api/v5/joins')->group(function () {
+    Route::prefix('api/joins')->group(function () {
         Route::get('/', [MeasureJoinController::class, 'index']);
         Route::post('/', [MeasureJoinController::class, 'store']);
         Route::delete('/{id}', [MeasureJoinController::class, 'destroy']);

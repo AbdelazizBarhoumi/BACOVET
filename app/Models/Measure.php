@@ -5,16 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class MeasureJoin extends Model
+class Measure extends Model
 {
-    protected $table = 'measure_joins';
+    protected $table = 'measures';
 
-    protected $fillable = [
-        'table_a', 'column_a', 'table_b', 'column_b', 'trim_compare', 'user_id',
-    ];
+    protected $fillable = ['name', 'expression', 'description', 'category', 'user_id', 'config'];
 
     protected $casts = [
-        'trim_compare' => 'boolean',
+        'config' => 'array',
     ];
 
     public function user(): BelongsTo

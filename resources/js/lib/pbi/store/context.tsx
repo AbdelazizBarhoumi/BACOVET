@@ -8,7 +8,7 @@ import {
     useState,
     type ReactNode,
 } from 'react';
-import { logV5WidgetActivity } from '@/lib/v5-activity';
+import { logWidgetActivity } from '@/lib/activity';
 import type { JoinRecord } from '@/services/joinApi';
 import {
     createMeasure as apiCreateMeasure,
@@ -635,7 +635,7 @@ export function PbiProvider({
             );
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
-            logV5WidgetActivity('widget.add', {
+            logWidgetActivity('widget.add', {
                 id: v.id,
                 type: type as string,
             });
@@ -656,7 +656,7 @@ export function PbiProvider({
             });
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
-            logV5WidgetActivity('widget.add', {
+            logWidgetActivity('widget.add', {
                 id: v.id,
                 type: `shape:${kind}`,
             });
@@ -952,7 +952,7 @@ export function PbiProvider({
                     .find((p) => p.id === s.activePageId)
                     ?.visuals.find((v) => v.id === id);
                 if (removed) {
-                    logV5WidgetActivity('widget.delete', {
+                    logWidgetActivity('widget.delete', {
                         id: removed.id,
                         type: removed.type ?? '',
                     });
@@ -984,7 +984,7 @@ export function PbiProvider({
                 if (!v) return vs;
                 const z = takeZTop();
                 const copyId = uid();
-                logV5WidgetActivity('widget.duplicate', {
+                logWidgetActivity('widget.duplicate', {
                     id: copyId,
                     type: v.type ?? '',
                 });

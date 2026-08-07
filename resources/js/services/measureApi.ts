@@ -1,7 +1,7 @@
-// Typed client for the shared measure library API (V5 builder).
-// Endpoints: GET/POST /api/v5/measures, PUT/DELETE /api/v5/measures/{id}.
+// Typed client for the shared measure library API (page builder).
+// Endpoints: GET/POST /api/measures, PUT/DELETE /api/measures/{id}.
 
-import { handleV5Error } from '@/lib/v5-session';
+import { handleApiError } from '@/lib/session';
 
 export type MeasureRecord = {
     id: number;
@@ -42,7 +42,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
         },
     });
     if (!res.ok) {
-        handleV5Error(res.status);
+        handleApiError(res.status);
         let message = `HTTP ${res.status}`;
         try {
             const body: unknown = await res.json();
@@ -69,7 +69,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export async function fetchMeasures(): Promise<MeasureRecord[]> {
     const body = await request<{ measures: MeasureRecord[] }>(
-        '/api/v5/measures',
+        '/api/measures',
     );
     return body.measures ?? [];
 }
@@ -77,7 +77,7 @@ export async function fetchMeasures(): Promise<MeasureRecord[]> {
 export async function createMeasure(
     payload: MeasurePayload,
 ): Promise<MeasureRecord> {
-    const body = await request<{ measure: MeasureRecord }>('/api/v5/measures', {
+    const body = await request<{ measure: MeasureRecord }>('/api/measures', {
         method: 'POST',
         body: JSON.stringify(payload),
     });
@@ -89,7 +89,7 @@ export async function updateMeasure(
     payload: MeasurePayload,
 ): Promise<MeasureRecord> {
     const body = await request<{ measure: MeasureRecord }>(
-        `/api/v5/measures/${id}`,
+        `/api/measures/${id}`,
         {
             method: 'PUT',
             body: JSON.stringify(payload),
@@ -99,7 +99,7 @@ export async function updateMeasure(
 }
 
 export async function deleteMeasure(id: number | string): Promise<void> {
-    await request<{ message: string }>(`/api/v5/measures/${id}`, {
+    await request<{ message: string }>(`/api/measures/${id}`, {
         method: 'DELETE',
     });
 }

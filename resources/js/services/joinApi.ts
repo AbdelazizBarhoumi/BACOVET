@@ -1,7 +1,7 @@
-// Typed client for the shared cross-table join library (V5 builder).
-// Endpoints: GET/POST /api/v5/joins, DELETE /api/v5/joins/{id}.
+// Typed client for the shared cross-table join library (page builder).
+// Endpoints: GET/POST /api/joins, DELETE /api/joins/{id}.
 
-import { handleV5Error } from '@/lib/v5-session';
+import { handleApiError } from '@/lib/session';
 
 export type JoinRecord = {
     id: number;
@@ -42,7 +42,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
         },
     });
     if (!res.ok) {
-        handleV5Error(res.status);
+        handleApiError(res.status);
         let message = `HTTP ${res.status}`;
         try {
             const body: unknown = await res.json();
@@ -63,12 +63,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchJoins(): Promise<JoinRecord[]> {
-    const body = await request<{ joins: JoinRecord[] }>('/api/v5/joins');
+    const body = await request<{ joins: JoinRecord[] }>('/api/joins');
     return body.joins ?? [];
 }
 
 export async function createJoin(payload: JoinPayload): Promise<JoinRecord> {
-    const body = await request<{ join: JoinRecord }>('/api/v5/joins', {
+    const body = await request<{ join: JoinRecord }>('/api/joins', {
         method: 'POST',
         body: JSON.stringify(payload),
     });
@@ -76,7 +76,7 @@ export async function createJoin(payload: JoinPayload): Promise<JoinRecord> {
 }
 
 export async function deleteJoin(id: number | string): Promise<void> {
-    await request<{ message: string }>(`/api/v5/joins/${id}`, {
+    await request<{ message: string }>(`/api/joins/${id}`, {
         method: 'DELETE',
     });
 }

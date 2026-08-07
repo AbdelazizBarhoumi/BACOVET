@@ -1,4 +1,4 @@
-import { handleV5Error } from '@/lib/v5-session';
+import { handleApiError } from '@/lib/session';
 import {
     inferFieldType,
     type Field,
@@ -26,14 +26,14 @@ export type EndpointDataset = {
 
 export async function fetchEndpointDatasets(
     signal?: AbortSignal,
-    baseUrl = '/api/v5/endpoint-datasets',
+    baseUrl = '/api/endpoint-datasets',
 ): Promise<EndpointDataset[]> {
     const res = await fetch(baseUrl, {
         headers: { Accept: 'application/json' },
         signal,
     });
     if (!res.ok) {
-        handleV5Error(res.status);
+        handleApiError(res.status);
         throw new Error(`HTTP ${res.status}`);
     }
     const body: unknown = await res.json();

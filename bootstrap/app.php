@@ -25,11 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'browser-log',
             'auth/login',
-            'api/v5/builder-pages/*',
-            'api/v5/builder-pages',
-            'api/v5/builder-page-groups/*',
-            'api/v5/builder-page-groups',
-            'api/v5-activity',
+            'api/builder-pages/*',
+            'api/builder-pages',
+            'api/builder-page-groups/*',
+            'api/builder-page-groups',
+            'api/activity',
         ]);
 
         $middleware->web(append: [

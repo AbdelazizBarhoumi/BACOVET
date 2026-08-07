@@ -35,15 +35,15 @@ import {
 } from '@/components/ui/select';
 import { useAuth, ROLE_LABEL, type RolePage } from '@/context/AuthContext';
 import { pushAudit } from '@/lib/audit';
-import { useSidebarStructureV5 } from '@/lib/groups-registry-v5';
-import { usePagesRegistryV5 } from '@/lib/pages-registry-v5';
-import type { BuilderPageV5 } from '@/lib/pages-registry-v5';
+import { useSidebarStructure } from '@/lib/groups-registry';
+import { usePagesRegistry } from '@/lib/pages-registry';
+import type { BuilderPage } from '@/lib/pages-registry';
 
 const Sidebar = () => {
     const { url: pathname } = usePage();
     const { session, logout, hasAccess } = useAuth();
-    const { groups, ungrouped, loading, createGroup, renameGroup, deleteGroup, assignPage, reorderPages, reorderGroups, refresh } = useSidebarStructureV5();
-    const { createPage, deletePage, duplicatePage, updatePage } = usePagesRegistryV5();
+    const { groups, ungrouped, loading, createGroup, renameGroup, deleteGroup, assignPage, reorderPages, reorderGroups, refresh } = useSidebarStructure();
+    const { createPage, deletePage, duplicatePage, updatePage } = usePagesRegistry();
     const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
     const [showAddGroup, setShowAddGroup] = useState(false);
     const [showAddPage, setShowAddPage] = useState(false);
@@ -154,7 +154,7 @@ const Sidebar = () => {
     }, [groups, ungrouped]);
 
     const computeReorderItems = useCallback((
-        pages: BuilderPageV5[],
+        pages: BuilderPage[],
         draggedId: number,
         targetId: number,
     ): { id: number; sort_order: number }[] | null => {
@@ -170,7 +170,7 @@ const Sidebar = () => {
         return reordered.map((p, i) => ({ id: p.id, sort_order: i }));
     }, []);
 
-    const getPagesInGroup = useCallback((groupId: number | null): BuilderPageV5[] => {
+    const getPagesInGroup = useCallback((groupId: number | null): BuilderPage[] => {
         if (groupId === null) return ungrouped;
         const g = groups.find((gr) => gr.id === groupId);
         return g ? g.pages : [];
