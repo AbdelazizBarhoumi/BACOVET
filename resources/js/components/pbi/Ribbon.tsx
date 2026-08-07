@@ -117,9 +117,11 @@ function ShapesMenu() {
 export function Ribbon({
     onOpenDax,
     onOpenManage,
+    onOpenDataJson,
 }: {
     onOpenDax: () => void;
     onOpenManage: () => void;
+    onOpenDataJson: () => void;
 }) {
     const {
         ribbonTab,
@@ -226,6 +228,16 @@ export function Ribbon({
                         icon: MousePointerClick,
                         active: editInteractions,
                         onClick: () => toggleEditInteractions(),
+                    },
+                ],
+            },
+            {
+                title: 'Données',
+                actions: [
+                    {
+                        label: 'Afficher les données JSON',
+                        icon: Braces,
+                        onClick: onOpenDataJson,
                     },
                 ],
             },

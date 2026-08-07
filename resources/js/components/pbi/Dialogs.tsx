@@ -20,6 +20,7 @@ import {
     type DaxSignature,
     type DaxSuggestion,
 } from '@/lib/pbi/dax';
+import { deriveMeasureSpec } from '@/lib/pbi/measureWizard';
 import {
     MEASURES,
     formatNumber,
@@ -628,6 +629,8 @@ export function DaxDialog({
         setSaving(true);
         try {
             const full = `${name} = ${formula}`;
+            const spec = deriveMeasureSpec(formula);
+            const config = spec ? JSON.stringify(spec) : undefined;
             if (edit) {
                 await updateMeasure(
                     edit.id!,
@@ -635,12 +638,13 @@ export function DaxDialog({
                     full,
                     category,
                     description,
+                    config,
                 );
                 toast.success('Mesure mise à jour', {
                     description: `${name} = ${formula}`,
                 });
             } else {
-                await addMeasure(name, full, category, description);
+                await addMeasure(name, full, category, description, config);
                 toast.success('Mesure créée', {
                     description: `${name} = ${formula}`,
                 });

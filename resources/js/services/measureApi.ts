@@ -9,7 +9,7 @@ export type MeasureRecord = {
     expression: string;
     category: string | null;
     description: string | null;
-    config?: string | null;
+    config?: string | null | Record<string, unknown>;
     created_at?: string | null;
     updated_at?: string | null;
 };
@@ -19,7 +19,7 @@ export type MeasurePayload = {
     expression: string;
     category?: string | null;
     description?: string | null;
-    config?: string | null;
+    config?: string | null | Record<string, unknown>;
 };
 
 function getCsrfToken(): string {

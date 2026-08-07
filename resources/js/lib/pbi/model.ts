@@ -23,7 +23,7 @@ export type Field = {
      * hops/joins + kind/agg/column used to build the DAX. Only present for
      * measures created through the wizard.
      */
-    config?: string | null;
+    config?: string | null | Record<string, unknown>;
 };
 
 export type Row = Record<string, string | number | boolean | null>;
@@ -2449,7 +2449,56 @@ export function compileListMeasure(expression: string): ListMeasureImpl | null {
 }
 
 /**
- * Returns the `Table[Column]` / `[Column]` references a measure expression
+ * Extracts the target table + column a `VALUES()` / `DISTINCT()` list measure
+ * operates on, working purely from the expression (no persisted `config`
+ * needed). Returns `{ table, column }` when the top-level call is a list
+ * measure over a column, or `null` otherwise. The table is resolved statically
+ * from the argument so callers can locate source rows without evaluating.
+ */
+export function listMeasureSource(
+    expression: string,
+): { table: string; column: string } | null {
+    const compiled = tryCompile(expression);
+    if (!compiled.ok) return null;
+    const node = compiled.node;
+    if (
+        node.kind !== 'func' ||
+        (node.name.toUpperCase() !== 'VALUES' &&
+            node.name.toUpperCase() !== 'DISTINCT')
+    ) {
+        return null;
+    }
+    const arg = node.args[0];
+    if (!arg) return null;
+    if (arg.kind === 'col') {
+        return { table: arg.table ?? '', column: arg.column };
+    }
+    if (arg.kind === 'ref') {
+        return { table: '', column: arg.name };
+    }
+    if (arg.kind === 'tablecol') {
+        return { table: staticTable(arg.base) ?? '', column: arg.column };
+    }
+    return null;
+}
+
+/** Best-effort static table name for a table-expression node. */
+function staticTable(node: MeasureNode | null): string | null {
+    if (!node) return null;
+    if (node.kind === 'table') return node.name;
+    if (node.kind === 'col') {
+        // A bare token used as a table expression is its table name.
+        return node.table || node.column || null;
+    }
+    if (node.kind === 'tablecol') return staticTable(node.base);
+    if (node.kind === 'func' && node.name.toUpperCase() === 'FILTER') {
+        return staticTable(node.args[0] ?? null);
+    }
+    return null;
+}
+
+/**
+ * Returns the `Table[column]` / `[column]` references a measure expression
  * depends on, so callers can resolve the rows the measure should be evaluated
  * against (enrichment, measure-only visuals). Table names are kept as written
  * in the expression; bare column refs have no table and are resolved at

@@ -218,6 +218,17 @@ export function customFilterPooledValues(
             if (key && !seen.has(key)) seen.set(key, display);
         }
     }
+    // Persisted selections must stay visible even when they drop out of the
+    // current data domain (e.g. the value no longer exists in any table). Without
+    // this they would be counted as selected but never rendered as a checkbox —
+    // a "ghost" selection that cannot be seen or toggled off.
+    for (const col of f.columns ?? []) {
+        for (const value of Array.isArray(col.values) ? col.values : []) {
+            const display = String(value);
+            const key = normValue(display);
+            if (key && !seen.has(key)) seen.set(key, display);
+        }
+    }
     return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 

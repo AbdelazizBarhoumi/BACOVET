@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildMeasureDax,
+    deriveMeasureSpec,
     isReliableHop,
     isReliablePath,
     joinCandidates,
     measureExpression,
     proposePath,
+    type WizardSpec,
 } from './measureWizard';
 import {
     compileListMeasure,
@@ -413,5 +415,57 @@ describe('buildMeasureDax', () => {
         };
         const dax = measureExpression('Total', spec);
         expect(() => compileMeasure(dax)).not.toThrow();
+    });
+});
+
+describe('deriveMeasureSpec', () => {
+    it('reverses a plain VALUES list', () => {
+        const spec = deriveMeasureSpec('VALUES(codestyle[StyleCode])');
+        expect(spec).not.toBeNull();
+        expect(spec!.kind).toBe('list');
+        expect(spec!.to).toBe('codestyle');
+        expect(spec!.column).toBe('StyleCode');
+        expect(spec!.hops).toHaveLength(0);
+    });
+
+    it('reverses a single-hop correlated list and recovers the chain', () => {
+        const generated = buildMeasureDax({
+            ...styleLinkSpec(),
+            kind: 'list',
+            column: 'StyleCode',
+            agg: 'count',
+        });
+        const spec = deriveMeasureSpec(generated);
+        expect(spec).not.toBeNull();
+        expect(spec!.kind).toBe('list');
+        expect(spec!.to).toBe('codestyle');
+        expect(spec!.column).toBe('StyleCode');
+        expect(spec!.hops).toHaveLength(1);
+        expect(spec!.hops[0]!.from).toBe('taging_reel');
+        expect(spec!.hops[0]!.to).toBe('codestyle');
+        expect(spec!.hops[0]!.fromCol).toBe('MONo');
+        expect(spec!.hops[0]!.toCol).toBe('SONo');
+    });
+
+    it('recovers a scalar condition from the generated DAX', () => {
+        const specIn: WizardSpec = {
+            ...styleLinkSpec(),
+            kind: 'list',
+            column: 'StyleCode',
+            agg: 'count',
+            condition: { column: 'Qty', op: 'gt', value: '0' },
+        };
+        const generated = buildMeasureDax(specIn);
+        const spec = deriveMeasureSpec(generated);
+        expect(spec).not.toBeNull();
+        expect(spec!.condition).toEqual({
+            column: 'Qty',
+            op: 'gt',
+            value: '0',
+        });
+    });
+
+    it('returns null for an unrecognized scalar expression', () => {
+        expect(deriveMeasureSpec('SUM(codestyle[Qty]) / 2')).toBeNull();
     });
 });

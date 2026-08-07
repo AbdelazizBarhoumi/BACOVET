@@ -21,11 +21,15 @@ import {
     type WizardSpec,
 } from '@/lib/pbi/measureWizard';
 import {
+    compileListMeasure,
+    evaluateMeasure,
     isSlicerVisual,
+    listMeasureSource,
     visualTable,
     visualTitleStyle,
     type Field,
     type Interaction,
+    type Row,
     type Visual,
 } from '@/lib/pbi/model';
 import {
@@ -1025,8 +1029,6 @@ export function Canvas({
                                 (v) => v.id === records,
                             );
                             if (!recordsVisual) return null;
-                            const base =
-                                tableRows[visualTable(recordsVisual)] ?? rows;
                             const vt = visualTable(recordsVisual);
                             const measureExpressions = measures.reduce<
                                 Record<string, string>
@@ -1034,35 +1036,6 @@ export function Canvas({
                                 if (m.expression) acc[m.name] = m.expression;
                                 return acc;
                             }, {});
-                            const enriched = enrichRows(
-                                recordsVisual,
-                                base,
-                                tables,
-                                joins,
-                                measureExpressions,
-                            );
-                            const recordsRows = crossFilterRows(
-                                enriched,
-                                crossFilter,
-                                recordsVisual.id,
-                                vt,
-                                recordsVisual.axis.some(
-                                    (f) => f.name === crossFilter?.column,
-                                ),
-                                interactionFor(
-                                    crossFilter?.sourceId ?? '',
-                                    recordsVisual.id,
-                                ),
-                                joins,
-                                tables,
-                                graph,
-                                smartNetwork,
-                            ).rows.slice(0, 100);
-                            const keys = [
-                                ...new Set(
-                                    recordsRows.flatMap((r) => Object.keys(r)),
-                                ),
-                            ];
 
                             // Find a wizard-created measure behind this visual so
                             // we can show its joins + DAX alongside the records.
@@ -1094,17 +1067,148 @@ export function Canvas({
                                 if (wizardMeasure) break;
                             }
                             let wizardSpec: WizardSpec | null = null;
-                            if (
-                                wizardMeasure?.config &&
-                                typeof wizardMeasure.config === 'string'
-                            ) {
+                            const rawConfig = wizardMeasure?.config;
+                            if (rawConfig) {
                                 try {
-                                    wizardSpec = JSON.parse(
-                                        wizardMeasure.config,
-                                    ) as WizardSpec;
+                                    wizardSpec =
+                                        typeof rawConfig === 'string'
+                                            ? (JSON.parse(
+                                                  rawConfig,
+                                              ) as WizardSpec)
+                                            : (rawConfig as WizardSpec);
                                 } catch {
                                     wizardSpec = null;
                                 }
+                            }
+
+                            // A measure-only visual has no physical rows to dump:
+                            // evaluate the measure honestly through the engine so
+                            // the "records" are what the measure actually returns.
+                            const allWellTables = wellLists.flatMap((w) =>
+                                (w ?? []).map((f) => String(f?.table ?? '')),
+                            );
+                            const measureOnly =
+                                allWellTables.length > 0 &&
+                                allWellTables.every((t) => t === 'Measures');
+
+                            let recordsRows: Row[] = [];
+                            let keys: string[] = [];
+                            let sourceRows: Row[] = [];
+                            let sourceKeys: string[] = [];
+                            let sourceTableLabel = '';
+
+                            if (measureOnly) {
+                                const measureField = measures.find(
+                                    (m) =>
+                                        m.table === 'Measures' &&
+                                        wellLists.some((w) =>
+                                            (w ?? []).some(
+                                                (f) => f?.name === m.name,
+                                            ),
+                                        ),
+                                );
+                                const expr =
+                                    measureField?.expression ??
+                                    wizardMeasure?.expression ??
+                                    '';
+                                // List detection works from the expression
+                                // alone (VALUES/DISTINCT), so DAX-created
+                                // measures render their distinct column values
+                                // even without a saved wizard config.
+                                const compiled = compileListMeasure(expr);
+                                const listSource = listMeasureSource(expr);
+                                const column =
+                                    wizardSpec?.column ||
+                                    listSource?.column ||
+                                    'Valeur';
+                                if (compiled && listSource) {
+                                    let values: string[] = [];
+                                    try {
+                                        const out = compiled([], {});
+                                        values = Array.isArray(out) ? out : [];
+                                    } catch {
+                                        values = [];
+                                    }
+                                    recordsRows = values.map((v) => ({
+                                        [column]: v,
+                                    }));
+                                    keys = [column];
+                                    const toTable =
+                                        wizardSpec?.to || listSource.table;
+                                    sourceTableLabel = toTable || '';
+                                    if (values.length > 0 && toTable) {
+                                        const target = tables.find(
+                                            (t) => t.name === toTable,
+                                        );
+                                        if (target) {
+                                            const wanted = new Set(
+                                                values.map((v) =>
+                                                    String(v).trim(),
+                                                ),
+                                            );
+                                            sourceRows = target.rows
+                                                .filter(
+                                                    (r) =>
+                                                        r[column] !==
+                                                            undefined &&
+                                                        wanted.has(
+                                                            String(
+                                                                r[column],
+                                                            ).trim(),
+                                                        ),
+                                                )
+                                                .slice(0, 100);
+                                            sourceKeys = target.fields.map(
+                                                (f) => f.name,
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    // Scalar measure (incl. built-ins).
+                                    const r = evaluateMeasure(expr, []);
+                                    recordsRows = [
+                                        {
+                                            Valeur:
+                                                typeof r.value === 'number'
+                                                    ? r.value
+                                                    : 0,
+                                        },
+                                    ];
+                                    keys = ['Valeur'];
+                                }
+                            } else {
+                                const base = tableRows[vt] ?? rows;
+                                const enriched = enrichRows(
+                                    recordsVisual,
+                                    base,
+                                    tables,
+                                    joins,
+                                    measureExpressions,
+                                );
+                                recordsRows = crossFilterRows(
+                                    enriched,
+                                    crossFilter,
+                                    recordsVisual.id,
+                                    vt,
+                                    recordsVisual.axis.some(
+                                        (f) => f.name === crossFilter?.column,
+                                    ),
+                                    interactionFor(
+                                        crossFilter?.sourceId ?? '',
+                                        recordsVisual.id,
+                                    ),
+                                    joins,
+                                    tables,
+                                    graph,
+                                    smartNetwork,
+                                ).rows.slice(0, 100);
+                                keys = [
+                                    ...new Set(
+                                        recordsRows.flatMap((r) =>
+                                            Object.keys(r),
+                                        ),
+                                    ),
+                                ];
                             }
                             return (
                                 <>
@@ -1257,6 +1361,51 @@ export function Canvas({
                                             ))}
                                         </tbody>
                                     </table>
+                                    {sourceRows.length > 0 && (
+                                        <div className="mt-4">
+                                            <div className="mb-1.5 text-[11px] font-semibold text-muted-foreground">
+                                                Lignes source correspondantes
+                                                (table {sourceTableLabel})
+                                            </div>
+                                            <table className="w-full text-[11px]">
+                                                <thead className="sticky top-0 bg-muted">
+                                                    <tr>
+                                                        {sourceKeys.map((k) => (
+                                                            <th
+                                                                key={k}
+                                                                className="border-b border-border px-2 py-1 text-left"
+                                                            >
+                                                                {k}
+                                                            </th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {sourceRows.map((r, i) => (
+                                                        <tr
+                                                            key={i}
+                                                            className="hover:bg-accent"
+                                                        >
+                                                            {sourceKeys.map(
+                                                                (k) => (
+                                                                    <td
+                                                                        key={k}
+                                                                        className="border-b border-border px-2 py-1"
+                                                                    >
+                                                                        {String(
+                                                                            r[
+                                                                                k
+                                                                            ],
+                                                                        )}
+                                                                    </td>
+                                                                ),
+                                                            )}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                 </>
                             );
                         })()}

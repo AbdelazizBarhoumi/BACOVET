@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Canvas, PageTabs } from '@/components/pbi/Canvas';
+import { DataJsonDialog } from '@/components/pbi/DataJsonDialog';
 import { DaxDialog, ManageMeasuresDialog } from '@/components/pbi/Dialogs';
 import { ExportMenu } from '@/components/pbi/ExportMenu';
 import { FullscreenView } from '@/components/pbi/FullscreenView';
@@ -786,6 +787,7 @@ function EditBody() {
     } = usePbi();
     const [dax, setDax] = useState(false);
     const [manage, setManage] = useState(false);
+    const [dataJson, setDataJson] = useState(false);
     const [paneCollapsed, setPaneCollapsed] = useState<Record<string, boolean>>(
         {
             selection: false,
@@ -812,6 +814,7 @@ function EditBody() {
             <Ribbon
                 onOpenDax={() => setDax(true)}
                 onOpenManage={() => setManage(true)}
+                onOpenDataJson={() => setDataJson(true)}
             />
 
             {editInteractions && (
@@ -1028,6 +1031,9 @@ function EditBody() {
             {dax && <DaxDialog onClose={() => setDax(false)} />}
             {manage && (
                 <ManageMeasuresDialog onClose={() => setManage(false)} />
+            )}
+            {dataJson && (
+                <DataJsonDialog open onClose={() => setDataJson(false)} />
             )}
         </div>
     );

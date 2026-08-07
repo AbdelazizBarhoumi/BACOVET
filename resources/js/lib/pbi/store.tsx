@@ -22,6 +22,7 @@ import {
     applyTableRows,
     customFilterColumnsContainingValue,
     customFilterPooledValues,
+    customFilterSelectedValues,
     isCustomFilter,
     normValue,
     propagateNetwork,
@@ -1212,6 +1213,15 @@ export function PbiProvider({
                     }
                 }
                 if (stop) return;
+                // Register into the aggregation engine BEFORE committing the
+                // state. MEASURE_IMPL/LIST_MEASURE_IMPL live in module scope
+                // and registerMeasure does not by itself cause a re-render, so
+                // registering after setRawState would leave visuals computed for
+                // a stale registry (isMeasure false => 0/empty) until some
+                // unrelated re-render (edit mode, poll) happens.
+                for (const m of [...library, ...migrated]) {
+                    if (m.expression) registerMeasure(m.name, m.expression);
+                }
                 setRawState((s) => ({
                     ...s,
                     measures: [...library.map(toMeasureField), ...migrated],
@@ -2348,8 +2358,14 @@ export function PbiProvider({
                         (c) => c.table && c.column,
                     );
                 }
-                const remove = affected.every((col) =>
-                    (col.values ?? []).some((v) => String(v) === value),
+                // Toggle: remove when the value is already selected anywhere in
+                // the pooled selection; otherwise add. Deciding by the pooled
+                // selection (instead of "every affected column holds the value")
+                // makes re-clicking a selected value reliably deselect it, even
+                // for partial-column selections or ghost values whose data has
+                // since disappeared.
+                const remove = customFilterSelectedValues(target).some(
+                    (v) => normValue(v) === normValue(value),
                 );
                 return {
                     ...s,
@@ -2373,7 +2389,9 @@ export function PbiProvider({
                                           ...col,
                                           values: remove
                                               ? selected.filter(
-                                                    (v) => v !== value,
+                                                    (v) =>
+                                                        normValue(v) !==
+                                                        normValue(value),
                                                 )
                                               : [...selected, value],
                                       };

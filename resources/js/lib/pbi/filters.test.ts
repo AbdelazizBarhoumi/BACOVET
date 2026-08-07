@@ -1186,6 +1186,27 @@ describe('custom filter pooled values (consolidated single list)', () => {
         expect(out).toEqual(['P2']);
     });
 
+    it('keeps persisted selections visible even when they leave the data domain', () => {
+        // "P9" was previously selected but no longer exists in any table. It
+        // must still show up in the pooled options (so it can be seen/toggled),
+        // otherwise it is a counted-but-invisible "ghost" a selection.
+        const f: ReportFilter = {
+            kind: 'custom',
+            column: 'Produit',
+            label: 'Produit',
+            values: [],
+            scope: 'report',
+            type: 'list',
+            columns: [
+                { table: 'Products', column: 'Id', values: ['P9'] },
+                { table: 'Orders', column: 'ProductRef', values: [] },
+            ],
+        };
+        const out = customFilterPooledValues(f, [products, orders]);
+        expect(out).toEqual(['P1', 'P2', 'P3', 'P9']);
+        expect(customFilterSelectedValues(f)).toEqual(['P9']);
+    });
+
     it('returns empty for non-custom filters', () => {
         expect(
             customFilterPooledValues(

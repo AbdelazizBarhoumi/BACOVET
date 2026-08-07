@@ -18,6 +18,7 @@ import {
     listAggIgnoredCount,
     listMeasureValue,
     listTreatment,
+    listMeasureSource,
     measureColumnRefs,
     measureError,
     measureLabel,
@@ -317,6 +318,22 @@ describe('PBI custom measures (DAX)', () => {
                 agg: 'sum',
             }),
         ).toBe(22);
+    });
+
+    it('aggregates to 0 until a measure is registered, then to its real value', () => {
+        setTables([table]);
+        const name = 'Register Order Total';
+        const wf = {
+            table: 'Measures',
+            name,
+            agg: 'sum' as const,
+        };
+        expect(isMeasure(name)).toBe(false);
+        expect(aggregate(table.rows, wf)).toBe(0);
+        registerMeasure(name, `${name} = SUM(wip_chaine[WIP_Chaine])`);
+        expect(isMeasure(name)).toBe(true);
+        expect(aggregate(table.rows, wf)).toBe(22);
+        unregisterMeasure(name);
     });
 });
 
@@ -1920,5 +1937,28 @@ describe('scalar functions', () => {
 
     it('evaluates MOD via the function form', () => {
         expect(evaluateMeasure('X = MOD(17, 5)', [])).toEqual({ value: 2 });
+    });
+});
+
+describe('listMeasureSource', () => {
+    it('extracts the column from a plain VALUES list', () => {
+        expect(
+            listMeasureSource('Values = VALUES(codestyle[StyleCode])'),
+        ).toEqual({
+            table: 'codestyle',
+            column: 'StyleCode',
+        });
+    });
+
+    it('resolves the base table of a FILTER-wrapped VALUES list', () => {
+        expect(
+            listMeasureSource(
+                'X = VALUES(FILTER(codestyle, COUNTROWS(FILTER(taging_reel, TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]))) > 0)[StyleCode])',
+            ),
+        ).toEqual({ table: 'codestyle', column: 'StyleCode' });
+    });
+
+    it('returns null for a scalar measure', () => {
+        expect(listMeasureSource('X = SUM(codestyle[Qty])')).toBeNull();
     });
 });
