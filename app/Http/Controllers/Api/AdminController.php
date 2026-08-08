@@ -45,7 +45,7 @@ class AdminController extends Controller
             'is_active' => $validated['active'] ?? true,
         ]);
 
-        return response()->json(['message' => 'User created successfully.', 'user' => $user->load('role')]);
+        return response()->json(['message' => 'Utilisateur créé avec succès.', 'user' => $user->load('role')]);
     }
 
     public function updateUser(Request $request, int $id): JsonResponse
@@ -78,7 +78,7 @@ class AdminController extends Controller
 
         $user->save();
 
-        return response()->json(['message' => 'User updated successfully.', 'user' => $user->load('role')]);
+        return response()->json(['message' => 'Utilisateur mis à jour avec succès.', 'user' => $user->load('role')]);
     }
 
     public function toggleUser(int $id): JsonResponse
@@ -87,7 +87,7 @@ class AdminController extends Controller
         $user->is_active = ! $user->is_active;
         $user->save();
 
-        return response()->json(['message' => 'User status toggled.', 'is_active' => $user->is_active]);
+        return response()->json(['message' => 'Statut de l\'utilisateur modifié.', 'is_active' => $user->is_active]);
     }
 
     public function deleteUser(Request $request, int $id): JsonResponse
@@ -132,6 +132,6 @@ class AdminController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-        return response()->json(['message' => 'Audit entry created.', 'log' => $log]);
+        return response()->json(['message' => 'Entrée d\'audit créée.', 'log' => $log]);
     }
 }

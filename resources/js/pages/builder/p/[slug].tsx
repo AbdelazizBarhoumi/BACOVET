@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
+import { logActivity, setPageContext } from '@/lib/activity';
 import {
     buildTables,
     fetchEndpointDatasets,
@@ -17,7 +18,6 @@ import { graphWithManualJoins } from '@/lib/pbi/graph';
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
 import type { State } from '@/lib/pbi/store';
 import { PbiProvider } from '@/lib/pbi/store';
-import { logActivity, setPageContext } from '@/lib/activity';
 import { fetchBuilderSchema } from '@/services/endpointManagerApi';
 import { fetchJoins, type JoinRecord } from '@/services/joinApi';
 import {
@@ -184,7 +184,7 @@ export default function PageView() {
                         Aucune page avec le slug «{' '}
                         <span className="font-mono">{slug}</span> ».
                     </p>
-                    <Link href="/builder">
+                    <Link href="/">
                         <Button size="sm">Retour aux pages</Button>
                     </Link>
                 </div>

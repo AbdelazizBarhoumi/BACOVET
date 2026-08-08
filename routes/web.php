@@ -6,26 +6,34 @@ use App\Http\Controllers\Api\BuilderActivityController;
 use App\Http\Controllers\Api\BuilderPageController;
 use App\Http\Controllers\Api\BuilderPageGroupController;
 use App\Http\Controllers\Api\EndpointDatasetController;
+use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\MeasureController;
 use App\Http\Controllers\Api\MeasureJoinController;
-use App\Models\User;
+use App\Http\Controllers\Api\NovacityEndpointsController;
+use App\Http\Controllers\Api\SettingsController;
+use App\Models\BuilderPage;
+use App\Support\PageAccess;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    return redirect()->route('login');
-})->name('home');
-
 Route::get('/login', fn () => Inertia::render('auth/login'))->name('login');
 
-Route::get('/unauthorized', fn () => Inertia::render('unauthorized'))->name('unauthorized');
+Route::get('/change-password', fn () => Inertia::render('auth/change-password'))
+    ->middleware(['auth', 'active.user'])
+    ->name('change-password');
 
-Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
-    Route::get('/dashboard', function () {
-        return redirect(User::DEFAULT_REDIRECT[auth()->user()->role->slug] ?? '/quality');
-    })->name('dashboard');
+Route::middleware(['auth', 'active.user', 'must.change.password', 'audit'])->group(function () {
+    Route::get('/', fn () => Inertia::render('builder/page-builder'))->name('home');
 
     Route::get('/admin', fn () => Inertia::render('admin'))->name('admin');
+
+    Route::get('/trace', fn () => Inertia::render('trace'))
+        ->middleware('role:it')
+        ->name('trace');
+
+    Route::get('/maintenance', fn () => Inertia::render('maintenance'))
+        ->middleware('role:it')
+        ->name('maintenance');
 
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
@@ -39,21 +47,29 @@ Route::middleware(['auth', 'active.user', 'audit'])->group(function () {
 
         Route::get('/audit-logs', [AdminController::class, 'auditLogs']);
         Route::post('/audit-logs', [AdminController::class, 'createAuditLog']);
+
+        // ── MAINTENANCE PANEL (artisan command runner) ─────────────────────
+        Route::prefix('maintenance')->group(function () {
+            Route::get('/commands', [MaintenanceController::class, 'commands']);
+            Route::post('/run', [MaintenanceController::class, 'start'])->middleware('throttle:10,1');
+        });
     });
 });
 
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/change-password', [AuthController::class, 'changePassword'])
+    ->middleware(['auth', 'active.user']);
 
 // ── PAGE BUILDER (auth via the main login; users table) ─
 Route::middleware('auth')->group(function () {
     Route::get('/p/{slug}', function ($slug) {
-        $page = \App\Models\BuilderPage::where('slug', $slug)->first();
+        $page = BuilderPage::where('slug', $slug)->first();
         if (! $page) {
             abort(404);
         }
 
-        $user = \App\Support\PageAccess::resolveUser();
-        if (! \App\Support\PageAccess::canView($page, $user)) {
+        $user = PageAccess::resolveUser();
+        if (! PageAccess::canView($page, $user)) {
             abort(403);
         }
 
@@ -65,13 +81,18 @@ Route::middleware('auth')->group(function () {
             'layoutDraft' => $page->layout_draft,
             'layoutDraftUpdatedAt' => $page->layout_draft_updated_at?->toISOString(),
             'isOwner' => $page->owner_user_id === $user->id,
-            'canEdit' => \App\Support\PageAccess::canEdit($page, $user),
-            'canManage' => \App\Support\PageAccess::canManage($page, $user),
+            'canEdit' => PageAccess::canEdit($page, $user),
+            'canManage' => PageAccess::canManage($page, $user),
         ]);
     })->name('builder.page');
 
     Route::get('/api/endpoint-datasets', [EndpointDatasetController::class, 'index']);
+    Route::get('/api/endpoint-datasets/status', [EndpointDatasetController::class, 'status']);
+    Route::post('/api/endpoint-datasets/sync', [EndpointDatasetController::class, 'sync']);
     Route::get('/api/schema', [EndpointDatasetController::class, 'schema']);
+
+    Route::get('/api/settings/{key}', [SettingsController::class, 'show']);
+    Route::post('/api/settings', [SettingsController::class, 'store']);
 
     Route::prefix('api/builder-pages')->group(function () {
         Route::get('/', [BuilderPageController::class, 'index']);
@@ -112,4 +133,28 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [MeasureJoinController::class, 'store']);
         Route::delete('/{id}', [MeasureJoinController::class, 'destroy']);
     });
+});
+
+// ── NOVACITY ENDPOINTS (from data.json) ─
+Route::get('/novacity-endpoints', NovacityEndpointsController::class);
+Route::get('/novacity-endpoints/all', [NovacityEndpointsController::class, 'allSamples']);
+Route::get('/novacity-endpoints/sample/{slug}', [NovacityEndpointsController::class, 'sample'])->where('slug', '.*');
+Route::post('/novacity-endpoints/test-and-save', [NovacityEndpointsController::class, 'testAndSave']);
+Route::get('/novacity-config', [NovacityEndpointsController::class, 'config']);
+
+// ── NOVACITY ENDPOINTS MANAGER (CRUD) — IT only ─
+Route::middleware(['auth', 'role:it'])->prefix('novacity-endpoints')->group(function () {
+    Route::get('/structure', [NovacityEndpointsController::class, 'structure']);
+    Route::get('/schema', [NovacityEndpointsController::class, 'schema']);
+    Route::get('/list', [NovacityEndpointsController::class, 'index']);
+    Route::get('/health', [NovacityEndpointsController::class, 'health']);
+    Route::post('/refresh', [NovacityEndpointsController::class, 'refresh']);
+    Route::post('/{id}/refresh', [NovacityEndpointsController::class, 'refreshOne']);
+    Route::post('/test', [NovacityEndpointsController::class, 'test']);
+    Route::post('/', [NovacityEndpointsController::class, 'store']);
+    Route::post('/reorder', [NovacityEndpointsController::class, 'reorder']);
+    Route::get('/{id}', [NovacityEndpointsController::class, 'show']);
+    Route::put('/{id}', [NovacityEndpointsController::class, 'update']);
+    Route::delete('/{id}', [NovacityEndpointsController::class, 'destroy']);
+    Route::post('/{id}/duplicate', [NovacityEndpointsController::class, 'duplicate']);
 });

@@ -18,12 +18,7 @@ import { handleApiError, statusOfError } from '@/lib/session';
 const BASE_URL = '';
 
 export type EndpointResponse =
-    | Record<string, unknown>
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+    Record<string, unknown> | unknown[] | string | number | boolean | null;
 
 export type EndpointEntry = {
     id: string;
@@ -117,7 +112,7 @@ async function fetchWithToken<T>(
         });
     } catch (err) {
         if (controller.signal.aborted) {
-            throw new Error('Request timed out after 60 seconds');
+            throw new Error('Délai de requête dépassé après 60 secondes');
         }
         throw err;
     } finally {
@@ -185,13 +180,7 @@ export const fetchStructures = async (): Promise<EntryStructure[]> => {
 export type SchemaColumn = {
     name: string;
     type:
-        | 'string'
-        | 'integer'
-        | 'number'
-        | 'boolean'
-        | 'date'
-        | 'null'
-        | 'mixed';
+        'string' | 'integer' | 'number' | 'boolean' | 'date' | 'null' | 'mixed';
     nullable: boolean;
     distinct_count: number;
     unique: boolean;
@@ -350,7 +339,9 @@ export const triggerRefresh = async (): Promise<{
     });
 };
 
-export const triggerEndpointRefresh = async (id: string): Promise<{
+export const triggerEndpointRefresh = async (
+    id: string,
+): Promise<{
     success: boolean;
     exit_code: number;
     output: string;
@@ -487,7 +478,7 @@ export const testEndpoint = async (
         return {
             success: false,
             status: null,
-            error: 'Novacity base URL not configured',
+            error: 'URL de base Novacity non configurée',
         };
     }
 
@@ -512,8 +503,8 @@ export const testEndpoint = async (
             status: null,
             error:
                 err instanceof Error
-                    ? `Request failed: ${err.message}`
-                    : 'Request failed',
+                    ? `Échec de la requête : ${err.message}`
+                    : 'Échec de la requête',
         };
     }
 
@@ -531,7 +522,7 @@ export const testEndpoint = async (
         return {
             success: false,
             status,
-            error: 'Response is not a valid JSON object or array',
+            error: "La réponse n'est pas un objet ou tableau JSON valide",
         };
     }
 

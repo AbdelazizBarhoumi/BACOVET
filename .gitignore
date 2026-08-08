@@ -1,7 +1,6 @@
 /.phpunit.cache
 /bootstrap/ssr
 /node_modules
-/public/build
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
@@ -10,7 +9,6 @@
 /resources/js/wayfinder
 /storage/*.key
 /storage/pail
-/vendor
 .env
 .env.backup
 .env.production

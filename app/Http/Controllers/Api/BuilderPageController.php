@@ -330,7 +330,7 @@ class BuilderPageController extends Controller
 
         $modes = $page->accessRows->keyBy('user_id')->map->mode;
 
-        $users = User::select('id', 'name', 'email')
+        $users = User::select('id', 'name', 'email', 'role_id')
             ->with('role:id,name,slug')
             ->orderBy('name')
             ->get();

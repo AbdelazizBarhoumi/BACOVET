@@ -10,7 +10,7 @@ class EndpointDatasetRegistry
 
     public function path(): string
     {
-        return storage_path((string) config('novacity.data_file', 'app/public/data.json'));
+        return storage_path((string) config('novacity.data_file', 'app/private/data.json'));
     }
 
     /**
@@ -125,7 +125,7 @@ class EndpointDatasetRegistry
             return false;
         }
 
-        @copy($path, storage_path((string) config('novacity.data_backup', 'app/public/data.json.bak')));
+        @copy($path, storage_path((string) config('novacity.data_backup', 'app/private/data.json.bak')));
 
         $tmp = $path.'.tmp.'.getmypid();
 
@@ -149,7 +149,7 @@ class EndpointDatasetRegistry
 
     private function readFromFile(): array
     {
-        $path = storage_path((string) config('novacity.data_file', 'app/public/data.json'));
+        $path = storage_path((string) config('novacity.data_file', 'app/private/data.json'));
 
         if (! file_exists($path)) {
             return [];

@@ -1,16 +1,10 @@
 import { usePage } from '@inertiajs/react';
 import { LayoutDashboard } from 'lucide-react';
 import ExportButton from './ExportButton';
-import GlobalFilterBar from './GlobalFilterBar';
 import LiveSyncPill from './LiveSyncPill';
 import ThemeToggle from './ThemeToggle';
 
 const PAGE_TITLE_MAP: Record<string, string> = {
-    '/quality': 'SÉRIE 100 : QUALITÉ',
-    '/production': 'SÉRIE 200 : PRODUCTION',
-    '/logistics': 'PILOTAGE LOGISTIQUE',
-    '/methods': 'MÉTHODES & AMÉLIORATION CONTINUE',
-    '/developpement': 'DÉVELOPPEMENT & AMÉLIORATION',
     '/admin': 'ADMINISTRATION SYSTÈME',
 };
 
@@ -30,7 +24,6 @@ const TopBar = ({
     const { url: pathname } = usePage();
 
     const title = propTitle || PAGE_TITLE_MAP[pathname] || 'DASHBOARD';
-    const showFilters = pathname !== '/admin' && pathname !== '/unauthorized';
 
     const filename =
         exportFilename ||
@@ -63,12 +56,6 @@ const TopBar = ({
                     <LiveSyncPill />
                 </div>
             </div>
-
-            {showFilters && (
-                <div className="border-t border-border/60 bg-background/40 px-6 py-2">
-                    <GlobalFilterBar />
-                </div>
-            )}
         </header>
     );
 };

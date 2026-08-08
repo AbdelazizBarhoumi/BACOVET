@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { Status } from '@/lib/mock';
+
+export type Status = 'green' | 'orange' | 'red' | 'grey';
 
 export function TrafficBadge({
     status,

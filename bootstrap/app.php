@@ -1,7 +1,11 @@
 <?php
 
+use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\EnsureActiveUser;
+use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\LogAuditTrail;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,9 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
-            'audit' => \App\Http\Middleware\LogAuditTrail::class,
-            'active.user' => \App\Http\Middleware\EnsureActiveUser::class,
+            'role' => CheckRole::class,
+            'audit' => LogAuditTrail::class,
+            'active.user' => EnsureActiveUser::class,
+            'must.change.password' => EnsurePasswordChanged::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -25,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'browser-log',
             'auth/login',
+            'auth/change-password',
             'api/builder-pages/*',
             'api/builder-pages',
             'api/builder-page-groups/*',

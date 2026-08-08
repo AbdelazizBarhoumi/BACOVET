@@ -6,9 +6,52 @@ use App\Http\Controllers\Controller;
 use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Artisan;
 
 class EndpointDatasetController extends Controller
 {
+    /**
+     * Last successful DB sync (a run that produced at least one HTTP 200),
+     * as tracked by the sync:endpoint-data worker. Used by the LIVE SYNC
+     * pill so its timer reflects the worker, not the browser.
+     */
+    public function status(): JsonResponse
+    {
+        $lastSuccess = EndpointDataset::query()
+            ->where('last_status', 'ok')
+            ->orderByDesc('last_synced_at')
+            ->value('last_synced_at');
+
+        return response()->json([
+            'last_success_at' => $lastSuccess?->toIso8601String() ?? null,
+            'server_now' => now()->toIso8601String(),
+            'ok_count' => EndpointDataset::query()
+                ->where('last_status', 'ok')
+                ->count(),
+        ]);
+    }
+
+    /**
+     * Trigger the dataset-sync phase of sync:endpoint-data synchronously and
+     * return its summary. Backed by the same command the scheduler runs.
+     */
+    public function sync(): JsonResponse
+    {
+        $exitCode = Artisan::call('sync:endpoint-data', [
+            '--phase' => 'datasets',
+            '--timeout' => (int) config('novacity.timeout', 30),
+        ]);
+
+        $registry = app(EndpointDatasetRegistry::class);
+        $registry->forgetCache();
+
+        return response()->json([
+            'success' => $exitCode === 0,
+            'exit_code' => $exitCode,
+            'output' => Artisan::output(),
+        ]);
+    }
+
     /**
      * Schema analysis (primary keys, shared join columns, FK candidates) for
      * the page builder so the report editor can
@@ -32,7 +75,7 @@ class EndpointDatasetController extends Controller
 
     /**
      * Merge the tabular structure from data.json with the rows stored by
-     * sync:endpoint-datasets (fetched live from NOVACITY_BASE_URL).
+     * sync:endpoint-data (fetched live from NOVACITY_BASE_URL).
      */
     public function index(EndpointDatasetRegistry $registry): JsonResponse
     {

@@ -11,10 +11,10 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import ShareDialog from '@/components/builder/ShareDialog';
 import { ExportMenu } from '@/components/pbi/ExportMenu';
 import { FullscreenView } from '@/components/pbi/FullscreenView';
 import { Button } from '@/components/ui/button';
-import ShareDialog from '@/components/builder/ShareDialog';
 import { usePbi } from '@/lib/pbi/store';
 import { getCsrfToken, handleApiError, statusOfError } from '@/lib/session';
 import { EditBody } from './edit-body';
@@ -232,7 +232,7 @@ export function Shell({
         <div className="flex min-h-0 flex-1 flex-col">
             <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border bg-panel px-3">
                 <div className="flex min-w-0 items-center gap-3">
-                    <Link href="/builder">
+                    <Link href="/">
                         <Button
                             variant="ghost"
                             size="sm"

@@ -3,14 +3,14 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -25,6 +25,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'is_active',
+        'must_change_password',
         'last_login_ip',
         'last_login_at',
     ];
@@ -53,6 +54,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
             'last_login_at' => 'datetime',
         ];
     }
@@ -84,12 +86,12 @@ class User extends Authenticatable
     ];
 
     public const DEFAULT_REDIRECT = [
-        'it' => '/admin',
-        'direction' => '/quality',
-        'resp_production' => '/production',
-        'chef_atelier' => '/production',
-        'resp_qualite' => '/quality',
-        'methodes' => '/methods',
-        'planning_coupe' => '/production',
+        'it' => '/',
+        'direction' => '/',
+        'resp_production' => '/',
+        'chef_atelier' => '/',
+        'resp_qualite' => '/',
+        'methodes' => '/',
+        'planning_coupe' => '/',
     ];
 }

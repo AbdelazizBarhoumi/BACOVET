@@ -18,19 +18,7 @@ export type Role =
     | 'methodes'
     | 'planning_coupe';
 
-export type RolePage =
-    | '/quality'
-    | '/production'
-    | '/logistics'
-    | '/developpement'
-    | '/admin'
-    | '/methods'
-    | '/kpi-endpoints'
-    | '/endpoints'
-    | '/unauthorized'
-    | '/dashboard'
-    | '/v3'
-    | '/maintenance';
+export type RolePage = '/' | '/admin' | '/maintenance' | '/trace';
 
 export const ROLE_LABEL: Record<Role, string> = {
     admin: 'IT / Administrateur',
@@ -42,63 +30,25 @@ export const ROLE_LABEL: Record<Role, string> = {
     planning_coupe: 'Planning / Coupe',
 };
 
-// Role -> pages allowed (from spec role matrix in Sprint 8.5 and section 0.5)
+// Role -> pages allowed
 export const ROLE_ACCESS: Record<Role, RolePage[]> = {
-    admin: [
-        '/quality',
-        '/production',
-        '/logistics',
-        '/developpement',
-        '/admin',
-        '/methods',
-        '/kpi-endpoints',
-        '/endpoints',
-        '/unauthorized',
-        '/v3',
-        '/maintenance',
-    ],
-    direction: [
-        '/quality',
-        '/production',
-        '/logistics',
-        '/developpement',
-        '/methods',
-        '/unauthorized',
-        '/v3',
-    ],
-    resp_production: ['/quality', '/production', '/unauthorized', '/v3'],
-    chef_atelier: ['/production', '/unauthorized'],
-    resp_qualite: ['/quality', '/unauthorized'],
-    methodes: [
-        '/quality',
-        '/production',
-        '/logistics',
-        '/methods',
-        '/developpement',
-        '/unauthorized',
-        '/v3',
-    ],
-    planning_coupe: ['/production', '/logistics', '/unauthorized'],
-};
-
-export const DEMO_ACCOUNTS: Record<string, { name: string; role: Role }> = {
-    'ADMIN-001': { name: 'IT Admin', role: 'admin' },
-    'DIR-001': { name: 'M. Director', role: 'direction' },
-    'P-1042': { name: 'A. Belhaj', role: 'resp_production' },
-    'P-2017': { name: 'User', role: 'chef_atelier' },
-    'Q-0210': { name: 'S. Karoui', role: 'resp_qualite' },
-    'L-3308': { name: 'N. Saidi', role: 'methodes' },
-    'C-4421': { name: 'K. Hammami', role: 'planning_coupe' },
+    admin: ['/', '/admin', '/maintenance', '/trace'],
+    direction: ['/'],
+    resp_production: ['/'],
+    chef_atelier: ['/'],
+    resp_qualite: ['/'],
+    methodes: ['/'],
+    planning_coupe: ['/'],
 };
 
 export const ROLE_HOME: Record<Role, RolePage> = {
-    admin: '/admin',
-    direction: '/quality',
-    resp_production: '/production',
-    chef_atelier: '/production',
-    resp_qualite: '/quality',
-    methodes: '/methods',
-    planning_coupe: '/production',
+    admin: '/',
+    direction: '/',
+    resp_production: '/',
+    chef_atelier: '/',
+    resp_qualite: '/',
+    methodes: '/',
+    planning_coupe: '/',
 };
 
 export type Session = {
@@ -186,7 +136,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hasAccess = useMemo(
         () => (page: RolePage) => {
             if (!session) return false;
-            if (page === '/unauthorized') return true;
             const allowed = ROLE_ACCESS[session.role] || [];
             return allowed.includes(page);
         },

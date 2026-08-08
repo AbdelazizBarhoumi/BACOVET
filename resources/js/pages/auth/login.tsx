@@ -3,17 +3,15 @@ import {
     Eye,
     EyeOff,
     ArrowRight,
-    ShieldCheck,
     AlertCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import bacovetLogo from '@/assets/bacovet-logo.png';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DEMO_ACCOUNTS } from '@/context/AuthContext';
-import { pushAudit } from '@/lib/audit';
 import { cn } from '@/lib/utils';
 
 type LoginFieldErrors = {
@@ -53,11 +51,6 @@ export default function LoginPage() {
             return;
         }
 
-        pushAudit(
-            'USER',
-            `Tentative de connexion: ${data.matricule.toUpperCase()}`,
-        );
-
         setProcessing(true);
 
         try {
@@ -95,16 +88,8 @@ export default function LoginPage() {
                 return;
             }
 
-            const returnTo = sessionStorage.getItem('v1_returnTo');
-            sessionStorage.removeItem('v1_returnTo');
-            const redirectTo = (returnTo && returnTo.startsWith('/v1/'))
-                ? returnTo
-                : (payload?.redirect ?? '/dashboard');
-            if (returnTo && returnTo.startsWith('/v1/')) {
-                window.location.href = redirectTo;
-            } else {
-                router.visit(redirectTo);
-            }
+            const redirectTo = payload?.redirect ?? '/';
+            router.visit(redirectTo);
         } catch {
             setLocalErr("Impossible de joindre le serveur d'authentification.");
             toast.error('Échec de la connexion');
@@ -142,26 +127,12 @@ export default function LoginPage() {
                 <div className="relative w-full max-w-md">
                     <div className="space-y-6 rounded-xl border border-border bg-card p-6 shadow-2xl md:p-8">
                         <div className="flex flex-col items-center">
-                            <div className="mb-3 grid h-14 w-14 place-items-center rounded-lg bg-primary font-mono text-2xl font-bold text-primary-foreground shadow-lg shadow-primary/20">
-                                B
-                            </div>
-
-                            <h1 className="text-xl font-bold tracking-[0.3em]">
-                                BACOVET
-                            </h1>
-
-                            <div className="mt-1 text-[11px] tracking-[0.25em] text-muted-foreground uppercase">
-                                Pilotage Opérationnel
-                            </div>
-
-                            <div className="mt-4 flex items-center gap-2 font-mono text-[10px] tracking-wider text-primary/80">
-                                <ShieldCheck className="h-3.5 w-3.5" />
-                                <span>ACCÈS PRIVÉ</span>
-                                <span className="text-muted-foreground opacity-50">
-                                    |
-                                </span>
-                                <span>AUTH UNIQUE</span>
-                            </div>
+                            <img
+                                src={bacovetLogo}
+                                alt="BACOVET"
+                                className="mb-3 h-16 w-auto object-contain"
+                            />
+    
                         </div>
 
                         {hasErrors && (
@@ -201,7 +172,7 @@ export default function LoginPage() {
                                     }}
                                     disabled={processing}
                                     className={cn(
-                                        'border-border bg-secondary/50 font-mono transition-all focus:bg-secondary',
+                                        'border-border bg-secondary/50 font-mono transition-all focus:bg-secondary placeholder:text-muted-foreground/50',
                                         (fieldErrors.matricule ||
                                             (localErr && !data.matricule)) &&
                                             'border-destructive ring-destructive focus:ring-destructive',
@@ -239,7 +210,7 @@ export default function LoginPage() {
                                         }}
                                         disabled={processing}
                                         className={cn(
-                                            'border-border bg-secondary/50 pr-10 font-mono transition-all focus:bg-secondary',
+                                            'border-border bg-secondary/50 pr-10 font-mono transition-all focus:bg-secondary placeholder:text-muted-foreground/50',
                                             (fieldErrors.password ||
                                                 (localErr && !data.password)) &&
                                                 'border-destructive ring-destructive focus:ring-destructive',
@@ -270,7 +241,7 @@ export default function LoginPage() {
                             <Button
                                 type="submit"
                                 disabled={processing}
-                                className="group h-11 w-full font-mono text-xs tracking-[0.2em] uppercase transition-all"
+                                className="group h-11 w-full font-mono text-xs tracking-[0.2em] uppercase transition-all text-muted-foreground"
                             >
                                 {processing ? (
                                     <>
@@ -285,77 +256,7 @@ export default function LoginPage() {
                                 )}
                             </Button>
                         </form>
-
-                        <div className="flex items-center justify-between border-t border-border pt-4 font-mono text-[10px] tracking-wider uppercase">
-                            <span className="inline-flex items-center gap-1.5 text-success">
-                                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-                                Réseau : connecté
-                            </span>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setData({ matricule: '', password: '' });
-                                    setFieldErrors({});
-                                    setLocalErr(null);
-                                }}
-                                className="text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                            >
-                                Réinitialiser
-                            </button>
-                        </div>
                     </div>
-
-                    <p className="mt-8 text-center font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase opacity-60">
-                        Excellence industrielle — BACOVET Group
-                    </p>
-
-                    <details className="group mt-4 font-mono text-[10px] text-muted-foreground/80">
-                        <summary className="cursor-pointer list-none rounded-lg border border-border/50 py-2 text-center tracking-widest uppercase transition-colors hover:bg-secondary/20 hover:text-foreground">
-                            Comptes de démonstration
-                        </summary>
-
-                        <div className="mt-3 animate-in space-y-2 rounded-lg border border-border/50 bg-card/60 p-4 backdrop-blur-sm duration-300 slide-in-from-bottom-2">
-                            <div className="mb-2 border-b border-border/30 pb-2 text-[10px] text-muted-foreground">
-                                Mot de passe commun :{' '}
-                                <span className="ml-1 rounded bg-secondary px-1.5 py-0.5 font-bold text-foreground">
-                                    demo
-                                </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-2">
-                                {Object.entries(DEMO_ACCOUNTS).map(
-                                    ([mat, a]) => (
-                                        <button
-                                            key={mat}
-                                            type="button"
-                                            onClick={() => {
-                                                setData({
-                                                    matricule: mat,
-                                                    password: 'demo',
-                                                });
-                                                setFieldErrors({});
-                                                setLocalErr(null);
-                                            }}
-                                            className="group/item flex items-center justify-between rounded border border-transparent p-2 text-left transition-colors hover:border-primary/20 hover:bg-primary/5"
-                                        >
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-primary group-hover/item:underline">
-                                                    {mat}
-                                                </span>
-                                                <span className="text-[9px] uppercase opacity-60">
-                                                    {a.name}
-                                                </span>
-                                            </div>
-                                            <span className="rounded bg-secondary px-1.5 py-0.5 text-[9px] text-muted-foreground group-hover/item:text-foreground">
-                                                {a.role}
-                                            </span>
-                                        </button>
-                                    ),
-                                )}
-                            </div>
-                        </div>
-                    </details>
                 </div>
             </div>
         </>

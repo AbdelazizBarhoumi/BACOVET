@@ -3,8 +3,7 @@ import {
     ChevronDown,
     ChevronRight,
     Copy,
-    Database,
-    ExternalLink,
+    FolderPlus,
     GripVertical,
     Link as LinkIcon,
     LogOut,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import bacovetLogo from '@/assets/bacovet-logo.png';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -42,8 +42,20 @@ import type { BuilderPage } from '@/lib/pages-registry';
 const Sidebar = () => {
     const { url: pathname } = usePage();
     const { session, logout, hasAccess } = useAuth();
-    const { groups, ungrouped, loading, createGroup, renameGroup, deleteGroup, assignPage, reorderPages, reorderGroups, refresh } = useSidebarStructure();
-    const { createPage, deletePage, duplicatePage, updatePage } = usePagesRegistry();
+    const {
+        groups,
+        ungrouped,
+        loading,
+        createGroup,
+        renameGroup,
+        deleteGroup,
+        assignPage,
+        reorderPages,
+        reorderGroups,
+        refresh,
+    } = useSidebarStructure();
+    const { createPage, deletePage, duplicatePage, updatePage } =
+        usePagesRegistry();
     const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
     const [showAddGroup, setShowAddGroup] = useState(false);
     const [showAddPage, setShowAddPage] = useState(false);
@@ -51,10 +63,17 @@ const Sidebar = () => {
     const [newPageName, setNewPageName] = useState('');
     const [newPageGroupId, setNewPageGroupId] = useState<string>('none');
     const [creating, setCreating] = useState(false);
-    const [renaming, setRenaming] = useState<{ id: number; name: string; type: 'group' | 'page' } | null>(null);
+    const [renaming, setRenaming] = useState<{
+        id: number;
+        name: string;
+        type: 'group' | 'page';
+    } | null>(null);
     const [busy, setBusy] = useState(false);
     const [draggedPageId, setDraggedPageId] = useState<number | null>(null);
-    const [dragTarget, setDragTarget] = useState<{ type: 'group' | 'page' | 'ungrouped'; id: number | null } | null>(null);
+    const [dragTarget, setDragTarget] = useState<{
+        type: 'group' | 'page' | 'ungrouped';
+        id: number | null;
+    } | null>(null);
 
     if (!session) return null;
 
@@ -66,7 +85,6 @@ const Sidebar = () => {
         .toUpperCase();
 
     const canSeeAdmin = hasAccess('/admin');
-    const canSeeEndpoints = hasAccess('/endpoints');
 
     const toggleCollapse = (id: number) => {
         setCollapsed((prev) => {
@@ -85,13 +103,18 @@ const Sidebar = () => {
         setNewGroupName('');
         setShowAddGroup(false);
         if (g) toast.success(`Groupe « ${g.name} » créé`);
-        else toast.error("Erreur lors de la création");
+        else toast.error('Erreur lors de la création');
     };
 
     const doCreatePage = async () => {
         if (!newPageName.trim()) return;
         setCreating(true);
-        const p = await createPage(newPageName.trim(), newPageGroupId && newPageGroupId !== 'none' ? parseInt(newPageGroupId) : null);
+        const p = await createPage(
+            newPageName.trim(),
+            newPageGroupId && newPageGroupId !== 'none'
+                ? parseInt(newPageGroupId)
+                : null,
+        );
         setCreating(false);
         setNewPageName('');
         setNewPageGroupId('none');
@@ -100,7 +123,7 @@ const Sidebar = () => {
             toast.success(`Page « ${p.name} » créée`);
             router.visit(`/p/${p.slug}`);
         } else {
-            toast.error("Erreur lors de la création");
+            toast.error('Erreur lors de la création');
         }
     };
 
@@ -111,27 +134,42 @@ const Sidebar = () => {
         if (renaming.type === 'group') {
             ok = await renameGroup(renaming.id, renaming.name.trim());
         } else {
-            const result = await updatePage(renaming.id, { name: renaming.name.trim() });
+            const result = await updatePage(renaming.id, {
+                name: renaming.name.trim(),
+            });
             ok = !!result;
         }
         setBusy(false);
         setRenaming(null);
-        if (ok) toast.success(renaming.type === 'group' ? "Groupe renommé" : "Page renommée");
-        else toast.error("Erreur");
+        if (ok)
+            toast.success(
+                renaming.type === 'group' ? 'Groupe renommé' : 'Page renommée',
+            );
+        else toast.error('Erreur');
     };
 
     const doDeleteGroup = async (id: number, name: string) => {
-        if (!confirm(`Supprimer le groupe « ${name} » ? Les pages seront déplacées hors groupe.`)) return;
+        if (
+            !confirm(
+                `Supprimer le groupe « ${name} » ? Les pages seront déplacées hors groupe.`,
+            )
+        )
+            return;
         const ok = await deleteGroup(id);
-        if (ok) toast.success("Groupe supprimé");
-        else toast.error("Erreur");
+        if (ok) toast.success('Groupe supprimé');
+        else toast.error('Erreur');
     };
 
     const doDeletePage = async (id: number, name: string) => {
-        if (!confirm(`Supprimer la page « ${name} » ? Cette action est irréversible.`)) return;
+        if (
+            !confirm(
+                `Supprimer la page « ${name} » ? Cette action est irréversible.`,
+            )
+        )
+            return;
         const ok = await deletePage(id);
-        if (ok) toast.success("Page supprimée");
-        else toast.error("Erreur");
+        if (ok) toast.success('Page supprimée');
+        else toast.error('Erreur');
     };
 
     const doDuplicatePage = async (id: number) => {
@@ -142,39 +180,48 @@ const Sidebar = () => {
     const copyUrl = (slug: string) => {
         const url = `${window.location.origin}/p/${slug}`;
         navigator.clipboard.writeText(url);
-        toast.success("URL copiée");
+        toast.success('URL copiée');
     };
 
-    const findPageGroup = useCallback((pageId: number): number | null => {
-        for (const g of groups) {
-            if (g.pages.some((p) => p.id === pageId)) return g.id;
-        }
-        if (ungrouped.some((p) => p.id === pageId)) return null;
-        return null;
-    }, [groups, ungrouped]);
+    const findPageGroup = useCallback(
+        (pageId: number): number | null => {
+            for (const g of groups) {
+                if (g.pages.some((p) => p.id === pageId)) return g.id;
+            }
+            if (ungrouped.some((p) => p.id === pageId)) return null;
+            return null;
+        },
+        [groups, ungrouped],
+    );
 
-    const computeReorderItems = useCallback((
-        pages: BuilderPage[],
-        draggedId: number,
-        targetId: number,
-    ): { id: number; sort_order: number }[] | null => {
-        const filtered = pages.filter((p) => p.id !== draggedId);
-        const targetIdx = filtered.findIndex((p) => p.id === targetId);
-        if (targetIdx === -1) return null;
+    const computeReorderItems = useCallback(
+        (
+            pages: BuilderPage[],
+            draggedId: number,
+            targetId: number,
+        ): { id: number; sort_order: number }[] | null => {
+            const filtered = pages.filter((p) => p.id !== draggedId);
+            const targetIdx = filtered.findIndex((p) => p.id === targetId);
+            if (targetIdx === -1) return null;
 
-        const reordered = [...filtered];
-        const draggedPage = pages.find((p) => p.id === draggedId);
-        if (!draggedPage) return null;
-        reordered.splice(targetIdx + 1, 0, draggedPage);
+            const reordered = [...filtered];
+            const draggedPage = pages.find((p) => p.id === draggedId);
+            if (!draggedPage) return null;
+            reordered.splice(targetIdx + 1, 0, draggedPage);
 
-        return reordered.map((p, i) => ({ id: p.id, sort_order: i }));
-    }, []);
+            return reordered.map((p, i) => ({ id: p.id, sort_order: i }));
+        },
+        [],
+    );
 
-    const getPagesInGroup = useCallback((groupId: number | null): BuilderPage[] => {
-        if (groupId === null) return ungrouped;
-        const g = groups.find((gr) => gr.id === groupId);
-        return g ? g.pages : [];
-    }, [groups, ungrouped]);
+    const getPagesInGroup = useCallback(
+        (groupId: number | null): BuilderPage[] => {
+            if (groupId === null) return ungrouped;
+            const g = groups.find((gr) => gr.id === groupId);
+            return g ? g.pages : [];
+        },
+        [groups, ungrouped],
+    );
 
     const handleDragStart = (e: React.DragEvent, pageId: number) => {
         e.dataTransfer.setData('text/plain', String(pageId));
@@ -187,17 +234,23 @@ const Sidebar = () => {
         setDragTarget(null);
     };
 
-    const handleGroupDragOver = (e: React.DragEvent, groupId: number | null) => {
+    const handleGroupDragOver = (
+        e: React.DragEvent,
+        groupId: number | null,
+    ) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         setDragTarget({ type: 'group', id: groupId });
     };
 
-    const handlePageDragOver = useCallback((e: React.DragEvent, pageId: number) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        setDragTarget({ type: 'page', id: pageId });
-    }, []);
+    const handlePageDragOver = useCallback(
+        (e: React.DragEvent, pageId: number) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            setDragTarget({ type: 'page', id: pageId });
+        },
+        [],
+    );
 
     const handleUngroupedDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -214,23 +267,31 @@ const Sidebar = () => {
 
         if (draggedGroupId === targetGroupId) {
             const pages = getPagesInGroup(draggedGroupId);
-            const items = computeReorderItems(pages, draggedPageId, targetPageId);
+            const items = computeReorderItems(
+                pages,
+                draggedPageId,
+                targetPageId,
+            );
             if (items) {
                 const ok = await reorderPages(items);
-                if (ok) toast.success("Page réordonnée");
-                else toast.error("Erreur");
+                if (ok) toast.success('Page réordonnée');
+                else toast.error('Erreur');
             }
         } else {
             const ok = await assignPage(draggedPageId, targetGroupId);
             if (ok) {
                 if (targetGroupId !== null) {
                     const pages = getPagesInGroup(targetGroupId);
-                    const items = computeReorderItems(pages, draggedPageId, targetPageId);
+                    const items = computeReorderItems(
+                        pages,
+                        draggedPageId,
+                        targetPageId,
+                    );
                     if (items) await reorderPages(items);
                 }
-                toast.success("Page déplacée");
+                toast.success('Page déplacée');
             } else {
-                toast.error("Erreur");
+                toast.error('Erreur');
             }
         }
         setDraggedPageId(null);
@@ -245,13 +306,16 @@ const Sidebar = () => {
         if (draggedGroupId === groupId) return;
 
         const ok = await assignPage(draggedPageId, groupId);
-        if (ok) toast.success("Page déplacée");
-        else toast.error("Erreur");
+        if (ok) toast.success('Page déplacée');
+        else toast.error('Erreur');
 
         setDraggedPageId(null);
     };
 
-    const handleDropOnGroupForReorder = async (groupId: number, targetGroupId: number) => {
+    const handleDropOnGroupForReorder = async (
+        groupId: number,
+        targetGroupId: number,
+    ) => {
         if (draggedPageId !== null) return;
 
         const items = groups.map((g) => ({
@@ -267,32 +331,25 @@ const Sidebar = () => {
         const updated = items.map((g, i) => ({ id: g.id, sort_order: i }));
 
         const ok = await reorderGroups(updated);
-        if (ok) toast.success("Groupe réordonné");
-        else toast.error("Erreur");
+        if (ok) toast.success('Groupe réordonné');
+        else toast.error('Erreur');
     };
 
     const isDragOverGroup = (groupId: number | null) =>
         dragTarget?.type === 'group' && dragTarget.id === groupId;
     const isDragOverPage = (pageId: number) =>
         dragTarget?.type === 'page' && dragTarget.id === pageId;
-    const isDragOverUngrouped = () =>
-        dragTarget?.type === 'ungrouped';
+    const isDragOverUngrouped = () => dragTarget?.type === 'ungrouped';
 
     return (
         <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
             <div className="border-b border-sidebar-border px-5 py-5">
-                <div className="flex items-center gap-2">
-                    <div className="grid h-8 w-8 place-items-center rounded-md bg-primary font-mono font-bold text-white">
-                        B
-                    </div>
-                    <div>
-                        <div className="text-sm font-bold tracking-widest">
-                            BACOVET
-                        </div>
-                        <div className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-                            Pilotage Op.
-                        </div>
-                    </div>
+                <div>
+                    <img
+                        src={bacovetLogo}
+                        alt="BACOVET"
+                        className="h-8 w-auto object-contain"
+                    />
                 </div>
             </div>
 
@@ -310,16 +367,16 @@ const Sidebar = () => {
                             {true && (
                                 <div className="flex items-center gap-0.5">
                                     <button
-                                        onClick={() => setShowAddPage(true)}
-                                        className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                                        title="Ajouter une page"
+                                        onClick={() => setShowAddGroup(true)}
+                                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+                                        title="Ajouter un groupe"
                                     >
-                                        <ExternalLink className="h-3 w-3" />
+                                        <FolderPlus className="h-3.5 w-3.5" />
                                     </button>
                                     <button
-                                        onClick={() => setShowAddGroup(true)}
-                                        className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                                        title="Ajouter un groupe"
+                                        onClick={() => setShowAddPage(true)}
+                                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+                                        title="Ajouter une page"
                                     >
                                         <Plus className="h-3.5 w-3.5" />
                                     </button>
@@ -342,21 +399,33 @@ const Sidebar = () => {
                                 <div key={p.id}>
                                     {i > 0 && (
                                         <div
-                                            className={`h-0.5 mx-2 transition-colors ${isDragOverPage(p.id) ? 'bg-primary h-0.5' : ''}`}
+                                            className={`mx-2 h-0.5 transition-colors ${isDragOverPage(p.id) ? 'h-0.5 bg-primary' : ''}`}
                                         />
                                     )}
-<DraggablePageItem
+                                    <DraggablePageItem
                                         page={p}
                                         pathname={pathname}
                                         canEdit={!!p.can_manage}
                                         isDragOver={isDragOverPage(p.id)}
                                         onDragStart={handleDragStart}
                                         onDragEnd={handleDragEnd}
-                                        onDragOver={(e) => handlePageDragOver(e, p.id)}
+                                        onDragOver={(e) =>
+                                            handlePageDragOver(e, p.id)
+                                        }
                                         onDrop={() => handleDropOnPage(p.id)}
-                                        onRename={() => setRenaming({ id: p.id, name: p.name, type: 'page' })}
-                                        onDuplicate={() => doDuplicatePage(p.id)}
-                                        onDelete={() => doDeletePage(p.id, p.name)}
+                                        onRename={() =>
+                                            setRenaming({
+                                                id: p.id,
+                                                name: p.name,
+                                                type: 'page',
+                                            })
+                                        }
+                                        onDuplicate={() =>
+                                            doDuplicatePage(p.id)
+                                        }
+                                        onDelete={() =>
+                                            doDeletePage(p.id, p.name)
+                                        }
                                         onCopyUrl={() => copyUrl(p.slug)}
                                     />
                                 </div>
@@ -365,27 +434,43 @@ const Sidebar = () => {
 
                         {groups.map((g) => {
                             const isCollapsed = collapsed.has(g.id);
-                            const active = g.pages.some((p) => pathname === `/p/${p.slug}`);
+                            const active = g.pages.some(
+                                (p) => pathname === `/p/${p.slug}`,
+                            );
 
                             return (
                                 <div key={g.id} className="space-y-0.5">
                                     <div
-                                        className={`group flex items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors cursor-pointer ${
-                                            active ? 'bg-primary/10 text-primary' : 'hover:bg-sidebar-accent'
+                                        className={`group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors ${
+                                            active
+                                                ? 'bg-primary/10 text-primary'
+                                                : 'hover:bg-sidebar-accent'
                                         } ${isDragOverGroup(g.id) ? 'bg-primary/20 ring-1 ring-primary' : ''}`}
-                                        onDragOver={(e) => handleGroupDragOver(e, g.id)}
+                                        onDragOver={(e) =>
+                                            handleGroupDragOver(e, g.id)
+                                        }
                                         onDragLeave={() => setDragTarget(null)}
                                         onDrop={() => handleDropOnGroup(g.id)}
                                     >
                                         <button
                                             onClick={() => toggleCollapse(g.id)}
-                                            className="flex h-4 w-4 items-center justify-center rounded hover:bg-sidebar-accent cursor-pointer"
+                                            className="flex h-4 w-4 cursor-pointer items-center justify-center rounded hover:bg-sidebar-accent"
                                         >
-                                            {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                            {isCollapsed ? (
+                                                <ChevronRight className="h-3 w-3" />
+                                            ) : (
+                                                <ChevronDown className="h-3 w-3" />
+                                            )}
                                         </button>
                                         <span
-                                            className="flex-1 font-semibold tracking-wide uppercase text-[11px]"
-                                            onDoubleClick={() => setRenaming({ id: g.id, name: g.name, type: 'group' })}
+                                            className="flex-1 text-[11px] font-semibold tracking-wide uppercase"
+                                            onDoubleClick={() =>
+                                                setRenaming({
+                                                    id: g.id,
+                                                    name: g.name,
+                                                    type: 'group',
+                                                })
+                                            }
                                         >
                                             {g.name}
                                         </span>
@@ -395,14 +480,25 @@ const Sidebar = () => {
                                         {true && (
                                             <>
                                                 <button
-                                                    onClick={() => setRenaming({ id: g.id, name: g.name, type: 'group' })}
-                                                    className="flex h-4 w-4 items-center justify-center rounded hover:bg-sidebar-accent text-muted-foreground hover:text-foreground cursor-pointer"
+                                                    onClick={() =>
+                                                        setRenaming({
+                                                            id: g.id,
+                                                            name: g.name,
+                                                            type: 'group',
+                                                        })
+                                                    }
+                                                    className="flex h-4 w-4 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                                                 >
                                                     <Pencil className="h-3 w-3" />
                                                 </button>
                                                 <button
-                                                    onClick={() => doDeleteGroup(g.id, g.name)}
-                                                    className="flex h-4 w-4 items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive cursor-pointer"
+                                                    onClick={() =>
+                                                        doDeleteGroup(
+                                                            g.id,
+                                                            g.name,
+                                                        )
+                                                    }
+                                                    className="flex h-4 w-4 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                                 >
                                                     <Trash2 className="h-3 w-3" />
                                                 </button>
@@ -416,22 +512,54 @@ const Sidebar = () => {
                                                 <div key={p.id}>
                                                     {i > 0 && (
                                                         <div
-                                                            className={`h-0.5 mx-2 transition-colors ${isDragOverPage(p.id) ? 'bg-primary h-0.5' : ''}`}
+                                                            className={`mx-2 h-0.5 transition-colors ${isDragOverPage(p.id) ? 'h-0.5 bg-primary' : ''}`}
                                                         />
                                                     )}
                                                     <DraggablePageItem
                                                         page={p}
                                                         pathname={pathname}
                                                         canEdit={!!p.can_manage}
-                                                        isDragOver={isDragOverPage(p.id)}
-                                                        onDragStart={handleDragStart}
-                                                        onDragEnd={handleDragEnd}
-                                                        onDragOver={(e) => handlePageDragOver(e, p.id)}
-                                                        onDrop={() => handleDropOnPage(p.id)}
-                                                        onRename={() => setRenaming({ id: p.id, name: p.name, type: 'page' })}
-                                                        onDuplicate={() => doDuplicatePage(p.id)}
-                                                        onDelete={() => doDeletePage(p.id, p.name)}
-                                                        onCopyUrl={() => copyUrl(p.slug)}
+                                                        isDragOver={isDragOverPage(
+                                                            p.id,
+                                                        )}
+                                                        onDragStart={
+                                                            handleDragStart
+                                                        }
+                                                        onDragEnd={
+                                                            handleDragEnd
+                                                        }
+                                                        onDragOver={(e) =>
+                                                            handlePageDragOver(
+                                                                e,
+                                                                p.id,
+                                                            )
+                                                        }
+                                                        onDrop={() =>
+                                                            handleDropOnPage(
+                                                                p.id,
+                                                            )
+                                                        }
+                                                        onRename={() =>
+                                                            setRenaming({
+                                                                id: p.id,
+                                                                name: p.name,
+                                                                type: 'page',
+                                                            })
+                                                        }
+                                                        onDuplicate={() =>
+                                                            doDuplicatePage(
+                                                                p.id,
+                                                            )
+                                                        }
+                                                        onDelete={() =>
+                                                            doDeletePage(
+                                                                p.id,
+                                                                p.name,
+                                                            )
+                                                        }
+                                                        onCopyUrl={() =>
+                                                            copyUrl(p.slug)
+                                                        }
                                                     />
                                                 </div>
                                             ))}
@@ -448,23 +576,6 @@ const Sidebar = () => {
                         <div className="px-3 pt-6 pb-2 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
                             SYSTÈME
                         </div>
-                        {canSeeEndpoints && (
-                            <Link
-                                href="/endpoints"
-                                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                                    pathname === '/endpoints'
-                                        ? 'border-l-2 border-primary bg-primary/15 text-primary'
-                                        : 'hover:bg-sidebar-accent'
-                                }`}
-                            >
-                                <Database
-                                    className={`h-4 w-4 ${pathname === '/endpoints' ? 'text-white' : 'text-primary'}`}
-                                />
-                                <span className="flex-1 text-[12px] font-semibold tracking-wide uppercase">
-                                    ENDPOINTS
-                                </span>
-                            </Link>
-                        )}
                         <Link
                             href="/admin"
                             className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
@@ -480,7 +591,7 @@ const Sidebar = () => {
                                 ADMINISTRATION
                             </span>
                         </Link>
-                        </>
+                    </>
                 )}
             </nav>
 
@@ -515,7 +626,9 @@ const Sidebar = () => {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Nouvelle page</DialogTitle>
-                        <DialogDescription>Créez un nouveau tableau de bord.</DialogDescription>
+                        <DialogDescription>
+                            Créez un nouveau tableau de bord.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
                         <Input
@@ -523,29 +636,52 @@ const Sidebar = () => {
                             value={newPageName}
                             onChange={(e) => setNewPageName(e.target.value)}
                             placeholder="Nom de la page"
-                            onKeyDown={(e) => e.key === "Enter" && doCreatePage()}
+                            onKeyDown={(e) =>
+                                e.key === 'Enter' && doCreatePage()
+                            }
                         />
                         <div>
-                            <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Groupe</div>
-                            <Select value={newPageGroupId} onValueChange={setNewPageGroupId}>
+                            <div className="mb-1 text-[10px] tracking-widest text-muted-foreground uppercase">
+                                Groupe
+                            </div>
+                            <Select
+                                value={newPageGroupId}
+                                onValueChange={setNewPageGroupId}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Aucun groupe" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="none">Aucun groupe</SelectItem>
+                                    <SelectItem value="none">
+                                        Aucun groupe
+                                    </SelectItem>
                                     {groups.map((g) => (
-                                        <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
+                                        <SelectItem
+                                            key={g.id}
+                                            value={String(g.id)}
+                                        >
+                                            {g.name}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => { setShowAddPage(false); setNewPageName(''); }} disabled={creating}>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowAddPage(false);
+                                setNewPageName('');
+                            }}
+                            disabled={creating}
+                        >
                             Annuler
                         </Button>
                         <Button onClick={doCreatePage} disabled={creating}>
-                            {creating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                            {creating ? (
+                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : null}
                             Créer
                         </Button>
                     </DialogFooter>
@@ -556,46 +692,72 @@ const Sidebar = () => {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Nouveau groupe</DialogTitle>
-                        <DialogDescription>Créez un groupe pour organiser vos pages.</DialogDescription>
+                        <DialogDescription>
+                            Créez un groupe pour organiser vos pages.
+                        </DialogDescription>
                     </DialogHeader>
                     <Input
                         autoFocus
                         value={newGroupName}
                         onChange={(e) => setNewGroupName(e.target.value)}
                         placeholder="ex. Production"
-                        onKeyDown={(e) => e.key === "Enter" && doCreateGroup()}
+                        onKeyDown={(e) => e.key === 'Enter' && doCreateGroup()}
                     />
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowAddGroup(false)} disabled={creating}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowAddGroup(false)}
+                            disabled={creating}
+                        >
                             Annuler
                         </Button>
                         <Button onClick={doCreateGroup} disabled={creating}>
-                            {creating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                            {creating ? (
+                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : null}
                             Créer
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!renaming} onOpenChange={(o) => !o && setRenaming(null)}>
+            <Dialog
+                open={!!renaming}
+                onOpenChange={(o) => !o && setRenaming(null)}
+            >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{renaming?.type === 'group' ? 'Renommer le groupe' : 'Renommer la page'}</DialogTitle>
+                        <DialogTitle>
+                            {renaming?.type === 'group'
+                                ? 'Renommer le groupe'
+                                : 'Renommer la page'}
+                        </DialogTitle>
                     </DialogHeader>
                     {renaming && (
                         <Input
                             autoFocus
                             value={renaming.name}
-                            onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
-                            onKeyDown={(e) => e.key === "Enter" && doRename()}
+                            onChange={(e) =>
+                                setRenaming({
+                                    ...renaming,
+                                    name: e.target.value,
+                                })
+                            }
+                            onKeyDown={(e) => e.key === 'Enter' && doRename()}
                         />
                     )}
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setRenaming(null)} disabled={busy}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setRenaming(null)}
+                            disabled={busy}
+                        >
                             Annuler
                         </Button>
                         <Button onClick={doRename} disabled={busy}>
-                            {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                            {busy ? (
+                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : null}
                             Renommer
                         </Button>
                     </DialogFooter>
@@ -642,8 +804,13 @@ function DraggablePageItem({
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => setShowActions(false)}
             onDragOver={onDragOver}
-            onDragLeave={(e) => { e.preventDefault(); }}
-            onDrop={(e) => { e.preventDefault(); onDrop(); }}
+            onDragLeave={(e) => {
+                e.preventDefault();
+            }}
+            onDrop={(e) => {
+                e.preventDefault();
+                onDrop();
+            }}
         >
             <Link
                 href={href}
@@ -652,39 +819,51 @@ function DraggablePageItem({
                 onDragEnd={onDragEnd}
                 className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors ${
                     active
-                        ? 'border-l-2 border-primary bg-primary/15 text-primary font-bold'
+                        ? 'border-l-2 border-primary bg-primary/15 font-bold text-primary'
                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                 }`}
             >
-                <GripVertical className="h-3 w-3 shrink-0 opacity-30 cursor-grab active:cursor-grabbing" />
+                <GripVertical className="h-3 w-3 shrink-0 cursor-grab opacity-30 active:cursor-grabbing" />
                 <span className="flex-1 truncate">{page.name}</span>
             </Link>
             {canEdit && showActions && (
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-sidebar/90 rounded-md px-1 py-0.5 shadow-sm border border-border cursor-pointer">
+                <div className="absolute top-1/2 right-1 flex -translate-y-1/2 cursor-pointer items-center gap-0.5 rounded-md border border-border bg-sidebar/90 px-1 py-0.5 shadow-sm">
                     <button
-                        onClick={(e) => { e.preventDefault(); onRename(); }}
-                        className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onRename();
+                        }}
+                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                         title="Renommer"
                     >
                         <Pencil className="h-3 w-3" />
                     </button>
                     <button
-                        onClick={(e) => { e.preventDefault(); onDuplicate(); }}
-                        className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onDuplicate();
+                        }}
+                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                         title="Dupliquer"
                     >
                         <Copy className="h-3 w-3" />
                     </button>
                     <button
-                        onClick={(e) => { e.preventDefault(); onCopyUrl(); }}
-                        className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onCopyUrl();
+                        }}
+                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                         title="Copier l'URL"
                     >
                         <LinkIcon className="h-3 w-3" />
                     </button>
                     <button
-                        onClick={(e) => { e.preventDefault(); onDelete(); }}
-                        className="flex h-5 w-5 items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive cursor-pointer"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onDelete();
+                        }}
+                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         title="Supprimer"
                     >
                         <Trash2 className="h-3 w-3" />

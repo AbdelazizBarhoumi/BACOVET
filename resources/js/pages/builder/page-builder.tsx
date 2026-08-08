@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
     Plus,
     Copy,
@@ -8,12 +8,12 @@ import {
     Link as LinkIcon,
     FileText,
     Loader2,
-    LogOut,
-    History,
     Share2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { AppShell } from '@/components/app-shell';
+import ShareDialog from '@/components/builder/ShareDialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -31,19 +31,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import ShareDialog from '@/components/builder/ShareDialog';
 import { useSidebarStructure } from '@/lib/groups-registry';
 import { usePagesRegistry } from '@/lib/pages-registry';
 
-function getCsrfToken(): string {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
-
 export default function PageBuilder() {
-    const { props } = usePage();
-    const authRole = (props as unknown as { authRole?: string }).authRole;
-    const isSuperAdmin = authRole === 'it' || authRole === 'direction';
     const {
         pages,
         loading,
@@ -92,23 +83,6 @@ export default function PageBuilder() {
         toast.success('URL copiée');
     };
 
-    const doLogout = async () => {
-        try {
-            await fetch('/auth/logout', {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                },
-            });
-        } catch {
-            /* ignore */
-        }
-        router.visit('/login');
-    };
-
     if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
@@ -118,44 +92,21 @@ export default function PageBuilder() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <AppShell
+            page="/"
+            title="Constructeur de pages"
+            subtitle="Constructeur unifié — créez autant de tableaux de bord que nécessaire, chacun avec sa propre URL."
+        >
             <Head title="Constructeur de pages — BACOVET" />
-            <div className="mx-auto max-w-5xl px-4 py-8">
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-black tracking-tight uppercase">
-                            Constructeur de pages
-                        </h1>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Constructeur unifié — créez autant de tableaux de
-                            bord que nécessaire, chacun avec sa propre URL.
-                        </p>
-                    </div>
+            <div className="mx-auto max-w-5xl">
+                <div className="mb-6 flex items-center justify-end">
                     <div className="flex items-center gap-2">
-                        {isSuperAdmin && (
-                            <Link href="/builder/trace">
-                                <Button
-                                    variant="outline"
-                                    className="text-xs tracking-wider uppercase"
-                                >
-                                    <History className="mr-1.5 h-4 w-4" />
-                                    Traçabilité
-                                </Button>
-                            </Link>
-                        )}
                         <Button
                             onClick={() => setCreating(true)}
                             className="text-xs tracking-wider uppercase"
                             disabled={busy}
                         >
                             <Plus className="mr-1.5 h-4 w-4" /> Nouvelle page
-                        </Button>
-                        <Button
-                            onClick={doLogout}
-                            variant="outline"
-                            className="text-xs tracking-wider uppercase"
-                        >
-                            <LogOut className="mr-1.5 h-4 w-4" /> Déconnexion
                         </Button>
                     </div>
                 </div>
@@ -494,6 +445,6 @@ export default function PageBuilder() {
                 pageId={sharing?.id ?? 0}
                 pageName={sharing?.name ?? ''}
             />
-        </div>
+        </AppShell>
     );
 }

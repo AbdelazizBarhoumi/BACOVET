@@ -67,7 +67,7 @@ class AuthController extends Controller
         AuditLog::create([
             'user_id' => $user->id,
             'action_type' => 'LOGIN',
-            'message' => "Connexion utilisateur: {$user->matricule} depuis {$request->ip()}",
+            'message' => 'Connexion utilisateur: '.($user->matricule ?? $user->email)." depuis {$request->ip()}",
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
@@ -75,17 +75,24 @@ class AuthController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Authentification réussie.',
-                'redirect' => User::DEFAULT_REDIRECT[$user->role->slug] ?? '/quality',
+                'redirect' => $user->must_change_password
+                    ? '/change-password'
+                    : (User::DEFAULT_REDIRECT[$user->role->slug] ?? '/'),
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
                     'matricule' => $user->matricule,
                     'role' => $user->role->slug,
+                    'must_change_password' => $user->must_change_password,
                 ],
             ]);
         }
 
-        return redirect()->intended(User::DEFAULT_REDIRECT[$user->role->slug] ?? '/quality');
+        if ($user->must_change_password) {
+            return redirect()->route('change-password');
+        }
+
+        return redirect()->intended(User::DEFAULT_REDIRECT[$user->role->slug] ?? '/');
     }
 
     public function logout(Request $request)
@@ -124,7 +131,42 @@ class AuthController extends Controller
             'matricule' => $user->matricule,
             'role' => $user->role->slug,
             'role_label' => $user->role->name,
-            'default_redirect' => User::DEFAULT_REDIRECT[$user->role->slug] ?? '/quality',
+            'must_change_password' => $user->must_change_password,
+            'default_redirect' => User::DEFAULT_REDIRECT[$user->role->slug] ?? '/',
+        ]);
+    }
+
+    public function changePassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:4|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (! Hash::check($validated['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'Le mot de passe actuel est incorrect.',
+            ]);
+        }
+
+        $user->update([
+            'password' => Hash::make($validated['password']),
+            'must_change_password' => false,
+        ]);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action_type' => 'INFO',
+            'message' => 'Mot de passe modifié pour: '.($user->matricule ?? $user->email),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json([
+            'message' => 'Mot de passe modifié avec succès.',
+            'redirect' => User::DEFAULT_REDIRECT[$user->role->slug] ?? '/',
         ]);
     }
 }

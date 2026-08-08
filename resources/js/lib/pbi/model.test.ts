@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { applyTableRows, filterTableRows, type ReportFilter } from './filters';
 import {
     aggregate,

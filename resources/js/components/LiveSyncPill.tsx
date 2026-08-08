@@ -1,16 +1,34 @@
 import { useLiveData } from '@/hooks/use-live-data';
 import { pushAudit } from '@/lib/audit';
 
-const LiveSyncPill = () => {
-    const { lastSync, now, hasError, forceSync } = useLiveData();
+function formatAgo(seconds: number): string {
+    if (seconds < 60) {
+        return `${seconds}s`;
+    }
+    if (seconds < 3600) {
+        return `${Math.floor(seconds / 60)}m`;
+    }
+    if (seconds < 86400) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return `${h}h${m > 0 ? ` ${m}m` : ''}`;
+    }
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    return `${d}j${h > 0 ? ` ${h}h` : ''}`;
+}
 
-    const ago = Math.floor((now - lastSync) / 1000);
-    const agoMs = now - lastSync;
+const LiveSyncPill = () => {
+    const { lastSync, elapsedMs, hasError, forceSync } = useLiveData();
+
+    const neverSynced = lastSync === 0;
+    const ago = Math.max(0, Math.floor(elapsedMs / 1000));
+    const agoMs = Math.max(0, elapsedMs);
 
     let status: 'green' | 'orange' | 'red';
-    if (hasError || agoMs >= 600_000) {
+    if (neverSynced || hasError || agoMs >= 180_000) {
         status = 'red';
-    } else if (agoMs >= 120_000) {
+    } else if (agoMs >= 60_000) {
         status = 'orange';
     } else {
         status = 'green';
@@ -48,7 +66,7 @@ const LiveSyncPill = () => {
             <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
             {cfg.label}
             <span className="opacity-60">
-                · {ago < 60 ? `${ago}s` : `${Math.floor(ago / 60)}m`}
+                · {neverSynced ? 'jamais' : formatAgo(ago)}
             </span>
         </button>
     );
