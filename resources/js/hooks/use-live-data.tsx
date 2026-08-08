@@ -28,6 +28,8 @@ type Ctx = {
     elapsedMs: number;
     isStale: boolean;
     hasError: boolean;
+    okCount: number;
+    errorCount: number;
     refreshIntervalSec: number;
     setRefreshIntervalSec: (n: number) => void;
     forceSync: () => void;
@@ -39,6 +41,8 @@ const LiveCtx = createContext<Ctx>({
     elapsedMs: 0,
     isStale: true,
     hasError: false,
+    okCount: 0,
+    errorCount: 0,
     refreshIntervalSec: 60,
     setRefreshIntervalSec: () => {},
     forceSync: () => {},
@@ -46,7 +50,11 @@ const LiveCtx = createContext<Ctx>({
 
 async function fetchStatus(): Promise<{
     last_success_at: string | null;
+    last_run_at: string | null;
     server_now: string | null;
+    ok_count: number;
+    error_count: number;
+    retry_pending: boolean;
 }> {
     const response = await fetch(STATUS_URL, {
         headers: {
@@ -89,6 +97,7 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
     const [lastSync, setLastSync] = useState(0);
     const [now, setNow] = useState(() => Date.now());
     const [hasError, setHasError] = useState(false);
+    const [errorCount, setErrorCount] = useState(0);
     const [refreshIntervalSec, setRefreshIntervalSecState] = useState(60);
 
     const syncInFlight = useRef(false);
@@ -96,7 +105,7 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
 
     // Clock offset between the browser and the server (ms). Elapsed time is
     // measured against the server clock so clock skew can't produce negatives.
-    const clockOffsetRef = useRef(0);
+    const [clockOffset, setClockOffset] = useState(0);
 
     const poll = useCallback(async (): Promise<void> => {
         try {
@@ -104,7 +113,7 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
             if (data.server_now) {
                 const serverTs = Date.parse(data.server_now);
                 if (!Number.isNaN(serverTs)) {
-                    clockOffsetRef.current = serverTs - Date.now();
+                    setClockOffset(serverTs - Date.now());
                 }
             }
             if (data.last_success_at) {
@@ -113,6 +122,7 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
                     setLastSync(ts);
                 }
             }
+            setErrorCount(Number.isFinite(data.error_count) ? data.error_count : 0);
             setHasError(false);
         } catch {
             setHasError(true);
@@ -121,11 +131,16 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!authenticated) return;
-        void poll();
+        const t = setTimeout(() => {
+            void poll();
+        }, 0);
         const id = setInterval(() => {
             void poll();
         }, POLL_INTERVAL_MS);
-        return () => clearInterval(id);
+        return () => {
+            clearTimeout(t);
+            clearInterval(id);
+        };
     }, [authenticated, poll]);
 
     useEffect(() => {
@@ -208,15 +223,22 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
         }
     }, [poll]);
 
-    const elapsedMs = now + clockOffsetRef.current - lastSync;
+    const elapsedMs = now + clockOffset - lastSync;
+
+    // Staleness follows the configured interval (with a 2× grace margin) so
+    // the badge doesn't flag red on long intervals. When we've never synced,
+    // it's never "stale" — the pill handles that state itself.
+    const staleAfterMs = Math.max(180_000, refreshIntervalSec * 2_000);
 
     const value = useMemo<Ctx>(
         () => ({
             lastSync,
             now,
             elapsedMs,
-            isStale: elapsedMs > 180_000,
+            isStale: lastSync > 0 && elapsedMs > staleAfterMs,
             hasError,
+            okCount: 0,
+            errorCount,
             refreshIntervalSec,
             setRefreshIntervalSec,
             forceSync,
@@ -225,7 +247,9 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
             lastSync,
             now,
             elapsedMs,
+            staleAfterMs,
             hasError,
+            errorCount,
             refreshIntervalSec,
             setRefreshIntervalSec,
             forceSync,

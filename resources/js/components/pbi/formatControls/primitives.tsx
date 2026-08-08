@@ -133,7 +133,7 @@ export function TextInput({
                 value={value ?? ''}
                 placeholder={placeholder}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-full rounded border border-border bg-background px-2 py-1"
+                className="w-full rounded border border-border bg-background px-2 py-1 placeholder:text-muted-foreground/50"
             />
         </label>
     );

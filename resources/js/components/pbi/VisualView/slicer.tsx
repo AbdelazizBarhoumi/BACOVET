@@ -62,7 +62,7 @@ export function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) 
                                 value={q}
                                 onChange={(e) => setQ(e.target.value)}
                                 placeholder="Rechercher"
-                                className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-1 text-[11px] focus:outline-none"
+                                className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-1 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none"
                             />
                             {selectedValue && (
                                 <button
@@ -111,7 +111,7 @@ export function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) 
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder={`Tapez pour filtrer ${col}…`}
-                    className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                    className="rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
                 />
                 <div className="flex-1 overflow-auto">
                     {values.map((v) => (

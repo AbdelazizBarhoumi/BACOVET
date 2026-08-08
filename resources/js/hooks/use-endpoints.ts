@@ -86,7 +86,10 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
     );
 
     useEffect(() => {
-        refresh();
+        const t = setTimeout(() => {
+            void refresh();
+        }, 0);
+        return () => clearTimeout(t);
     }, [refresh]);
 
     const applyFilters = useCallback(

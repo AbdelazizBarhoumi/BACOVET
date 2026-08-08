@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { handleApiError } from '@/lib/session';
 import type { BuilderPage } from './pages-registry';
 
@@ -10,6 +10,7 @@ export type BuilderPageGroup = {
     pages: BuilderPage[];
     created_at: string;
     updated_at: string;
+    can_manage?: boolean;
 };
 
 export type SidebarStructure = {
@@ -50,9 +51,7 @@ async function fetchSidebar(): Promise<SidebarStructure> {
     }
 }
 
-async function apiCreateGroup(
-    name: string,
-): Promise<BuilderPageGroup | null> {
+async function apiCreateGroup(name: string): Promise<BuilderPageGroup | null> {
     try {
         const res = await fetch(API_BASE, {
             method: 'POST',
@@ -158,88 +157,101 @@ async function apiReorderGroups(
     }
 }
 
+type SidebarListener = () => void;
+
+type SidebarStoreValue = {
+    data: SidebarStructure;
+    loading: boolean;
+};
+
+const sidebarListeners = new Set<SidebarListener>();
+let sidebarStore: SidebarStoreValue = {
+    data: { groups: [], ungrouped: [] },
+    loading: true,
+};
+let sidebarFetchStarted = false;
+
+function setSidebarStore(next: SidebarStoreValue) {
+    sidebarStore = next;
+    sidebarListeners.forEach((listener) => listener());
+}
+
+function subscribeToSidebar(listener: SidebarListener): () => void {
+    sidebarListeners.add(listener);
+    return () => {
+        sidebarListeners.delete(listener);
+    };
+}
+
+function getSidebarSnapshot(): SidebarStoreValue {
+    return sidebarStore;
+}
+
+async function refresh(): Promise<void> {
+    const result = await fetchSidebar();
+    setSidebarStore({ data: result, loading: false });
+}
+
+function startSidebarFetch(): void {
+    if (sidebarFetchStarted) return;
+    sidebarFetchStarted = true;
+    void refresh();
+}
+
+const createGroup = async (
+    name: string,
+): Promise<BuilderPageGroup | null> => {
+    const g = await apiCreateGroup(name);
+    if (g) await refresh();
+    return g;
+};
+
+const renameGroup = async (id: number, name: string): Promise<boolean> => {
+    const ok = await apiRenameGroup(id, name);
+    if (ok) await refresh();
+    return ok;
+};
+
+const deleteGroup = async (id: number): Promise<boolean> => {
+    const ok = await apiDeleteGroup(id);
+    if (ok) await refresh();
+    return ok;
+};
+
+const assignPage = async (
+    pageId: number,
+    groupId: number | null,
+): Promise<boolean> => {
+    const ok = await apiAssignPage(pageId, groupId);
+    if (ok) await refresh();
+    return ok;
+};
+
+const reorderPages = async (
+    items: { id: number; sort_order: number }[],
+): Promise<boolean> => {
+    const ok = await apiReorderPages(items);
+    if (ok) await refresh();
+    return ok;
+};
+
+const reorderGroups = async (
+    items: { id: number; sort_order: number }[],
+): Promise<boolean> => {
+    const ok = await apiReorderGroups(items);
+    if (ok) await refresh();
+    return ok;
+};
+
 export function useSidebarStructure() {
-    const [data, setData] = useState<SidebarStructure>({
-        groups: [],
-        ungrouped: [],
-    });
-    const [loading, setLoading] = useState(true);
-
-    const refresh = useCallback(async () => {
-        const result = await fetchSidebar();
-        setData(result);
-        setLoading(false);
-    }, []);
-
     useEffect(() => {
-        let cancelled = false;
-        fetchSidebar().then((result) => {
-            if (!cancelled) {
-                setData(result);
-                setLoading(false);
-            }
-        });
-        return () => {
-            cancelled = true;
-        };
+        startSidebarFetch();
     }, []);
 
-    const createGroup = useCallback(
-        async (name: string): Promise<BuilderPageGroup | null> => {
-            const g = await apiCreateGroup(name);
-            if (g) await refresh();
-            return g;
-        },
-        [refresh],
-    );
-
-    const renameGroup = useCallback(
-        async (id: number, name: string): Promise<boolean> => {
-            const ok = await apiRenameGroup(id, name);
-            if (ok) await refresh();
-            return ok;
-        },
-        [refresh],
-    );
-
-    const deleteGroup = useCallback(
-        async (id: number): Promise<boolean> => {
-            const ok = await apiDeleteGroup(id);
-            if (ok) await refresh();
-            return ok;
-        },
-        [refresh],
-    );
-
-    const assignPage = useCallback(
-        async (pageId: number, groupId: number | null): Promise<boolean> => {
-            const ok = await apiAssignPage(pageId, groupId);
-            if (ok) await refresh();
-            return ok;
-        },
-        [refresh],
-    );
-
-    const reorderPages = useCallback(
-        async (
-            items: { id: number; sort_order: number }[],
-        ): Promise<boolean> => {
-            const ok = await apiReorderPages(items);
-            if (ok) await refresh();
-            return ok;
-        },
-        [refresh],
-    );
-
-    const reorderGroups = useCallback(
-        async (
-            items: { id: number; sort_order: number }[],
-        ): Promise<boolean> => {
-            const ok = await apiReorderGroups(items);
-            if (ok) await refresh();
-            return ok;
-        },
-        [refresh],
+    const { data, loading } = useSyncExternalStore(
+        subscribeToSidebar,
+        getSidebarSnapshot,
+        getSidebarSnapshot,
     );
 
     return {

@@ -11,35 +11,26 @@ use Illuminate\Support\Facades\Artisan;
 class EndpointDatasetController extends Controller
 {
     /**
-     * Last successful DB sync (a run that produced at least one HTTP 200),
-     * as tracked by the sync:endpoint-data worker. Used by the LIVE SYNC
-     * pill so its timer reflects the worker, not the browser.
+     * Canonical sync status merged from both worker phases (registry refresh +
+     * dataset sync). Used by the LIVE SYNC pill and the admin health panel so
+     * they always agree on "last run" / "last success".
      */
     public function status(): JsonResponse
     {
-        $lastSuccess = EndpointDataset::query()
-            ->where('last_status', 'ok')
-            ->orderByDesc('last_synced_at')
-            ->value('last_synced_at');
-
-        return response()->json([
-            'last_success_at' => $lastSuccess?->toIso8601String() ?? null,
-            'server_now' => now()->toIso8601String(),
-            'ok_count' => EndpointDataset::query()
-                ->where('last_status', 'ok')
-                ->count(),
-        ]);
+        return response()->json(\App\Support\SyncStatus::payload());
     }
 
     /**
-     * Trigger the dataset-sync phase of sync:endpoint-data synchronously and
-     * return its summary. Backed by the same command the scheduler runs.
+     * Trigger both worker phases (registry refresh + dataset sync) of
+     * sync:endpoint-data synchronously and return its summary. Backed by the
+     * same command the scheduler runs.
      */
     public function sync(): JsonResponse
     {
         $exitCode = Artisan::call('sync:endpoint-data', [
-            '--phase' => 'datasets',
-            '--timeout' => (int) config('novacity.timeout', 30),
+            '--phase' => 'all',
+            '--force' => true,
+            '--timeout' => (int) config('novacity.timeout', 60),
         ]);
 
         $registry = app(EndpointDatasetRegistry::class);

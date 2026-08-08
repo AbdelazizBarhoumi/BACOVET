@@ -24,9 +24,9 @@ const firstError = (value: unknown): string | null => {
 
 export default function ChangePasswordPage() {
     const { csrf_token } = usePage<{ csrf_token: string }>().props;
-    const [show, setShow] = useState(false);
     const [localErr, setLocalErr] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
+    const [show, setShow] = useState(false);
     const [data, setData] = useState({
         current_password: '',
         password: '',
@@ -156,10 +156,10 @@ export default function ChangePasswordPage() {
                         )}
 
                         <form className="space-y-4" onSubmit={submit}>
-                            <div className="space-y-1.5">
-                                <Label className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
-                                    Mot de passe actuel
-                                </Label>
+                            <div className="relative space-y-1.5">
+    <Label className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+        Mot de passe actuel
+    </Label>
 
                                 <Input
                                     type={show ? 'text' : 'password'}
@@ -187,6 +187,22 @@ export default function ChangePasswordPage() {
                                     placeholder="••••••••"
                                     autoComplete="current-password"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShow((v) => !v)}
+                                    aria-label={
+                                        show
+                                            ? 'Masquer les mots de passe'
+                                            : 'Afficher les mots de passe'
+                                    }
+                                    className="absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                                >
+                                    {show ? (
+                                        <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                        <Eye className="h-4 w-4" />
+                                    )}
+                                </button>
                                 {fieldErrors.current_password && (
                                     <p className="mt-1 animate-in font-mono text-[10px] tracking-wider text-destructive uppercase duration-300 fade-in">
                                         {fieldErrors.current_password}
@@ -194,7 +210,7 @@ export default function ChangePasswordPage() {
                                 )}
                             </div>
 
-                            <div className="space-y-1.5">
+                            <div className="relative space-y-1.5">
                                 <Label className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
                                     Nouveau mot de passe
                                 </Label>
@@ -224,6 +240,22 @@ export default function ChangePasswordPage() {
                                     placeholder="••••••••"
                                     autoComplete="new-password"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShow((v) => !v)}
+                                    aria-label={
+                                        show
+                                            ? 'Masquer les mots de passe'
+                                            : 'Afficher les mots de passe'
+                                    }
+                                    className="absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                                >
+                                    {show ? (
+                                        <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                        <Eye className="h-4 w-4" />
+                                    )}
+                                </button>
                                 {fieldErrors.password && (
                                     <p className="mt-1 animate-in font-mono text-[10px] tracking-wider text-destructive uppercase duration-300 fade-in">
                                         {fieldErrors.password}
@@ -231,7 +263,7 @@ export default function ChangePasswordPage() {
                                 )}
                             </div>
 
-                            <div className="space-y-1.5">
+                            <div className="relative space-y-1.5">
                                 <Label className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
                                     Confirmation
                                 </Label>
@@ -252,6 +284,22 @@ export default function ChangePasswordPage() {
                                     placeholder="••••••••"
                                     autoComplete="new-password"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShow((v) => !v)}
+                                    aria-label={
+                                        show
+                                            ? 'Masquer les mots de passe'
+                                            : 'Afficher les mots de passe'
+                                    }
+                                    className="absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                                >
+                                    {show ? (
+                                        <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                        <Eye className="h-4 w-4" />
+                                    )}
+                                </button>
                             </div>
 
                             <Button

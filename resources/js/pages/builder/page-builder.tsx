@@ -10,7 +10,7 @@ import {
     Loader2,
     Share2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app-shell';
 import ShareDialog from '@/components/builder/ShareDialog';
@@ -43,7 +43,7 @@ export default function PageBuilder() {
         deletePage,
         updatePage,
     } = usePagesRegistry();
-    const { groups } = useSidebarStructure();
+    const { groups, assignPage } = useSidebarStructure();
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
     const [newGroupId, setNewGroupId] = useState<string>('none');
@@ -58,6 +58,7 @@ export default function PageBuilder() {
         id: number;
         name: string;
     } | null>(null);
+    const originalGroupIdRef = useRef<number | null>(null);
 
     const doCreate = async () => {
         setBusy(true);
@@ -137,8 +138,8 @@ export default function PageBuilder() {
                                             {p.name}
                                         </div>
                                         <div className="flex items-center gap-1 truncate font-mono text-[11px] text-muted-foreground">
-                                            <LinkIcon className="h-3 w-3" />{' '}
-                                            /p/{p.slug}
+                                            <LinkIcon className="h-3 w-3" /> /p/
+                                            {p.slug}
                                         </div>
                                     </div>
                                 </div>
@@ -171,14 +172,16 @@ export default function PageBuilder() {
                                                 size="sm"
                                                 variant="outline"
                                                 className="h-7 text-[11px]"
-                                                onClick={() =>
+                                                onClick={() => {
+                                                    originalGroupIdRef.current =
+                                                        p.group_id;
                                                     setEditing({
                                                         id: p.id,
                                                         name: p.name,
                                                         slug: p.slug,
                                                         group_id: p.group_id,
-                                                    })
-                                                }
+                                                    });
+                                                }}
                                             >
                                                 <Pencil className="mr-1 h-3 w-3" />{' '}
                                                 Éditer
@@ -230,7 +233,7 @@ export default function PageBuilder() {
                                                 Partager
                                             </Button>
                                         )}
-                                        {p.can_edit && (
+                                        {p.can_manage && (
                                             <Button
                                                 size="sm"
                                                 variant="destructive"
@@ -424,8 +427,16 @@ export default function PageBuilder() {
                                 await updatePage(editing.id, {
                                     name: editing.name,
                                     slug: editing.slug,
-                                    group_id: editing.group_id,
                                 });
+                                if (
+                                    editing.group_id !==
+                                    originalGroupIdRef.current
+                                ) {
+                                    await assignPage(
+                                        editing.id,
+                                        editing.group_id,
+                                    );
+                                }
                                 setBusy(false);
                                 toast.success('Page mise à jour');
                                 setEditing(null);

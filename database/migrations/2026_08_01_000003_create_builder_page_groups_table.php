@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('slug')->unique();
+            $table->foreignId('owner_user_id')->nullable()->after('slug')->constrained('users')->nullOnDelete();
             $table->integer('sort_order')->default(0);
             $table->timestamps();
         });

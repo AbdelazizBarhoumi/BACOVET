@@ -39,7 +39,10 @@ export function SchemaPanel({
     };
 
     useEffect(() => {
-        void load();
+        const t = setTimeout(() => {
+            void load();
+        }, 0);
+        return () => clearTimeout(t);
     }, []);
 
     const entries = useMemo(

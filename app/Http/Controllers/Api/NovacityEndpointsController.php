@@ -133,6 +133,7 @@ class NovacityEndpointsController extends Controller
             'stats' => $this->summaries($items),
             'meta' => $meta,
             'retry_pending' => (bool) Cache::get('endpoints:refresh:retry_pending', false),
+            'sync' => \App\Support\SyncStatus::payload(),
         ]);
     }
 
@@ -143,7 +144,7 @@ class NovacityEndpointsController extends Controller
     public function refresh(): JsonResponse
     {
         $exitCode = Artisan::call('sync:endpoint-data', [
-            '--phase' => 'refresh',
+            '--phase' => 'all',
             '--force' => true,
             '--timeout' => (int) config('novacity.timeout', 60),
         ]);

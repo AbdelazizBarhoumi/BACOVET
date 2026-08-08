@@ -43,7 +43,11 @@ export function DataJsonDialog({ open, onClose }: Props) {
     };
 
     useEffect(() => {
-        if (open) void load();
+        if (!open) return;
+        const t = setTimeout(() => {
+            void load();
+        }, 0);
+        return () => clearTimeout(t);
     }, [open]);
 
     const copy = async () => {

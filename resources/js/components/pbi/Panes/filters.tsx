@@ -308,7 +308,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                     }
                                 }}
                                 placeholder="Ajouter un champ de filtre…"
-                                className="w-full bg-transparent py-1 text-[11px] outline-none"
+                                className="w-full bg-transparent py-1 text-[11px] placeholder:text-muted-foreground/50 outline-none"
                             />
                             {newFilterQuery && (
                                 <button
@@ -378,7 +378,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                 value={customLabel}
                                 onChange={(e) => setCustomLabel(e.target.value)}
                                 placeholder="Nom du filtre"
-                                className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
                             />
                             <div className="mb-2 flex items-center gap-2">
                                 <div className="flex flex-1 items-center gap-1 rounded border border-border bg-background px-2">
@@ -389,7 +389,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                             setCustomSearchQuery(e.target.value)
                                         }
                                         placeholder="Rechercher des colonnes…"
-                                        className="w-full bg-transparent py-1 text-[11px] outline-none"
+                                        className="w-full bg-transparent py-1 text-[11px] placeholder:text-muted-foreground/50 outline-none"
                                     />
                                 </div>
                                 {customSearchQuery && (
@@ -617,7 +617,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                             )
                                         }
                                         placeholder={`Rechercher ${name}…`}
-                                        className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                        className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
                                     />
                                 )}
 

@@ -1077,7 +1077,7 @@ function ResultStep({
                             value={condVal}
                             onChange={(e) => setCondVal(e.target.value)}
                             placeholder="valeur"
-                            className="w-28 rounded border border-border bg-background px-2 py-1 text-[11px]"
+                            className="w-28 rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
                         />
                     </div>
                 )}
@@ -1108,7 +1108,7 @@ function SaveStep({
                     autoFocus
                     onChange={(e) => setName(e.target.value)}
                     placeholder="p. ex. Style Codes"
-                    className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand"
+                    className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-[13px] outline-none placeholder:text-muted-foreground/50 focus:border-brand"
                 />
             </label>
             <div>

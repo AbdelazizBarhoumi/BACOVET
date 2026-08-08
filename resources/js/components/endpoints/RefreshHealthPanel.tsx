@@ -84,7 +84,10 @@ export function RefreshHealthPanel({
     }, []);
 
     useEffect(() => {
-        void load();
+        const t = setTimeout(() => {
+            void load();
+        }, 0);
+        return () => clearTimeout(t);
     }, [load]);
 
     const handleRefreshNow = useCallback(async () => {
@@ -215,6 +218,39 @@ export function RefreshHealthPanel({
                     </div>
                 </Panel>
             </div>
+
+            {health?.sync && (
+                <Panel title="Sync globale (registre + datasets)">
+                    <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+                        <span className="text-[11px] text-muted-foreground">
+                            Dernier succès global :{' '}
+                            <span className="font-mono font-bold text-foreground">
+                                {formatRelative(health.sync.last_success_at)}
+                            </span>
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                            Datasets (DB) :{' '}
+                            <span className="font-mono font-bold text-foreground">
+                                {formatRelative(
+                                    health.sync.datasets_last_run_at,
+                                )}
+                            </span>
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                            OK :{' '}
+                            <span className="font-mono font-bold text-success">
+                                {health.sync.ok_count ?? 0}
+                            </span>
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                            En erreur :{' '}
+                            <span className="font-mono font-bold text-destructive">
+                                {health.sync.error_count ?? 0}
+                            </span>
+                        </span>
+                    </div>
+                </Panel>
+            )}
 
             <Panel
                 title="État par endpoint"

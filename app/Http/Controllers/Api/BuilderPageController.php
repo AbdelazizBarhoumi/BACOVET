@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BuilderActivityLog;
 use App\Models\BuilderPage;
 use App\Models\BuilderPageAccess;
+use App\Models\BuilderPagePlacement;
 use App\Models\User;
 use App\Support\PageAccess;
 use Illuminate\Http\JsonResponse;
@@ -35,18 +36,27 @@ class BuilderPageController extends Controller
 
         $pages = $query->get();
 
-        return response()->json($pages->map(function ($page) use ($user) {
+        $placements = BuilderPagePlacement::where('user_id', $user->id)
+            ->whereIn('page_id', $pages->pluck('id'))
+            ->get()
+            ->keyBy('page_id');
+
+        return response()->json($pages->map(function ($page) use ($user, $placements) {
+            $placement = $placements->get($page->id);
+
             return [
                 'id' => $page->id,
                 'slug' => $page->slug,
                 'name' => $page->name,
                 'owner_user_id' => $page->owner_user_id,
-                'group_id' => $page->group_id,
+                'group_id' => $placement?->group_id,
+                'sort_order' => $placement?->sort_order ?? 0,
                 'created_at' => $page->created_at,
                 'updated_at' => $page->updated_at,
                 'is_owner' => $page->owner_user_id === $user->id,
                 'can_edit' => PageAccess::canEdit($page, $user),
                 'can_manage' => PageAccess::canManage($page, $user),
+                'can_view' => true,
             ];
         }));
     }
@@ -77,13 +87,25 @@ class BuilderPageController extends Controller
 
         $name = trim($validated['name']) ?: 'Nouvelle page';
         $slug = $this->uniqueSlug($validated['slug'] ?? $name);
+        $groupId = $validated['group_id'] ?? null;
+        $pageSort = BuilderPagePlacement::where('user_id', PageAccess::resolveUser()?->id)
+            ->where('group_id', $groupId)
+            ->max('sort_order') ?? -1;
 
         $page = BuilderPage::create([
             'slug' => $slug,
             'name' => $name,
             'layout' => null,
-            'group_id' => $validated['group_id'] ?? null,
+            'group_id' => $groupId,
+            'sort_order' => $pageSort + 1,
             'owner_user_id' => PageAccess::resolveUser()?->id,
+        ]);
+
+        BuilderPagePlacement::create([
+            'user_id' => $page->owner_user_id,
+            'page_id' => $page->id,
+            'group_id' => $groupId,
+            'sort_order' => $pageSort + 1,
         ]);
 
         $this->logActivity('page.create', [
@@ -117,7 +139,6 @@ class BuilderPageController extends Controller
             'slug' => 'nullable|string|max:255',
             'layout' => 'nullable|array',
             'layout_draft' => 'nullable|array',
-            'group_id' => 'nullable|integer|exists:builder_page_groups,id',
         ]);
 
         if (isset($validated['name'])) {
@@ -177,17 +198,6 @@ class BuilderPageController extends Controller
             }
         }
 
-        if (array_key_exists('group_id', $validated) && $validated['group_id'] !== $page->group_id) {
-            $before = $page->group_id;
-            $page->group_id = $validated['group_id'];
-            $this->logActivity('page.update', [
-                'page_id' => $page->id,
-                'page_slug' => $page->slug,
-                'page_name' => $page->name,
-                'detail' => ['field' => 'group_id', 'before' => $before, 'after' => $page->group_id],
-            ]);
-        }
-
         $page->save();
 
         return response()->json([
@@ -204,7 +214,7 @@ class BuilderPageController extends Controller
             return response()->json(['message' => 'Page not found'], 404);
         }
 
-        if (! PageAccess::canEdit($page, PageAccess::resolveUser())) {
+        if (! PageAccess::canManage($page, PageAccess::resolveUser())) {
             return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
@@ -233,12 +243,29 @@ class BuilderPageController extends Controller
             return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
+        $user = PageAccess::resolveUser();
+        $srcPlacement = BuilderPagePlacement::where('user_id', $user?->id)
+            ->where('page_id', $src->id)
+            ->first();
+        $groupId = $srcPlacement?->group_id;
+        $pageSort = BuilderPagePlacement::where('user_id', $user?->id)
+            ->where('group_id', $groupId)
+            ->max('sort_order') ?? -1;
+
         $page = BuilderPage::create([
             'slug' => $this->uniqueSlug($src->slug.'-copy'),
             'name' => $src->name.' (copie)',
             'layout' => $src->layout,
-            'group_id' => $src->group_id,
-            'owner_user_id' => PageAccess::resolveUser()?->id,
+            'group_id' => $groupId,
+            'sort_order' => $pageSort + 1,
+            'owner_user_id' => $user?->id,
+        ]);
+
+        BuilderPagePlacement::create([
+            'user_id' => $user?->id,
+            'page_id' => $page->id,
+            'group_id' => $groupId,
+            'sort_order' => $pageSort + 1,
         ]);
 
         $this->logActivity('page.duplicate', [

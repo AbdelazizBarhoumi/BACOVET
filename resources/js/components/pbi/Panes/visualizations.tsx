@@ -269,7 +269,7 @@ function BoundValueInput({
             onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
-            className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] outline-none focus:border-brand"
+            className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-brand"
         />
     );
 }
@@ -326,7 +326,7 @@ function InlineIntInput({
             onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
-            className="w-14 rounded border border-border bg-background px-1 py-0.5 text-[10px] outline-none focus:border-brand"
+            className="w-14 rounded border border-border bg-background px-1 py-0.5 text-[10px] outline-none placeholder:text-muted-foreground/50 focus:border-brand"
         />
     );
 }

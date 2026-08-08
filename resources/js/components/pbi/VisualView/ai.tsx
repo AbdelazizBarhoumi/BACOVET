@@ -212,7 +212,7 @@ export function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Posez une question sur vos données"
-                className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                className="rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
             />
             <div className="min-h-0 flex-1">
                 <ResponsiveContainer width="100%" height="100%">

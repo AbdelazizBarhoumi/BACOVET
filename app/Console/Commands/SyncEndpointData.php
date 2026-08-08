@@ -50,7 +50,8 @@ class SyncEndpointData extends Command
 
         $runRefresh = match ($phase) {
             'refresh', 'all' => true,
-            default => $manual || $this->refreshDue(),
+            'auto' => $manual || $this->refreshDue(),
+            default => false,
         };
 
         $runDatasets = match ($phase) {

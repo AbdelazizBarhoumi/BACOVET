@@ -33,7 +33,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useAuth, ROLE_LABEL, type RolePage } from '@/context/AuthContext';
+import { useAuth, ROLE_LABEL } from '@/context/AuthContext';
 import { pushAudit } from '@/lib/audit';
 import { useSidebarStructure } from '@/lib/groups-registry';
 import { usePagesRegistry } from '@/lib/pages-registry';
@@ -51,8 +51,6 @@ const Sidebar = () => {
         deleteGroup,
         assignPage,
         reorderPages,
-        reorderGroups,
-        refresh,
     } = useSidebarStructure();
     const { createPage, deletePage, duplicatePage, updatePage } =
         usePagesRegistry();
@@ -75,9 +73,7 @@ const Sidebar = () => {
         id: number | null;
     } | null>(null);
 
-    if (!session) return null;
-
-    const initials = session.name
+    const initials = session?.name
         .split(' ')
         .map((s) => s[0])
         .join('')
@@ -312,34 +308,13 @@ const Sidebar = () => {
         setDraggedPageId(null);
     };
 
-    const handleDropOnGroupForReorder = async (
-        groupId: number,
-        targetGroupId: number,
-    ) => {
-        if (draggedPageId !== null) return;
-
-        const items = groups.map((g) => ({
-            id: g.id,
-            sort_order: g.sort_order,
-        }));
-        const draggedIdx = items.findIndex((g) => g.id === groupId);
-        const targetIdx = items.findIndex((g) => g.id === targetGroupId);
-        if (draggedIdx === -1 || targetIdx === -1) return;
-
-        const [moved] = items.splice(draggedIdx, 1);
-        items.splice(targetIdx + 1, 0, moved);
-        const updated = items.map((g, i) => ({ id: g.id, sort_order: i }));
-
-        const ok = await reorderGroups(updated);
-        if (ok) toast.success('Groupe réordonné');
-        else toast.error('Erreur');
-    };
-
     const isDragOverGroup = (groupId: number | null) =>
         dragTarget?.type === 'group' && dragTarget.id === groupId;
     const isDragOverPage = (pageId: number) =>
         dragTarget?.type === 'page' && dragTarget.id === pageId;
     const isDragOverUngrouped = () => dragTarget?.type === 'ungrouped';
+
+    if (!session) return null;
 
     return (
         <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -364,8 +339,7 @@ const Sidebar = () => {
                             <span className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
                                 PAGES
                             </span>
-                            {true && (
-                                <div className="flex items-center gap-0.5">
+                            <div className="flex items-center gap-0.5">
                                     <button
                                         onClick={() => setShowAddGroup(true)}
                                         className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
@@ -381,7 +355,6 @@ const Sidebar = () => {
                                         <Plus className="h-3.5 w-3.5" />
                                     </button>
                                 </div>
-                            )}
                         </div>
 
                         <div
@@ -405,7 +378,8 @@ const Sidebar = () => {
                                     <DraggablePageItem
                                         page={p}
                                         pathname={pathname}
-                                        canEdit={!!p.can_manage}
+                                        canEdit={!!p.can_edit}
+                                        canManage={!!p.can_manage}
                                         isDragOver={isDragOverPage(p.id)}
                                         onDragStart={handleDragStart}
                                         onDragEnd={handleDragEnd}
@@ -477,7 +451,7 @@ const Sidebar = () => {
                                         <span className="font-mono text-[9px] text-muted-foreground">
                                             {g.pages.length}
                                         </span>
-                                        {true && (
+                                        {g.can_manage && (
                                             <>
                                                 <button
                                                     onClick={() =>
@@ -518,7 +492,10 @@ const Sidebar = () => {
                                                     <DraggablePageItem
                                                         page={p}
                                                         pathname={pathname}
-                                                        canEdit={!!p.can_manage}
+                                                        canEdit={!!p.can_edit}
+                                                        canManage={
+                                                            !!p.can_manage
+                                                        }
                                                         isDragOver={isDragOverPage(
                                                             p.id,
                                                         )}
@@ -771,6 +748,7 @@ function DraggablePageItem({
     page,
     pathname,
     canEdit,
+    canManage,
     isDragOver,
     onDragStart,
     onDragEnd,
@@ -784,6 +762,7 @@ function DraggablePageItem({
     page: { id: number; slug: string; name: string };
     pathname: string;
     canEdit: boolean;
+    canManage: boolean;
     isDragOver: boolean;
     onDragStart: (e: React.DragEvent, pageId: number) => void;
     onDragEnd: () => void;
@@ -826,18 +805,20 @@ function DraggablePageItem({
                 <GripVertical className="h-3 w-3 shrink-0 cursor-grab opacity-30 active:cursor-grabbing" />
                 <span className="flex-1 truncate">{page.name}</span>
             </Link>
-            {canEdit && showActions && (
+            {showActions && (
                 <div className="absolute top-1/2 right-1 flex -translate-y-1/2 cursor-pointer items-center gap-0.5 rounded-md border border-border bg-sidebar/90 px-1 py-0.5 shadow-sm">
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            onRename();
-                        }}
-                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                        title="Renommer"
-                    >
-                        <Pencil className="h-3 w-3" />
-                    </button>
+                    {canEdit && (
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                onRename();
+                            }}
+                            className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                            title="Renommer"
+                        >
+                            <Pencil className="h-3 w-3" />
+                        </button>
+                    )}
                     <button
                         onClick={(e) => {
                             e.preventDefault();
@@ -858,16 +839,18 @@ function DraggablePageItem({
                     >
                         <LinkIcon className="h-3 w-3" />
                     </button>
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            onDelete();
-                        }}
-                        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        title="Supprimer"
-                    >
-                        <Trash2 className="h-3 w-3" />
-                    </button>
+                    {canManage && (
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                onDelete();
+                            }}
+                            className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            title="Supprimer"
+                        >
+                            <Trash2 className="h-3 w-3" />
+                        </button>
+                    )}
                 </div>
             )}
         </div>

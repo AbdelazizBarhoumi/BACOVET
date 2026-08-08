@@ -315,6 +315,15 @@ export type EndpointHealth = {
     stats: EndpointsStats;
     meta: RefreshMeta | null;
     retry_pending: boolean;
+    sync?: {
+        last_success_at?: string | null;
+        last_run_at?: string | null;
+        registry_last_run_at?: string | null;
+        datasets_last_run_at?: string | null;
+        ok_count?: number;
+        error_count?: number;
+        server_now?: string | null;
+    } | null;
 };
 
 export const fetchHealth = async (force = false): Promise<EndpointHealth> => {

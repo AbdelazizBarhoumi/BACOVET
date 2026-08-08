@@ -79,7 +79,7 @@ export function QnaDialog({
                 <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    className="w-full rounded border border-border bg-background px-3 py-2 text-[13px]"
+                    className="w-full rounded border border-border bg-background px-3 py-2 text-[13px] placeholder:text-muted-foreground/50"
                     placeholder={
                         suggestBy && suggestVal
                             ? `p. ex. ${suggestVal} par ${suggestBy}`

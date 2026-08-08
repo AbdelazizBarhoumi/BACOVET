@@ -126,7 +126,7 @@ export function ThemesPane({ onCollapse }: { onCollapse?: () => void }) {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Nom du thème"
-                        className="w-full rounded border border-border bg-background px-2 py-1"
+                        className="w-full rounded border border-border bg-background px-2 py-1 placeholder:text-muted-foreground/50"
                     />
                     <button
                         onClick={() => {

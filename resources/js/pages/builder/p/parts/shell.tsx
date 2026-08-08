@@ -60,7 +60,9 @@ export function Shell({
 
     // Always-available latest snapshot for the interval + unload flush.
     const stateRef = useRef(state);
-    stateRef.current = state;
+    useEffect(() => {
+        stateRef.current = state;
+    });
     // Most recent draft persisted this session, so restore uses the latest
     // checkpoint rather than the (possibly older) page-load snapshot.
     const latestDraftRef = useRef<{ version?: number; pbi?: DraftPbi } | null>(
@@ -68,7 +70,9 @@ export function Shell({
     );
     const lastSavedRef = useRef<string | null>(null);
     const dirtyRef = useRef(dirty);
-    dirtyRef.current = dirty;
+    useEffect(() => {
+        dirtyRef.current = dirty;
+    });
 
     const flushDraft = useCallback(() => {
         const { measures: _measures, ...pbi } = stateRef.current;

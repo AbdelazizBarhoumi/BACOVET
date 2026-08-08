@@ -466,7 +466,7 @@ export function DaxDialog({
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
                             placeholder="Finance, Opérations…"
-                            className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-brand"
+                            className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-brand"
                         />
                     </label>
                     <label className="block text-[11px] text-muted-foreground">
@@ -475,7 +475,7 @@ export function DaxDialog({
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Facultatif"
-                            className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-brand"
+                            className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-brand"
                         />
                     </label>
                 </div>

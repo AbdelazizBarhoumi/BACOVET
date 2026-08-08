@@ -45,9 +45,11 @@ export function JoinMapDialog({
     }, [sourceColumns, filter]);
 
     const [source, setSource] = useState(defaultSource);
-    useEffect(() => {
+    const [prevSource, setPrevSource] = useState(defaultSource);
+    if (defaultSource !== prevSource) {
+        setPrevSource(defaultSource);
         setSource(defaultSource);
-    }, [defaultSource]);
+    }
 
     const options = useMemo(
         () =>
@@ -73,9 +75,11 @@ export function JoinMapDialog({
     }, [filter, source]);
 
     const [value, setValue] = useState(initialValue);
-    useEffect(() => {
+    const [prevInitial, setPrevInitial] = useState(initialValue);
+    if (initialValue !== prevInitial) {
+        setPrevInitial(initialValue);
         setValue(initialValue);
-    }, [initialValue]);
+    }
 
     const map = useMemo(() => {
         if (!source || !value) return null;
@@ -345,7 +349,7 @@ export function JoinMapDialog({
                                                             )
                                                         }
                                                         placeholder="Filtrer…"
-                                                        className="w-40 rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+                                                        className="w-40 rounded border border-border bg-background px-1 py-0.5 text-[10px] placeholder:text-muted-foreground/50"
                                                     />
                                                     <button
                                                         onClick={() =>

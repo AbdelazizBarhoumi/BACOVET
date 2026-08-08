@@ -19,16 +19,25 @@ function formatAgo(seconds: number): string {
 }
 
 const LiveSyncPill = () => {
-    const { lastSync, elapsedMs, hasError, forceSync } = useLiveData();
+    const { lastSync, elapsedMs, hasError, errorCount, refreshIntervalSec, forceSync } =
+        useLiveData();
 
     const neverSynced = lastSync === 0;
     const ago = Math.max(0, Math.floor(elapsedMs / 1000));
-    const agoMs = Math.max(0, elapsedMs);
+
+    // Status bands are relative to the configured refresh interval so a 10-min
+    // interval is not flagged red like a 1-min one would be.
+    const warningAfterMs = Math.max(180_000, refreshIntervalSec * 1_000);
+    const staleAfterMs = Math.max(300_000, refreshIntervalSec * 2_000);
 
     let status: 'green' | 'orange' | 'red';
-    if (neverSynced || hasError || agoMs >= 180_000) {
+    if (hasError || neverSynced) {
         status = 'red';
-    } else if (agoMs >= 60_000) {
+    } else if (errorCount > 0) {
+        status = 'orange';
+    } else if (elapsedMs >= staleAfterMs) {
+        status = 'red';
+    } else if (elapsedMs >= warningAfterMs) {
         status = 'orange';
     } else {
         status = 'green';
@@ -41,7 +50,7 @@ const LiveSyncPill = () => {
             wrapper: 'border-success/30 bg-success/15 text-success hover:bg-success/25',
         },
         orange: {
-            label: 'SYNC: ATTENTION',
+            label: errorCount > 0 ? 'SYNC: PARTIEL' : 'SYNC: ATTENTION',
             dot: 'bg-warning',
             wrapper: 'border-warning/40 bg-warning/20 text-warning hover:bg-warning/30',
         },
@@ -65,6 +74,9 @@ const LiveSyncPill = () => {
         >
             <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
             {cfg.label}
+            {status === 'orange' && errorCount > 0 && (
+                <span className="opacity-60">· {errorCount} err</span>
+            )}
             <span className="opacity-60">
                 · {neverSynced ? 'jamais' : formatAgo(ago)}
             </span>

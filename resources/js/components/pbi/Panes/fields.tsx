@@ -226,7 +226,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Rechercher"
-                        className="w-full bg-transparent py-1 text-[11px] outline-none"
+                        className="w-full bg-transparent py-1 text-[11px] placeholder:text-muted-foreground/50 outline-none"
                     />
                 </div>
             </div>
