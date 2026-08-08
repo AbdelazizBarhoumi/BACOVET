@@ -931,18 +931,35 @@ describe('deriveMeasureSpec', () => {
             column: '',
             agg: 'sum',
             composition: {
-                a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
-                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
                 op: '/',
                 scale: true,
             },
         });
-        expect(generated).toBe('DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100');
+        expect(generated).toBe(
+            'DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100',
+        );
         const spec = deriveMeasureSpec(generated);
         expect(spec).not.toBeNull();
         expect(spec!.composition).toEqual({
             a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
-            b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+            b: {
+                type: 'column',
+                table: 'kpi_a',
+                column: 'Inspections',
+                agg: 'sum',
+            },
             op: '/',
             scale: true,
         });
@@ -953,7 +970,12 @@ describe('deriveMeasureSpec', () => {
         const spec = deriveMeasureSpec('SUM(codestyle[Qty]) / 2');
         expect(spec).not.toBeNull();
         expect(spec!.composition).toEqual({
-            a: { type: 'column', table: 'codestyle', column: 'Qty', agg: 'sum' },
+            a: {
+                type: 'column',
+                table: 'codestyle',
+                column: 'Qty',
+                agg: 'sum',
+            },
             b: { type: 'number', value: 2 },
             op: '/',
             scale: false,
@@ -971,8 +993,18 @@ describe('composition (Wave 1)', () => {
             column: '',
             agg: 'sum',
             composition: {
-                a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
-                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
                 op: '/',
                 scale: true,
             },
@@ -992,7 +1024,12 @@ describe('composition (Wave 1)', () => {
             agg: 'sum',
             composition: {
                 a: { type: 'measure', name: 'Total Rejets' },
-                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
                 op: '-',
                 scale: true,
             },
@@ -1041,8 +1078,18 @@ describe('composition (Wave 1)', () => {
         ]);
         const dax = measureExpression('Taux', {
             composition: {
-                a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
-                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
                 op: '/',
                 scale: true,
             },
@@ -1051,5 +1098,104 @@ describe('composition (Wave 1)', () => {
         const r = evaluateMeasure(dax, []);
         expect(r.error).toBeUndefined();
         expect(r.value).toBe(15);
+    });
+
+    it('W1-11 composed DAX evaluates across two different tables', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                ],
+                rows: [
+                    { Rejets: 25, Inspections: 200 },
+                    { Rejets: 5, Inspections: 0 },
+                ],
+            },
+            {
+                name: 'kpi_b',
+                fields: [{ table: 'kpi_b', name: 'Objectif', type: 'number' }],
+                rows: [{ Objectif: 100 }, { Objectif: 50 }],
+            },
+        ]);
+        const dax = measureExpression('Taux', {
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_b',
+                    column: 'Objectif',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+            },
+        } as WizardSpec);
+        const r = evaluateMeasure(dax, []);
+        expect(r.error).toBeUndefined();
+        // 30 / 150 * 100
+        expect(r.value).toBe(20);
+    });
+
+    it('W1-12 DIVIDE by zero yields a genuine zero, not an error', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [{ table: 'kpi_a', name: 'Rejets', type: 'number' }],
+                rows: [{ Rejets: 25 }],
+            },
+        ]);
+        const dax = measureExpression('Taux', {
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: { type: 'number', value: 0 },
+                op: '/',
+                scale: true,
+            },
+        } as WizardSpec);
+        const r = evaluateMeasure(dax, []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(0);
+    });
+
+    it('W1-13 a bad operand column surfaces an error instead of a silent 0', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [{ table: 'kpi_a', name: 'Rejets', type: 'number' }],
+                rows: [{ Rejets: 25 }],
+            },
+        ]);
+        const dax = measureExpression('Taux', {
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inexistant',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+            },
+        } as WizardSpec);
+        const r = evaluateMeasure(dax, []);
+        expect(r.error).toBeTruthy();
     });
 });

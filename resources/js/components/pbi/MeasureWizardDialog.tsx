@@ -24,6 +24,8 @@ import {
     joinCandidates,
     measureExpression,
     proposePaths,
+    type CompositeOperand,
+    type CompositeSpec,
     type JoinCandidate,
     type MeasureKind,
     type NumericAgg,
@@ -36,19 +38,58 @@ import {
 import {
     compileListMeasure,
     evaluateMeasure,
+    type Field,
     type TableDef,
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
-const STEPS = [
-    { key: 'start', label: 'Départ' },
-    { key: 'path', label: 'Chemin' },
-    { key: 'result', label: 'Résultat' },
-    { key: 'save', label: 'Enregistrer' },
-] as const;
+type StepKey = 'start' | 'path' | 'result' | 'composition' | 'save';
 
-type StepKey = (typeof STEPS)[number]['key'];
+const STEP_LABELS: Record<StepKey, string> = {
+    start: 'Départ',
+    path: 'Chemin',
+    result: 'Résultat',
+    composition: 'Composition',
+    save: 'Enregistrer',
+};
+
+/** Step order without composition (result → save directly). */
+const SIMPLE_STEPS: StepKey[] = ['start', 'path', 'result', 'save'];
+/**
+ * Step order when composing A • B. Composition is an entry mode chosen on the
+ * Départ step: no endpoints are required, so Chemin and Résultat are skipped.
+ */
+const COMPOSE_STEPS: StepKey[] = ['start', 'composition', 'save'];
+
+const COMPOSE_OPS: { key: CompositeSpec['op']; label: string }[] = [
+    { key: '/', label: '÷' },
+    { key: '*', label: '×' },
+    { key: '-', label: '−' },
+    { key: '+', label: '+' },
+];
+
+/** First usable column (prefers numeric) of a table, for sensible defaults. */
+function firstFieldOf(tables: TableDef[], name: string): string {
+    const def = tables.find((t) => t.name === name);
+    return (
+        (def?.fields.find((f) => f.type === 'number') ?? def?.fields[0])
+            ?.name ?? ''
+    );
+}
+
+/** Editable description of one side of a composed measure. */
+type OperandDraft = {
+    kind: 'measure' | 'column' | 'number';
+    /** existing measure reference when kind === 'measure' */
+    measure: string;
+    /** source table when kind === 'column' */
+    table: string;
+    column: string;
+    agg: NumericAgg;
+    /** literal when kind === 'number' */
+    value: string;
+};
 
 const OP_KEYS = Object.keys(COND_LABELS) as ValueCondition['op'][];
 const AGG_KEYS = Object.keys(AGG_LABELS) as NumericAgg[];
@@ -61,9 +102,8 @@ export function MeasureWizardDialog({
     onClose: () => void;
     createCategory?: string | null;
 }) {
-    const { tables, addMeasure, sharedJoins } = usePbi();
+    const { tables, addMeasure, sharedJoins, measures } = usePbi();
     const [step, setStep] = useState<StepKey>('start');
-    const stepIndex = STEPS.findIndex((s) => s.key === step);
 
     const [fromTable, setFromTable] = useState(tables[0]?.name ?? '');
     const [toTable, setToTable] = useState('');
@@ -81,6 +121,28 @@ export function MeasureWizardDialog({
     const [allowWeak, setAllowWeak] = useState(false);
     const [rankBy, setRankBy] = useState<ProposalRankBy>('shortest');
 
+    // Composition (A • B) — chosen as an entry mode on the Départ step. When
+    // on, the flow becomes Départ → Composition → Enregistrer (no endpoints).
+    const [composeOn, setComposeOn] = useState(false);
+    const [composeOp, setComposeOp] = useState<CompositeSpec['op']>('/');
+    const [scaleHundreds, setScaleHundreds] = useState(true);
+    const [opA, setOpA] = useState<OperandDraft>(() => ({
+        kind: 'column',
+        measure: '',
+        table: fromTable,
+        column: firstFieldOf(tables, fromTable),
+        agg: 'sum',
+        value: '',
+    }));
+    const [opB, setOpB] = useState<OperandDraft>(() => ({
+        kind: 'column',
+        measure: '',
+        table: toTable || fromTable,
+        column: firstFieldOf(tables, toTable || fromTable),
+        agg: 'sum',
+        value: '',
+    }));
+
     // The active chain is the hops of the currently selected variant. Edits
     // write back into its slot so switching variant keeps each one's tweaks.
     const hops = useMemo<PathHop[]>(
@@ -97,6 +159,65 @@ export function MeasureWizardDialog({
 
     const pathReliable = isReliablePath(hops);
     const hasWeakHop = hops.some((h) => !isReliableHop(h));
+
+    const steps = composeOn ? COMPOSE_STEPS : SIMPLE_STEPS;
+    const stepIndex = steps.findIndex((s) => s === step);
+
+    // --- Composition operands -------------------------------------------------
+    const toOperand = (d: OperandDraft): CompositeOperand | null => {
+        if (d.kind === 'measure')
+            return d.measure ? { type: 'measure', name: d.measure } : null;
+        if (d.kind === 'column')
+            return d.table && d.column
+                ? {
+                      type: 'column',
+                      table: d.table,
+                      column: d.column,
+                      agg: d.agg,
+                  }
+                : null;
+        const n = Number(d.value);
+        return Number.isFinite(n) ? { type: 'number', value: n } : null;
+    };
+    const composeA = useMemo(() => toOperand(opA), [opA]);
+    const composeB = useMemo(() => toOperand(opB), [opB]);
+    const composeReady = composeA !== null && composeB !== null;
+
+    const toggleCompose = (on: boolean) => {
+        setComposeOn(on);
+        // The step lists differ by mode, so never leave the user on a step
+        // that no longer exists: switching on jumps to the composition step,
+        // switching off drops back to Départ.
+        if (on && step !== 'composition') setStep('composition');
+        if (!on && step === 'composition') setStep('start');
+        if (on) {
+            setOpA((d) =>
+                d.kind === 'column' && d.table && d.column
+                    ? d
+                    : {
+                          ...d,
+                          kind: 'column',
+                          table: fromTable,
+                          column: firstFieldOf(tables, fromTable),
+                      },
+            );
+            setOpB((d) =>
+                d.kind === 'column' && d.table && d.column
+                    ? d
+                    : {
+                          ...d,
+                          kind: 'column',
+                          table: toTable || fromTable,
+                          column: firstFieldOf(tables, toTable || fromTable),
+                      },
+            );
+        }
+    };
+
+    const stepBack = () => {
+        if (stepIndex === 0) onClose();
+        else setStep(steps[stepIndex - 1] ?? 'start');
+    };
 
     const manual: JoinCandidate[] = useMemo(
         () =>
@@ -128,8 +249,8 @@ export function MeasureWizardDialog({
         setCondCol('');
     };
 
-    const spec: WizardSpec = useMemo(
-        () => ({
+    const spec: WizardSpec = useMemo(() => {
+        const base = {
             from: fromTable,
             to: toTable || fromTable,
             hops,
@@ -140,20 +261,37 @@ export function MeasureWizardDialog({
                 condOn && condCol
                     ? { column: condCol, op: condOp, value: condVal }
                     : undefined,
-        }),
-        [
-            fromTable,
-            toTable,
-            hops,
-            kind,
-            column,
-            agg,
-            condOn,
-            condCol,
-            condOp,
-            condVal,
-        ],
-    );
+        };
+        if (composeOn && composeA && composeB) {
+            return {
+                ...base,
+                kind: 'number',
+                composition: {
+                    a: composeA,
+                    b: composeB,
+                    op: composeOp,
+                    scale: scaleHundreds,
+                },
+            };
+        }
+        return base;
+    }, [
+        fromTable,
+        toTable,
+        hops,
+        kind,
+        column,
+        agg,
+        condOn,
+        condCol,
+        condOp,
+        condVal,
+        composeOn,
+        composeA,
+        composeB,
+        composeOp,
+        scaleHundreds,
+    ]);
 
     const dax = useMemo(
         () =>
@@ -163,25 +301,57 @@ export function MeasureWizardDialog({
         [name, spec],
     );
 
-    const preview = useMemo(() => {
-        if (toTable === '' || (toTable !== fromTable && hops.length === 0))
-            return null;
+    const previewState = useMemo(() => {
+        const none = {
+            value: null as number | string[] | null,
+            error: null as string | null,
+        };
+        // Composition does not depend on the base from → to chain, so its
+        // gate is the operand validity alone.
+        if (
+            !composeOn &&
+            (toTable === '' || (toTable !== fromTable && hops.length === 0))
+        )
+            return none;
         const expr = measureExpression(name.trim() || 'Aperçu', spec);
+        if (composeOn) {
+            if (!composeA || !composeB) return none;
+            const r = evaluateMeasure(expr, []);
+            return {
+                value: typeof r.value === 'number' ? r.value : null,
+                error: r.error ?? null,
+            };
+        }
         if (kind === 'number' || kind === 'countrows') {
             const r = evaluateMeasure(expr, []);
-            return typeof r.value === 'number' ? r.value : null;
+            return {
+                value: typeof r.value === 'number' ? r.value : null,
+                error: r.error ?? null,
+            };
         }
         // list: evaluate the VALUES(...) through the engine so the preview is
         // truthful (empty here means the chain genuinely matches nothing).
         try {
             const compiled = compileListMeasure(expr);
-            if (!compiled) return [];
+            if (!compiled) return none;
             const values = compiled([], {});
-            return Array.isArray(values) ? values : [];
+            return { value: Array.isArray(values) ? values : [], error: null };
         } catch {
-            return [];
+            return none;
         }
-    }, [spec, kind, toTable, fromTable, hops.length, name]);
+    }, [
+        spec,
+        kind,
+        toTable,
+        fromTable,
+        hops.length,
+        name,
+        composeOn,
+        composeA,
+        composeB,
+    ]);
+    const preview = previewState.value;
+    const previewError = previewState.error;
 
     const caseBlockedNeedsHop = toTable !== '' && toTable !== fromTable;
     // Chemin is only valid when the route is fully reliable OR the user has
@@ -189,9 +359,10 @@ export function MeasureWizardDialog({
     const pathGate =
         !caseBlockedNeedsHop || hops.length === 0 || pathReliable || allowWeak;
     const canProceed =
-        (stepIndex === 0 && fromTable !== '' && toTable !== '') ||
-        (stepIndex === 1 && pathGate) ||
-        (stepIndex === 2 && column !== '') ||
+        (stepIndex === 0 &&
+            (composeOn || (fromTable !== '' && toTable !== ''))) ||
+        (stepIndex === 1 && (composeOn ? composeReady : pathGate)) ||
+        (stepIndex === 2 && (composeOn ? name.trim() !== '' : column !== '')) ||
         (stepIndex === 3 && name.trim() !== '');
 
     const changeRankBy = (r: ProposalRankBy) => {
@@ -212,6 +383,11 @@ export function MeasureWizardDialog({
 
     const goNext = async () => {
         if (step === 'start') {
+            if (composeOn) {
+                // Composition is an entry mode: no endpoints needed.
+                setStep('composition');
+                return;
+            }
             setPaths(proposals.map((p) => p.hops));
             setActiveVariant(0);
             setStep('path');
@@ -228,6 +404,16 @@ export function MeasureWizardDialog({
             return;
         }
         if (step === 'result') {
+            setStep(composeOn ? 'composition' : 'save');
+            return;
+        }
+        if (step === 'composition') {
+            if (!composeA || !composeB) {
+                toast.error(
+                    'Définissez deux opérandes valides pour composer la mesure.',
+                );
+                return;
+            }
             setStep('save');
             return;
         }
@@ -263,10 +449,10 @@ export function MeasureWizardDialog({
             <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
                 {/* Progress rail */}
                 <div className="flex items-center gap-1 border-b border-border bg-panel px-4 py-2.5">
-                    {STEPS.map((s, i) => (
+                    {steps.map((s, i) => (
                         <button
-                            key={s.key}
-                            onClick={() => i < stepIndex && setStep(s.key)}
+                            key={s}
+                            onClick={() => i < stepIndex && setStep(s)}
                             className={cn(
                                 'flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
                                 i === stepIndex
@@ -279,7 +465,7 @@ export function MeasureWizardDialog({
                             <span className="size-4 rounded-full bg-foreground/10 text-center text-[9px] leading-4">
                                 {i + 1}
                             </span>
-                            {s.label}
+                            {STEP_LABELS[s]}
                         </button>
                     ))}
                     <div className="ml-auto flex items-center gap-2">
@@ -313,6 +499,8 @@ export function MeasureWizardDialog({
                                 setFromTable={setFromTable}
                                 toTable={toTable}
                                 selectTarget={selectTarget}
+                                composeOn={composeOn}
+                                toggleCompose={toggleCompose}
                             />
                         )}
                         {step === 'path' && (
@@ -349,6 +537,29 @@ export function MeasureWizardDialog({
                                 setCondOp={setCondOp}
                                 condVal={condVal}
                                 setCondVal={setCondVal}
+                                composeOn={composeOn}
+                                toggleCompose={toggleCompose}
+                            />
+                        )}
+                        {step === 'composition' && (
+                            <CompositionStep
+                                tables={tables}
+                                measures={measures}
+                                opA={opA}
+                                setOpA={setOpA}
+                                opB={opB}
+                                setOpB={setOpB}
+                                composeOp={composeOp}
+                                setComposeOp={setComposeOp}
+                                scaleHundreds={scaleHundreds}
+                                setScaleHundreds={setScaleHundreds}
+                                dax={dax}
+                                value={
+                                    typeof preview === 'number' ? preview : null
+                                }
+                                error={previewError}
+                                composeReady={composeReady}
+                                onCreateSimple={() => toggleCompose(false)}
                             />
                         )}
                         {step === 'save' && (
@@ -357,6 +568,7 @@ export function MeasureWizardDialog({
                                 setName={setName}
                                 dax={dax}
                                 preview={preview}
+                                error={previewError}
                             />
                         )}
                     </motion.div>
@@ -364,11 +576,7 @@ export function MeasureWizardDialog({
 
                 <div className="flex items-center justify-between gap-2 border-t border-border bg-panel px-4 py-2.5">
                     <button
-                        onClick={() =>
-                            stepIndex === 0
-                                ? onClose()
-                                : setStep(STEPS[stepIndex - 1]!.key)
-                        }
+                        onClick={stepBack}
                         className="flex items-center gap-1 rounded border border-border px-3 py-1 text-[12px]"
                     >
                         <ChevronLeft className="size-3.5" />
@@ -379,7 +587,7 @@ export function MeasureWizardDialog({
                         disabled={!canProceed}
                         className="flex items-center gap-1 rounded bg-brand px-4 py-1 text-[12px] font-medium text-brand-foreground disabled:opacity-40"
                     >
-                        {stepIndex === STEPS.length - 1 ? (
+                        {stepIndex === steps.length - 1 ? (
                             <>
                                 <Save className="size-3.5" />
                                 {saving ? 'Enregistrement…' : 'Enregistrer'}
@@ -406,59 +614,106 @@ function StartStep({
     setFromTable,
     toTable,
     selectTarget,
+    composeOn,
+    toggleCompose,
 }: {
     tables: TableDef[];
     fromTable: string;
     setFromTable: (t: string) => void;
     toTable: string;
     selectTarget: (t: string) => void;
+    composeOn: boolean;
+    toggleCompose: (on: boolean) => void;
 }) {
     return (
         <div className="grid gap-4">
             <div>
                 <div className="mb-1.5 text-[12px] font-semibold">
-                    Table de départ
+                    Mode de calcul
                 </div>
                 <div className="flex flex-wrap gap-1">
-                    {tables.map((t) => (
-                        <button
-                            key={t.name}
-                            onClick={() => setFromTable(t.name)}
-                            className={cn(
-                                'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
-                                fromTable === t.name
-                                    ? 'border-brand bg-brand/15 font-medium'
-                                    : 'border-border hover:bg-accent',
-                            )}
-                        >
-                            <Table2 className="mr-1.5 inline size-3.5 text-muted-foreground" />
-                            {t.name}
-                        </button>
-                    ))}
+                    <button
+                        onClick={() => toggleCompose(false)}
+                        className={cn(
+                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
+                            !composeOn
+                                ? 'border-brand bg-brand/15 font-medium'
+                                : 'border-border hover:bg-accent',
+                        )}
+                    >
+                        Une valeur simple
+                    </button>
+                    <button
+                        onClick={() => toggleCompose(true)}
+                        className={cn(
+                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
+                            composeOn
+                                ? 'border-brand bg-brand/15 font-medium'
+                                : 'border-border hover:bg-accent',
+                        )}
+                    >
+                        Composition A • B
+                    </button>
                 </div>
             </div>
-            <div>
-                <div className="mb-1.5 text-[12px] font-semibold">
-                    Table cible
+
+            {composeOn ? (
+                <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-[12px] leading-relaxed">
+                    <span className="font-semibold text-brand">
+                        Composition A • B
+                    </span>{' '}
+                    : aucune table n’est requise. Vous choisissez vos deux
+                    opérandes (mesure, colonne agrégée ou nombre) à l’étape
+                    suivante, puis l’opération et le format.
                 </div>
-                <div className="flex flex-wrap gap-1">
-                    {tables.map((t) => (
-                        <button
-                            key={t.name}
-                            disabled={t.name === fromTable}
-                            onClick={() => selectTarget(t.name)}
-                            className={cn(
-                                'rounded-lg border px-3 py-1.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-30',
-                                toTable === t.name
-                                    ? 'border-brand bg-brand/15 font-medium'
-                                    : 'border-border hover:bg-accent',
-                            )}
-                        >
-                            {t.name}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            ) : (
+                <>
+                    <div>
+                        <div className="mb-1.5 text-[12px] font-semibold">
+                            Table de départ
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {tables.map((t) => (
+                                <button
+                                    key={t.name}
+                                    onClick={() => setFromTable(t.name)}
+                                    className={cn(
+                                        'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
+                                        fromTable === t.name
+                                            ? 'border-brand bg-brand/15 font-medium'
+                                            : 'border-border hover:bg-accent',
+                                    )}
+                                >
+                                    <Table2 className="mr-1.5 inline size-3.5 text-muted-foreground" />
+                                    {t.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1.5 text-[12px] font-semibold">
+                            Table cible
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {tables.map((t) => (
+                                <button
+                                    key={t.name}
+                                    disabled={t.name === fromTable}
+                                    onClick={() => selectTarget(t.name)}
+                                    className={cn(
+                                        'rounded-lg border px-3 py-1.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-30',
+                                        toTable === t.name
+                                            ? 'border-brand bg-brand/15 font-medium'
+                                            : 'border-border hover:bg-accent',
+                                    )}
+                                >
+                                    {t.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -938,6 +1193,8 @@ function ResultStep({
     setCondOp,
     condVal,
     setCondVal,
+    composeOn,
+    toggleCompose,
 }: {
     toDef: TableDef | undefined;
     toColumns: string[];
@@ -955,6 +1212,8 @@ function ResultStep({
     setCondOp: (o: ValueCondition['op']) => void;
     condVal: string;
     setCondVal: (v: string) => void;
+    composeOn: boolean;
+    toggleCompose: (on: boolean) => void;
 }) {
     return (
         <div className="grid gap-4">
@@ -980,19 +1239,289 @@ function ResultStep({
                 </div>
             </div>
 
-            {kind === 'number' && (
-                <div>
-                    <div className="mb-1.5 text-[12px] font-semibold">
-                        Agrégation
+            <div>
+                <div className="mb-1.5 text-[12px] font-semibold">
+                    Mode de calcul
+                </div>
+                <div className="flex flex-wrap gap-1">
+                    <button
+                        onClick={() => toggleCompose(false)}
+                        className={cn(
+                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
+                            !composeOn
+                                ? 'border-brand bg-brand/15 font-medium'
+                                : 'border-border hover:bg-accent',
+                        )}
+                    >
+                        Une valeur simple
+                    </button>
+                    <button
+                        onClick={() => toggleCompose(true)}
+                        className={cn(
+                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
+                            composeOn
+                                ? 'border-brand bg-brand/15 font-medium'
+                                : 'border-border hover:bg-accent',
+                        )}
+                    >
+                        Composition A • B
+                    </button>
+                </div>
+            </div>
+
+            {!composeOn ? (
+                <>
+                    {kind === 'number' && (
+                        <div>
+                            <div className="mb-1.5 text-[12px] font-semibold">
+                                Agrégation
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                                {AGG_KEYS.map((a) => (
+                                    <button
+                                        key={a}
+                                        onClick={() => setAgg(a)}
+                                        className={cn(
+                                            'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
+                                            agg === a
+                                                ? 'border-brand bg-brand/15'
+                                                : 'border-border hover:bg-accent',
+                                        )}
+                                    >
+                                        {AGG_LABELS[a]}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {kind !== 'countrows' && (
+                        <div>
+                            <div className="mb-1.5 text-[12px] font-semibold">
+                                Colonne de la table « {toDef?.name ?? ''} »
+                            </div>
+                            {toColumns.length ? (
+                                <div className="flex max-h-40 flex-wrap gap-1 overflow-auto">
+                                    {toColumns.map((c) => (
+                                        <button
+                                            key={c}
+                                            onClick={() => setColumn(c)}
+                                            className={cn(
+                                                'rounded border px-2 py-1 font-mono text-[11px] transition-colors',
+                                                column === c
+                                                    ? 'border-brand bg-brand/15'
+                                                    : 'border-border hover:bg-accent',
+                                            )}
+                                        >
+                                            {c}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-[11px] text-muted-foreground">
+                                    Aucune colonne disponible.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="rounded-lg border border-border p-3">
+                        <label className="flex items-center gap-2 text-[12px]">
+                            <input
+                                type="checkbox"
+                                checked={condOn}
+                                onChange={(e) => setCondOn(e.target.checked)}
+                                className="accent-brand"
+                            />
+                            Appliquer une condition
+                        </label>
+                        {condOn && (
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <select
+                                    value={condCol}
+                                    onChange={(e) => setCondCol(e.target.value)}
+                                    className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                >
+                                    <option value="">Colonne</option>
+                                    {(toDef?.fields ?? []).map((f) => (
+                                        <option key={f.name} value={f.name}>
+                                            {f.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={condOp}
+                                    onChange={(e) =>
+                                        setCondOp(
+                                            e.target
+                                                .value as ValueCondition['op'],
+                                        )
+                                    }
+                                    className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                >
+                                    {OP_KEYS.map((op) => (
+                                        <option key={op} value={op}>
+                                            {COND_LABELS[op]}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    value={condVal}
+                                    onChange={(e) => setCondVal(e.target.value)}
+                                    placeholder="valeur"
+                                    className="w-28 rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
+                                />
+                            </div>
+                        )}
                     </div>
+                </>
+            ) : (
+                <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-[12px] leading-relaxed">
+                    <span className="font-semibold text-brand">
+                        Composition A • B
+                    </span>{' '}
+                    : la mesure est construite à partir de deux opérandes (une
+                    mesure existante, une colonne agrégée ou un nombre). Passez
+                    à l’étape suivante pour choisir l’opération et régler le
+                    format.
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ───────────────────────── Step: Composition ────────────────────────── */
+
+function OperandEditor({
+    label,
+    tables,
+    measures,
+    value,
+    onChange,
+    onCreateSimple,
+}: {
+    label: string;
+    tables: TableDef[];
+    measures: Field[];
+    value: OperandDraft;
+    onChange: (d: OperandDraft) => void;
+    onCreateSimple: () => void;
+}) {
+    const patch = (p: Partial<OperandDraft>) => onChange({ ...value, ...p });
+    const operandFields = tables.find((t) => t.name === value.table)?.fields;
+    return (
+        <div className="rounded-lg border border-border bg-panel p-3">
+            <div className="mb-2 text-[12px] font-semibold">
+                Opérande {label}
+            </div>
+            <div className="mb-2 flex flex-wrap gap-1">
+                {(
+                    [
+                        { key: 'measure', label: 'Mesure' },
+                        { key: 'column', label: 'Colonne' },
+                        { key: 'number', label: 'Nombre' },
+                    ] as const
+                ).map((k) => (
+                    <button
+                        key={k.key}
+                        onClick={() => patch({ kind: k.key })}
+                        className={cn(
+                            'rounded border px-2.5 py-1 text-[11px] transition-colors',
+                            value.kind === k.key
+                                ? 'border-brand bg-brand/15'
+                                : 'border-border hover:bg-accent',
+                        )}
+                    >
+                        {k.label}
+                    </button>
+                ))}
+            </div>
+
+            {value.kind === 'measure' && (
+                <>
+                    <select
+                        value={value.measure}
+                        onChange={(e) => patch({ measure: e.target.value })}
+                        className="w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]"
+                    >
+                        <option value="">Mesure…</option>
+                        {measures.map((m) => (
+                            <option key={m.name} value={m.name}>
+                                {m.name}
+                            </option>
+                        ))}
+                    </select>
+                    {measures.length === 0 && (
+                        <div className="mt-2 rounded border border-dashed border-border p-2 text-[11px] leading-relaxed text-muted-foreground">
+                            Aucune mesure existante. Créez d’abord une mesure
+                            simple — elle apparaîtra ici.
+                            <button
+                                type="button"
+                                onClick={onCreateSimple}
+                                className="mt-1.5 block rounded border border-brand/40 bg-brand/10 px-2 py-1 text-[11px] font-medium text-brand transition-colors hover:bg-brand/20"
+                            >
+                                Créer une mesure simple
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {value.kind === 'number' && (
+                <input
+                    type="number"
+                    step="any"
+                    value={value.value}
+                    onChange={(e) => patch({ value: e.target.value })}
+                    placeholder="ex : 1,5"
+                    className="w-full rounded border border-border bg-background px-2 py-1.5 text-[12px] placeholder:text-muted-foreground/50"
+                />
+            )}
+
+            {value.kind === 'column' && (
+                <div className="grid gap-2">
+                    <select
+                        value={value.table}
+                        onChange={(e) => {
+                            const t = e.target.value;
+                            const def = tables.find((d) => d.name === t);
+                            const col =
+                                (
+                                    def?.fields.find(
+                                        (f) => f.type === 'number',
+                                    ) ?? def?.fields[0]
+                                )?.name ?? '';
+                            patch({ table: t, column: col });
+                        }}
+                        className="w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]"
+                    >
+                        <option value="">Table…</option>
+                        {tables.map((t) => (
+                            <option key={t.name} value={t.name}>
+                                {t.name}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        value={value.column}
+                        onChange={(e) => patch({ column: e.target.value })}
+                        className="w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]"
+                    >
+                        <option value="">Colonne…</option>
+                        {(operandFields ?? []).map((f) => (
+                            <option key={f.name} value={f.name}>
+                                {f.name}
+                            </option>
+                        ))}
+                    </select>
                     <div className="flex flex-wrap gap-1">
                         {AGG_KEYS.map((a) => (
                             <button
                                 key={a}
-                                onClick={() => setAgg(a)}
+                                onClick={() => patch({ agg: a })}
                                 className={cn(
-                                    'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
-                                    agg === a
+                                    'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+                                    value.agg === a
                                         ? 'border-brand bg-brand/15'
                                         : 'border-border hover:bg-accent',
                                 )}
@@ -1003,82 +1532,147 @@ function ResultStep({
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
 
-            {kind !== 'countrows' && (
-                <div>
-                    <div className="mb-1.5 text-[12px] font-semibold">
-                        Colonne de la table « {toDef?.name ?? ''} »
+function CompositionStep({
+    tables,
+    measures,
+    opA,
+    setOpA,
+    opB,
+    setOpB,
+    composeOp,
+    setComposeOp,
+    scaleHundreds,
+    setScaleHundreds,
+    dax,
+    value,
+    composeReady,
+    error,
+    onCreateSimple,
+}: {
+    tables: TableDef[];
+    measures: Field[];
+    opA: OperandDraft;
+    setOpA: (d: OperandDraft) => void;
+    opB: OperandDraft;
+    setOpB: (d: OperandDraft) => void;
+    composeOp: CompositeSpec['op'];
+    setComposeOp: (op: CompositeSpec['op']) => void;
+    scaleHundreds: boolean;
+    setScaleHundreds: (b: boolean) => void;
+    dax: string;
+    value: number | null;
+    composeReady: boolean;
+    error: string | null;
+    onCreateSimple: () => void;
+}) {
+    const operandLabel = (d: OperandDraft): string => {
+        switch (d.kind) {
+            case 'measure':
+                return d.measure ? `[${d.measure}]` : '—';
+            case 'number':
+                return d.value === '' ? '…' : d.value;
+            case 'column':
+                return d.table && d.column
+                    ? `${AGG_LABELS[d.agg]}(${d.table}[${d.column}])`
+                    : '—';
+        }
+    };
+    return (
+        <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr]">
+                <OperandEditor
+                    label="A"
+                    tables={tables}
+                    measures={measures}
+                    value={opA}
+                    onChange={setOpA}
+                    onCreateSimple={onCreateSimple}
+                />
+                <div className="flex items-center justify-center">
+                    <div className="flex flex-col gap-1.5">
+                        {COMPOSE_OPS.map((o) => (
+                            <button
+                                key={o.key}
+                                onClick={() => setComposeOp(o.key)}
+                                className={cn(
+                                    'flex size-9 items-center justify-center rounded border text-[14px] transition-colors',
+                                    composeOp === o.key
+                                        ? 'border-brand bg-brand/15 text-brand'
+                                        : 'border-border hover:bg-accent',
+                                )}
+                            >
+                                {o.label}
+                            </button>
+                        ))}
                     </div>
-                    {toColumns.length ? (
-                        <div className="flex max-h-40 flex-wrap gap-1 overflow-auto">
-                            {toColumns.map((c) => (
-                                <button
-                                    key={c}
-                                    onClick={() => setColumn(c)}
-                                    className={cn(
-                                        'rounded border px-2 py-1 font-mono text-[11px] transition-colors',
-                                        column === c
-                                            ? 'border-brand bg-brand/15'
-                                            : 'border-border hover:bg-accent',
-                                    )}
-                                >
-                                    {c}
-                                </button>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-[11px] text-muted-foreground">
-                            Aucune colonne disponible.
-                        </p>
-                    )}
                 </div>
-            )}
+                <OperandEditor
+                    label="B"
+                    tables={tables}
+                    measures={measures}
+                    value={opB}
+                    onChange={setOpB}
+                    onCreateSimple={onCreateSimple}
+                />
+            </div>
 
             <div className="rounded-lg border border-border p-3">
                 <label className="flex items-center gap-2 text-[12px]">
                     <input
                         type="checkbox"
-                        checked={condOn}
-                        onChange={(e) => setCondOn(e.target.checked)}
+                        checked={scaleHundreds}
+                        onChange={(e) => setScaleHundreds(e.target.checked)}
                         className="accent-brand"
                     />
-                    Appliquer une condition
+                    Résultat en pourcentage (multiplié par 100)
                 </label>
-                {condOn && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <select
-                            value={condCol}
-                            onChange={(e) => setCondCol(e.target.value)}
-                            className="rounded border border-border bg-background px-2 py-1 text-[11px]"
-                        >
-                            <option value="">Colonne</option>
-                            {(toDef?.fields ?? []).map((f) => (
-                                <option key={f.name} value={f.name}>
-                                    {f.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            value={condOp}
-                            onChange={(e) =>
-                                setCondOp(
-                                    e.target.value as ValueCondition['op'],
-                                )
-                            }
-                            className="rounded border border-border bg-background px-2 py-1 text-[11px]"
-                        >
-                            {OP_KEYS.map((op) => (
-                                <option key={op} value={op}>
-                                    {COND_LABELS[op]}
-                                </option>
-                            ))}
-                        </select>
-                        <input
-                            value={condVal}
-                            onChange={(e) => setCondVal(e.target.value)}
-                            placeholder="valeur"
-                            className="w-28 rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
-                        />
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted p-3">
+                <div className="mb-1 text-[11px] font-semibold">Formule</div>
+                <div className="font-mono text-[13px] leading-relaxed">
+                    <span className="text-foreground">{operandLabel(opA)}</span>{' '}
+                    <span className="font-bold text-brand">{composeOp}</span>{' '}
+                    <span className="text-foreground">{operandLabel(opB)}</span>
+                    {scaleHundreds && (
+                        <span className="text-muted-foreground"> × 100</span>
+                    )}
+                </div>
+            </div>
+
+            <div className="rounded-lg border border-border p-3">
+                <div className="mb-1 text-[11px] font-semibold">DAX</div>
+                <pre className="overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                    {dax}
+                </pre>
+            </div>
+
+            <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2">
+                <div className="text-[12px] font-semibold text-brand">
+                    Résultat en direct
+                </div>
+                {composeReady && value !== null && !error ? (
+                    <div className="mt-1 font-mono text-[16px] font-bold">
+                        {value}
+                    </div>
+                ) : (
+                    <div className="mt-1 text-[12px] text-muted-foreground">
+                        {error ? (
+                            <>
+                                Impossible de calculer :{' '}
+                                <span className="font-mono text-[11px] text-red-600">
+                                    {error}
+                                </span>
+                            </>
+                        ) : composeReady ? (
+                            'Aucune valeur calculable pour ces opérandes.'
+                        ) : (
+                            'Complétez les deux opérandes pour voir le résultat.'
+                        )}
                     </div>
                 )}
             </div>
@@ -1093,11 +1687,13 @@ function SaveStep({
     setName,
     dax,
     preview,
+    error,
 }: {
     name: string;
     setName: (n: string) => void;
     dax: string;
     preview: number | string[] | null;
+    error: string | null;
 }) {
     return (
         <div className="space-y-3">
@@ -1143,7 +1739,9 @@ function SaveStep({
                         )
                     ) : preview === null ? (
                         <span className="text-muted-foreground">
-                            Choisissez un chemin valide
+                            {error
+                                ? `Impossible de calculer : ${error}`
+                                : 'Choisissez un chemin valide'}
                         </span>
                     ) : (
                         String(preview)
