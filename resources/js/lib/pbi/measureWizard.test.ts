@@ -16,6 +16,7 @@ import {
 import {
     compileListMeasure,
     compileMeasure,
+    evaluateMeasure,
     setTables,
     type TableDef,
 } from './model';
@@ -921,7 +922,134 @@ describe('deriveMeasureSpec', () => {
         });
     });
 
-    it('returns null for an unrecognized scalar expression', () => {
-        expect(deriveMeasureSpec('SUM(codestyle[Qty]) / 2')).toBeNull();
+    it('reverses a composed ratio DIVIDE(a,b)*100 back into its operands', () => {
+        const generated = buildMeasureDax({
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
+                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                op: '/',
+                scale: true,
+            },
+        });
+        expect(generated).toBe('DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100');
+        const spec = deriveMeasureSpec(generated);
+        expect(spec).not.toBeNull();
+        expect(spec!.composition).toEqual({
+            a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
+            b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+            op: '/',
+            scale: true,
+        });
+    });
+
+    // Wave 1 (W1-09): the former `null` marker now round-trips a difference.
+    it('reverses a bare column/binop difference with a numeric operand', () => {
+        const spec = deriveMeasureSpec('SUM(codestyle[Qty]) / 2');
+        expect(spec).not.toBeNull();
+        expect(spec!.composition).toEqual({
+            a: { type: 'column', table: 'codestyle', column: 'Qty', agg: 'sum' },
+            b: { type: 'number', value: 2 },
+            op: '/',
+            scale: false,
+        });
+    });
+});
+
+describe('composition (Wave 1)', () => {
+    it('W1-05 emits Me = DIVIDE([A],[B]) * 100 for column÷column with ×100', () => {
+        const dax = measureExpression('Taux', {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
+                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                op: '/',
+                scale: true,
+            },
+        });
+        expect(dax).toBe(
+            'Taux = DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100',
+        );
+    });
+
+    it('W1-06 accepts an existing measure reference as an operand', () => {
+        const dax = buildMeasureDax({
+            kind: 'number',
+            from: '',
+            to: '',
+            hops: [],
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: { type: 'measure', name: 'Total Rejets' },
+                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                op: '-',
+                scale: true,
+            },
+        });
+        expect(dax).toBe('([Total Rejets] - SUM(kpi_a[Inspections])) * 100');
+    });
+
+    it('W1-09 a measure-ref difference round-trips through derive', () => {
+        const body = buildMeasureDax({
+            kind: 'number',
+            from: '',
+            to: '',
+            hops: [],
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: { type: 'measure', name: 'Total Sales' },
+                b: { type: 'number', value: 1000 },
+                op: '/',
+                scale: true,
+            },
+        });
+        const round = deriveMeasureSpec(body);
+        expect(round).not.toBeNull();
+        expect(round!.composition).toEqual({
+            a: { type: 'measure', name: 'Total Sales' },
+            b: { type: 'number', value: 1000 },
+            op: '/',
+            scale: true,
+        });
+    });
+
+    it('W1-10 composed DAX compiles cleanly and evaluates to the ratio', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                ],
+                rows: [
+                    { Rejets: 25, Inspections: 200 },
+                    { Rejets: 5, Inspections: 0 },
+                ],
+            },
+        ]);
+        const dax = measureExpression('Taux', {
+            composition: {
+                a: { type: 'column', table: 'kpi_a', column: 'Rejets', agg: 'sum' },
+                b: { type: 'column', table: 'kpi_a', column: 'Inspections', agg: 'sum' },
+                op: '/',
+                scale: true,
+            },
+        } as WizardSpec);
+        expect(() => compileMeasure(dax)).not.toThrow();
+        const r = evaluateMeasure(dax, []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(15);
     });
 });

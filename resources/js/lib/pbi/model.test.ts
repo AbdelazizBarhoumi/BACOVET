@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { applyTableRows, filterTableRows, type ReportFilter } from './filters';
+import type { RelationGraph } from './graph';
 import {
     aggregate,
     applyFx,
@@ -38,9 +39,11 @@ import {
     unregisterMeasure,
     validateMeasureExpression,
     visualTitleStyle,
+    buildTableCells,
     type FxOp,
     type FxRule,
     type TableDef,
+    type WellField,
 } from './model';
 import { slicerKey } from './store';
 
@@ -1846,6 +1849,88 @@ describe('listTreatment (list-aggregation)', () => {
     it('returns null when numeric mode meets no numeric code', () => {
         expect(listTreatment(['340497 AW25', 'STYLE X'], 'sum')).toBeNull();
         expect(listTreatment([], 'sum')).toBeNull();
+    });
+});
+
+describe('buildTableCells — per-row list (W1-12/14)', () => {
+    const employees: TableDef = {
+        name: 'employees',
+        fields: [
+            { table: 'employees', name: 'Id', type: 'text' },
+            { table: 'employees', name: 'Name', type: 'text' },
+        ],
+        rows: [
+            { Id: 'E1', Name: 'Ada' },
+            { Id: 'E2', Name: 'No data' },
+        ],
+    };
+    const orders: TableDef = {
+        name: 'employee_data',
+        fields: [
+            { table: 'employee_data', name: 'EmpId', type: 'text' },
+            { table: 'employee_data', name: 'OrderId', type: 'text' },
+        ],
+        rows: [
+            { EmpId: 'E1', OrderId: 'B2' },
+            { EmpId: 'E1', OrderId: 'B1' },
+            { EmpId: 'E1', OrderId: 'B1' },
+        ],
+    };
+    const graph: RelationGraph = {
+        edges: [
+            {
+                a: 'employees',
+                b: 'employee_data',
+                columns: [{ colA: 'Id', colB: 'EmpId' }],
+                kind: 'fk_pk',
+                confidence: 1,
+            },
+        ],
+    };
+    const axis: WellField = { table: 'employees', name: 'Id', agg: 'sum' };
+
+    it('each employee row shows exactly that employee’s distinct orders', () => {
+        setTables([structuredClone(employees), structuredClone(orders)]);
+        registerMeasure(
+            'My Orders',
+            'My Orders = VALUES(employee_data[OrderId])',
+        );
+        const value: WellField = {
+            table: 'employee_data',
+            name: 'My Orders',
+            agg: 'count',
+        };
+        const { data, series } = buildTableCells(
+            employees.rows,
+            [axis],
+            [],
+            [value],
+            graph,
+        );
+        expect(series).toEqual(['My Orders']);
+        const byEmp = Object.fromEntries(
+            data.map((d) => [String(d['category']), d['My Orders']]),
+        );
+        expect(byEmp['E1']).toEqual(['B1', 'B2']);
+        expect(byEmp['E2']).toEqual([]);
+        unregisterMeasure('My Orders');
+    });
+
+    it('a numeric measure value keeps the per-group aggregation', () => {
+        setTables([structuredClone(employees), structuredClone(orders)]);
+        registerMeasure('Order Count', 'Order Count = COUNTROWS(employee_data)');
+        const value: WellField = {
+            table: 'employee_data',
+            name: 'Order Count',
+            agg: 'count',
+        };
+        const { data } = buildTableCells(employees.rows, [axis], [], [value], graph);
+        const byEmp = Object.fromEntries(
+            data.map((d) => [String(d['category']), d['Order Count']]),
+        );
+        expect(byEmp['E1']).toBe(3);
+        expect(byEmp['E2']).toBe(0);
+        unregisterMeasure('Order Count');
     });
 });
 

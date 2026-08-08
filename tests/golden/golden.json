@@ -1,0 +1,1345 @@
+{
+  "generated_at": "2026-08-08T19:35:18.916Z",
+  "source_signature": "2d886b49",
+  "tables": [
+    {
+      "name": "itemtrx",
+      "fields": [
+        {
+          "table": "itemtrx",
+          "name": "EmpGroup",
+          "type": "text"
+        },
+        {
+          "table": "itemtrx",
+          "name": "EmployeeName",
+          "type": "text"
+        },
+        {
+          "table": "itemtrx",
+          "name": "ProdGroup",
+          "type": "text"
+        },
+        {
+          "table": "itemtrx",
+          "name": "Quantity",
+          "type": "number"
+        },
+        {
+          "table": "itemtrx",
+          "name": "ShiftCode",
+          "type": "text"
+        },
+        {
+          "table": "itemtrx",
+          "name": "ItemNo",
+          "type": "number"
+        },
+        {
+          "table": "itemtrx",
+          "name": "TransactionID",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "amel nasrallah",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 306657
+        },
+        {
+          "EmpGroup": "CH04                                    ",
+          "EmployeeName": "MARIEM ABDALLAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 292472
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Bouthayna Habhoubi",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 294954
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "HAJ AHMED BESMA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 306647
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "HAJ AHMED BESMA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 306648
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 306641
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 295674
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 295675
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 306642
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 295677
+        },
+        {
+          "EmpGroup": "CH06                                    ",
+          "EmployeeName": "Chrif Aida",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 296454
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "Mathlouthi najoua",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 307008
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Mouldia Salem",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 307024
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 308195
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 308196
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "nada mgaith",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 309596
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 310566
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 310567
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 310568
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "hiba akkari",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 310027
+        },
+        {
+          "EmpGroup": "Departage                               ",
+          "EmployeeName": "roukaya zaafrani",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 276173
+        },
+        {
+          "EmpGroup": "Sortie AQL                              ",
+          "EmployeeName": "afef gharbi",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 277521
+        },
+        {
+          "EmpGroup": "Sortie-Cp                               ",
+          "EmployeeName": "amna salah",
+          "ProdGroup": "Sortie-Cp                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012187,
+          "TransactionID": 279192
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "amel nasrallah",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 306653
+        },
+        {
+          "EmpGroup": "CH11                                    ",
+          "EmployeeName": "siwar el bay",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 296673
+        },
+        {
+          "EmpGroup": "CH11                                    ",
+          "EmployeeName": "siwar el bay",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 296674
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Bouthayna Habhoubi",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 302607
+        },
+        {
+          "EmpGroup": "CH07                                    ",
+          "EmployeeName": "MESSAADI MONGIA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 306640
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "HAJ AHMED BESMA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 306638
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "HAJ AHMED BESMA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 306639
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 306635
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 304838
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 304839
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 306636
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 304840
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "AWATEF AKERMI",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 304837
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "Mathlouthi najoua",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 307009
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Mouldia Salem",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 307031
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 308223
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 308224
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "nada mgaith",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 309584
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 312017
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 312018
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 312019
+        },
+        {
+          "EmpGroup": "Departage                               ",
+          "EmployeeName": "roukaya zaafrani",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 276175
+        },
+        {
+          "EmpGroup": "Sortie AQL                              ",
+          "EmployeeName": "amira ben ali",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 276762
+        },
+        {
+          "EmpGroup": "Sortie-Cp                               ",
+          "EmployeeName": "amna salah",
+          "ProdGroup": "Sortie-Cp                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012188,
+          "TransactionID": 3680510
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "Sawsen Fraj",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 309277
+        },
+        {
+          "EmpGroup": "CH11                                    ",
+          "EmployeeName": "siwar el bay",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 297369
+        },
+        {
+          "EmpGroup": "CH11                                    ",
+          "EmployeeName": "siwar el bay",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 297370
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Bouthayna Habhoubi",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 301787
+        },
+        {
+          "EmpGroup": "CH07                                    ",
+          "EmployeeName": "MESSAADI MONGIA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 308282
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "HAJ AHMED BESMA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 308280
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "HAJ AHMED BESMA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 308281
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 308556
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 305333
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 305334
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 308557
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 305335
+        },
+        {
+          "EmpGroup": "CH16                                    ",
+          "EmployeeName": "AWATEF AKERMI",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 307282
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "amel nasrallah",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 308898
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "Mathlouthi najoua",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 309260
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Mouldia Salem",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 309273
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 311250
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 311251
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "nada mgaith",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 311247
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 312013
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 312014
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 312015
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "hiba akkari",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 311741
+        },
+        {
+          "EmpGroup": "Departage                               ",
+          "EmployeeName": "roukaya zaafrani",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 276174
+        },
+        {
+          "EmpGroup": "Sortie AQL                              ",
+          "EmployeeName": "amira ben ali",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 276876
+        },
+        {
+          "EmpGroup": "Sortie-Cp                               ",
+          "EmployeeName": "amna salah",
+          "ProdGroup": "Sortie-Cp                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012189,
+          "TransactionID": 277146
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "amel nasrallah",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 303995
+        },
+        {
+          "EmpGroup": "CH04                                    ",
+          "EmployeeName": "MARIEM ABDALLAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 294886
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Bouthayna Habhoubi",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 298795
+        },
+        {
+          "EmpGroup": "CH07                                    ",
+          "EmployeeName": "MESSAADI MONGIA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 303825
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 303983
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 301155
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 301156
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 303984
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 301157
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "Haj hsan roukaya",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 304271
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Mouldia Salem",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 304357
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "HFAIEDH NASSIMA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 304358
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 305765
+        },
+        {
+          "EmpGroup": "CH02                                    ",
+          "EmployeeName": "Louhichi Naima",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 305766
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "nada mgaith",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 305756
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 310575
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 310576
+        },
+        {
+          "EmpGroup": "CH09                                    ",
+          "EmployeeName": "najeh abid",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 310577
+        },
+        {
+          "EmpGroup": "Departage                               ",
+          "EmployeeName": "roukaya zaafrani",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 277463
+        },
+        {
+          "EmpGroup": "Sortie AQL                              ",
+          "EmployeeName": "afef gharbi",
+          "ProdGroup": "Departage                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 278154
+        },
+        {
+          "EmpGroup": "Sortie-Cp                               ",
+          "EmployeeName": "amna salah",
+          "ProdGroup": "Sortie-Cp                               ",
+          "Quantity": 36,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012190,
+          "TransactionID": 279183
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "amel nasrallah",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 34,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012191,
+          "TransactionID": 303988
+        },
+        {
+          "EmpGroup": "CH01                                    ",
+          "EmployeeName": "Bouthayna Habhoubi",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 34,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012191,
+          "TransactionID": 299543
+        },
+        {
+          "EmpGroup": "CH07                                    ",
+          "EmployeeName": "MESSAADI MONGIA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 34,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012191,
+          "TransactionID": 303829
+        },
+        {
+          "EmpGroup": "CH10                                    ",
+          "EmployeeName": "FRADJ HAMIDA",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 34,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012191,
+          "TransactionID": 303996
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 34,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012191,
+          "TransactionID": 301514
+        },
+        {
+          "EmpGroup": "CH03                                    ",
+          "EmployeeName": "AMINA SALAH",
+          "ProdGroup": "CH10                                    ",
+          "Quantity": 34,
+          "ShiftCode": "JOUR      ",
+          "ItemNo": 10012191,
+          "TransactionID": 301515
+        }
+      ]
+    },
+    {
+      "name": "kpi_rejets_annee",
+      "fields": [
+        {
+          "name": "BundleRejectYear",
+          "table": "kpi_rejets_annee",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "BundleRejectYear": 0
+        }
+      ]
+    },
+    {
+      "name": "kpi_inspections_annee",
+      "fields": [
+        {
+          "name": "BundleInspectedYear",
+          "table": "kpi_inspections_annee",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "BundleInspectedYear": 4
+        }
+      ]
+    },
+    {
+      "name": "kpi_rejets_jour",
+      "fields": [
+        {
+          "name": "BundleRejectToday",
+          "table": "kpi_rejets_jour",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "BundleRejectToday": 0
+        }
+      ]
+    },
+    {
+      "name": "kpi_inspections_jour",
+      "fields": [
+        {
+          "name": "BundleInspectedToday",
+          "table": "kpi_inspections_jour",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "BundleInspectedToday": 0
+        }
+      ]
+    },
+    {
+      "name": "kpi_pareto_defects",
+      "fields": [
+        {
+          "name": "type_defaut",
+          "table": "kpi_pareto_defects",
+          "type": "text"
+        },
+        {
+          "name": "severite",
+          "table": "kpi_pareto_defects",
+          "type": "text"
+        },
+        {
+          "name": "nb_defauts",
+          "table": "kpi_pareto_defects",
+          "type": "number"
+        },
+        {
+          "name": "part_pct",
+          "table": "kpi_pareto_defects",
+          "type": "number"
+        },
+        {
+          "name": "cumul_pct",
+          "table": "kpi_pareto_defects",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "type_defaut": "Couleur",
+          "severite": "Majeur",
+          "nb_defauts": 176,
+          "part_pct": 20.61,
+          "cumul_pct": 20.61
+        },
+        {
+          "type_defaut": "Aspect",
+          "severite": "Majeur",
+          "nb_defauts": 132,
+          "part_pct": 15.46,
+          "cumul_pct": 36.07
+        },
+        {
+          "type_defaut": "Aspect (Après application pour le HT / SEQUIN /STRASS)",
+          "severite": "Majeur",
+          "nb_defauts": 88,
+          "part_pct": 10.3,
+          "cumul_pct": 46.37
+        },
+        {
+          "type_defaut": "Craquage du marquage",
+          "severite": "Majeur",
+          "nb_defauts": 69,
+          "part_pct": 8.08,
+          "cumul_pct": 54.45
+        },
+        {
+          "type_defaut": "Invisibilité de l'impression",
+          "severite": "Mineur",
+          "nb_defauts": 50,
+          "part_pct": 5.85,
+          "cumul_pct": 60.3
+        },
+        {
+          "type_defaut": "Dimension",
+          "severite": "Majeur",
+          "nb_defauts": 44,
+          "part_pct": 5.15,
+          "cumul_pct": 65.46
+        },
+        {
+          "type_defaut": "Fonctionnalité dans une utilisation raisonnable",
+          "severite": "Critique",
+          "nb_defauts": 44,
+          "part_pct": 5.15,
+          "cumul_pct": 70.61
+        },
+        {
+          "type_defaut": "ème Caractéristique Longueur rouleau suite à un contrôle quantitativement avec saisie de la valeur trouvée :",
+          "severite": "Majeur",
+          "nb_defauts": 44,
+          "part_pct": 5.15,
+          "cumul_pct": 75.76
+        },
+        {
+          "type_defaut": "Nuance (Légère )",
+          "severite": "Mineur",
+          "nb_defauts": 29,
+          "part_pct": 3.4,
+          "cumul_pct": 79.16
+        },
+        {
+          "type_defaut": "Contenu",
+          "severite": "Critique",
+          "nb_defauts": 22,
+          "part_pct": 2.58,
+          "cumul_pct": 81.73
+        },
+        {
+          "type_defaut": "ème Caractéristique Laize utile rouleau suite à contrôle quantitativement avec saisie de la valeur trouvée :",
+          "severite": "Critique",
+          "nb_defauts": 22,
+          "part_pct": 2.58,
+          "cumul_pct": 84.31
+        },
+        {
+          "type_defaut": "ère Caractéristique Conformité Nombre des points de pénalité selon la méthode 4points :",
+          "severite": "Majeur",
+          "nb_defauts": 21,
+          "part_pct": 2.46,
+          "cumul_pct": 86.77
+        },
+        {
+          "type_defaut": "Valeur de couture non conforme",
+          "severite": "Critique",
+          "nb_defauts": 16,
+          "part_pct": 1.87,
+          "cumul_pct": 88.64
+        },
+        {
+          "type_defaut": "Brulure ou/et lustrage sur le panneau",
+          "severite": "Majeur",
+          "nb_defauts": 13,
+          "part_pct": 1.52,
+          "cumul_pct": 90.16
+        },
+        {
+          "type_defaut": "Absence d'information",
+          "severite": "Majeur",
+          "nb_defauts": 13,
+          "part_pct": 1.52,
+          "cumul_pct": 91.69
+        },
+        {
+          "type_defaut": "Illisibilité de l'impression",
+          "severite": "Critique",
+          "nb_defauts": 9,
+          "part_pct": 1.05,
+          "cumul_pct": 92.74
+        },
+        {
+          "type_defaut": "ème Caractéristique Touchet _ Densité _ Extensibilité _ Couleur :",
+          "severite": "Mineur",
+          "nb_defauts": 8,
+          "part_pct": 0.94,
+          "cumul_pct": 93.68
+        },
+        {
+          "type_defaut": "Existence de la colle",
+          "severite": "Majeur",
+          "nb_defauts": 7,
+          "part_pct": 0.82,
+          "cumul_pct": 94.5
+        },
+        {
+          "type_defaut": "Décollement du marquage",
+          "severite": "Majeur",
+          "nb_defauts": 6,
+          "part_pct": 0.7,
+          "cumul_pct": 95.2
+        },
+        {
+          "type_defaut": "2 Erreur d'information",
+          "severite": "Majeur",
+          "nb_defauts": 5,
+          "part_pct": 0.59,
+          "cumul_pct": 95.78
+        },
+        {
+          "type_defaut": "Logo mât ou brillant (selon le cas : )",
+          "severite": "Majeur",
+          "nb_defauts": 4,
+          "part_pct": 0.47,
+          "cumul_pct": 96.25
+        },
+        {
+          "type_defaut": "2 Fausse localisation du marquage",
+          "severite": "Critique",
+          "nb_defauts": 4,
+          "part_pct": 0.47,
+          "cumul_pct": 96.72
+        },
+        {
+          "type_defaut": "Nuance (Flagrante )",
+          "severite": "Majeur",
+          "nb_defauts": 4,
+          "part_pct": 0.47,
+          "cumul_pct": 97.19
+        },
+        {
+          "type_defaut": "Qualité de support non conforme",
+          "severite": "Critique",
+          "nb_defauts": 4,
+          "part_pct": 0.47,
+          "cumul_pct": 97.66
+        },
+        {
+          "type_defaut": "Absence ou erreur de marquage",
+          "severite": "Critique",
+          "nb_defauts": 3,
+          "part_pct": 0.35,
+          "cumul_pct": 98.01
+        },
+        {
+          "type_defaut": "Mélange matelas",
+          "severite": "Critique",
+          "nb_defauts": 3,
+          "part_pct": 0.35,
+          "cumul_pct": 98.36
+        },
+        {
+          "type_defaut": "Tâche d’ancre",
+          "severite": "Majeur",
+          "nb_defauts": 2,
+          "part_pct": 0.23,
+          "cumul_pct": 98.59
+        },
+        {
+          "type_defaut": "Positionnement hors tolérance",
+          "severite": "Majeur",
+          "nb_defauts": 2,
+          "part_pct": 0.23,
+          "cumul_pct": 98.83
+        },
+        {
+          "type_defaut": "Tâches",
+          "severite": "Majeur",
+          "nb_defauts": 2,
+          "part_pct": 0.23,
+          "cumul_pct": 99.06
+        },
+        {
+          "type_defaut": "Largeur non conforme",
+          "severite": "Majeur",
+          "nb_defauts": 2,
+          "part_pct": 0.23,
+          "cumul_pct": 99.3
+        },
+        {
+          "type_defaut": "ème Caractéristique Condition Générale de la livraison: Données/Traçabilité :",
+          "severite": "Critique",
+          "nb_defauts": 2,
+          "part_pct": 0.23,
+          "cumul_pct": 99.53
+        },
+        {
+          "type_defaut": "Touchet non conforme",
+          "severite": "Mineur",
+          "nb_defauts": 1,
+          "part_pct": 0.12,
+          "cumul_pct": 99.65
+        },
+        {
+          "type_defaut": "Défaut matière",
+          "severite": "Majeur",
+          "nb_defauts": 1,
+          "part_pct": 0.12,
+          "cumul_pct": 99.77
+        },
+        {
+          "type_defaut": "Contour non propre",
+          "severite": "Majeur",
+          "nb_defauts": 1,
+          "part_pct": 0.12,
+          "cumul_pct": 99.88
+        },
+        {
+          "type_defaut": "Longueur non conforme",
+          "severite": "Mineur",
+          "nb_defauts": 1,
+          "part_pct": 0.12,
+          "cumul_pct": 100
+        }
+      ]
+    }
+  ],
+  "scenarios": {
+    "itemtrx_row_count": 100,
+    "itemtrx_sum_quantity": 3588,
+    "itemtrx_distinct_emp": 23,
+    "itemtrx_distinct_prodgroup": 3,
+    "itemtrx_by_emp": {
+      "AMINA SALAH": {
+        "count": 14,
+        "sumQty": 500,
+        "items": [
+          "10012187",
+          "10012188",
+          "10012189",
+          "10012190",
+          "10012191"
+        ]
+      },
+      "najeh abid": {
+        "count": 12,
+        "sumQty": 432,
+        "items": [
+          "10012187",
+          "10012188",
+          "10012189",
+          "10012190"
+        ]
+      },
+      "FRADJ HAMIDA": {
+        "count": 9,
+        "sumQty": 322,
+        "items": [
+          "10012187",
+          "10012188",
+          "10012189",
+          "10012190",
+          "10012191"
+        ]
+      },
+      "Louhichi Naima": {
+        "count": 8,
+        "sumQty": 288,
+        "items": [
+          "10012187",
+          "10012188",
+          "10012189",
+          "10012190"
+        ]
+      }
+    },
+    "kpi_rejets_annee.BundleRejectYear": 0,
+    "kpi_inspections_annee.BundleInspectedYear": 4,
+    "kpi_rejets_jour.BundleRejectToday": 0,
+    "kpi_inspections_jour.BundleInspectedToday": 0,
+    "kpi_annee_ratio_numerator": 0,
+    "kpi_annee_ratio_denominator": 4,
+    "kpi_annee_ratio_div": 0,
+    "pareto_rows": 35,
+    "pareto_total_defauts": 854,
+    "pareto_part_pct_max_delta": 0.004800936768150521
+  }
+}

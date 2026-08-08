@@ -1,4 +1,6 @@
 import type {
+    CompositeOperand,
+    CompositeSpec,
     MeasureKind,
     NumericAgg,
     PathHop,
@@ -15,7 +17,46 @@ export const COND_OPS: Record<ValueCondition['op'], string> = {
     lte: '<=',
     eq: '=',
     neq: '<>',
+    in: 'IN',
+    notIn: 'NOT IN',
 };
+
+/** A composed operand: an existing measure `[Name]`, a column aggregate, or a literal. */
+function operandDax(o: CompositeOperand): string {
+    switch (o.type) {
+        case 'number':
+            return String(o.value);
+        case 'measure':
+            return `[${o.name}]`;
+        case 'column': {
+            const expr = `${o.table}[${o.column}]`;
+            switch (o.agg) {
+                case 'sum':
+                    return `SUM(${expr})`;
+                case 'avg':
+                    return `AVERAGE(${expr})`;
+                case 'min':
+                    return `MIN(${expr})`;
+                case 'max':
+                    return `MAX(${expr})`;
+                case 'count':
+                    return `COUNT(${expr})`;
+            }
+        }
+    }
+}
+
+/** A composed measure: `DIVIDE([A],[B]) * 100` for ratios, else `(A op B)`. */
+export function buildCompositionDax(spec: CompositeSpec): string {
+    const a = operandDax(spec.a);
+    const b = operandDax(spec.b);
+    // `*` and `/` compose directly so the whole count folds into the engine
+    const body =
+        spec.op === '/'
+            ? `DIVIDE(${a}, ${b}, 0)`
+            : `(${a} ${spec.op} ${b})`;
+    return spec.scale ? `${body} * 100` : body;
+}
 
 const quoteValue = (v: string): string =>
     /^-?\d+(\.\d+)?$/.test(v) ? v : `'${v.replace(/['"]/g, '')}'`;
@@ -50,6 +91,7 @@ function exists(hops: PathHop[], i: number, from: string): string {
  * left-padded (MONo 15, ProdGroup 40).
  */
 export function buildMeasureDax(spec: WizardSpec): string {
+    if (spec.composition) return buildCompositionDax(spec.composition);
     const { from, to, hops, kind, column, agg, condition } = spec;
     const chain = exists(hops, hops.length, from);
     const scaled =
@@ -125,6 +167,8 @@ export const COND_LABELS: Record<ValueCondition['op'], string> = {
     lte: 'Inférieur ou égal à',
     eq: 'Égal à',
     neq: 'Différent de',
+    in: 'Fait partie de',
+    notIn: 'Ne fait pas partie de',
 };
 
 export const KIND_LABELS: Record<MeasureKind, string> = {

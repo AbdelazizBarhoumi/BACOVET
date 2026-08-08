@@ -3,6 +3,7 @@
 
 import { applyTableRows, filterTableRows, type ReportFilter } from '../filters';
 import type { RelationGraph } from '../graph';
+import { isListMeasure, listMeasureValue } from './aggregate';
 import {
     AGGREGATION_FUNCS,
     ITERATOR_FUNCS,
@@ -462,12 +463,22 @@ function resolveColumn(
         const sourceTables = ctx.tables ?? TABLES;
         for (const name of candidates) {
             const source = sourceTables.find((t) => t.name === name);
-            if (source && source.rows.length && column in source.rows[0]) {
+            if (!source) continue;
+            // The named table exists: resolve against its schema. Empty row
+            // sets (a per-row context that matches nothing) stay valid — the
+            // column itself is known, so the result is an empty list, not an
+            // error (that's the "employee with no data → —" contract).
+            const knownColumn = source.fields.some((f) => f.name === column);
+            if (knownColumn && (source.rows.length === 0 || column in source.rows[0]!))
                 return source.rows.map((r) => r[column] ?? null);
+            if (!knownColumn && source.rows.length) {
+                const message = `Colonne « ${column} » introuvable.`;
+                ctx.errors?.push(message);
+                throw new MeasureSyntaxError(message);
             }
         }
     }
-    if (sample && !present) {
+    if (sample && !present && !table) {
         const message = `Colonne « ${column} » introuvable.`;
         ctx.errors?.push(message);
         throw new MeasureSyntaxError(message);
@@ -1854,6 +1865,125 @@ export function buildChartData(
         const key = measureLabel(values[0]!);
         data.sort((a, b) => Number(b[key]) - Number(a[key]));
     }
+
+    return { data, series: [...seriesSet] };
+}
+
+/**
+ * A table cell: a numeric aggregate, a plain value, or a per-row distinct list
+ * (string[]) when the value well holds a list measure (VALUES / DISTINCT).
+ */
+export type TableCellValue =
+    | number
+    | string
+    | string[]
+    | null;
+
+/** One cell value: list measures resolve in the filtered-table ctx. */
+function tableCellFor(
+    rows: Row[],
+    v: WellField,
+    ctx: EvalCtx | undefined,
+): TableCellValue {
+    if (v.name in LIST_MEASURE_IMPL) return listMeasureValue(rows, v.name, ctx);
+    return aggregate(rows, v, ctx);
+}
+
+/**
+ * Builds table/matrix cells. Each axis category gets its own filtered-table
+ * context, so a list measure in `values` shows **that category's** distinct
+ * items — the "each row has its own list" contract (W1-12). Numeric measures
+ * keep the existing per-group aggregation.
+ */
+export function buildTableCells(
+    rows: Row[],
+    axis: WellField[],
+    legend: WellField[],
+    values: WellField[],
+    graph?: RelationGraph,
+): { data: Record<string, unknown>[]; series: string[] } {
+    const axisCol = axis[0]?.name;
+    const axisTable = axis[0]?.table;
+    const legendCol = legend[0]?.name;
+
+    const hasList = (list: WellField[]) => list.some((f) => isListMeasure(f.name));
+    const hasM = (list: WellField[]) => list.some((f) => isMeasure(f.name));
+    const needsContext =
+        !!graph && (hasM(values) || hasM(legend) || hasList(values));
+
+    const ctxCache = new Map<string, EvalCtx | undefined>();
+    const ctxFor = (key: string): EvalCtx | undefined => {
+        if (!needsContext) return undefined;
+        if (ctxCache.has(key)) return ctxCache.get(key);
+        const table =
+            axisTable ||
+            (TABLES.find((td) => td.fields.some((f) => f.name === axisCol))
+                ?.name ?? '');
+        if (!table) return undefined;
+        const filter: ReportFilter = {
+            column: axisCol,
+            table,
+            values: [key],
+            scope: 'report',
+            type: 'list',
+        };
+        const filtered = filterTableRows(TABLES, [filter], graph);
+        const ctx: EvalCtx | undefined = {
+            tables: applyTableRows(TABLES, filtered),
+        };
+        ctxCache.set(key, ctx);
+        return ctx;
+    };
+
+    if (!axisCol) {
+        const single: Record<string, unknown> = { category: 'Total' };
+        const series: string[] = [];
+        for (const v of values) {
+            const label = measureLabel(v);
+            series.push(label);
+            single[label] = tableCellFor(rows, v, undefined);
+        }
+        return { data: [single], series };
+    }
+
+    const groups = new Map<string, Row[]>();
+    for (const r of rows) {
+        const k = String(r[axisCol]);
+        const arr = groups.get(k);
+        if (arr) arr.push(r);
+        else groups.set(k, [r]);
+    }
+
+    const seriesSet = new Set<string>();
+    const data = [...groups.entries()].map(([key, groupRows]) => {
+        const ctx = ctxFor(key);
+        const item: Record<string, unknown> = { category: key };
+        if (legendCol) {
+            const byLegend = new Map<string, Row[]>();
+            for (const r of groupRows) {
+                const lk = String(r[legendCol]);
+                const arr2 = byLegend.get(lk);
+                if (arr2) arr2.push(r);
+                else byLegend.set(lk, [r]);
+            }
+            for (const [lk, lrows] of byLegend) {
+                seriesSet.add(lk);
+                item[lk] = values[0]
+                    ? tableCellFor(lrows, values[0]!, ctx)
+                    : lrows.length;
+            }
+        } else {
+            values.forEach((v) => {
+                const label = measureLabel(v);
+                seriesSet.add(label);
+                item[label] = tableCellFor(groupRows, v, ctx);
+            });
+        }
+        return item;
+    });
+
+    if (fieldType(axisCol, axis[0]?.table) === 'number')
+        data.sort((a, b) => Number(a['category']) - Number(b['category']));
 
     return { data, series: [...seriesSet] };
 }

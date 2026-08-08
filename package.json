@@ -8,6 +8,7 @@
         "dev": "vite",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
+        "goldens:refresh": "node scripts/golden/oracle.cjs",
         "lint": "eslint . --fix",
         "types": "tsc --noEmit",
         "test": "vitest run",

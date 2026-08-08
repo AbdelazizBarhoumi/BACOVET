@@ -1,4 +1,6 @@
 import type {
+    CompositeOperand,
+    CompositeSpec,
     MeasureKind,
     NumericAgg,
     PathHop,
@@ -26,6 +28,117 @@ const AGG_FUNCS: Record<string, NumericAgg> = {
     count: 'count',
 };
 
+/** Parses one composed operand: `[Measure]`, `SUM(table[col])`, or a number. */
+function parseOperand(s: string): CompositeOperand | null {
+    const t = s.trim();
+    const measure = /^\[\s*([^\]]+)\s*\]$/i.exec(t);
+    if (measure) return { type: 'measure', name: measure[1]!.trim() };
+    const aggRe = new RegExp(
+        `^(${Object.keys(AGG_FUNCS).join('|')})\\(\\s*([a-zA-Z_][\\w]*)\\s*\\[\\s*([^\\]]+)\\s*\\]\\s*\\)$`,
+        'i',
+    );
+    const agg = aggRe.exec(t);
+    if (agg) {
+        const op = agg[1]!.toLowerCase();
+        return {
+            type: 'column',
+            table: agg[2]!,
+            column: agg[3]!.trim(),
+            agg: AGG_FUNCS[op] ?? 'sum',
+        };
+    }
+    if (/^-?\d+(\.\d+)?$/.test(t))
+        return { type: 'number', value: Number(t) };
+    return null;
+}
+
+/** Split on the top-level arithmetic operator (respecting parens/brackets). */
+function splitTopLevelBinop(s: string): { l: string; r: string; op: '/' | '*' | '-' | '+' } | null {
+    let depth = 0;
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i]!;
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+        else if (
+            depth === 0 &&
+            (c === '+' || c === '-' || c === '*' || c === '/')
+        ) {
+            const l = s.slice(0, i).trim();
+            const r = s.slice(i + 1).trim();
+            if (!l || !r) continue;
+            return { l, r, op: c };
+        }
+    }
+    return null;
+}
+
+/**
+ * Best-effort reversal of a composed measure:
+ *   DIVIDE(A, B, 0) * 100 | DIVIDE(A, B, 0) | (A op B) * 100 | (A op B) | A op B
+ * where operands are `[Measure]`, `SUM(table[col])` or a numeric literal.
+ */
+function parseComposition(trimmed: string): WizardSpec | null {
+    let body = trimmed;
+    let scale = false;
+    const scaleMatch = /^(.*?)\s*\*\s*100\s*$/i.exec(trimmed);
+    if (scaleMatch) {
+        scale = true;
+        body = scaleMatch[1]!.trim();
+    }
+
+    let op: '-' | '+' | '*' | '/' | null = null;
+    let aRaw: string;
+    let bRaw: string;
+
+    const div = /^DIVIDE\(\s*(.+?)\s*,\s*(.+?)\s*,\s*\d+\s*\)$/i.exec(body);
+    if (div) {
+        op = '/';
+        aRaw = div[1]!;
+        bRaw = div[2]!;
+    } else {
+        let inner = body;
+        const paren = /^\((.*)\)$/s.exec(body);
+        if (paren) {
+            if (hasTopLevelComma(paren[1]!)) return null;
+            inner = paren[1]!.trim();
+        }
+        const bin = splitTopLevelBinop(inner);
+        if (!bin) return null;
+        op = bin.op;
+        aRaw = bin.l;
+        bRaw = bin.r;
+    }
+
+    const a = parseOperand(aRaw);
+    const b = parseOperand(bRaw);
+    if (!a || !b || !op) return null;
+    const composition: CompositeSpec = { a, b, op, scale };
+
+    const from =
+        a.type === 'column' ? a.table : b.type === 'column' ? b.table : '';
+    const to =
+        b.type === 'column' ? b.table : a.type === 'column' ? a.table : '';
+    return {
+        from,
+        to,
+        hops: [],
+        kind: 'number',
+        column: '',
+        agg: 'sum',
+        composition,
+    };
+}
+
+function hasTopLevelComma(s: string): boolean {
+    let depth = 0;
+    for (const c of s) {
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+        else if (c === ',' && depth === 0) return true;
+    }
+    return false;
+}
+
 /**
  * Best-effort reversal of the DAX the wizard generates, so a measure that was
  * hand-typed (or produced then edited) can recover its `WizardSpec` and show
@@ -35,13 +148,17 @@ const AGG_FUNCS: Record<string, NumericAgg> = {
  * Supported shapes:
  *   VALUES(to[col])                        list (no hops)
  *   VALUES(FILTER(to, chain)[col])         list (hops / condition)
- *   COUNTROWS(to)                          count (no hops)
- *   COUNTROWS(FILTER(to, chain))           count (hops / condition)
- *   SUM(to[col]) …                         number (no hops)
- *   SUMX(FILTER(to, chain), to[col]) …     number (hops / condition)
+ *   COUNTROWS(to)                           count (no hops)
+ *   COUNTROWS(FILTER(to, chain))            count (hops / condition)
+ *   SUM(to[col]) …                          number (no hops)
+ *   SUMX(FILTER(to, chain), to[col]) …      number (hops / condition)
+ *   DIVIDE([A],[B]) * 100 …                 composite (composition step)
  */
 export function deriveMeasureSpec(body: string): WizardSpec | null {
     const trimmed = body.trim();
+
+    const composite = parseComposition(trimmed);
+    if (composite) return composite;
 
     // ---- no-hop plain forms -------------------------------------------------
     const plainCol = /^([A-Za-z]+)\(\s*([a-zA-Z_][\w]*)\s*\)$/i.exec(trimmed);

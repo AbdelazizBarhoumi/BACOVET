@@ -154,6 +154,7 @@ export {
     aggregate,
     buildChartData,
     buildScatterData,
+    buildTableCells,
     compileListMeasure,
     compileMeasure,
     distinctValues,

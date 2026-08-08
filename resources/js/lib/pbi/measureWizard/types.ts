@@ -49,8 +49,29 @@ export type NumericAgg = 'sum' | 'avg' | 'min' | 'max' | 'count';
 
 export type ValueCondition = {
     column: string;
-    op: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq';
+    op: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq' | 'in' | 'notIn';
     value: string;
+    /** values for `in` / `notIn` conditions */
+    values?: string[];
+};
+
+/**
+ * One side of a composed measure: either an existing measure reference
+ * (`[Name]`), a column aggregate over a loaded table, or a literal number.
+ */
+export type CompositeOperand =
+    | { type: 'measure'; name: string }
+    | { type: 'column'; table: string; column: string; agg: NumericAgg }
+    | { type: 'number'; value: number };
+
+/** Binary composition (ratio, difference, …) of two operands. */
+export type CompositeSpec = {
+    a: CompositeOperand;
+    b: CompositeOperand;
+    /** arithmetic operator applied between the two operands */
+    op: '/' | '*' | '-' | '+';
+    /** when true the result is scaled ×100 (the `%` display path) */
+    scale: boolean;
 };
 
 export type WizardSpec = {
@@ -67,6 +88,8 @@ export type WizardSpec = {
     agg: NumericAgg;
     /** optional extra condition applied to target rows */
     condition?: ValueCondition;
+    /** composed measure (A ÷ B × 100 …). When present, overrides kind/column. */
+    composition?: CompositeSpec;
 };
 
 /** A join the user can persist and share across sessions (backend tier B). */
