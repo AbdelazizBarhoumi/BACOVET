@@ -125,8 +125,6 @@ class EndpointDatasetRegistry
             return false;
         }
 
-        @copy($path, storage_path((string) config('novacity.data_backup', 'app/private/data.json.bak')));
-
         $tmp = $path.'.tmp.'.getmypid();
 
         if (file_put_contents($tmp, $json, LOCK_EX) === false) {

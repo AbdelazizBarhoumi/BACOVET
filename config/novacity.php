@@ -9,6 +9,5 @@ return [
     'timeout' => env('NOVACITY_TIMEOUT', 60),
     'connect_timeout' => env('NOVACITY_CONNECT_TIMEOUT', 15),
     'data_file' => env('NOVACITY_DATA_FILE', 'app/private/data.json'),
-    'data_backup' => env('NOVACITY_DATA_BACKUP', 'app/private/data.json.bak'),
-    'refresh_meta' => env('NOVACITY_REFRESH_META', 'app/public/endpoints-refresh.json'),
+    'refresh_meta' => env('NOVACITY_REFRESH_META', 'app/private/endpoints-refresh.json'),
 ];

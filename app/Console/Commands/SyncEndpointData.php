@@ -497,14 +497,9 @@ class SyncEndpointData extends Command
         return storage_path((string) config('novacity.data_file', 'app/private/data.json'));
     }
 
-    private function backupPath(): string
-    {
-        return storage_path((string) config('novacity.data_backup', 'app/private/data.json.bak'));
-    }
-
     private function metaPath(): string
     {
-        return storage_path((string) config('novacity.refresh_meta', 'app/public/endpoints-refresh.json'));
+        return storage_path((string) config('novacity.refresh_meta', 'app/private/endpoints-refresh.json'));
     }
 
     /**
@@ -637,8 +632,6 @@ class SyncEndpointData extends Command
         if ($json === false) {
             return false;
         }
-
-        @copy($path, $this->backupPath());
 
         $tmp = $path.'.tmp.'.getmypid();
 

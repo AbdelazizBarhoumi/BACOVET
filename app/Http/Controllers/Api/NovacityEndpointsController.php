@@ -194,7 +194,7 @@ class NovacityEndpointsController extends Controller
      */
     private function loadRefreshMeta(): ?array
     {
-        $path = storage_path(config('novacity.refresh_meta', 'app/public/endpoints-refresh.json'));
+        $path = storage_path(config('novacity.refresh_meta', 'app/private/endpoints-refresh.json'));
 
         if (! file_exists($path)) {
             return null;
@@ -755,14 +755,6 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
-     * Absolute path of the backup written before each mutation.
-     */
-    private function backupPath(): string
-    {
-        return storage_path(config('novacity.data_backup', 'app/private/data.json.bak'));
-    }
-
-    /**
      * Load and decode data.json, normalizing entries (guaranteed id/method/status/response).
      */
     private function loadItems(): ?array
@@ -851,8 +843,6 @@ class NovacityEndpointsController extends Controller
         if ($json === false) {
             return false;
         }
-
-        @copy($path, $this->backupPath());
 
         $tmp = $path.'.tmp.'.getmypid();
 

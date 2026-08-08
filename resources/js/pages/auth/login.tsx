@@ -8,6 +8,7 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 import bacovetLogo from '@/assets/bacovet-logo.png';
+import ThemeToggle from '@/components/ThemeToggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,14 +116,17 @@ export default function LoginPage() {
             </Head>
 
             <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4">
-                <div
-                    className="pointer-events-none absolute inset-0 opacity-[0.04]"
+                <div className="pointer-events-none absolute inset-0 opacity-[0.04]"
                     style={{
                         backgroundImage:
                             'linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)',
                         backgroundSize: '40px 40px',
                     }}
                 />
+
+                <div className="absolute top-4 right-4 z-10">
+                    <ThemeToggle />
+                </div>
 
                 <div className="relative w-full max-w-md">
                     <div className="space-y-6 rounded-xl border border-border bg-card p-6 shadow-2xl md:p-8">
@@ -241,7 +245,7 @@ export default function LoginPage() {
                             <Button
                                 type="submit"
                                 disabled={processing}
-                                className="group h-11 w-full font-mono text-xs tracking-[0.2em] uppercase transition-all text-muted-foreground"
+                                className="group h-11 w-full font-mono text-xs tracking-[0.2em] uppercase transition-all"
                             >
                                 {processing ? (
                                     <>
