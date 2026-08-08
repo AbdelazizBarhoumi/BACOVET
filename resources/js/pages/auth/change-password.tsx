@@ -257,7 +257,7 @@ export default function ChangePasswordPage() {
                             <Button
                                 type="submit"
                                 disabled={processing}
-                                className="group h-11 w-full font-mono text-xs tracking-[0.2em] uppercase transition-all text-muted-foreground"
+                                className="group h-11 w-full font-mono text-xs tracking-[0.2em] uppercase transition-all"
                             >
                                 {processing ? (
                                     <>

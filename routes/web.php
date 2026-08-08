@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\MeasureController;
 use App\Http\Controllers\Api\MeasureJoinController;
 use App\Http\Controllers\Api\NovacityEndpointsController;
+use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Models\BuilderPage;
 use App\Support\PageAccess;
@@ -55,6 +56,11 @@ Route::middleware(['auth', 'active.user', 'must.change.password', 'audit'])->gro
         });
     });
 });
+
+// ── SCHEDULE WEBHOOK ─────────────────────────────────────────────────
+// GET webhook that runs `php artisan schedule:run` (token-protected).
+// Public route on purpose: hit from a cron URL (no session needed).
+Route::get('/schedule/run', [ScheduleController::class, 'run']);
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/change-password', [AuthController::class, 'changePassword'])
