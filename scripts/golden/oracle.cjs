@@ -95,6 +95,132 @@ if (!item) throw new Error('data.json does not contain the itemtrxenq endpoint.'
             .slice(0, 4)
             .map(([k, v]) => [k, { count: v.count, sumQty: v.sumQty, items: [...v.items].sort() }]),
     );
+
+    // ---- sales_ledger (Wave 2 time windows) --------------------------------
+    // The real snapshot carries no usable flat date column, so derive a
+    // deterministic date ledger from the itemtrx rows: one row per itemtrx
+    // row, dates starting 2025-01-05 and advancing 4 days each, amount =
+    // Quantity. The anchor is therefore the max loaded date (early 2026), and
+    // every time-window scenario below is computed with plain UTC Date math —
+    // independent of the measure engine.
+    const parseISO = (s) => {
+        const [y, m, d] = String(s).split('-').map(Number);
+        return Date.UTC(y, m - 1, d);
+    };
+    const toISO = (ms) => new Date(ms).toISOString().slice(0, 10);
+    {
+        const startMs = Date.UTC(2025, 0, 5);
+        const stepMs = 4 * 86400000;
+        const ledger = rows.map((r, i) => {
+            const ms = startMs + i * stepMs;
+            return { Date: toISO(ms), Amount: Number(r.Quantity) || 0 };
+        });
+        data.push({
+            name: 'sales_ledger',
+            fields: [
+                { table: 'sales_ledger', name: 'Date', type: 'date' },
+                { table: 'sales_ledger', name: 'Amount', type: 'number' },
+            ],
+            rows: ledger,
+        });
+
+        const anchorMs = Math.max(...ledger.map((r) => parseISO(r.Date)));
+        const a = new Date(anchorMs);
+        const yearStart = Date.UTC(a.getUTCFullYear(), 0, 1);
+        const monthStart = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1);
+        const prevMonthStart = Date.UTC(a.getUTCFullYear(), a.getUTCMonth() - 1, 1);
+        const prevMonthEnd = monthStart - 1;
+        const prevYearStart = Date.UTC(a.getUTCFullYear() - 1, 0, 1);
+        const slyEnd = prevYearStart + (anchorMs - yearStart);
+        const inWindow = (d, lo, hi) => {
+            const v = parseISO(d);
+            return v >= lo && v <= hi;
+        };
+        const ytd = ledger.filter((r) => inWindow(r.Date, yearStart, anchorMs));
+        const mtd = ledger.filter((r) => inWindow(r.Date, monthStart, anchorMs));
+        const prev = ledger.filter((r) => inWindow(r.Date, prevMonthStart, prevMonthEnd));
+        const sly = ledger.filter((r) => inWindow(r.Date, prevYearStart, slyEnd));
+
+        scenarios.ledger_rows = ledger.length;
+        scenarios.ledger_anchor = toISO(anchorMs);
+        scenarios.ledger_ytd_rows = ytd.length;
+        scenarios.ledger_ytd_sum = ytd.reduce((s, r) => s + r.Amount, 0);
+        scenarios.ledger_mtd_rows = mtd.length;
+        scenarios.ledger_mtd_sum = mtd.reduce((s, r) => s + r.Amount, 0);
+        scenarios.ledger_prev_month_rows = prev.length;
+        scenarios.ledger_sly_rows = sly.length;
+        scenarios.ledger_sly_sum = sly.reduce((s, r) => s + r.Amount, 0);
+    }
+
+    // ---- kpi_br_print (Wave 2 month-granularity time windows) ---------------
+    // Real snapshot table: one row per month (mois = YYYY-MM). The engine
+    // treats YYYY-MM as the 1st of the month, so the anchor is the max month
+    // and every window derives from it. Expected values in plain UTC JS.
+    {
+        const br = findEndpoint(/\/api\/data\/q\/kpi_br_print\b/);
+        if (br) {
+            const all = (br.response.data ?? []).filter(
+                (r) => r && typeof r === 'object',
+            );
+            const rows = all.map((r) => ({
+                mois: r.mois,
+                nb_inspections: Number(r.nb_inspections) || 0,
+                nb_rejets: Number(r.nb_rejets) || 0,
+            }));
+            data.push({
+                name: 'kpi_br_print',
+                fields: [
+                    { table: 'kpi_br_print', name: 'mois', type: 'text' },
+                    {
+                        table: 'kpi_br_print',
+                        name: 'nb_inspections',
+                        type: 'number',
+                    },
+                    { table: 'kpi_br_print', name: 'nb_rejets', type: 'number' },
+                ],
+                rows,
+            });
+
+            const parseMonth = (s) => {
+                const [y, m] = String(s).split('-').map(Number);
+                return Date.UTC(y, m - 1, 1);
+            };
+            const anchorMs = Math.max(...rows.map((r) => parseMonth(r.mois)));
+            const a = new Date(anchorMs);
+            const yearStart = Date.UTC(a.getUTCFullYear(), 0, 1);
+            const monthStart = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1);
+            const prevMonthStart = Date.UTC(
+                a.getUTCFullYear(),
+                a.getUTCMonth() - 1,
+                1,
+            );
+            const prevMonthEnd = monthStart - 1;
+            const prevYearStart = Date.UTC(a.getUTCFullYear() - 1, 0, 1);
+            const slyEnd = prevYearStart + (anchorMs - yearStart);
+            const inWindow = (d, lo, hi) => {
+                const v = parseMonth(d);
+                return v >= lo && v <= hi;
+            };
+            const ytd = rows.filter((r) => inWindow(r.mois, yearStart, anchorMs));
+            const mtd = rows.filter((r) => inWindow(r.mois, monthStart, anchorMs));
+            const prev = rows.filter((r) =>
+                inWindow(r.mois, prevMonthStart, prevMonthEnd),
+            );
+            const sly = rows.filter((r) => inWindow(r.mois, prevYearStart, slyEnd));
+
+            scenarios.kpi_br_anchor = toISO(anchorMs);
+            scenarios.kpi_br_rows = rows.length;
+            scenarios.kpi_br_ytd_rows = ytd.length;
+            scenarios.kpi_br_ytd_rejets = ytd.reduce((s, r) => s + r.nb_rejets, 0);
+            scenarios.kpi_br_ytd_inspections = ytd.reduce(
+                (s, r) => s + r.nb_inspections,
+                0,
+            );
+            scenarios.kpi_br_mtd_rejets = mtd.reduce((s, r) => s + r.nb_rejets, 0);
+            scenarios.kpi_br_prev_month_rows = prev.length;
+            scenarios.kpi_br_sly_rows = sly.length;
+        }
+    }
 }
 
 // ---- QCM inspection / rejet KPI tables — single-row snapshots -----------

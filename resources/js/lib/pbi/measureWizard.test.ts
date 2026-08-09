@@ -1382,9 +1382,7 @@ describe('conditions (Wave 2 — W2-1..W2-5)', () => {
         const dax = buildMeasureDax(spec);
         // Numeric-looking codes stay raw (the numeric shortcut that keeps
         // `Qty > 0` numeric); text codes like 'CH10' are single-quoted.
-        expect(dax).toContain(
-            'TRIM(codestyle[StyleCode]) IN {302806, 311837}',
-        );
+        expect(dax).toContain('TRIM(codestyle[StyleCode]) IN {302806, 311837}');
         const fn = compileListMeasure(dax);
         expect(fn).not.toBeNull();
         // Only StyleCode 311837 is reachable through the taging_reel chain;
@@ -1403,9 +1401,7 @@ describe('conditions (Wave 2 — W2-1..W2-5)', () => {
             },
         });
         const dax = buildMeasureDax(spec);
-        expect(dax).toContain(
-            'TRIM(codestyle[StyleCode]) NOT IN {311837}',
-        );
+        expect(dax).toContain('TRIM(codestyle[StyleCode]) NOT IN {311837}');
         const fn = compileListMeasure(dax);
         expect(fn).not.toBeNull();
         expect(fn!([], {})).toEqual([]);
@@ -1575,5 +1571,150 @@ describe('conditions (Wave 2 — W2-1..W2-5)', () => {
         const derived = deriveMeasureSpec(buildMeasureDax(spec));
         expect(derived).not.toBeNull();
         expect(derived!.condition).toEqual(spec.condition);
+    });
+});
+
+describe('period / time window (Wave 2 – assistant)', () => {
+    const kpiTable: TableDef = {
+        name: 'kpi_br_print',
+        fields: [
+            { table: 'kpi_br_print', name: 'nb_rejets', type: 'number' },
+            { table: 'kpi_br_print', name: 'mois', type: 'text' },
+        ],
+        rows: [
+            { mois: '2020-07-01', nb_rejets: 24 },
+            { mois: '2019-07-01', nb_rejets: 30 },
+        ],
+    };
+
+    function kpiSpec(period: WizardSpec['period']): WizardSpec {
+        return {
+            from: 'kpi_br_print',
+            to: 'kpi_br_print',
+            hops: [],
+            kind: 'number',
+            column: 'nb_rejets',
+            agg: 'sum',
+            ...(period ? { period } : {}),
+        };
+    }
+
+    it('YTD wraps the sum in TOTALYTD over the picked date column', () => {
+        const dax = buildMeasureDax(
+            kpiSpec({
+                window: 'ytd',
+                table: 'kpi_br_print',
+                field: 'mois',
+            }),
+        );
+        expect(dax).toBe(
+            'TOTALYTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+        );
+    });
+
+    it('MTD, year-ago and M-1 keep their DAX window', () => {
+        expect(
+            buildMeasureDax(
+                kpiSpec({
+                    window: 'mtd',
+                    table: 'kpi_br_print',
+                    field: 'mois',
+                }),
+            ),
+        ).toBe('TOTALMTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])');
+        expect(
+            buildMeasureDax(
+                kpiSpec({
+                    window: 'lastYear',
+                    table: 'kpi_br_print',
+                    field: 'mois',
+                }),
+            ),
+        ).toBe(
+            'CALCULATE(SUM(kpi_br_print[nb_rejets]), SAMEPERIODLASTYEAR(kpi_br_print[mois]))',
+        );
+        expect(
+            buildMeasureDax(
+                kpiSpec({
+                    window: 'prevMonth',
+                    table: 'kpi_br_print',
+                    field: 'mois',
+                }),
+            ),
+        ).toBe(
+            'CALCULATE(SUM(kpi_br_print[nb_rejets]), PREVIOUSMONTH(kpi_br_print[mois]))',
+        );
+    });
+
+    it('wrapping is a no-op when no period is set', () => {
+        expect(buildMeasureDax(kpiSpec(undefined))).toBe(
+            'SUM(kpi_br_print[nb_rejets])',
+        );
+    });
+
+    it('round-trips every period window through derive', () => {
+        const windows = [
+            { window: 'ytd', table: 'kpi_br_print', field: 'mois' },
+            { window: 'mtd', table: 'kpi_br_print', field: 'mois' },
+            { window: 'lastYear', table: 'kpi_br_print', field: 'mois' },
+            { window: 'prevMonth', table: 'kpi_br_print', field: 'mois' },
+        ] as const;
+        for (const period of windows) {
+            const spec = kpiSpec(period);
+            const derived = deriveMeasureSpec(buildMeasureDax(spec));
+            expect(derived).not.toBeNull();
+            expect(derived!.period).toEqual(period);
+            expect(derived!.column).toBe('nb_rejets');
+            expect(derived!.agg).toBe('sum');
+            expect(derived!.kind).toBe('number');
+        }
+    });
+
+    it('evaluates the wrapped YTD over the date column through the engine', () => {
+        setTables([kpiTable]);
+        const dax = measureExpression(
+            'Rejets YTD',
+            kpiSpec({
+                window: 'ytd',
+                table: 'kpi_br_print',
+                field: 'mois',
+            }),
+        );
+        expect(() => compileMeasure(dax)).not.toThrow();
+        const r = evaluateMeasure(dax, []);
+        expect(r.error).toBeUndefined();
+        expect(typeof r.value).toBe('number');
+        expect(r.value as number).toBeGreaterThanOrEqual(0);
+    });
+
+    it('empty chain (from === to) is allowed and evaluates M-1 / SPLY against real rows', () => {
+        // Same-table period measures (the kpi_br_print cards) need NO hops and
+        // no cross-table chain — the wizard start step now permits it.
+        setTables([kpiTable]);
+        const prevMonthDax = measureExpression(
+            'Rejets M-1',
+            kpiSpec({
+                window: 'prevMonth',
+                table: 'kpi_br_print',
+                field: 'mois',
+            }),
+        );
+        const slyDax = measureExpression(
+            'Rejets SPLY',
+            kpiSpec({
+                window: 'lastYear',
+                table: 'kpi_br_print',
+                field: 'mois',
+            }),
+        );
+        const prevR = evaluateMeasure(prevMonthDax, []);
+        const slyR = evaluateMeasure(slyDax, []);
+        expect(prevR.error).toBeUndefined();
+        expect(slyR.error).toBeUndefined();
+        // rows: 2019-07-01 (30), 2020-07-01 (24); anchor = max date = 2020-07-01.
+        // M-1 window = June 2020 → no rows → 0. SPLY window = YTD(2019) →
+        // 2019-07-01 only → 30.
+        expect(prevR.value).toBe(0);
+        expect(slyR.value).toBe(30);
     });
 });

@@ -155,6 +155,136 @@ describe('golden core (data.json oracle — must pass at every wave)', () => {
     });
 });
 
+describe('golden wave 2 (real time windows — W2-2)', () => {
+    beforeEach(() => setTables(tables.map((t) => ({ ...t }))));
+
+    it('TOTALYTD(SUM(Amount), Date) over the date column matches the oracle', () => {
+        const r = evaluateMeasure(
+            'M = TOTALYTD(SUM(sales_ledger[Amount]), sales_ledger[Date])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(near(r.value, scen('ledger_ytd_sum'))).toBe(true);
+    });
+
+    it('COUNTROWS(DATESYTD(Date)) matches the oracle YTD row count', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(DATESYTD(sales_ledger[Date]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(scen('ledger_ytd_rows'));
+    });
+
+    it('TOTALMTD(SUM(Amount), Date) matches the oracle month-to-date', () => {
+        const r = evaluateMeasure(
+            'M = TOTALMTD(SUM(sales_ledger[Amount]), sales_ledger[Date])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(near(r.value, scen('ledger_mtd_sum'))).toBe(true);
+    });
+
+    it('COUNTROWS(PREVIOUSMONTH(Date)) matches the oracle previous-month rows', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(PREVIOUSMONTH(sales_ledger[Date]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(scen('ledger_prev_month_rows'));
+    });
+
+    it('COUNTROWS(SAMEPERIODLASTYEAR(Date)) matches the oracle shifted-YTD rows', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(SAMEPERIODLASTYEAR(sales_ledger[Date]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(scen('ledger_sly_rows'));
+    });
+
+    it('the bare sales_ledger table is unchanged by the time engine', () => {
+        const r = evaluateMeasure('M = COUNTROWS(sales_ledger)', []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(scen('ledger_rows'));
+    });
+});
+
+describe('golden wave 2 (real month-granularity time windows — W2-2)', () => {
+    beforeEach(() => setTables(tables.map((t) => ({ ...t }))));
+
+    it('kpi_br_print[mois] (YYYY-MM) drives TOTALYTD against the oracle', () => {
+        const r = evaluateMeasure(
+            'M = TOTALYTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(near(r.value, scen('kpi_br_ytd_rejets'))).toBe(true);
+    });
+
+    it('kpi_br_print DATESYTD row count matches the oracle (anchor 2026-08-01)', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(DATESYTD(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(scen('kpi_br_ytd_rows'));
+    });
+
+    it('kpi_br_print TOTALMTD keeps only the anchor month', () => {
+        const r = evaluateMeasure(
+            'M = TOTALMTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(near(r.value, scen('kpi_br_mtd_rejets'))).toBe(true);
+    });
+
+    it('kpi_br_print PREVIOUSMONTH selects the previous calendar month', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(PREVIOUSMONTH(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(scen('kpi_br_prev_month_rows'));
+    });
+
+    it('kpi_br_print SAMEPERIODLASTYEAR is empty (no prior-year months loaded)', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(SAMEPERIODLASTYEAR(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(scen('kpi_br_sly_rows'));
+    });
+
+    it('M-1 wizard DAX: CALCULATE(SUM, PREVIOUSMONTH) sums only the previous month (rows → 0 outside)', () => {
+        // Oracles from the real 8 rows (anchor 2026-08): prev month = 2026-07 → 3.
+        const prevSum = (payload.tables.find((t) => t.name === 'kpi_br_print')!
+            .rows.find((row) => row.mois === '2026-07') as Row)
+            .nb_rejets as number;
+        const r = evaluateMeasure(
+            'M = CALCULATE(SUM(kpi_br_print[nb_rejets]), PREVIOUSMONTH(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(prevSum);
+        expect(r.value).toBe(3);
+        expect(r.value).toBeLessThan(scen('kpi_br_ytd_rejets'));
+    });
+
+    it('SPLY wizard DAX: CALCULATE(SUM, SAMEPERIODLASTYEAR) is blank when no prior-year rows exist', () => {
+        const r = evaluateMeasure(
+            'M = CALCULATE(SUM(kpi_br_print[nb_rejets]), SAMEPERIODLASTYEAR(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(0);
+        // Blank, not a silent whole-table total (the 24 regression).
+        expect(r.value).not.toBe(scen('kpi_br_ytd_rejets'));
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE WORKSPACE (add each of these when its wave lands — then it must pass)
 //
@@ -166,7 +296,7 @@ describe('golden core (data.json oracle — must pass at every wave)', () => {
 //   it('W1-12 table visual shows per-employee list chips (Playwright smoke)')
 //   it('W1-17/18 "%" verbatim is never emitted as modulo; DIVIDE default used')
 // Wave 2 — IN/NOT IN multi-value conditions, real time windows:
-//   it('DATESYTD/TOTALYTD over a date column matches the oracle')
+//   it('DATESYTD/TOTALYTD over a date column matches the oracle')  ✔ landed (W2-2)
 //   it('multi-value IN condition filters the oracle-per-group counts')
 // Wave 3 — advanced:
 //   it('CALCULATE(expr, ALL(foo)) restores the oracle total (share)')

@@ -577,8 +577,13 @@ function resolveColumn(
             if (
                 knownColumn &&
                 (source.rows.length === 0 || column in source.rows[0]!)
-            )
+            ) {
+                // A window/CALCULATE filter that matched nothing must yield an
+                // empty result set (blank measure), while a global (top-level)
+                // evaluation over empty rows keeps resolving to the whole table.
+                if (rows.length === 0 && ctx.strictEmpty) return [];
                 return source.rows.map((r) => r[column] ?? null);
+            }
             if (!knownColumn && source.rows.length) {
                 const message = `Colonne « ${column} » introuvable.`;
                 ctx.errors?.push(message);
@@ -828,7 +833,14 @@ function dateEpoch(v: unknown): number {
             ? NaN
             : (midnightEpoch(new Date(ms)), ms);
     }
-    const d = new Date(scalarText(v));
+    const s = scalarText(v);
+    const month = /^(\d{4})-(\d{2})$/.exec(s);
+    if (month) {
+        const y = Number(month[1]);
+        const m = Number(month[2]);
+        if (m >= 1 && m <= 12) return Date.UTC(y, m - 1, 1);
+    }
+    const d = new Date(s);
     return isNaN(d.getTime()) ? NaN : d.getTime();
 }
 
@@ -1082,21 +1094,187 @@ function evalTableArg(
                 throw new MeasureSyntaxError(`${fname}() attend une table.`);
             return evalTableArg(base, ctx);
         }
-        if (
-            fname === 'DATEADD' ||
-            fname === 'SAMEPERIODLASTYEAR' ||
-            fname === 'PREVIOUSMONTH' ||
-            fname === 'DATESYTD' ||
-            fname === 'TOTALYTD' ||
-            fname === 'TOTALMTD'
-        ) {
-            return [{ table: '__time__', row: {} }];
+        if (isTimeFunc(fname)) {
+            return timeWindowFrames(fname, node.args, ctx);
         }
     }
     if (node.kind === 'tablecol') {
         return evalTableArg(node.base, ctx);
     }
     throw new MeasureSyntaxError('Une table est attendue.');
+}
+
+/** The DAX time-intelligence functions resolved by `timeWindowFrames`. */
+function isTimeFunc(name: string): boolean {
+    return (
+        name === 'DATEADD' ||
+        name === 'SAMEPERIODLASTYEAR' ||
+        name === 'PREVIOUSMONTH' ||
+        name === 'DATESYTD' ||
+        name === 'TOTALYTD' ||
+        name === 'TOTALMTD'
+    );
+}
+
+/** Reads a numeric literal argument (used for DATEADD's step count). */
+function numericArg(node: MeasureNode | undefined): number {
+    if (!node) return 0;
+    if (node.kind === 'num') return node.value;
+    if (node.kind === 'string') {
+        const n = Number(node.value);
+        return Number.isFinite(n) ? n : 0;
+    }
+    if (
+        node.kind === 'binop' &&
+        node.left.kind === 'num' &&
+        node.left.value === 0
+    ) {
+        const right = numericArg(node.right);
+        return node.op === '-' ? -right : node.op === '+' ? right : 0;
+    }
+    return 0;
+}
+
+/** Shifts a [start, end] ms date range by `n`×`unit` (calendar-aware). */
+function shiftDateRange(
+    startMs: number,
+    endMs: number,
+    n: number,
+    unit: string,
+): [number, number] {
+    const shift = (ms: number): number => {
+        const d = new Date(ms);
+        switch (unit) {
+            case 'YEAR':
+                d.setUTCFullYear(d.getUTCFullYear() + n);
+                break;
+            case 'QUARTER':
+                d.setUTCMonth(d.getUTCMonth() + n * 3);
+                break;
+            case 'MONTH':
+                d.setUTCMonth(d.getUTCMonth() + n);
+                break;
+            default:
+                d.setUTCDate(d.getUTCDate() + n);
+        }
+        return d.getTime();
+    };
+    return [shift(startMs), shift(endMs)];
+}
+
+/**
+ * Resolves a `<dates>` argument (a bare column or `table[column]`) to the
+ * owning table and column name, mirroring the `col` branch of `evalTableArg`.
+ */
+function resolveDateColumn(
+    node: MeasureNode | undefined,
+    ctx: EvalCtx,
+): { table: string; column: string } {
+    if (!node) {
+        throw new MeasureSyntaxError('Une colonne de date est attendue.');
+    }
+    let table: string | undefined;
+    let column: string | undefined;
+    if (node.kind === 'col') {
+        const tables = ctx.tables ?? TABLES;
+        table =
+            node.table ||
+            (tables.some((t) => t.name === node.column)
+                ? node.column
+                : findTableForField(node.column, tables));
+        column = node.column;
+    } else if (node.kind === 'tablecol' && node.base.kind === 'table') {
+        table = node.base.name;
+        column = node.column;
+    }
+    if (!table || !column) {
+        throw new MeasureSyntaxError('Une colonne de date est attendue.');
+    }
+    const source = findTableByName(table, ctx.tables ?? TABLES);
+    if (!source) {
+        throw new MeasureSyntaxError(`Table « ${table} » introuvable.`);
+    }
+    if (!source.fields.some((f) => f.name === column)) {
+        throw new MeasureSyntaxError(`Colonne « ${column} » introuvable.`);
+    }
+    return { table, column };
+}
+
+/**
+ * Time-window resolution for the DAX time-intelligence functions.
+ *
+ * The `<dates>` argument is a date column; the anchor date is the maximum
+ * loaded value of that column. Each function returns the owning table's rows
+ * whose date falls inside a derived UTC window:
+ *
+ *   DATESYTD            [Jan 1(anchor year), anchor]
+ *   TOTALYTD (scalar)   the same YTD window
+ *   TOTALMTD (scalar)   [1st of anchor month, anchor]
+ *   PREVIOUSMONTH       [1st of previous month, last of previous month]
+ *   SAMEPERIODLASTYEAR  the YTD window shifted back one year
+ *   DATEADD(n, unit)    the YTD window shifted by n×unit
+ */
+function timeWindowFrames(
+    fname: string,
+    args: MeasureNode[],
+    ctx: EvalCtx,
+): { table: string; row: Row }[] {
+    const datesIndex = fname === 'TOTALYTD' || fname === 'TOTALMTD' ? 1 : 0;
+    const { table, column } = resolveDateColumn(args[datesIndex], ctx);
+    const rows = tableRowsFor(table, ctx.tables ?? TABLES);
+    const epochs = rows.map((r) => dateEpoch(r[column]));
+    const anchor = Math.max(...epochs.filter((v) => Number.isFinite(v)));
+    if (!Number.isFinite(anchor)) return [];
+
+    const a = new Date(anchor);
+    const year = a.getUTCFullYear();
+    const month = a.getUTCMonth();
+    const yearStart = Date.UTC(year, 0, 1);
+
+    let start: number;
+    let end: number;
+    switch (fname) {
+        case 'DATESYTD':
+        case 'TOTALYTD':
+            start = yearStart;
+            end = anchor;
+            break;
+        case 'TOTALMTD':
+            start = Date.UTC(year, month, 1);
+            end = anchor;
+            break;
+        case 'PREVIOUSMONTH':
+            start = Date.UTC(year, month - 1, 1);
+            end = Date.UTC(year, month, 1) - 1;
+            break;
+        case 'SAMEPERIODLASTYEAR': {
+            const previousYearStart = Date.UTC(year - 1, 0, 1);
+            start = previousYearStart;
+            end = previousYearStart + (anchor - yearStart);
+            break;
+        }
+        case 'DATEADD': {
+            const unit = (
+                args[2]?.kind === 'string' ? args[2].value : ''
+            ).toUpperCase();
+            [start, end] = shiftDateRange(
+                yearStart,
+                anchor,
+                numericArg(args[1]),
+                unit,
+            );
+            break;
+        }
+        default:
+            return [];
+    }
+
+    return rows
+        .filter((r) => {
+            const v = dateEpoch(r[column]);
+            return Number.isFinite(v) && v >= start && v <= end;
+        })
+        .map((row) => ({ table, row }));
 }
 
 function evalFunction(
@@ -1188,7 +1366,8 @@ function evalFunction(
             (first.kind === 'table' ||
                 first.kind === 'col' ||
                 (first.kind === 'func' &&
-                    first.name.toUpperCase() === 'FILTER'))
+                    (first.name.toUpperCase() === 'FILTER' ||
+                        isTimeFunc(first.name.toUpperCase()))))
         ) {
             return evalTableArg(first, ctx).length;
         }
@@ -1201,6 +1380,46 @@ function evalFunction(
         throw new MeasureSyntaxError(
             'VALUES renvoie une liste de valeurs et ne peut être utilisé qu’au niveau supérieur de la mesure.',
         );
+    }
+    if (name === 'TOTALYTD' || name === 'TOTALMTD') {
+        const expression = node.args[0];
+        if (!expression) {
+            throw new MeasureSyntaxError(
+                `${name}() attend une expression.`,
+            );
+        }
+        const frames = timeWindowFrames(name, node.args, ctx);
+        const windowRows = frames.map((frame) => frame.row);
+        return evalNode(expression, windowRows, {
+            ...ctx,
+            strictEmpty: windowRows.length === 0,
+        });
+    }
+
+    if (name === 'CALCULATE') {
+        // CALCULATE(<scalar-expr>, <date-window>) — what the Période wizard
+        // emits for M-1 and SPLY: the scalar is evaluated over the rows inside
+        // the window (PREVIOUSMONTH / SAMEPERIODLASTYEAR / DATESYTD / …).
+        const expression = node.args[0];
+        const filterArg = node.args[1];
+        if (!expression) {
+            throw new MeasureSyntaxError(
+                'CALCULATE() attend une expression.',
+            );
+        }
+        const win =
+            filterArg && filterArg.kind === 'func'
+                ? filterArg.name.toUpperCase()
+                : '';
+        if (win && isTimeFunc(win) && filterArg.kind === 'func') {
+            const frames = timeWindowFrames(win, filterArg.args, ctx);
+            const windowRows = frames.map((frame) => frame.row);
+            return evalNode(expression, windowRows, {
+                ...ctx,
+                strictEmpty: windowRows.length === 0,
+            });
+        }
+        // Any other CALCULATE shape keeps the unsupported-function error.
     }
 
     if (!AGGREGATION_FUNCS.has(name)) {

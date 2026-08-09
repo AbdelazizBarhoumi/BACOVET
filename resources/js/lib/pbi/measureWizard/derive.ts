@@ -4,6 +4,7 @@ import type {
     MeasureKind,
     NumericAgg,
     PathHop,
+    PeriodSpec,
     ValueCondition,
     WizardSpec,
 } from './types';
@@ -47,13 +48,14 @@ function parseOperand(s: string): CompositeOperand | null {
             agg: AGG_FUNCS[op] ?? 'sum',
         };
     }
-    if (/^-?\d+(\.\d+)?$/.test(t))
-        return { type: 'number', value: Number(t) };
+    if (/^-?\d+(\.\d+)?$/.test(t)) return { type: 'number', value: Number(t) };
     return null;
 }
 
 /** Split on the top-level arithmetic operator (respecting parens/brackets). */
-function splitTopLevelBinop(s: string): { l: string; r: string; op: '/' | '*' | '-' | '+' } | null {
+function splitTopLevelBinop(
+    s: string,
+): { l: string; r: string; op: '/' | '*' | '-' | '+' } | null {
     let depth = 0;
     for (let i = 0; i < s.length; i++) {
         const c = s[i]!;
@@ -179,8 +181,92 @@ function hasTopLevelComma(s: string): boolean {
  *   SUMX(FILTER(to, chain), to[col]) …      number (hops / condition)
  *   DIVIDE([A],[B]) * 100 …                 composite (composition step)
  */
+/**
+ * Recognise a period wrapper around a numeric body and split out the inner
+ * expression plus its `PeriodSpec`:
+ *   TOTALYTD(<inner>, <table>[<field>])
+ *   TOTALMTD(<inner>, <table>[<field>])
+ *   CALCULATE(<inner>, PREVIOUSMONTH(<table>[<field>]))
+ *   CALCULATE(<inner>, SAMEPERIODLASTYEAR(<table>[<field>]))
+ * Returns `null` when the expression is not wrapped at the top level.
+ */
+function unwrapPeriod(s: string): { inner: string; period: PeriodSpec } | null {
+    const t = s.trim();
+
+    for (const [head, window] of [
+        ['TOTALYTD', 'ytd'],
+        ['TOTALMTD', 'mtd'],
+    ] as const) {
+        const open = checkPrefix(t, head);
+        if (open < 0) continue;
+        if (matchingParen(t, open) !== t.length - 1) return null;
+        const handle = splitWindowBody(t.slice(open + 1, t.length - 1));
+        if (!handle) return null;
+        return {
+            inner: handle.body,
+            period: { window, table: handle.table, field: handle.field },
+        };
+    }
+
+    const calcOpen = checkPrefix(t, 'CALCULATE');
+    if (calcOpen >= 0) {
+        if (matchingParen(t, calcOpen) !== t.length - 1) return null;
+        const arg = t.slice(calcOpen + 1, t.length - 1).trim();
+        const comma = topLevelComma(arg);
+        if (comma < 0) return null;
+        const body = arg.slice(0, comma).trim();
+        const filter = arg.slice(comma + 1).trim();
+        for (const [head, window] of [
+            ['SAMEPERIODLASTYEAR', 'lastYear'],
+            ['PREVIOUSMONTH', 'prevMonth'],
+        ] as const) {
+            const fOpen = checkPrefix(filter, head);
+            if (fOpen < 0) continue;
+            if (matchingParen(filter, fOpen) !== filter.length - 1) {
+                return null;
+            }
+            const dates = filter.slice(fOpen + 1, filter.length - 1).trim();
+            const ref = /^([a-zA-Z_][\w]*)\s*\[\s*([^\]]+)\s*\]$/.exec(dates);
+            if (!ref) return null;
+            return {
+                inner: body,
+                period: {
+                    window,
+                    table: ref[1]!,
+                    field: ref[2]!.trim(),
+                },
+            };
+        }
+    }
+    return null;
+}
+
+/** Split `<body>, <table>[<field>]` on the top-level comma. */
+function splitWindowBody(
+    s: string,
+): { body: string; table: string; field: string } | null {
+    const comma = topLevelComma(s);
+    if (comma < 0) return null;
+    const body = s.slice(0, comma).trim();
+    const dates = s.slice(comma + 1).trim();
+    const ref = /^([a-zA-Z_][\w]*)\s*\[\s*([^\]]+)\s*\]$/.exec(dates);
+    if (!ref) return null;
+    return { body, table: ref[1]!, field: ref[2]!.trim() };
+}
+
 export function deriveMeasureSpec(body: string): WizardSpec | null {
     const trimmed = body.trim();
+
+    // ---- time-window wrappers ----------------------------------------------
+    // Reverse TOTALYTD / TOTALMTD / CALCULATE(…, PREVIOUSMONTH | SAMEPERIOD-
+    // LASTYEAR(…)) so a period measure round-trips into the Résultat step. The
+    // inner body is derived as usual, then the window is attached.
+    const periodWrapped = unwrapPeriod(trimmed);
+    if (periodWrapped) {
+        const inner = deriveMeasureSpec(periodWrapped.inner);
+        if (inner === null) return null;
+        return { ...inner, period: periodWrapped.period };
+    }
 
     const composite = parseComposition(trimmed);
     if (composite) return composite;
@@ -365,12 +451,7 @@ function hasTopLevelBinop(s: string, op: '&&' | '||'): boolean {
         const c = s[i]!;
         if (c === '(') depth++;
         else if (c === ')') depth--;
-        else if (
-            depth === 0 &&
-            c === op[0] &&
-            s[i + 1] === op[1]
-        )
-            return true;
+        else if (depth === 0 && c === op[0] && s[i + 1] === op[1]) return true;
     }
     return false;
 }
@@ -516,8 +597,7 @@ function isTrimCol(s: string): boolean {
 function parseCondition(s: string, to: string): ValueCondition | undefined {
     const t = s.trim();
     // `TRIM(table[col]) IN { … }` / `NOT IN { … }`
-    const inMatch =
-        /^(.*?)\s+(NOT\s+IN|IN)\s*\{([\s\S]*)\}\s*$/i.exec(t);
+    const inMatch = /^(.*?)\s+(NOT\s+IN|IN)\s*\{([\s\S]*)\}\s*$/i.exec(t);
     if (inMatch) {
         if (!isTrimCol(inMatch[1]!)) return undefined;
         const col = stripTrimBrackets(inMatch[1]!);

@@ -392,6 +392,10 @@ export type EvalCtx = {
      *  context, e.g. a chain axis slice). When absent, the module-level
      *  `TABLES` (the store's currently filtered set) is used. */
     tables?: TableDef[];
+    /** When true, an empty row set from a CALCULATE time-window filter is a
+     *  real (matching-nothing) filter: column resolution must yield an empty
+     *  list instead of falling back to the whole source table. */
+    strictEmpty?: boolean;
 };
 
 export type MeasureValidation = { ok: true } | { ok: false; error: string };

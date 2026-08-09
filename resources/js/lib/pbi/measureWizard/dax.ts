@@ -4,6 +4,7 @@ import type {
     MeasureKind,
     NumericAgg,
     PathHop,
+    PeriodSpec,
     ValueCondition,
     WizardSpec,
 } from './types';
@@ -144,6 +145,27 @@ function exists(
  * filtered target rows. All join keys are TRIM-ed because real keys are
  * left-padded (MONo 15, ProdGroup 40).
  */
+/**
+ * Wrap a numeric body in the DAX of a time window (W2 time engine). `ytd` →
+ * `TOTALYTD(body, table[date])`, `mtd` → `TOTALMTD`, the year-ago and previous
+ * month windows go through `CALCULATE(... , SAMEPERIODLASTYEAR / PREVIOUSMONTH
+ * (table[date]))`. Returns the body untouched when no period is set.
+ */
+function periodDax(body: string, period: PeriodSpec | undefined): string {
+    if (!period) return body;
+    const dates = `${period.table}[${period.field}]`;
+    switch (period.window) {
+        case 'ytd':
+            return `TOTALYTD(${body}, ${dates})`;
+        case 'mtd':
+            return `TOTALMTD(${body}, ${dates})`;
+        case 'lastYear':
+            return `CALCULATE(${body}, SAMEPERIODLASTYEAR(${dates}))`;
+        case 'prevMonth':
+            return `CALCULATE(${body}, PREVIOUSMONTH(${dates}))`;
+    }
+}
+
 export function buildMeasureDax(spec: WizardSpec): string {
     if (spec.composition) return buildCompositionDax(spec.composition);
     const { from, to, hops, kind, column, agg, condition, conditions } = spec;
@@ -157,8 +179,12 @@ export function buildMeasureDax(spec: WizardSpec): string {
     // Conditions that target the base table (from !== to) must be evaluated
     // inside the innermost FILTER(from, …) where that table is in scope;
     // conditions on the target table stay in the outer block.
-    const baseRows = rows.filter((c) => c.table !== undefined && c.table !== to);
-    const targetRows = rows.filter((c) => c.table === undefined || c.table === to);
+    const baseRows = rows.filter(
+        (c) => c.table !== undefined && c.table !== to,
+    );
+    const targetRows = rows.filter(
+        (c) => c.table === undefined || c.table === to,
+    );
     const baseBlock = rowsToBlock(baseRows, combine, to);
     const block = rowsToBlock(targetRows, combine, to);
     const chain = exists(hops, hops.length, from, baseBlock ?? undefined);
@@ -181,18 +207,25 @@ export function buildMeasureDax(spec: WizardSpec): string {
                 return `COUNTROWS(${to})`;
             case 'number': {
                 const expr = `${to}[${column}]`;
+                let body: string;
                 switch (agg) {
                     case 'sum':
-                        return `SUM(${expr})`;
+                        body = `SUM(${expr})`;
+                        break;
                     case 'avg':
-                        return `AVERAGE(${expr})`;
+                        body = `AVERAGE(${expr})`;
+                        break;
                     case 'min':
-                        return `MIN(${expr})`;
+                        body = `MIN(${expr})`;
+                        break;
                     case 'max':
-                        return `MAX(${expr})`;
+                        body = `MAX(${expr})`;
+                        break;
                     case 'count':
-                        return `COUNT(${expr})`;
+                        body = `COUNT(${expr})`;
+                        break;
                 }
+                return periodDax(body, spec.period);
             }
         }
     }
@@ -206,18 +239,25 @@ export function buildMeasureDax(spec: WizardSpec): string {
             return `COUNTROWS(${filter})`;
         case 'number': {
             const expr = `${to}[${column}]`;
+            let body: string;
             switch (agg) {
                 case 'sum':
-                    return `SUMX(${filter}, ${expr})`;
+                    body = `SUMX(${filter}, ${expr})`;
+                    break;
                 case 'avg':
-                    return `AVERAGEX(${filter}, ${expr})`;
+                    body = `AVERAGEX(${filter}, ${expr})`;
+                    break;
                 case 'min':
-                    return `MINX(${filter}, ${expr})`;
+                    body = `MINX(${filter}, ${expr})`;
+                    break;
                 case 'max':
-                    return `MAXX(${filter}, ${expr})`;
+                    body = `MAXX(${filter}, ${expr})`;
+                    break;
                 case 'count':
-                    return `COUNTX(${filter}, ${expr})`;
+                    body = `COUNTX(${filter}, ${expr})`;
+                    break;
             }
+            return periodDax(body, spec.period);
         }
     }
 }
@@ -247,6 +287,13 @@ export const KIND_LABELS: Record<MeasureKind, string> = {
     list: 'Liste de valeurs',
     countrows: 'Nombre de lignes',
     number: 'Valeur numérique',
+};
+
+export const PERIOD_LABELS: Record<PeriodSpec['window'], string> = {
+    ytd: 'Année en cours (cumul YTD)',
+    mtd: 'Mois en cours (cumul MTD)',
+    lastYear: 'Même année l’an dernier (SPLY)',
+    prevMonth: 'Mois précédent (M-1)',
 };
 
 /**

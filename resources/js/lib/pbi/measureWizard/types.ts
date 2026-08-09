@@ -78,6 +78,21 @@ export type CompositeOperand =
 /** What the ratio yields when the denominator is 0 (DIVIDE's default). */
 export type DivZeroDefault = 'zero' | 'blank' | 'na';
 
+/**
+ * A time-window applied around a numeric result (kind === 'number'). The DAX
+ * engine evaluates TOTALYTD / TOTALMTD / CALCULATE+… over the given date-ish
+ * column, which may live on any loaded table (`table`).
+ */
+export type PeriodWindow = 'ytd' | 'mtd' | 'lastYear' | 'prevMonth';
+
+export type PeriodSpec = {
+    window: PeriodWindow;
+    /** table that owns the date field used to build the window */
+    table: string;
+    /** date-ish column used to build the window (e.g. `mois` in YYYY-MM) */
+    field: string;
+};
+
 /** Binary composition (ratio, difference, …) of two operands. */
 export type CompositeSpec = {
     a: CompositeOperand;
@@ -114,6 +129,8 @@ export type WizardSpec = {
      * row is normalized to `condition`.
      */
     conditions?: ConditionGroup;
+    /** time window (YTD / MTD / year-ago / M-1) wrapping a numeric result */
+    period?: PeriodSpec;
     /** composed measure (A ÷ B × 100 …). When present, overrides kind/column. */
     composition?: CompositeSpec;
 };

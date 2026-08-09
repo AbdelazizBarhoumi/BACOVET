@@ -19,6 +19,7 @@ import {
     AGG_LABELS,
     COND_LABELS,
     KIND_LABELS,
+    PERIOD_LABELS,
     buildMeasureDax,
     chainRowCount,
     firstFailingHop,
@@ -34,6 +35,7 @@ import {
     type MeasureKind,
     type NumericAgg,
     type PathHop,
+    type PeriodWindow,
     type ProposedPath,
     type ProposalRankBy,
     type ValueCondition,
@@ -109,6 +111,7 @@ type OperandDraft = {
 
 const OP_KEYS = Object.keys(COND_LABELS) as ValueCondition['op'][];
 const AGG_KEYS = Object.keys(AGG_LABELS) as NumericAgg[];
+const PERIOD_KEYS = Object.keys(PERIOD_LABELS) as PeriodWindow[];
 const EMPTY_HOPS: PathHop[] = [];
 
 export function MeasureWizardDialog({
@@ -133,6 +136,12 @@ export function MeasureWizardDialog({
         { column: '', op: 'gt', value: '' },
     ]);
     const [condCombine, setCondCombine] = useState<'and' | 'or'>('and');
+    // Time window (Période): wraps the numeric result in TOTALYTD / TOTALMTD /
+    // CALCULATE(…, SAMEPERIODLASTYEAR | PREVIOUSMONTH(…)) over a date column
+    // picked anywhere in the loaded tables (`table[field]`).
+    const [periodOn, setPeriodOn] = useState(false);
+    const [periodWindow, setPeriodWindow] = useState<PeriodWindow>('ytd');
+    const [periodDateRef, setPeriodDateRef] = useState('');
     const [name, setName] = useState('');
     const [saving, setSaving] = useState(false);
     const [allowWeak, setAllowWeak] = useState(false);
@@ -300,7 +309,20 @@ export function MeasureWizardDialog({
                 },
             };
         }
-        return withCond;
+        const refMatch =
+            periodOn && periodDateRef
+                ? /^([a-zA-Z_][\w]*)\[([^\]]+)\]$/.exec(periodDateRef)
+                : null;
+        return refMatch
+            ? {
+                  ...withCond,
+                  period: {
+                      window: periodWindow,
+                      table: refMatch[1]!,
+                      field: refMatch[2]!,
+                  },
+              }
+            : withCond;
     }, [
         fromTable,
         toTable,
@@ -311,6 +333,9 @@ export function MeasureWizardDialog({
         condOn,
         condRows,
         condCombine,
+        periodOn,
+        periodWindow,
+        periodDateRef,
         composeOn,
         composeA,
         composeB,
@@ -561,10 +586,17 @@ export function MeasureWizardDialog({
                                 setCondRows={setCondRows}
                                 condCombine={condCombine}
                                 setCondCombine={setCondCombine}
+                                periodOn={periodOn}
+                                setPeriodOn={setPeriodOn}
+                                periodWindow={periodWindow}
+                                setPeriodWindow={setPeriodWindow}
+                                periodDateRef={periodDateRef}
+                                setPeriodDateRef={setPeriodDateRef}
                                 tables={tables}
                                 fromTable={fromTable}
                                 composeOn={composeOn}
                                 toggleCompose={toggleCompose}
+                                dax={dax}
                             />
                         )}
                         {step === 'composition' && (
@@ -726,10 +758,9 @@ function StartStep({
                             {tables.map((t) => (
                                 <button
                                     key={t.name}
-                                    disabled={t.name === fromTable}
                                     onClick={() => selectTarget(t.name)}
                                     className={cn(
-                                        'rounded-lg border px-3 py-1.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-30',
+                                        'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
                                         toTable === t.name
                                             ? 'border-brand bg-brand/15 font-medium'
                                             : 'border-border hover:bg-accent',
@@ -1245,7 +1276,7 @@ function ConditionValuePicker({
                 <ChevronDown className="size-3" />
             </button>
             {open && (
-                <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-border bg-card p-2 shadow-xl">
+                <div className="absolute top-full left-0 z-20 mt-1 w-56 rounded-md border border-border bg-card p-2 shadow-xl">
                     <input
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
@@ -1426,10 +1457,17 @@ function ResultStep({
     setCondRows,
     condCombine,
     setCondCombine,
+    periodOn,
+    setPeriodOn,
+    periodWindow,
+    setPeriodWindow,
+    periodDateRef,
+    setPeriodDateRef,
     tables,
     fromTable,
     composeOn,
     toggleCompose,
+    dax,
 }: {
     toDef: TableDef | undefined;
     toColumns: string[];
@@ -1445,11 +1483,23 @@ function ResultStep({
     setCondRows: Dispatch<SetStateAction<ValueCondition[]>>;
     condCombine: 'and' | 'or';
     setCondCombine: (c: 'and' | 'or') => void;
+    periodOn: boolean;
+    setPeriodOn: (b: boolean) => void;
+    periodWindow: PeriodWindow;
+    setPeriodWindow: (w: PeriodWindow) => void;
+    periodDateRef: string;
+    setPeriodDateRef: (v: string) => void;
     tables: TableDef[];
     fromTable: string;
     composeOn: boolean;
     toggleCompose: (on: boolean) => void;
+    dax: string;
 }) {
+    // Every `table[column]` across the loaded tables, so a time window can use
+    // a date-ish field from any dataset (mois, DataPoint, LogDate, …).
+    const dateFieldOptions = tables.flatMap((t) =>
+        (t.fields ?? []).map((f) => `${t.name}[${f.name}]`),
+    );
     return (
         <div className="grid gap-4">
             <div>
@@ -1582,8 +1632,7 @@ function ResultStep({
                                             onChange={(e) =>
                                                 setCondCombine(
                                                     e.target.value as
-                                                        | 'and'
-                                                        | 'or',
+                                                        'and' | 'or',
                                                 )
                                             }
                                             className="rounded border border-border bg-background px-2 py-1 text-[11px]"
@@ -1617,8 +1666,7 @@ function ResultStep({
                                             setCondRows((rows) =>
                                                 rows.length > 1
                                                     ? rows.filter(
-                                                          (_, idx) =>
-                                                              idx !== i,
+                                                          (_, idx) => idx !== i,
                                                       )
                                                     : rows,
                                             )
@@ -1644,6 +1692,69 @@ function ResultStep({
                                 </button>
                             </div>
                         )}
+                    </div>
+
+                    {kind === 'number' && (
+                        <div className="rounded-lg border border-border p-3">
+                            <label className="flex items-center gap-2 text-[12px]">
+                                <input
+                                    type="checkbox"
+                                    checked={periodOn}
+                                    onChange={(e) =>
+                                        setPeriodOn(e.target.checked)
+                                    }
+                                    className="accent-brand"
+                                />
+                                Appliquer une période
+                            </label>
+                            {periodOn && (
+                                <div className="mt-2 space-y-1.5">
+                                    <select
+                                        value={periodWindow}
+                                        onChange={(e) =>
+                                            setPeriodWindow(
+                                                e.target.value as PeriodWindow,
+                                            )
+                                        }
+                                        className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                    >
+                                        {PERIOD_KEYS.map((w) => (
+                                            <option key={w} value={w}>
+                                                {PERIOD_LABELS[w]}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="text-[11px] text-muted-foreground">
+                                        Colonne de date (ex. kpi_br_print[mois])
+                                    </div>
+                                    <select
+                                        value={periodDateRef}
+                                        onChange={(e) =>
+                                            setPeriodDateRef(e.target.value)
+                                        }
+                                        className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
+                                    >
+                                        <option value="">
+                                            Choisir une colonne…
+                                        </option>
+                                        {dateFieldOptions.map((ref) => (
+                                            <option key={ref} value={ref}>
+                                                {ref}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div>
+                        <div className="mb-1.5 text-[12px] font-semibold">
+                            Formule générée
+                        </div>
+                        <pre className="overflow-auto rounded-lg border border-border bg-muted p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                            {dax}
+                        </pre>
                     </div>
                 </>
             ) : (

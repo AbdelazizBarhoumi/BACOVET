@@ -2190,3 +2190,182 @@ describe('IN / NOT IN predicates (Wave 2)', () => {
         ).toEqual([]);
     });
 });
+
+describe('time windows (Wave 2 — W2-2)', () => {
+    const sales: TableDef = {
+        name: 'sales',
+        fields: [
+            { table: 'sales', name: 'Date', type: 'text' },
+            { table: 'sales', name: 'Amount', type: 'number' },
+        ],
+        rows: [
+            { Date: '2025-06-10', Amount: 100 },
+            { Date: '2025-11-25', Amount: 200 },
+            { Date: '2026-01-15', Amount: 10 },
+            { Date: '2026-02-10', Amount: 20 },
+            { Date: '2026-03-05', Amount: 30 },
+            { Date: '2026-07-20', Amount: 40 },
+            { Date: '2026-08-15', Amount: 50 },
+        ],
+    };
+
+    beforeEach(() => setTables([sales]));
+
+    it('DATESYTD slices the year-to-date window around the max loaded date', () => {
+        const r = evaluateMeasure('M = COUNTROWS(DATESYTD(sales[Date]))', []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(5);
+    });
+
+    it('TOTALYTD sums the wrapped expression over the YTD window', () => {
+        const r = evaluateMeasure(
+            'M = TOTALYTD(SUM(sales[Amount]), sales[Date])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(150);
+    });
+
+    it('TOTALMTD sums only the current month', () => {
+        const r = evaluateMeasure(
+            'M = TOTALMTD(SUM(sales[Amount]), sales[Date])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(50);
+    });
+
+    it('PREVIOUSMONTH returns the calendar month before the anchor', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(PREVIOUSMONTH(sales[Date]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(1);
+    });
+
+    it('SAMEPERIODLASTYEAR shifts the YTD window back one year', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(SAMEPERIODLASTYEAR(sales[Date]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(1);
+    });
+
+    it('DATEADD shifts the window by n×unit', () => {
+        const r = evaluateMeasure(
+            'M = SUMX(DATEADD(sales[Date], -1, "YEAR"), sales[Amount])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(100);
+    });
+
+    it('iterator functions consume the window frames', () => {
+        const r = evaluateMeasure(
+            'M = SUMX(DATESYTD(sales[Date]), sales[Amount])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(150);
+    });
+
+    it('accepts a bare date column (table inferred)', () => {
+        const r = evaluateMeasure('M = COUNTROWS(DATESYTD(Date))', []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(5);
+    });
+
+    it('a bare column table arg still returns the full table', () => {
+        const r = evaluateMeasure('M = COUNTROWS(sales[Date])', []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(7);
+    });
+
+    it('anchor respects the current row context (ctx.tables)', () => {
+        const filter: ReportFilter = {
+            column: 'Date',
+            table: 'sales',
+            values: ['2025-06-10', '2025-11-25'],
+            scope: 'report',
+            type: 'list',
+        };
+        const fn = compileMeasure('M = COUNTROWS(DATESYTD(sales[Date]))');
+        const ctx = {
+            tables: applyTableRows([sales], filterTableRows([sales], [filter])),
+        };
+        expect(fn([], ctx)).toBe(2);
+    });
+
+    it('missing or non-column date args fail loudly, not silently', () => {
+        expect(
+            evaluateMeasure('M = COUNTROWS(DATESYTD(sales[Gone]))', []).error,
+        ).toBeTruthy();
+        expect(evaluateMeasure('M = DATESYTD(123)', []).error).toBeTruthy();
+    });
+});
+
+describe('time windows on month-granularity dates (YYYY-MM)', () => {
+    const kpi: TableDef = {
+        name: 'kpi_br_print',
+        fields: [
+            { table: 'kpi_br_print', name: 'mois', type: 'text' },
+            { table: 'kpi_br_print', name: 'nb_rejets', type: 'number' },
+        ],
+        rows: [
+            { mois: '2026-01', nb_rejets: 1 },
+            { mois: '2026-02', nb_rejets: 3 },
+            { mois: '2026-03', nb_rejets: 6 },
+            { mois: '2026-04', nb_rejets: 2 },
+            { mois: '2026-05', nb_rejets: 4 },
+            { mois: '2026-06', nb_rejets: 5 },
+            { mois: '2026-07', nb_rejets: 3 },
+            { mois: '2026-08', nb_rejets: 0 },
+        ],
+    };
+
+    beforeEach(() => setTables([kpi]));
+
+    it('DATESYTD covers every month row (anchor = 2026-08-01)', () => {
+        const r = evaluateMeasure('M = COUNTROWS(DATESYTD(kpi_br_print[mois]))', []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(8);
+    });
+
+    it('TOTALYTD sums nb_rejets across the whole YTD window', () => {
+        const r = evaluateMeasure(
+            'M = TOTALYTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(24);
+    });
+
+    it('TOTALMTD keeps only the anchor month row', () => {
+        const r = evaluateMeasure(
+            'M = TOTALMTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(0);
+    });
+
+    it('PREVIOUSMONTH selects the previous calendar month', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(PREVIOUSMONTH(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(1);
+    });
+
+    it('SAMEPERIODLASTYEAR returns zero rows when no prior-year data exists', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(SAMEPERIODLASTYEAR(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(0);
+    });
+});

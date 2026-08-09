@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-08T19:35:18.916Z",
-  "source_signature": "2d886b49",
+  "generated_at": "2026-08-09T10:22:00.117Z",
+  "source_signature": "2bdb5f54",
   "tables": [
     {
       "name": "itemtrx",
@@ -945,6 +945,485 @@
       ]
     },
     {
+      "name": "sales_ledger",
+      "fields": [
+        {
+          "table": "sales_ledger",
+          "name": "Date",
+          "type": "date"
+        },
+        {
+          "table": "sales_ledger",
+          "name": "Amount",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "Date": "2025-01-05",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-01-09",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-01-13",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-01-17",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-01-21",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-01-25",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-01-29",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-02-02",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-02-06",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-02-10",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-02-14",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-02-18",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-02-22",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-02-26",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-02",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-06",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-10",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-14",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-18",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-22",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-26",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-03-30",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-04-03",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-04-07",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-04-11",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-04-15",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-04-19",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-04-23",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-04-27",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-01",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-05",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-09",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-13",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-17",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-21",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-25",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-05-29",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-02",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-06",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-10",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-14",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-18",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-22",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-26",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-06-30",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-07-04",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-07-08",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-07-12",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-07-16",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-07-20",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-07-24",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-07-28",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-01",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-05",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-09",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-13",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-17",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-21",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-25",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-08-29",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-02",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-06",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-10",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-14",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-18",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-22",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-26",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-09-30",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-10-04",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-10-08",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-10-12",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-10-16",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-10-20",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-10-24",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-10-28",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-01",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-05",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-09",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-13",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-17",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-21",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-25",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-11-29",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-03",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-07",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-11",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-15",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-19",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-23",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-27",
+          "Amount": 36
+        },
+        {
+          "Date": "2025-12-31",
+          "Amount": 36
+        },
+        {
+          "Date": "2026-01-04",
+          "Amount": 36
+        },
+        {
+          "Date": "2026-01-08",
+          "Amount": 36
+        },
+        {
+          "Date": "2026-01-12",
+          "Amount": 36
+        },
+        {
+          "Date": "2026-01-16",
+          "Amount": 34
+        },
+        {
+          "Date": "2026-01-20",
+          "Amount": 34
+        },
+        {
+          "Date": "2026-01-24",
+          "Amount": 34
+        },
+        {
+          "Date": "2026-01-28",
+          "Amount": 34
+        },
+        {
+          "Date": "2026-02-01",
+          "Amount": 34
+        },
+        {
+          "Date": "2026-02-05",
+          "Amount": 34
+        }
+      ]
+    },
+    {
+      "name": "kpi_br_print",
+      "fields": [
+        {
+          "table": "kpi_br_print",
+          "name": "mois",
+          "type": "text"
+        },
+        {
+          "table": "kpi_br_print",
+          "name": "nb_inspections",
+          "type": "number"
+        },
+        {
+          "table": "kpi_br_print",
+          "name": "nb_rejets",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "mois": "2026-01",
+          "nb_inspections": 1,
+          "nb_rejets": 1
+        },
+        {
+          "mois": "2026-02",
+          "nb_inspections": 3,
+          "nb_rejets": 3
+        },
+        {
+          "mois": "2026-03",
+          "nb_inspections": 6,
+          "nb_rejets": 6
+        },
+        {
+          "mois": "2026-04",
+          "nb_inspections": 2,
+          "nb_rejets": 2
+        },
+        {
+          "mois": "2026-05",
+          "nb_inspections": 4,
+          "nb_rejets": 4
+        },
+        {
+          "mois": "2026-06",
+          "nb_inspections": 5,
+          "nb_rejets": 5
+        },
+        {
+          "mois": "2026-07",
+          "nb_inspections": 3,
+          "nb_rejets": 3
+        },
+        {
+          "mois": "2026-08",
+          "nb_inspections": 2,
+          "nb_rejets": 0
+        }
+      ]
+    },
+    {
       "name": "kpi_rejets_annee",
       "fields": [
         {
@@ -1331,6 +1810,23 @@
         ]
       }
     },
+    "ledger_rows": 100,
+    "ledger_anchor": "2026-02-05",
+    "ledger_ytd_rows": 9,
+    "ledger_ytd_sum": 312,
+    "ledger_mtd_rows": 2,
+    "ledger_mtd_sum": 68,
+    "ledger_prev_month_rows": 7,
+    "ledger_sly_rows": 8,
+    "ledger_sly_sum": 288,
+    "kpi_br_anchor": "2026-08-01",
+    "kpi_br_rows": 8,
+    "kpi_br_ytd_rows": 8,
+    "kpi_br_ytd_rejets": 24,
+    "kpi_br_ytd_inspections": 26,
+    "kpi_br_mtd_rejets": 0,
+    "kpi_br_prev_month_rows": 1,
+    "kpi_br_sly_rows": 0,
     "kpi_rejets_annee.BundleRejectYear": 0,
     "kpi_inspections_annee.BundleInspectedYear": 4,
     "kpi_rejets_jour.BundleRejectToday": 0,
