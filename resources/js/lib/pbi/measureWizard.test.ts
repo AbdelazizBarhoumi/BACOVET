@@ -1359,3 +1359,221 @@ describe('composition (Wave 1)', () => {
         expect(na.error).toBeTruthy();
     });
 });
+
+describe('conditions (Wave 2 — W2-1..W2-5)', () => {
+    const linkList = (overrides: Partial<WizardSpec> = {}): WizardSpec => ({
+        ...styleLinkSpec(),
+        kind: 'list',
+        column: 'StyleCode',
+        agg: 'count',
+        ...overrides,
+    });
+
+    it('W2-1 emits an IN {…} multi-value predicate and evaluates it', () => {
+        setTables([taging, codestyle]);
+        const spec = linkList({
+            condition: {
+                column: 'StyleCode',
+                op: 'in',
+                value: '302806',
+                values: ['302806', '311837'],
+            },
+        });
+        const dax = buildMeasureDax(spec);
+        // Numeric-looking codes stay raw (the numeric shortcut that keeps
+        // `Qty > 0` numeric); text codes like 'CH10' are single-quoted.
+        expect(dax).toContain(
+            'TRIM(codestyle[StyleCode]) IN {302806, 311837}',
+        );
+        const fn = compileListMeasure(dax);
+        expect(fn).not.toBeNull();
+        // Only StyleCode 311837 is reachable through the taging_reel chain;
+        // 302806 exists in codestyle but not behind a matching MONo.
+        expect(fn!([], {})).toEqual(['311837']);
+    });
+
+    it('W2-1 emits a NOT IN {…} predicate and excludes the list', () => {
+        setTables([taging, codestyle]);
+        const spec = linkList({
+            condition: {
+                column: 'StyleCode',
+                op: 'notIn',
+                value: '311837',
+                values: ['311837'],
+            },
+        });
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain(
+            'TRIM(codestyle[StyleCode]) NOT IN {311837}',
+        );
+        const fn = compileListMeasure(dax);
+        expect(fn).not.toBeNull();
+        expect(fn!([], {})).toEqual([]);
+    });
+
+    it('W2-2 combines several rows with && inside a parenthesised block', () => {
+        const spec = linkList({
+            conditions: {
+                combine: 'and',
+                rows: [
+                    {
+                        column: 'StyleCode',
+                        op: 'in',
+                        value: '',
+                        values: ['302806', '311837'],
+                    },
+                    { column: 'SONo', op: 'neq', value: 'x' },
+                ],
+            },
+        });
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain(
+            "&& (TRIM(codestyle[StyleCode]) IN {302806, 311837} && TRIM(codestyle[SONo]) <> 'x')",
+        );
+    });
+
+    it('W2-2 combines several rows with || (OR)', () => {
+        const spec = linkList({
+            conditions: {
+                combine: 'or',
+                rows: [
+                    { column: 'StyleCode', op: 'eq', value: '302806' },
+                    { column: 'SONo', op: 'eq', value: '4524091437' },
+                ],
+            },
+        });
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain(
+            '&& (TRIM(codestyle[StyleCode]) = 302806 || TRIM(codestyle[SONo]) = 4524091437)',
+        );
+    });
+
+    it('W2-3 targets a base-table column', () => {
+        const spec = linkList({
+            condition: {
+                table: 'taging_reel',
+                column: 'ProdGroup',
+                op: 'eq',
+                value: 'CH10',
+            },
+        });
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain("TRIM(taging_reel[ProdGroup]) = 'CH10'");
+        // The base-table condition must be evaluated inside the innermost
+        // FILTER(taging_reel, …) where taging_reel is in the row context —
+        // otherwise it always filters everything out (UI preview showed 0).
+        expect(dax).toContain(
+            "TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]) && TRIM(taging_reel[ProdGroup]) = 'CH10'",
+        );
+    });
+
+    it('W2-3 base-table condition actually filters (evaluates the preview)', () => {
+        setTables([taging, codestyle]);
+        const spec = linkList({
+            condition: {
+                table: 'taging_reel',
+                column: 'ProdGroup',
+                op: 'eq',
+                value: 'CH10',
+            },
+        });
+        const fn = compileListMeasure(buildMeasureDax(spec));
+        expect(fn).not.toBeNull();
+        // Only StyleCode 311837 is reachable through CH10 taging_reel rows.
+        expect(fn!([], {})).toEqual(['311837']);
+    });
+
+    it('W2-5 quotes apostrophes safely (doubled) and round-trips', () => {
+        const spec = linkList({
+            condition: { column: 'StyleCode', op: 'eq', value: "O'Brien" },
+        });
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain("TRIM(codestyle[StyleCode]) = 'O''Brien'");
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.condition).toEqual({
+            column: 'StyleCode',
+            op: 'eq',
+            value: "O'Brien",
+        });
+    });
+
+    it('W2-5 quoted value inside an IN list survives the round-trip', () => {
+        const spec = linkList({
+            condition: {
+                column: 'StyleCode',
+                op: 'in',
+                value: '',
+                values: ["O'Brien", 'CH10'],
+            },
+        });
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain("IN {'O''Brien', 'CH10'}");
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.condition!.values).toEqual(["O'Brien", 'CH10']);
+    });
+
+    it('W2-4 round-trips an IN multi-value condition', () => {
+        const spec = linkList({
+            condition: {
+                column: 'StyleCode',
+                op: 'in',
+                value: '302806',
+                values: ['302806', '311837'],
+            },
+        });
+        const derived = deriveMeasureSpec(buildMeasureDax(spec));
+        expect(derived).not.toBeNull();
+        expect(derived!.condition).toEqual(spec.condition);
+    });
+
+    it('W2-4 round-trips a multi-condition AND group', () => {
+        const spec = linkList({
+            conditions: {
+                combine: 'and',
+                rows: [
+                    {
+                        column: 'StyleCode',
+                        op: 'in',
+                        value: '302806',
+                        values: ['302806', '311837'],
+                    },
+                    { column: 'SONo', op: 'neq', value: 'x' },
+                ],
+            },
+        });
+        const derived = deriveMeasureSpec(buildMeasureDax(spec));
+        expect(derived).not.toBeNull();
+        expect(derived!.conditions).toEqual(spec.conditions);
+    });
+
+    it('W2-4 round-trips a multi-condition OR group', () => {
+        const spec = linkList({
+            conditions: {
+                combine: 'or',
+                rows: [
+                    { column: 'StyleCode', op: 'eq', value: '302806' },
+                    { column: 'SONo', op: 'eq', value: '4524091437' },
+                ],
+            },
+        });
+        const derived = deriveMeasureSpec(buildMeasureDax(spec));
+        expect(derived).not.toBeNull();
+        expect(derived!.conditions).toEqual(spec.conditions);
+    });
+
+    it('W2-4 round-trips a base-table condition', () => {
+        const spec = linkList({
+            condition: {
+                table: 'taging_reel',
+                column: 'ProdGroup',
+                op: 'eq',
+                value: 'CH10',
+            },
+        });
+        const derived = deriveMeasureSpec(buildMeasureDax(spec));
+        expect(derived).not.toBeNull();
+        expect(derived!.condition).toEqual(spec.condition);
+    });
+});

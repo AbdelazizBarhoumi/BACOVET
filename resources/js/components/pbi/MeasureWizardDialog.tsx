@@ -1,17 +1,20 @@
 import { motion } from 'framer-motion';
 import {
     ArrowRight,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     GitMerge,
+    Plus,
     Save,
     Sparkles,
     Table2,
     X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { distinctValuesForTableColumn } from '@/lib/pbi/filters';
 import {
     AGG_LABELS,
     COND_LABELS,
@@ -126,9 +129,10 @@ export function MeasureWizardDialog({
     const [agg, setAgg] = useState<NumericAgg>('sum');
     const [column, setColumn] = useState('');
     const [condOn, setCondOn] = useState(false);
-    const [condCol, setCondCol] = useState('');
-    const [condOp, setCondOp] = useState<ValueCondition['op']>('gt');
-    const [condVal, setCondVal] = useState('');
+    const [condRows, setCondRows] = useState<ValueCondition[]>([
+        { column: '', op: 'gt', value: '' },
+    ]);
+    const [condCombine, setCondCombine] = useState<'and' | 'or'>('and');
     const [name, setName] = useState('');
     const [saving, setSaving] = useState(false);
     const [allowWeak, setAllowWeak] = useState(false);
@@ -260,7 +264,9 @@ export function MeasureWizardDialog({
         const def = tables.find((t) => t.name === name);
         const num = def?.fields?.find((f) => f.type === 'number');
         setColumn(num?.name ?? def?.fields?.[0]?.name ?? '');
-        setCondCol('');
+        setCondRows((rows) =>
+            rows.map((r) => ({ ...r, column: '', table: undefined })),
+        );
     };
 
     const spec: WizardSpec = useMemo(() => {
@@ -271,14 +277,19 @@ export function MeasureWizardDialog({
             kind,
             column,
             agg,
-            condition:
-                condOn && condCol
-                    ? { column: condCol, op: condOp, value: condVal }
-                    : undefined,
         };
+        const rows = condOn
+            ? condRows.filter((r) => r.column.trim() !== '')
+            : [];
+        const withCond =
+            rows.length === 1
+                ? { ...base, condition: rows[0] }
+                : rows.length > 1
+                  ? { ...base, conditions: { combine: condCombine, rows } }
+                  : base;
         if (composeOn && composeA && composeB) {
             return {
-                ...base,
+                ...withCond,
                 kind: 'number',
                 composition: {
                     a: composeA,
@@ -289,7 +300,7 @@ export function MeasureWizardDialog({
                 },
             };
         }
-        return base;
+        return withCond;
     }, [
         fromTable,
         toTable,
@@ -298,9 +309,8 @@ export function MeasureWizardDialog({
         column,
         agg,
         condOn,
-        condCol,
-        condOp,
-        condVal,
+        condRows,
+        condCombine,
         composeOn,
         composeA,
         composeB,
@@ -547,12 +557,12 @@ export function MeasureWizardDialog({
                                 setColumn={setColumn}
                                 condOn={condOn}
                                 setCondOn={setCondOn}
-                                condCol={condCol}
-                                setCondCol={setCondCol}
-                                condOp={condOp}
-                                setCondOp={setCondOp}
-                                condVal={condVal}
-                                setCondVal={setCondVal}
+                                condRows={condRows}
+                                setCondRows={setCondRows}
+                                condCombine={condCombine}
+                                setCondCombine={setCondCombine}
+                                tables={tables}
+                                fromTable={fromTable}
                                 composeOn={composeOn}
                                 toggleCompose={toggleCompose}
                             />
@@ -1194,6 +1204,213 @@ function PathStep({
 
 /* ───────────────────────── Step: Résultat ───────────────────────────── */
 
+/** Multi-select value picker fed by the column's distinct values (W2-1). */
+function ConditionValuePicker({
+    tables,
+    table,
+    column,
+    selected,
+    onChange,
+}: {
+    tables: TableDef[];
+    table: string;
+    column: string;
+    selected: string[];
+    onChange: (values: string[]) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [q, setQ] = useState('');
+    const values = useMemo(
+        () =>
+            table && column
+                ? distinctValuesForTableColumn(tables, table, column)
+                : [],
+        [tables, table, column],
+    );
+    const filtered = values.filter((v) =>
+        v.toLowerCase().includes(q.trim().toLowerCase()),
+    );
+    const chosen = new Set(selected);
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className="flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-[11px]"
+            >
+                {selected.length
+                    ? `${selected.length} valeur${selected.length > 1 ? 's' : ''}`
+                    : 'Choisir…'}
+                <ChevronDown className="size-3" />
+            </button>
+            {open && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-border bg-card p-2 shadow-xl">
+                    <input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Filtrer…"
+                        className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
+                    />
+                    <div className="mt-1.5 max-h-48 space-y-0.5 overflow-auto">
+                        {filtered.length === 0 && (
+                            <p className="px-1 py-1 text-[11px] text-muted-foreground">
+                                Aucune valeur
+                            </p>
+                        )}
+                        {filtered.map((v) => (
+                            <label
+                                key={v}
+                                className="flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px] hover:bg-accent"
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={chosen.has(v)}
+                                    onChange={() => {
+                                        const next = new Set(selected);
+                                        if (next.has(v)) next.delete(v);
+                                        else next.add(v);
+                                        onChange(
+                                            [...next].sort((a, b) =>
+                                                a.localeCompare(b),
+                                            ),
+                                        );
+                                    }}
+                                    className="accent-brand"
+                                />
+                                <span className="truncate">{v}</span>
+                            </label>
+                        ))}
+                    </div>
+                    {selected.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => onChange([])}
+                            className="mt-1 text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                            Tout effacer
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** One editable condition row: column (base or target), operator, value. */
+function ConditionRowEditor({
+    row,
+    tables,
+    from,
+    to,
+    onChange,
+    onRemove,
+}: {
+    row: ValueCondition;
+    tables: TableDef[];
+    from: string;
+    to: string;
+    onChange: (patch: Partial<ValueCondition>) => void;
+    onRemove: () => void;
+}) {
+    const table = row.table ?? to;
+    const targetDef = tables.find((t) => t.name === to);
+    const baseDef = tables.find((t) => t.name === from);
+    const isMulti = row.op === 'in' || row.op === 'notIn';
+    const colOptions: { table: string; column: string; label: string }[] = [
+        ...(targetDef?.fields ?? []).map((f) => ({
+            table: to,
+            column: f.name,
+            label: f.name,
+        })),
+        ...(from !== to
+            ? (baseDef?.fields ?? []).map((f) => ({
+                  table: from,
+                  column: f.name,
+                  label: `${from} — ${f.name}`,
+              }))
+            : []),
+    ];
+
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <select
+                value={`${table}|${row.column}`}
+                onChange={(e) => {
+                    const [t, c] = e.target.value.split('|');
+                    onChange({
+                        table: t && t !== to ? t : undefined,
+                        column: c ?? '',
+                    });
+                }}
+                className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+            >
+                <option value="">Colonne</option>
+                {colOptions.map((o) => (
+                    <option
+                        key={`${o.table}|${o.column}`}
+                        value={`${o.table}|${o.column}`}
+                    >
+                        {o.label}
+                    </option>
+                ))}
+            </select>
+            <select
+                value={row.op}
+                onChange={(e) => {
+                    const op = e.target.value as ValueCondition['op'];
+                    const multi = op === 'in' || op === 'notIn';
+                    onChange(
+                        multi
+                            ? {
+                                  op,
+                                  values: row.value
+                                      ? [row.value]
+                                      : (row.values ?? []),
+                              }
+                            : {
+                                  op,
+                                  value: row.values?.[0] ?? row.value ?? '',
+                              },
+                    );
+                }}
+                className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+            >
+                {OP_KEYS.map((op) => (
+                    <option key={op} value={op}>
+                        {COND_LABELS[op]}
+                    </option>
+                ))}
+            </select>
+            {isMulti ? (
+                <ConditionValuePicker
+                    tables={tables}
+                    table={table}
+                    column={row.column}
+                    selected={row.values ?? []}
+                    onChange={(values) => onChange({ values })}
+                />
+            ) : (
+                <input
+                    value={row.value}
+                    onChange={(e) => onChange({ value: e.target.value })}
+                    placeholder="valeur"
+                    className="w-28 rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
+                />
+            )}
+            <button
+                type="button"
+                onClick={onRemove}
+                aria-label="Supprimer la condition"
+                title="Supprimer"
+                className="inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+                <X className="size-3.5" />
+            </button>
+        </div>
+    );
+}
+
 function ResultStep({
     toDef,
     toColumns,
@@ -1205,12 +1422,12 @@ function ResultStep({
     setColumn,
     condOn,
     setCondOn,
-    condCol,
-    setCondCol,
-    condOp,
-    setCondOp,
-    condVal,
-    setCondVal,
+    condRows,
+    setCondRows,
+    condCombine,
+    setCondCombine,
+    tables,
+    fromTable,
     composeOn,
     toggleCompose,
 }: {
@@ -1224,12 +1441,12 @@ function ResultStep({
     setColumn: (c: string) => void;
     condOn: boolean;
     setCondOn: (b: boolean) => void;
-    condCol: string;
-    setCondCol: (c: string) => void;
-    condOp: ValueCondition['op'];
-    setCondOp: (o: ValueCondition['op']) => void;
-    condVal: string;
-    setCondVal: (v: string) => void;
+    condRows: ValueCondition[];
+    setCondRows: Dispatch<SetStateAction<ValueCondition[]>>;
+    condCombine: 'and' | 'or';
+    setCondCombine: (c: 'and' | 'or') => void;
+    tables: TableDef[];
+    fromTable: string;
     composeOn: boolean;
     toggleCompose: (on: boolean) => void;
 }) {
@@ -1354,41 +1571,77 @@ function ResultStep({
                             Appliquer une condition
                         </label>
                         {condOn && (
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                <select
-                                    value={condCol}
-                                    onChange={(e) => setCondCol(e.target.value)}
-                                    className="rounded border border-border bg-background px-2 py-1 text-[11px]"
-                                >
-                                    <option value="">Colonne</option>
-                                    {(toDef?.fields ?? []).map((f) => (
-                                        <option key={f.name} value={f.name}>
-                                            {f.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <select
-                                    value={condOp}
-                                    onChange={(e) =>
-                                        setCondOp(
-                                            e.target
-                                                .value as ValueCondition['op'],
-                                        )
+                            <div className="mt-2 space-y-1.5">
+                                {condRows.length > 1 && (
+                                    <div className="flex items-center gap-1.5 text-[11px]">
+                                        <span className="text-muted-foreground">
+                                            Combiner les conditions en
+                                        </span>
+                                        <select
+                                            value={condCombine}
+                                            onChange={(e) =>
+                                                setCondCombine(
+                                                    e.target.value as
+                                                        | 'and'
+                                                        | 'or',
+                                                )
+                                            }
+                                            className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                        >
+                                            <option value="and">
+                                                ET (toutes)
+                                            </option>
+                                            <option value="or">
+                                                OU (au moins une)
+                                            </option>
+                                        </select>
+                                    </div>
+                                )}
+                                {condRows.map((row, i) => (
+                                    <ConditionRowEditor
+                                        key={i}
+                                        row={row}
+                                        tables={tables}
+                                        from={fromTable}
+                                        to={toDef?.name ?? ''}
+                                        onChange={(patch) =>
+                                            setCondRows((rows) =>
+                                                rows.map((r, idx) =>
+                                                    idx === i
+                                                        ? { ...r, ...patch }
+                                                        : r,
+                                                ),
+                                            )
+                                        }
+                                        onRemove={() =>
+                                            setCondRows((rows) =>
+                                                rows.length > 1
+                                                    ? rows.filter(
+                                                          (_, idx) =>
+                                                              idx !== i,
+                                                      )
+                                                    : rows,
+                                            )
+                                        }
+                                    />
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setCondRows((rows) => [
+                                            ...rows,
+                                            {
+                                                column: '',
+                                                op: 'gt',
+                                                value: '',
+                                            },
+                                        ])
                                     }
-                                    className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                    className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline"
                                 >
-                                    {OP_KEYS.map((op) => (
-                                        <option key={op} value={op}>
-                                            {COND_LABELS[op]}
-                                        </option>
-                                    ))}
-                                </select>
-                                <input
-                                    value={condVal}
-                                    onChange={(e) => setCondVal(e.target.value)}
-                                    placeholder="valeur"
-                                    className="w-28 rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
-                                />
+                                    <Plus className="size-3" />
+                                    Ajouter une condition
+                                </button>
                             </div>
                         )}
                     </div>

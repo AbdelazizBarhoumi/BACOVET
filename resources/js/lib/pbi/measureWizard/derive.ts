@@ -280,32 +280,28 @@ export function deriveMeasureSpec(body: string): WizardSpec | null {
         return null;
     }
 
-    // Trailing ` && <condition>` is a scalar filter, not part of the chain.
-    const condParts = splitTopLevelAnds(cond);
-    let chainStr = cond;
-    let condition: ValueCondition | undefined;
-    if (condParts.length > 1) {
-        const last = condParts.pop()!;
-        const parsed = parseCondition(last);
-        if (parsed) {
-            condition = parsed;
-            chainStr = condParts.join(' && ');
-        }
-    }
-
+    // The predicate is a mix of chain edges (`TRIM(a)=TRIM(b)`) and scalar
+    // conditions. Classify every segment so multi-condition AND / OR and
+    // base-table conditions all round-trip (W2-2, W2-3, W2-4).
+    const parsed = parseFilterPredicate(cond, to);
+    if (parsed === null) return null;
+    const chainStr = parsed.chain.join(' && ');
     const hops = parseChain(chainStr);
     if (hops === null) return null;
     const from = hops.length ? hops[0]!.from : to;
 
-    return {
+    const spec: WizardSpec = {
         from,
         to,
         hops,
         kind: kind as MeasureKind,
         column,
         agg,
-        condition,
     };
+    if (parsed.rows.length === 1) spec.condition = parsed.rows[0];
+    else if (parsed.rows.length > 1)
+        spec.conditions = { combine: parsed.combine, rows: parsed.rows };
+    return spec;
 }
 
 /** Index of the paren that closes the one opening at `open`. -1 if unmatched. */
@@ -341,8 +337,8 @@ function topLevelComma(s: string): number {
     return -1;
 }
 
-/** Split a condition string on top-level ` && ` (ignoring nested parens). */
-function splitTopLevelAnds(s: string): string[] {
+/** Split `s` on a top-level boolean operator (ignoring nested parens). */
+function splitTopLevel(s: string, op: '&&' | '||'): string[] {
     const parts: string[] = [];
     let depth = 0;
     let cur = '';
@@ -350,7 +346,7 @@ function splitTopLevelAnds(s: string): string[] {
         const c = s[i]!;
         if (c === '(') depth++;
         else if (c === ')') depth--;
-        if (depth === 0 && c === '&' && s[i + 1] === '&') {
+        if (depth === 0 && c === op[0] && s[i + 1] === op[1]) {
             parts.push(cur.trim());
             cur = '';
             i += 1;
@@ -362,13 +358,199 @@ function splitTopLevelAnds(s: string): string[] {
     return parts;
 }
 
-function parseCondition(s: string): ValueCondition | undefined {
-    const m = COND_OP_RE.exec(s);
+/** True when `s` contains `op` at paren-depth 0. */
+function hasTopLevelBinop(s: string, op: '&&' | '||'): boolean {
+    let depth = 0;
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i]!;
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+        else if (
+            depth === 0 &&
+            c === op[0] &&
+            s[i + 1] === op[1]
+        )
+            return true;
+    }
+    return false;
+}
+
+/**
+ * Split a FILTER predicate into chain edges and scalar conditions. The wizard
+ * emits `chain && <condition-block>` where the block is a bare condition or a
+ * parenthesized `(a && b)` / `(a || b)` group; hand-written DAX may use
+ * several bare `&&`-joined conditions instead.
+ */
+/** The predicate inside the innermost `FILTER(<table>, <body>)` of a chain. */
+function innermostFilterBody(
+    s: string,
+): { table: string; body: string } | null {
+    const idx = s.lastIndexOf('FILTER(');
+    if (idx < 0) return null;
+    const open = s.indexOf('(', idx);
+    const close = matchingParen(s, open);
+    if (close < 0) return null;
+    const inner = s.slice(open + 1, close);
+    const comma = topLevelComma(inner);
+    if (comma < 0) return null;
+    return {
+        table: inner.slice(0, comma).trim(),
+        body: inner.slice(comma + 1).trim(),
+    };
+}
+
+function parseFilterPredicate(
+    cond: string,
+    to: string,
+): { chain: string[]; rows: ValueCondition[]; combine: 'and' | 'or' } | null {
+    const segments = splitTopLevel(cond, '&&');
+    const chain: string[] = [];
+    const rows: ValueCondition[] = [];
+    let combine: 'and' | 'or' = 'and';
+    for (const segment of segments) {
+        const t = segment.trim();
+        if (!t) continue;
+        const group = /^\((.*)\)$/s.exec(t);
+        if (group) {
+            const inner = group[1]!;
+            if (hasTopLevelBinop(inner, '||')) {
+                combine = 'or';
+                for (const part of splitTopLevel(inner, '||')) {
+                    const c = parseCondition(part, to);
+                    if (!c) return null;
+                    rows.push(c);
+                }
+                continue;
+            }
+            const innerParts = splitTopLevel(inner, '&&');
+            const parsed = innerParts
+                .map((p) => parseCondition(p, to))
+                .filter((c): c is ValueCondition => c !== undefined);
+            if (parsed.length) {
+                rows.push(...parsed);
+                continue;
+            }
+        }
+        const c = parseCondition(t, to);
+        if (c) rows.push(c);
+        // Anything else — a `TRIM(a)=TRIM(b)` edge, a nested correlated
+        // `COUNTROWS(FILTER(…)) > 0` predicate, … — belongs to the chain and is
+        // left for `parseChain` to mine the join edges out of.
+        else {
+            chain.push(t);
+            // Base-table conditions are embedded in the innermost
+            // FILTER(from, …) body (W2-3). Dig them out so the round-trip
+            // keeps them on the spec.
+            const innerBody = innermostFilterBody(t);
+            if (innerBody) {
+                const sub = parseFilterPredicate(innerBody.body, to);
+                if (sub) {
+                    rows.push(...sub.rows);
+                    if (sub.combine === 'or') combine = 'or';
+                }
+            }
+        }
+    }
+    return { chain, rows, combine };
+}
+
+/** The table name of a `TRIM(<table>[<col>])` prefix, or null. */
+function stripTrimTable(s: string): string | null {
+    const m = /^\s*TRIM\s*\(\s*([a-zA-Z_][\w]*)\s*\[/.exec(s);
+    return m ? m[1]! : null;
+}
+
+/** True when the value side is a literal (quoted string, number, or `{…}` list). */
+function isLiteral(s: string): boolean {
+    const t = s.trim();
+    if (/^-?\d+(\.\d+)?$/.test(t)) return true;
+    if (
+        t.length >= 2 &&
+        ((t.startsWith("'") && t.endsWith("'")) ||
+            (t.startsWith('"') && t.endsWith('"')))
+    )
+        return true;
+    return t.startsWith('{') && t.endsWith('}');
+}
+
+/** Split a `{…}` IN list on commas, honouring quotes and `''` escapes. */
+function splitInList(inner: string): string[] {
+    const parts: string[] = [];
+    let cur = '';
+    let quote: string | null = null;
+    for (let i = 0; i < inner.length; i++) {
+        const c = inner[i]!;
+        if (quote) {
+            if (c === quote) {
+                if (inner[i + 1] === quote) {
+                    cur += c;
+                    i += 1;
+                } else quote = null;
+            } else cur += c;
+        } else if (c === "'" || c === '"') {
+            quote = c;
+        } else if (c === ',') {
+            parts.push(cur.trim());
+            cur = '';
+        } else cur += c;
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    return parts;
+}
+
+/** Remove one wrapping quote pair and collapse doubled quotes. */
+function unescapeValue(v: string): string {
+    return v
+        .trim()
+        .replace(/^['"]|['"]$/g, '')
+        .replace(/''/g, "'");
+}
+
+/** True when a predicate's left side is a simple `TRIM(table[col])` reference. */
+function isTrimCol(s: string): boolean {
+    return /^TRIM\s*\(\s*[a-zA-Z_][\w]*\s*\[\s*[^\]]+\s*\]\s*\)$/i.test(
+        s.trim(),
+    );
+}
+
+function parseCondition(s: string, to: string): ValueCondition | undefined {
+    const t = s.trim();
+    // `TRIM(table[col]) IN { … }` / `NOT IN { … }`
+    const inMatch =
+        /^(.*?)\s+(NOT\s+IN|IN)\s*\{([\s\S]*)\}\s*$/i.exec(t);
+    if (inMatch) {
+        if (!isTrimCol(inMatch[1]!)) return undefined;
+        const col = stripTrimBrackets(inMatch[1]!);
+        if (!col) return undefined;
+        const table = stripTrimTable(inMatch[1]!);
+        const op: ValueCondition['op'] = inMatch[2]!
+            .toUpperCase()
+            .includes('NOT')
+            ? 'notIn'
+            : 'in';
+        const values = splitInList(inMatch[3]!)
+            .map(unescapeValue)
+            .filter((v) => v !== '');
+        if (!values.length) return undefined;
+        return {
+            ...(table && table !== to ? { table } : {}),
+            column: col,
+            op,
+            value: values[0]!,
+            values,
+        };
+    }
+    const m = COND_OP_RE.exec(t);
     if (!m) return undefined;
-    const colPart = s.slice(0, m.index).trim();
-    const valPart = s.slice(m.index + m[0].length).trim();
+    const colPart = t.slice(0, m.index).trim();
+    const valPart = t.slice(m.index + m[0].length).trim();
+    // A scalar condition always has a plain `TRIM(table[col])` left side; the
+    // correlated chain predicate is `COUNTROWS(FILTER(…)) > 0`, which must NOT
+    // be mistaken for one.
+    if (!isTrimCol(colPart)) return undefined;
     const col = stripTrimBrackets(colPart);
     if (!col) return undefined;
+    const table = stripTrimTable(colPart);
     const opMap: Record<string, ValueCondition['op']> = {
         '>': 'gt',
         '>=': 'gte',
@@ -378,8 +560,13 @@ function parseCondition(s: string): ValueCondition | undefined {
         '<>': 'neq',
     };
     const op = opMap[m[1]!];
-    if (!op) return undefined;
-    return { column: col, op, value: valPart.replace(/^['"]|['"]$/g, '') };
+    if (!op || !isLiteral(valPart)) return undefined;
+    return {
+        ...(table && table !== to ? { table } : {}),
+        column: col,
+        op,
+        value: unescapeValue(valPart),
+    };
 }
 
 function stripTrimBrackets(s: string): string | null {

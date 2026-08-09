@@ -48,11 +48,22 @@ export type MeasureKind = 'list' | 'countrows' | 'number';
 export type NumericAgg = 'sum' | 'avg' | 'min' | 'max' | 'count';
 
 export type ValueCondition = {
+    /**
+     * Table the column lives on. Omitted ⇒ the target table (`to`); set to the
+     * base table name (`from`) for a base-table condition.
+     */
+    table?: string;
     column: string;
     op: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq' | 'in' | 'notIn';
     value: string;
     /** values for `in` / `notIn` conditions */
     values?: string[];
+};
+
+/** Multiple conditions combined with a single AND / OR operator. */
+export type ConditionGroup = {
+    combine: 'and' | 'or';
+    rows: ValueCondition[];
 };
 
 /**
@@ -97,6 +108,12 @@ export type WizardSpec = {
     agg: NumericAgg;
     /** optional extra condition applied to target rows */
     condition?: ValueCondition;
+    /**
+     * Multiple conditions combined (AND/OR), each rendered as its own row.
+     * When present with more than one row it overrides `condition`; a single
+     * row is normalized to `condition`.
+     */
+    conditions?: ConditionGroup;
     /** composed measure (A ÷ B × 100 …). When present, overrides kind/column. */
     composition?: CompositeSpec;
 };

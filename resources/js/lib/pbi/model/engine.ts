@@ -87,6 +87,12 @@ type MeasureNode =
           right: MeasureNode;
       }
     | {
+          kind: 'in';
+          op: 'in' | 'notIn';
+          left: MeasureNode;
+          values: (string | number)[];
+      }
+    | {
           kind: 'logic';
           op: '&&' | '||';
           left: MeasureNode;
@@ -112,7 +118,7 @@ type Token =
     | { type: 'qword'; value: string }
     | { type: 'bracket'; value: string }
     | { type: 'table'; value: string }
-    | { type: 'lparen' | 'rparen' | 'comma' }
+    | { type: 'lparen' | 'rparen' | 'lbrace' | 'rbrace' | 'comma' }
     | {
           type: 'op';
           value:
@@ -130,6 +136,34 @@ type Token =
               | '&&'
               | '||';
       };
+
+/**
+ * Scan a quoted literal starting at `src[i]` (which is `'` or `"`), unescaping
+ * doubled quotes (`''` / `""`) DAX-style. Returns the unescaped value and the
+ * index just past the closing quote.
+ */
+function scanQuoted(
+    src: string,
+    i: number,
+): { value: string; next: number } {
+    const q = src[i]!;
+    let j = i + 1;
+    let value = '';
+    while (j < src.length) {
+        const c = src[j]!;
+        if (c === q) {
+            if (src[j + 1] === q) {
+                value += q;
+                j += 2;
+                continue;
+            }
+            return { value, next: j + 1 };
+        }
+        value += c;
+        j += 1;
+    }
+    throw new MeasureSyntaxError('Guillemet non fermé');
+}
 
 function tokenize(src: string): Token[] {
     const tokens: Token[] = [];
@@ -160,16 +194,25 @@ function tokenize(src: string): Token[] {
             i += 1;
             continue;
         }
+        if (c === '{') {
+            tokens.push({ type: 'lbrace' });
+            i += 1;
+            continue;
+        }
+        if (c === '}') {
+            tokens.push({ type: 'rbrace' });
+            i += 1;
+            continue;
+        }
         if (c === ',') {
             tokens.push({ type: 'comma' });
             i += 1;
             continue;
         }
         if (c === '"') {
-            const end = src.indexOf('"', i + 1);
-            if (end < 0) throw new MeasureSyntaxError('Guillemet non fermé');
-            tokens.push({ type: 'string', value: src.slice(i + 1, end) });
-            i = end + 1;
+            const scanned = scanQuoted(src, i);
+            tokens.push({ type: 'string', value: scanned.value });
+            i = scanned.next;
             continue;
         }
         if (c === '<') {
@@ -229,10 +272,9 @@ function tokenize(src: string): Token[] {
             continue;
         }
         if (c === "'") {
-            const end = src.indexOf("'", i + 1);
-            if (end < 0) throw new MeasureSyntaxError('Guillemet non fermé');
-            tokens.push({ type: 'qword', value: src.slice(i + 1, end) });
-            i = end + 1;
+            const scanned = scanQuoted(src, i);
+            tokens.push({ type: 'qword', value: scanned.value });
+            i = scanned.next;
             continue;
         }
         if (/[0-9]/.test(c)) {
@@ -299,7 +341,54 @@ function parseCompare(t: ParseState): MeasureNode {
             left = { kind: 'cmp', op: tok.value, left, right };
         } else break;
     }
-    return left;
+    return maybeInList(t, left);
+}
+
+/**
+ * Postfix `IN { … }` / `NOT IN { … }` on a comparison operand, e.g.
+ * `TRIM(orders[Status]) IN {'open', 'closed'}`.
+ */
+function maybeInList(t: ParseState, left: MeasureNode): MeasureNode {
+    const first = peekToken(t);
+    let negate = false;
+    let next = first;
+    if (first?.type === 'word' && first.value.toUpperCase() === 'NOT') {
+        const second = t.tokens[t.pos + 1];
+        if (second?.type === 'word' && second.value.toUpperCase() === 'IN') {
+            negate = true;
+            t.pos += 2;
+            next = peekToken(t);
+        }
+    } else if (first?.type === 'word' && first.value.toUpperCase() === 'IN') {
+        t.pos += 1;
+        next = peekToken(t);
+    } else {
+        return left;
+    }
+    if (next?.type !== 'lbrace') {
+        throw new MeasureSyntaxError(
+            'Une liste « { … } » est attendue après IN.',
+        );
+    }
+    takeToken(t);
+    const values: (string | number)[] = [];
+    if (peekToken(t)?.type !== 'rbrace') {
+        for (;;) {
+            const tok = takeToken(t);
+            if (!tok) throw new MeasureSyntaxError('Liste IN incomplète.');
+            if (tok.type === 'num') values.push(tok.value);
+            else if (tok.type === 'string' || tok.type === 'qword')
+                values.push(tok.value);
+            else throw new MeasureSyntaxError('Valeur de liste IN invalide.');
+            if (peekToken(t)?.type === 'comma') {
+                takeToken(t);
+                continue;
+            }
+            break;
+        }
+    }
+    expectToken(t, 'rbrace');
+    return { kind: 'in', op: negate ? 'notIn' : 'in', left, values };
 }
 
 function parseAnd(t: ParseState): MeasureNode {
@@ -399,7 +488,7 @@ function parseFactor(t: ParseState): MeasureNode {
             const column = takeToken(t) as { type: 'bracket'; value: string };
             return { kind: 'col', table: tok.value, column: column.value };
         }
-        return { kind: 'col', column: tok.value };
+        return { kind: 'string', value: tok.value };
     }
     throw new MeasureSyntaxError(`Syntaxe inattendue (${tok.type})`);
 }
@@ -414,14 +503,29 @@ function walkNode(node: MeasureNode, visit: (n: MeasureNode) => void): void {
     ) {
         walkNode(node.left, visit);
         walkNode(node.right, visit);
-    } else if (node.kind === 'tablecol') walkNode(node.base, visit);
+    } else if (node.kind === 'in') walkNode(node.left, visit);
+    else if (node.kind === 'tablecol') walkNode(node.base, visit);
 }
 
 function tryCompile(
     expression: string,
 ): { ok: true; node: MeasureNode } | { ok: false; error: string } {
-    const eq = expression.indexOf('=');
-    const rhs = (eq >= 0 ? expression.slice(eq + 1) : expression).trim();
+    // Only a top-level `Name = <body>` separator counts: a bare `VALUES(…)`
+    // body must not be truncated at the first nested chain-edge `=`.
+    let depth = 0;
+    let split = -1;
+    for (let i = 0; i < expression.length; i++) {
+        const c = expression[i]!;
+        if (c === '(' || c === '[' || c === '{') depth += 1;
+        else if (c === ')' || c === ']' || c === '}') depth -= 1;
+        else if (c === '=' && depth === 0) {
+            split = i;
+            break;
+        }
+    }
+    const rhs = (
+        split >= 0 ? expression.slice(split + 1) : expression
+    ).trim();
     if (!rhs) return { ok: false, error: 'Expression vide.' };
     try {
         const tokens = tokenize(rhs);
@@ -509,6 +613,14 @@ function isTruthy(value: unknown): boolean {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'number') return value !== 0;
     return String(value).trim() !== '';
+}
+
+/** Membership equality for `IN` lists: numeric when both sides are numbers. */
+function scalarEquals(a: unknown, b: unknown): boolean {
+    const aNum = typeof a === 'number' ? a : Number.NaN;
+    const bNum = typeof b === 'number' ? b : Number.NaN;
+    if (Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum === bNum;
+    return String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
 }
 
 function compareScalar(a: unknown, b: unknown, op: CmpOp): boolean {
@@ -627,6 +739,11 @@ function evalCondition(
             const left = evalCondition(node.left, frame, ctx);
             const right = evalCondition(node.right, frame, ctx);
             return compareScalar(left, right, node.op);
+        }
+        case 'in': {
+            const left = evalCondition(node.left, frame, ctx);
+            const matches = node.values.some((v) => scalarEquals(left, v));
+            return node.op === 'notIn' ? !matches : matches;
         }
         case 'logic': {
             const left = evalCondition(node.left, frame, ctx);
@@ -1205,6 +1322,11 @@ function evalNode(node: MeasureNode, rows: Row[], ctx: EvalCtx): number {
             const left = evalCondition(node.left, null, ctx);
             const right = evalCondition(node.right, null, ctx);
             return compareScalar(left, right, node.op) ? 1 : 0;
+        }
+        case 'in': {
+            const left = evalCondition(node.left, null, ctx);
+            const matches = node.values.some((v) => scalarEquals(left, v));
+            return (node.op === 'notIn' ? !matches : matches) ? 1 : 0;
         }
         case 'logic': {
             const left = evalCondition(node.left, null, ctx);

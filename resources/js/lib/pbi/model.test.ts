@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { applyTableRows, filterTableRows, type ReportFilter } from './filters';
 import type { RelationGraph } from './graph';
 import {
@@ -2090,5 +2090,103 @@ describe('listMeasureSource', () => {
 
     it('returns null for a scalar measure', () => {
         expect(listMeasureSource('X = SUM(codestyle[Qty])')).toBeNull();
+    });
+});
+
+describe('IN / NOT IN predicates (Wave 2)', () => {
+    const orders: TableDef = {
+        name: 'orders',
+        fields: [
+            { table: 'orders', name: 'Id', type: 'text' },
+            { table: 'orders', name: 'Status', type: 'text' },
+            { table: 'orders', name: 'Qty', type: 'number' },
+        ],
+        rows: [
+            { Id: 'A', Status: 'open', Qty: 5 },
+            { Id: 'B', Status: 'open', Qty: 7 },
+            { Id: 'C', Status: 'closed', Qty: 2 },
+            { Id: 'D', Status: 'pending', Qty: 9 },
+        ],
+    };
+
+    beforeEach(() => setTables([orders]));
+
+    it('IN {…} keeps the matching rows', () => {
+        const r = evaluateMeasure(
+            "M = COUNTROWS(FILTER(orders, TRIM(orders[Status]) IN {'open', 'closed'}))",
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(3);
+    });
+
+    it('NOT IN {…} excludes the matching rows', () => {
+        const r = evaluateMeasure(
+            "M = COUNTROWS(FILTER(orders, TRIM(orders[Status]) NOT IN {'open'}))",
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(2);
+    });
+
+    it('IN accepts numeric literals', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(FILTER(orders, TRIM(orders[Qty]) IN {5, 9}))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(2);
+    });
+
+    it("unescapes doubled quotes in string literals (O''Brien)", () => {
+        const crew: TableDef = {
+            name: 'crew',
+            fields: [{ table: 'crew', name: 'Name', type: 'text' }],
+            rows: [{ Name: "O'Brien" }, { Name: 'smith' }],
+        };
+        setTables([orders, crew]);
+        const r = evaluateMeasure(
+            "M = COUNTROWS(FILTER(crew, TRIM(crew[Name]) = 'O''Brien'))",
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(1);
+    });
+
+    it('resolves a base-table column condition through the row context', () => {
+        const employees: TableDef = {
+            name: 'employees',
+            fields: [
+                { table: 'employees', name: 'Id', type: 'text' },
+                { table: 'employees', name: 'Team', type: 'text' },
+            ],
+            rows: [
+                { Id: 'E1', Team: 'A' },
+                { Id: 'E2', Team: 'B' },
+            ],
+        };
+        const ordersTable: TableDef = {
+            name: 'orders',
+            fields: [
+                { table: 'orders', name: 'EmpId', type: 'text' },
+                { table: 'orders', name: 'No', type: 'text' },
+            ],
+            rows: [
+                { EmpId: 'E1', No: 'O1' },
+                { EmpId: 'E1', No: 'O2' },
+                { EmpId: 'E2', No: 'O3' },
+            ],
+        };
+        setTables([employees, ordersTable]);
+        const fn = compileListMeasure(
+            "M = VALUES(FILTER(orders, TRIM(orders[EmpId]) = TRIM(employees[Id]) && TRIM(employees[Team]) = 'A')[No])",
+        );
+        expect(fn).not.toBeNull();
+        expect(
+            fn!([], { iter: [{ table: 'employees', row: { Id: 'E1', Team: 'A' } }] }),
+        ).toEqual(['O1', 'O2']);
+        expect(
+            fn!([], { iter: [{ table: 'employees', row: { Id: 'E2', Team: 'B' } }] }),
+        ).toEqual([]);
     });
 });

@@ -70,8 +70,40 @@ export function buildCompositionDax(spec: CompositeSpec): string {
     return spec.scale ? `${body} * 100` : body;
 }
 
+/**
+ * Quote a scalar literal for DAX: numeric strings stay raw, everything else is
+ * wrapped in single quotes with apostrophes escaped by doubling (`''`), so
+ * `O'Brien` becomes `'O''Brien'` (W2-5).
+ */
 const quoteValue = (v: string): string =>
-    /^-?\d+(\.\d+)?$/.test(v) ? v : `'${v.replace(/['"]/g, '')}'`;
+    /^-?\d+(\.\d+)?$/.test(v) ? v : `'${v.replace(/'/g, "''")}'`;
+
+/** One scalar predicate: `TRIM(table[col]) <op> <literal>` or `… IN {…}`. */
+function conditionDax(c: ValueCondition, to: string): string {
+    const table = c.table ?? to;
+    const col = `TRIM(${table}[${c.column}])`;
+    if (c.op === 'in' || c.op === 'notIn') {
+        const list = (c.values ?? []).map(quoteValue).join(', ');
+        return `${col} ${COND_OPS[c.op]} {${list}}`;
+    }
+    return `${col} ${COND_OPS[c.op]} ${quoteValue(c.value)}`;
+}
+
+/**
+ * Render a set of scalar predicates: a single condition stays bare so existing
+ * generated DAX is unchanged; several conditions become a parenthesized
+ * `(a && b)` / `(a || b)` group. `null` when there are no rows.
+ */
+function rowsToBlock(
+    rows: ValueCondition[],
+    combine: 'and' | 'or',
+    to: string,
+): string | null {
+    if (!rows.length) return null;
+    if (rows.length === 1) return conditionDax(rows[0]!, to);
+    const joiner = combine === 'or' ? ' || ' : ' && ';
+    return `(${rows.map((c) => conditionDax(c, to)).join(joiner)})`;
+}
 
 function nodeName(hops: PathHop[], i: number, from: string): string {
     return i === 0 ? from : hops[i - 1]!.to;
@@ -84,15 +116,25 @@ function nodeName(hops: PathHop[], i: number, from: string): string {
  *
  *   COUNTROWS(FILTER(taging_reel,
  *     TRIM(taging_reel[MONo]) = TRIM(codestyle[SONo]) && TRUE())) > 0
+ *
+ * Base-table conditions (`basePred`) belong in the innermost FILTER over the
+ * base table, where that table is in the row context (W2-3). Without this the
+ * predicate would run in the outer FILTER(to, …) context and always be false.
  */
-function exists(hops: PathHop[], i: number, from: string): string {
+function exists(
+    hops: PathHop[],
+    i: number,
+    from: string,
+    basePred?: string,
+): string {
     if (i === 0) return '';
     const h = hops[i - 1]!;
     const prev = nodeName(hops, i - 1, from);
     const cur = nodeName(hops, i, from);
     const eq = `TRIM(${prev}[${h.fromCol}]) = TRIM(${cur}[${h.toCol}])`;
-    const inner = exists(hops, i - 1, from);
-    return `COUNTROWS(FILTER(${prev}, ${eq}${inner ? ` && ${inner}` : ''})) > 0`;
+    const inner = exists(hops, i - 1, from, basePred);
+    const extra = i === 1 && basePred ? ` && ${basePred}` : '';
+    return `COUNTROWS(FILTER(${prev}, ${eq}${extra}${inner ? ` && ${inner}` : ''})) > 0`;
 }
 
 /**
@@ -104,16 +146,34 @@ function exists(hops: PathHop[], i: number, from: string): string {
  */
 export function buildMeasureDax(spec: WizardSpec): string {
     if (spec.composition) return buildCompositionDax(spec.composition);
-    const { from, to, hops, kind, column, agg, condition } = spec;
-    const chain = exists(hops, hops.length, from);
+    const { from, to, hops, kind, column, agg, condition, conditions } = spec;
+    const rows =
+        conditions && conditions.rows.length
+            ? conditions.rows
+            : condition
+              ? [condition]
+              : [];
+    const combine = conditions?.combine ?? 'and';
+    // Conditions that target the base table (from !== to) must be evaluated
+    // inside the innermost FILTER(from, …) where that table is in scope;
+    // conditions on the target table stay in the outer block.
+    const baseRows = rows.filter((c) => c.table !== undefined && c.table !== to);
+    const targetRows = rows.filter((c) => c.table === undefined || c.table === to);
+    const baseBlock = rowsToBlock(baseRows, combine, to);
+    const block = rowsToBlock(targetRows, combine, to);
+    const chain = exists(hops, hops.length, from, baseBlock ?? undefined);
     const scaled =
-        condition !== undefined && chain
-            ? `${chain} && TRIM(${to}[${condition.column}]) ${COND_OPS[condition.op]} ${quoteValue(condition.value)}`
-            : condition !== undefined
-              ? `TRIM(${to}[${condition.column}]) ${COND_OPS[condition.op]} ${quoteValue(condition.value)}`
+        block !== null && chain
+            ? `${chain} && ${block}`
+            : block !== null
+              ? block
               : chain;
 
-    if (hops.length === 0 && condition === undefined) {
+    if (
+        hops.length === 0 &&
+        condition === undefined &&
+        conditions === undefined
+    ) {
         switch (kind) {
             case 'list':
                 return `VALUES(${to}[${column}])`;
