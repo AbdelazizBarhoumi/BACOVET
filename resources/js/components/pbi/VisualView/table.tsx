@@ -108,15 +108,7 @@ export function TableVisual({
     rows: Row[];
     match: ((r: Row) => boolean) | null;
 }) {
-    const { graph } = usePbi();
-    try {
-        const w = globalThis as unknown as Record<string, unknown>;
-        const arr = (w.__tableRendersLog as unknown[] | undefined) ?? [];
-        arr.push({ t: Date.now(), isList: isListMeasure(visual.values[0]?.name ?? '') });
-        w.__tableRendersLog = arr;
-    } catch {
-        /* noop */
-    }
+    const { graph, measures } = usePbi();
     const groupCol = visual.axis[0]?.name;
     const legendCol = visual.legend[0]?.name;
     const matrix = visual.type === 'matrix';
@@ -131,12 +123,21 @@ export function TableVisual({
         matchSet ? !matchSet.has(String(d['category'])) : false;
     const cf = normalizeConditionalFormat(visual.conditionalFormat);
 
-    const { data, series } = buildTableCells(
-        rows,
-        visual.axis,
-        matrix ? visual.legend : [],
-        visual.values,
-        graph,
+    const { data, series } = useMemo(
+        () =>
+            buildTableCells(
+                rows,
+                visual.axis,
+                matrix ? visual.legend : [],
+                visual.values,
+                graph,
+            ),
+        // Rekey on the measure library itself: the engine evaluates measures
+        // against module-scope registries (MEASURE_IMPL / LIST_MEASURE_IMPL /
+        // TABLES) that the React Compiler cannot see, so a recompute when the
+        // library is (re)loaded must be keyed on the visible `measures` prop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [rows, visual.axis, visual.legend, visual.values, graph, measures],
     );
     if (!groupCol && !visual.values.length)
         return <EmptyVisual label="Table" />;

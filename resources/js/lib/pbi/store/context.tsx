@@ -483,7 +483,6 @@ export function PbiProvider({
                 // registering after setRawState would leave visuals computed for
                 // a stale registry (isMeasure false => 0/empty) until some
                 // unrelated re-render (edit mode, poll) happens.
-                console.log('[DEBUG-measures] register', library.length);
                 for (const m of [...library, ...migrated]) {
                     if (m.expression) registerMeasure(m.name, m.expression);
                 }
