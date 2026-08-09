@@ -37,6 +37,20 @@ export function findTableForField(name: string, tables?: TableDef[]): string {
     return '';
 }
 
+/** Resolves a table by name, preferring the exact name then a case-insensitive
+ *  match (measures reference tables as `empdefecteff` while datasets carry the
+ *  title-case label `EmpDefectEff`). */
+export function findTableByName(
+    name: string,
+    tables?: TableDef[],
+): TableDef | undefined {
+    const list = tables ?? TABLES;
+    return (
+        list.find((t) => t.name === name) ??
+        list.find((t) => t.name.toLowerCase() === name.toLowerCase())
+    );
+}
+
 export function fieldType(name: string, table?: string): FieldType {
     if (isMeasure(name)) return 'number';
     if (table) {

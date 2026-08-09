@@ -1198,4 +1198,164 @@ describe('composition (Wave 1)', () => {
         const r = evaluateMeasure(dax, []);
         expect(r.error).toBeTruthy();
     });
+
+    it('W1-17 the wizard never emits a bare % for the ratio path', () => {
+        const dax = buildMeasureDax({
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+            },
+        });
+        expect(dax).toBe(
+            'DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100',
+        );
+        // `%` is the DAX modulo operator — the wizard never emits it.
+        expect(dax).not.toContain('%');
+    });
+
+    it('W1-17 % verbatim parses as modulo, not percent (engine semantics)', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [{ table: 'kpi_a', name: 'Rejets', type: 'number' }],
+                rows: [{ Rejets: 17 }],
+            },
+        ]);
+        const r = evaluateMeasure('X = 17 % 5', []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(2);
+    });
+
+    it('W1-18 divZero=blank emits DIVIDE(a, b) and round-trips', () => {
+        const dax = buildMeasureDax({
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: false,
+                divZero: 'blank',
+            },
+        });
+        expect(dax).toBe('DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]))');
+        const spec = deriveMeasureSpec(dax);
+        expect(spec).not.toBeNull();
+        expect(spec!.composition).toEqual({
+            a: {
+                type: 'column',
+                table: 'kpi_a',
+                column: 'Rejets',
+                agg: 'sum',
+            },
+            b: {
+                type: 'column',
+                table: 'kpi_a',
+                column: 'Inspections',
+                agg: 'sum',
+            },
+            op: '/',
+            scale: false,
+            divZero: 'blank',
+        });
+    });
+
+    it('W1-18 divZero=na emits DIVIDE(a, b, NA()) and round-trips', () => {
+        const dax = buildMeasureDax({
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: false,
+                divZero: 'na',
+            },
+        });
+        expect(dax).toBe(
+            'DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), NA())',
+        );
+        const spec = deriveMeasureSpec(dax);
+        expect(spec).not.toBeNull();
+        expect(spec!.composition!.divZero).toBe('na');
+    });
+
+    it('W1-18 zero denominator honours the divZero default', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                ],
+                rows: [{ Rejets: 25, Inspections: 0 }],
+            },
+        ]);
+        // default (zero): 25 / 0 → 0
+        const zero = evaluateMeasure(
+            'X = DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0)',
+            [],
+        );
+        expect(zero.error).toBeUndefined();
+        expect(zero.value).toBe(0);
+        // blank: DIVIDE(a, b) → BLANK coerced to 0
+        const blank = evaluateMeasure(
+            'X = DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]))',
+            [],
+        );
+        expect(blank.error).toBeUndefined();
+        expect(blank.value).toBe(0);
+        // na: DIVIDE(a, b, NA()) → error, never a silent 0
+        const na = evaluateMeasure(
+            'X = DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), NA())',
+            [],
+        );
+        expect(na.error).toBeTruthy();
+    });
 });

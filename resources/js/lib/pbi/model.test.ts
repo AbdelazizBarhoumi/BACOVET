@@ -97,6 +97,22 @@ describe('PBI field references', () => {
             label: 'Total Sales',
         });
     });
+
+    it('preserves the listAgg treatment (W1-15 round-trip)', () => {
+        expect(
+            normalizeWellField({
+                table: 'Measures',
+                name: 'Liste opérations',
+                agg: 'sum',
+                listAgg: 'count',
+            }),
+        ).toEqual({
+            table: 'Measures',
+            name: 'Liste opérations',
+            agg: 'sum',
+            listAgg: 'count',
+        });
+    });
 });
 
 describe('PBI slicer keys', () => {
@@ -1931,6 +1947,35 @@ describe('buildTableCells — per-row list (W1-12/14)', () => {
         expect(byEmp['E1']).toBe(3);
         expect(byEmp['E2']).toBe(0);
         unregisterMeasure('Order Count');
+    });
+
+    it('a list measure with no axis yields the global list (W1-13)', () => {
+        setTables([structuredClone(employees), structuredClone(orders)]);
+        registerMeasure('My Orders', 'My Orders = VALUES(employee_data[OrderId])');
+        const value: WellField = {
+            table: 'employee_data',
+            name: 'My Orders',
+            agg: 'count',
+        };
+        const { data, series } = buildTableCells(
+            employees.rows,
+            [],
+            [],
+            [value],
+            graph,
+        );
+        expect(series).toEqual(['My Orders']);
+        expect(data).toEqual([{ category: 'Total', 'My Orders': ['B1', 'B2'] }]);
+        unregisterMeasure('My Orders');
+    });
+
+    it('a VALUES measure is only treated as a list once registered (guard)', () => {
+        setTables([structuredClone(employees), structuredClone(orders)]);
+        expect(isListMeasure('My Orders')).toBe(false);
+        registerMeasure('My Orders', 'My Orders = VALUES(employee_data[OrderId])');
+        expect(isListMeasure('My Orders')).toBe(true);
+        unregisterMeasure('My Orders');
+        expect(isListMeasure('My Orders')).toBe(false);
     });
 });
 

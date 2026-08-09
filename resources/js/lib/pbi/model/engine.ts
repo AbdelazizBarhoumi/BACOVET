@@ -15,6 +15,7 @@ import {
 import { measureLabel } from './format';
 import {
     fieldType,
+    findTableByName,
     findTableForField,
     isMeasure,
     LIST_MEASURE_IMPL,
@@ -462,14 +463,17 @@ function resolveColumn(
         }
         const sourceTables = ctx.tables ?? TABLES;
         for (const name of candidates) {
-            const source = sourceTables.find((t) => t.name === name);
+            const source = findTableByName(name, sourceTables);
             if (!source) continue;
             // The named table exists: resolve against its schema. Empty row
             // sets (a per-row context that matches nothing) stay valid — the
             // column itself is known, so the result is an empty list, not an
             // error (that's the "employee with no data → —" contract).
             const knownColumn = source.fields.some((f) => f.name === column);
-            if (knownColumn && (source.rows.length === 0 || column in source.rows[0]!))
+            if (
+                knownColumn &&
+                (source.rows.length === 0 || column in source.rows[0]!)
+            )
                 return source.rows.map((r) => r[column] ?? null);
             if (!knownColumn && source.rows.length) {
                 const message = `Colonne « ${column} » introuvable.`;
@@ -548,7 +552,7 @@ function compareScalar(a: unknown, b: unknown, op: CmpOp): boolean {
 
 /** Rows of a named table from the loaded dataset (or a ctx table set). */
 function tableRowsFor(table: string, tables?: TableDef[]): Row[] {
-    const source = (tables ?? TABLES).find((t) => t.name === table);
+    const source = findTableByName(table, tables);
     return source?.rows ?? [];
 }
 
@@ -754,12 +758,26 @@ function evalScalarFunction(
             return Math.pow(n(0), n(1));
         case 'DIVIDE': {
             const d = n(1);
-            return d === 0 ? n(2) : n(0) / d;
+            if (d !== 0) return n(0) / d;
+            // Zero denominator: DAX returns the 3rd default — `0`, `BLANK`
+            // (when omitted), or `NA()`. The engine coerces BLANK to 0 and
+            // surfaces NA as an error so it never reads as a silent 0.
+            if (args.length < 3) return 0;
+            const fallback = a(2);
+            if (typeof fallback === 'number' && Number.isNaN(fallback))
+                throw new MeasureSyntaxError(
+                    'DIVIDE par zéro (le dénominateur est 0 et la valeur par défaut est NA()).',
+                );
+            return scalarNumber(fallback);
         }
         case 'MOD': {
             const d = n(1);
             return d === 0 ? 0 : n(0) % d;
         }
+        case 'BLANK':
+            return 0;
+        case 'NA':
+            return Number.NaN;
         case 'SQRT':
             return Math.sqrt(n(0));
         case 'INT':
@@ -783,10 +801,7 @@ function evalScalarFunction(
         }
         case 'MID': {
             const t = scalarText(a(0));
-            return t.slice(
-                Math.max(0, n(1) - 1),
-                Math.max(0, n(1) - 1) + n(2),
-            );
+            return t.slice(Math.max(0, n(1) - 1), Math.max(0, n(1) - 1) + n(2));
         }
         case 'SUBSTITUTE':
             return scalarText(a(0))
@@ -1738,8 +1753,7 @@ export function buildChartData(
         if (extra) item['_cf'] = aggregate(groupRows, extra, ctx);
         if (extraColor)
             item['_cfx'] = firstNonNull(groupRows, extraColor) as
-                | string
-                | number;
+                string | number;
         return item;
     };
 
@@ -1873,11 +1887,7 @@ export function buildChartData(
  * A table cell: a numeric aggregate, a plain value, or a per-row distinct list
  * (string[]) when the value well holds a list measure (VALUES / DISTINCT).
  */
-export type TableCellValue =
-    | number
-    | string
-    | string[]
-    | null;
+export type TableCellValue = number | string | string[] | null;
 
 /** One cell value: list measures resolve in the filtered-table ctx. */
 function tableCellFor(
@@ -1906,7 +1916,8 @@ export function buildTableCells(
     const axisTable = axis[0]?.table;
     const legendCol = legend[0]?.name;
 
-    const hasList = (list: WellField[]) => list.some((f) => isListMeasure(f.name));
+    const hasList = (list: WellField[]) =>
+        list.some((f) => isListMeasure(f.name));
     const hasM = (list: WellField[]) => list.some((f) => isMeasure(f.name));
     const needsContext =
         !!graph && (hasM(values) || hasM(legend) || hasList(values));
@@ -1918,7 +1929,8 @@ export function buildTableCells(
         const table =
             axisTable ||
             (TABLES.find((td) => td.fields.some((f) => f.name === axisCol))
-                ?.name ?? '');
+                ?.name ??
+                '');
         if (!table) return undefined;
         const filter: ReportFilter = {
             column: axisCol,
@@ -1928,8 +1940,27 @@ export function buildTableCells(
             type: 'list',
         };
         const filtered = filterTableRows(TABLES, [filter], graph);
+        // Tables that carry the axis column are constrained directly, with
+        // normalized matching, instead of trusting network propagation: a dense
+        // relationship graph can cascade the axis value through spurious paths
+        // and wipe a list measure's source table to zero rows, which would make
+        // every per-row list render empty (W1-12 regression).
+        const norm = (v: unknown) =>
+            String(v ?? '')
+                .trim()
+                .toLowerCase();
+        const keyNorm = norm(key);
+        const ctxRows: Record<string, Row[]> = {};
+        for (const t of TABLES) {
+            const hasAxis = t.fields.some(
+                (f) => f.name.toLowerCase() === axisCol.toLowerCase(),
+            );
+            ctxRows[t.name] = hasAxis
+                ? t.rows.filter((r) => norm(r[axisCol]) === keyNorm)
+                : (filtered[t.name] ?? t.rows);
+        }
         const ctx: EvalCtx | undefined = {
-            tables: applyTableRows(TABLES, filtered),
+            tables: applyTableRows(TABLES, ctxRows),
         };
         ctxCache.set(key, ctx);
         return ctx;

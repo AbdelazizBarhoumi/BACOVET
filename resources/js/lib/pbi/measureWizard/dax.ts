@@ -50,11 +50,23 @@ function operandDax(o: CompositeOperand): string {
 export function buildCompositionDax(spec: CompositeSpec): string {
     const a = operandDax(spec.a);
     const b = operandDax(spec.b);
-    // `*` and `/` compose directly so the whole count folds into the engine
-    const body =
-        spec.op === '/'
-            ? `DIVIDE(${a}, ${b}, 0)`
-            : `(${a} ${spec.op} ${b})`;
+    // Ratios always use DIVIDE so the zero denominator is never a bare `/`
+    // (W1-18): the 3rd argument carries the user's 0 / BLANK / NA policy.
+    let body: string;
+    if (spec.op === '/') {
+        switch (spec.divZero ?? 'zero') {
+            case 'blank':
+                body = `DIVIDE(${a}, ${b})`;
+                break;
+            case 'na':
+                body = `DIVIDE(${a}, ${b}, NA())`;
+                break;
+            default:
+                body = `DIVIDE(${a}, ${b}, 0)`;
+        }
+    } else {
+        body = `(${a} ${spec.op} ${b})`;
+    }
     return spec.scale ? `${body} * 100` : body;
 }
 

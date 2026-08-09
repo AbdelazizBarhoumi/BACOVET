@@ -64,6 +64,9 @@ export type CompositeOperand =
     | { type: 'column'; table: string; column: string; agg: NumericAgg }
     | { type: 'number'; value: number };
 
+/** What the ratio yields when the denominator is 0 (DIVIDE's default). */
+export type DivZeroDefault = 'zero' | 'blank' | 'na';
+
 /** Binary composition (ratio, difference, …) of two operands. */
 export type CompositeSpec = {
     a: CompositeOperand;
@@ -72,6 +75,12 @@ export type CompositeSpec = {
     op: '/' | '*' | '-' | '+';
     /** when true the result is scaled ×100 (the `%` display path) */
     scale: boolean;
+    /**
+     * denominator-is-0 policy for `/` (never a bare slash). `zero` emits
+     * `DIVIDE(a, b, 0)`, `blank` emits `DIVIDE(a, b)` (DAX BLANK default),
+     * `na` emits `DIVIDE(a, b, NA())`. Absent means `zero`.
+     */
+    divZero?: DivZeroDefault;
 };
 
 export type WizardSpec = {

@@ -520,6 +520,7 @@ export function Canvas({
                         return (
                             <div
                                 key={v.id}
+                                data-testid={`visual-${v.id}`}
                                 onMouseDown={(e) => {
                                     if (readOnly) return;
                                     select(v.id, {

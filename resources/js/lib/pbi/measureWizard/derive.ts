@@ -74,7 +74,8 @@ function splitTopLevelBinop(s: string): { l: string; r: string; op: '/' | '*' | 
 
 /**
  * Best-effort reversal of a composed measure:
- *   DIVIDE(A, B, 0) * 100 | DIVIDE(A, B, 0) | (A op B) * 100 | (A op B) | A op B
+ *   DIVIDE(A, B, 0) * 100 | DIVIDE(A, B, 0) | DIVIDE(A, B) | DIVIDE(A, B, NA())
+ *   | (A op B) * 100 | (A op B) | A op B
  * where operands are `[Measure]`, `SUM(table[col])` or a numeric literal.
  */
 function parseComposition(trimmed: string): WizardSpec | null {
@@ -89,12 +90,28 @@ function parseComposition(trimmed: string): WizardSpec | null {
     let op: '-' | '+' | '*' | '/' | null = null;
     let aRaw: string;
     let bRaw: string;
+    let divZero: 'zero' | 'blank' | 'na' | undefined;
 
-    const div = /^DIVIDE\(\s*(.+?)\s*,\s*(.+?)\s*,\s*\d+\s*\)$/i.exec(body);
-    if (div) {
+    const div0 = /^DIVIDE\(\s*(.+?)\s*,\s*(.+?)\s*,\s*0\s*\)$/i.exec(body);
+    const divNa = /^DIVIDE\(\s*(.+?)\s*,\s*(.+?)\s*,\s*NA\(\s*\)\s*\)$/i.exec(
+        body,
+    );
+    const divBlank = /^DIVIDE\(\s*(.+?)\s*,\s*(.+?)\s*\)$/i.exec(body);
+    if (div0) {
         op = '/';
-        aRaw = div[1]!;
-        bRaw = div[2]!;
+        aRaw = div0[1]!;
+        bRaw = div0[2]!;
+        divZero = 'zero';
+    } else if (divNa) {
+        op = '/';
+        aRaw = divNa[1]!;
+        bRaw = divNa[2]!;
+        divZero = 'na';
+    } else if (divBlank) {
+        op = '/';
+        aRaw = divBlank[1]!;
+        bRaw = divBlank[2]!;
+        divZero = 'blank';
     } else {
         let inner = body;
         const paren = /^\((.*)\)$/s.exec(body);
@@ -112,7 +129,15 @@ function parseComposition(trimmed: string): WizardSpec | null {
     const a = parseOperand(aRaw);
     const b = parseOperand(bRaw);
     if (!a || !b || !op) return null;
-    const composition: CompositeSpec = { a, b, op, scale };
+    const composition: CompositeSpec = {
+        a,
+        b,
+        op,
+        scale,
+        // Only a non-default denominator policy round-trips: `zero` (the DAX
+        // `, 0` form) stays implicit so hand-written specs keep their shape.
+        ...(divZero && divZero !== 'zero' ? { divZero } : {}),
+    };
 
     const from =
         a.type === 'column' ? a.table : b.type === 'column' ? b.table : '';

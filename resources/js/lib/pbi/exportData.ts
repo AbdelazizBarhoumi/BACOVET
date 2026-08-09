@@ -11,6 +11,7 @@ import type { RelationGraph } from './graph';
 import { crossFilterRows, enrichRows, type JoinRegistry } from './joins';
 import {
     buildChartData,
+    buildTableCells,
     distinctValues,
     fieldLabel,
     fieldType,
@@ -121,8 +122,9 @@ function formatCell(
     raw: unknown,
     visual: Visual,
     series: string,
-    _data: Record<string, string | number>[],
+    _data: Record<string, unknown>[],
 ): string {
+    if (Array.isArray(raw)) return raw.join(', ');
     if (typeof raw !== 'number') return raw == null ? '' : String(raw);
     const measure =
         visual.values.find((v) => measureLabel(v) === series) ??
@@ -171,17 +173,29 @@ export function visualExportData(
 
     if (!TABULAR.includes(visual.type)) return null;
 
-    const { data, series } = buildChartData(
-        view,
-        visual.axis,
-        visual.type === 'matrix' ? visual.legend : [],
-        visual.values,
-        [],
-        undefined,
-        undefined,
-        undefined,
-        deps.graph,
-    );
+    // Tables/matrices mirror the canvas exactly (`buildTableCells`), so a
+    // per-row list column (VALUES measure) exports as joined per-row text;
+    // charts keep the value-sorted `buildChartData` path.
+    const isListTable = visual.type === 'table' || visual.type === 'matrix';
+    const { data, series } = isListTable
+        ? buildTableCells(
+              view,
+              visual.axis,
+              visual.type === 'matrix' ? visual.legend : [],
+              visual.values,
+              deps.graph,
+          )
+        : buildChartData(
+              view,
+              visual.axis,
+              visual.type === 'matrix' ? visual.legend : [],
+              visual.values,
+              [],
+              undefined,
+              undefined,
+              undefined,
+              deps.graph,
+          );
     if (!series.length) return null;
 
     const columns = ['Catégorie', ...series];

@@ -138,6 +138,9 @@ export function normalizeWellField(
     const valueAggregation = isValueAggregationMode(value.valueAggregation)
         ? value.valueAggregation
         : undefined;
+    const listAgg = AGGREGATIONS.includes(value.listAgg as Agg)
+        ? (value.listAgg as Agg)
+        : undefined;
     const index = positiveInt(value.index);
     const window = positiveInt(value.window);
     const windowDir =
@@ -151,6 +154,7 @@ export function normalizeWellField(
         ...(label ? { label } : {}),
         ...(format ? { format } : {}),
         ...(valueAggregation ? { valueAggregation } : {}),
+        ...(listAgg ? { listAgg } : {}),
         ...(index !== undefined ? { index } : {}),
         ...(window !== undefined ? { window } : {}),
         ...(windowDir ? { windowDir } : {}),

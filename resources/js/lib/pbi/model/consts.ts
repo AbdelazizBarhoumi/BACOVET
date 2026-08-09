@@ -295,6 +295,8 @@ const SCALAR_FUNCS = new Set([
     'NOW',
     'DATE',
     'DATEDIFF',
+    'BLANK',
+    'NA',
 ]);
 
 export { SCALAR_FUNCS };

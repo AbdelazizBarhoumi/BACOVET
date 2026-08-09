@@ -26,6 +26,7 @@ import {
     proposePaths,
     type CompositeOperand,
     type CompositeSpec,
+    type DivZeroDefault,
     type JoinCandidate,
     type MeasureKind,
     type NumericAgg,
@@ -68,6 +69,18 @@ const COMPOSE_OPS: { key: CompositeSpec['op']; label: string }[] = [
     { key: '-', label: '−' },
     { key: '+', label: '+' },
 ];
+
+const DIV_ZERO_OPTIONS: { key: DivZeroDefault; label: string }[] = [
+    { key: 'zero', label: '0' },
+    { key: 'blank', label: 'Vide (BLANK)' },
+    { key: 'na', label: 'Non dispo (NA)' },
+];
+
+const DIV_ZERO_DAX: Record<DivZeroDefault, string> = {
+    zero: 'DIVIDE(A, B, 0)',
+    blank: 'DIVIDE(A, B)',
+    na: 'DIVIDE(A, B, NA())',
+};
 
 /** First usable column (prefers numeric) of a table, for sensible defaults. */
 function firstFieldOf(tables: TableDef[], name: string): string {
@@ -126,6 +139,7 @@ export function MeasureWizardDialog({
     const [composeOn, setComposeOn] = useState(false);
     const [composeOp, setComposeOp] = useState<CompositeSpec['op']>('/');
     const [scaleHundreds, setScaleHundreds] = useState(true);
+    const [divZero, setDivZero] = useState<DivZeroDefault>('zero');
     const [opA, setOpA] = useState<OperandDraft>(() => ({
         kind: 'column',
         measure: '',
@@ -271,6 +285,7 @@ export function MeasureWizardDialog({
                     b: composeB,
                     op: composeOp,
                     scale: scaleHundreds,
+                    divZero: composeOp === '/' ? divZero : undefined,
                 },
             };
         }
@@ -291,6 +306,7 @@ export function MeasureWizardDialog({
         composeB,
         composeOp,
         scaleHundreds,
+        divZero,
     ]);
 
     const dax = useMemo(
@@ -553,6 +569,8 @@ export function MeasureWizardDialog({
                                 setComposeOp={setComposeOp}
                                 scaleHundreds={scaleHundreds}
                                 setScaleHundreds={setScaleHundreds}
+                                divZero={divZero}
+                                setDivZero={setDivZero}
                                 dax={dax}
                                 value={
                                     typeof preview === 'number' ? preview : null
@@ -1547,6 +1565,8 @@ function CompositionStep({
     setComposeOp,
     scaleHundreds,
     setScaleHundreds,
+    divZero,
+    setDivZero,
     dax,
     value,
     composeReady,
@@ -1563,6 +1583,8 @@ function CompositionStep({
     setComposeOp: (op: CompositeSpec['op']) => void;
     scaleHundreds: boolean;
     setScaleHundreds: (b: boolean) => void;
+    divZero: DivZeroDefault;
+    setDivZero: (d: DivZeroDefault) => void;
     dax: string;
     value: number | null;
     composeReady: boolean;
@@ -1632,14 +1654,85 @@ function CompositionStep({
                 </label>
             </div>
 
+            {composeOp === '/' && (
+                <div className="rounded-lg border border-border p-3">
+                    <div className="mb-1.5 text-[12px] font-semibold">
+                        Si le dénominateur est 0
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                        {DIV_ZERO_OPTIONS.map((o) => (
+                            <button
+                                key={o.key}
+                                onClick={() => setDivZero(o.key)}
+                                className={cn(
+                                    'rounded border px-2 py-1 text-[11px] transition-colors',
+                                    divZero === o.key
+                                        ? 'border-brand bg-brand/15 text-brand'
+                                        : 'border-border hover:bg-accent',
+                                )}
+                            >
+                                {o.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="mt-1.5 font-mono text-[11px] text-muted-foreground">
+                        {DIV_ZERO_DAX[divZero]}
+                    </div>
+                </div>
+            )}
+
             <div className="rounded-lg border border-border bg-muted p-3">
                 <div className="mb-1 text-[11px] font-semibold">Formule</div>
                 <div className="font-mono text-[13px] leading-relaxed">
-                    <span className="text-foreground">{operandLabel(opA)}</span>{' '}
-                    <span className="font-bold text-brand">{composeOp}</span>{' '}
-                    <span className="text-foreground">{operandLabel(opB)}</span>
-                    {scaleHundreds && (
-                        <span className="text-muted-foreground"> × 100</span>
+                    {composeOp === '/' ? (
+                        <>
+                            <span className="font-semibold text-brand">
+                                DIVIDE
+                            </span>
+                            <span className="text-muted-foreground">(</span>
+                            <span className="text-foreground">
+                                {operandLabel(opA)}
+                            </span>
+                            <span className="text-muted-foreground">, </span>
+                            <span className="text-foreground">
+                                {operandLabel(opB)}
+                            </span>
+                            {divZero !== 'blank' && (
+                                <>
+                                    <span className="text-muted-foreground">
+                                        ,{' '}
+                                    </span>
+                                    <span className="text-foreground">
+                                        {divZero === 'na' ? 'NA()' : '0'}
+                                    </span>
+                                </>
+                            )}
+                            <span className="text-muted-foreground">)</span>
+                            {scaleHundreds && (
+                                <span className="text-muted-foreground">
+                                    {' '}
+                                    × 100
+                                </span>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <span className="text-foreground">
+                                {operandLabel(opA)}
+                            </span>{' '}
+                            <span className="font-bold text-brand">
+                                {composeOp}
+                            </span>{' '}
+                            <span className="text-foreground">
+                                {operandLabel(opB)}
+                            </span>
+                            {scaleHundreds && (
+                                <span className="text-muted-foreground">
+                                    {' '}
+                                    × 100
+                                </span>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

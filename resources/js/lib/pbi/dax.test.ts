@@ -222,6 +222,16 @@ describe('DAX formula highlighting', () => {
         expect(cls[0]).toBeUndefined();
         expect(cls[expr.indexOf('Sales')]).toBeUndefined();
     });
+
+    it('W1-17 highlights a verbatim % as modulo, never as a percent sign', () => {
+        const expr = 'Total = 17 % 5';
+        const cls = daxCharClasses(expr);
+        const idx = expr.indexOf('%');
+        expect(cls[idx]).toContain('fuchsia');
+        expect(cls[idx]).toContain('underline');
+        // The spaces around it are uncolored — % is not a percent of the number.
+        expect(cls[idx - 1]).toBeUndefined();
+    });
 });
 
 describe('DAX bracket matching', () => {

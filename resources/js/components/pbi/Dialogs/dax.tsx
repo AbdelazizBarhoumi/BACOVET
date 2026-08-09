@@ -259,6 +259,15 @@ export function DaxDialog({
         return result.ok ? null : result.error;
     }, [expr, tables, measures]);
 
+    // W1-17: `%` in DAX is the modulo operator, never a percentage — surface it.
+    const moduloWarning = useMemo(() => {
+        const eq = expr.indexOf('=');
+        const formula = (eq >= 0 ? expr.slice(eq + 1) : expr);
+        return /%/.test(formula)
+            ? '« % » en DAX est l’opérateur modulo (reste de division), pas un pourcentage. Pour un ratio utilisez DIVIDE(…) × 100.'
+            : null;
+    }, [expr]);
+
     const commit = async () => {
         if (saving) return;
         const eq = expr.indexOf('=');
@@ -407,6 +416,11 @@ export function DaxDialog({
                     {validation && (
                         <div className="mt-1 text-[11px] text-red-500">
                             {validation}
+                        </div>
+                    )}
+                    {!validation && moduloWarning && (
+                        <div className="mt-1 rounded border border-amber-300/60 bg-amber-300/10 px-2 py-1 text-[11px] text-amber-700">
+                            {moduloWarning}
                         </div>
                     )}
                     {show && (

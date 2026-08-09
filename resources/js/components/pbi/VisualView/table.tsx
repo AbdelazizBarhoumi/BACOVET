@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { CfIcon } from '@/components/pbi/CfIcon';
 import { conditionalColor, conditionalIcon } from '@/lib/pbi/conditionalFormat';
 import { iconById } from '@/lib/pbi/icons';
@@ -37,14 +37,18 @@ function ListCell({
             </span>
         );
     return (
-        <div className="flex flex-wrap justify-end gap-1">
-            {codes.map((c) => (
-                <span
-                    key={c}
-                    className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]"
-                >
-                    {c}
-                </span>
+        <div className="flex flex-wrap items-center justify-end">
+            {codes.map((c, i) => (
+                <Fragment key={c}>
+                    {i > 0 && (
+                        <span className="mx-0.5 select-none text-muted-foreground/70">
+                            ·
+                        </span>
+                    )}
+                    <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                        {c}
+                    </span>
+                </Fragment>
             ))}
         </div>
     );
@@ -105,6 +109,14 @@ export function TableVisual({
     match: ((r: Row) => boolean) | null;
 }) {
     const { graph } = usePbi();
+    try {
+        const w = globalThis as unknown as Record<string, unknown>;
+        const arr = (w.__tableRendersLog as unknown[] | undefined) ?? [];
+        arr.push({ t: Date.now(), isList: isListMeasure(visual.values[0]?.name ?? '') });
+        w.__tableRendersLog = arr;
+    } catch {
+        /* noop */
+    }
     const groupCol = visual.axis[0]?.name;
     const legendCol = visual.legend[0]?.name;
     const matrix = visual.type === 'matrix';

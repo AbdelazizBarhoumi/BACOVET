@@ -192,6 +192,12 @@ const TOKEN_CLASS: Record<'function' | 'table' | 'number' | 'string', string> =
     };
 
 /**
+ * `%` is DAX's modulo operator, not a percentage — highlight it distinctly so
+ * a verbatim `%` (W1-17) never reads as a percent sign.
+ */
+const MODULO_CLASS = 'font-bold text-fuchsia-600 underline decoration-wavy decoration-fuchsia-400/60';
+
+/**
  * Returns a per-character Tailwind class for a DAX expression so it can be
  * rendered as a highlighted layer under a transparent textarea.
  */
@@ -229,6 +235,9 @@ export function daxCharClasses(expr: string): (string | undefined)[] {
                 for (let k = start; k < i; k += 1) cls[k] = TOKEN_CLASS.table;
             }
             i = j;
+        } else if (c === '%') {
+            cls[i] = MODULO_CLASS;
+            i += 1;
         } else {
             i += 1;
         }

@@ -7,7 +7,15 @@ import {
     visualExportData,
     type ExportDeps,
 } from './exportData';
-import { setTables, type TableDef, type Visual, type WellField } from './model';
+import type { RelationGraph } from './graph';
+import {
+    registerMeasure,
+    setTables,
+    unregisterMeasure,
+    type TableDef,
+    type Visual,
+    type WellField,
+} from './model';
 
 const sales: TableDef = {
     name: 'Sales',
@@ -198,5 +206,86 @@ describe('datasetToCsv', () => {
             { title: 'b', columns: ['Y'], rows: [['2']] },
         ]);
         expect(csv.split('\r\n')).toContain('');
+    });
+});
+
+describe('visualExportData — per-row list column (W1-16)', () => {
+    const employees: TableDef = {
+        name: 'employees',
+        fields: [
+            { table: 'employees', name: 'Id', type: 'text' },
+            { table: 'employees', name: 'Name', type: 'text' },
+        ],
+        rows: [
+            { Id: 'E1', Name: 'Ada' },
+            { Id: 'E2', Name: 'No data' },
+        ],
+    };
+    const orders: TableDef = {
+        name: 'employee_data',
+        fields: [
+            { table: 'employee_data', name: 'EmpId', type: 'text' },
+            { table: 'employee_data', name: 'OrderId', type: 'text' },
+        ],
+        rows: [
+            { EmpId: 'E1', OrderId: 'B2' },
+            { EmpId: 'E1', OrderId: 'B1' },
+            { EmpId: 'E1', OrderId: 'B1' },
+        ],
+    };
+    const graph: RelationGraph = {
+        edges: [
+            {
+                a: 'employees',
+                b: 'employee_data',
+                columns: [{ colA: 'Id', colB: 'EmpId' }],
+                kind: 'fk_pk',
+                confidence: 1,
+            },
+        ],
+    };
+
+    it('exports the per-row list joined and an empty row as a blank field', () => {
+        setTables([employees, orders]);
+        registerMeasure('My Orders', 'My Orders = VALUES(employee_data[OrderId])');
+        const v = visual({
+            type: 'table',
+            axis: [{ table: 'employees', name: 'Id', agg: 'sum' }],
+            values: [{ table: 'employee_data', name: 'My Orders', agg: 'count' }],
+        });
+        const ds = visualExportData(v, employees.rows, {
+            ...deps,
+            tables: [employees, orders],
+            graph,
+        })!;
+        expect(ds.columns).toEqual(['Catégorie', 'My Orders']);
+        expect(ds.rows).toEqual([
+            ['E1', 'B1, B2'],
+            ['E2', ''],
+        ]);
+        unregisterMeasure('My Orders');
+    });
+
+    it('keeps numeric measures in the same table correctly formatted', () => {
+        setTables([employees, orders]);
+        registerMeasure(
+            'Order Count',
+            'Order Count = COUNTROWS(employee_data)',
+        );
+        const v = visual({
+            type: 'table',
+            axis: [{ table: 'employees', name: 'Id', agg: 'sum' }],
+            values: [{ table: 'employee_data', name: 'Order Count', agg: 'count' }],
+        });
+        const ds = visualExportData(v, employees.rows, {
+            ...deps,
+            tables: [employees, orders],
+            graph,
+        })!;
+        expect(ds.rows).toEqual([
+            ['E1', '3'],
+            ['E2', '0'],
+        ]);
+        unregisterMeasure('Order Count');
     });
 });
