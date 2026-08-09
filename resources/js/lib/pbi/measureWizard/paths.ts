@@ -1,6 +1,6 @@
 import { evaluateMeasure, type TableDef } from '../model';
 import { buildMeasureDax } from './dax';
-import { joinCandidates } from './joins';
+import { joinCandidates, makeFieldSetsCache } from './joins';
 import {
     FUZZY_OVERLAP_THRESHOLD,
     type JoinCandidate,
@@ -51,9 +51,12 @@ function buildGraph(tables: TableDef[], manual: JoinCandidate[]): PathGraph {
         });
     };
 
+    const getSets = makeFieldSetsCache();
     for (let i = 0; i < tables.length; i++) {
         for (let j = i + 1; j < tables.length; j++) {
-            for (const c of joinCandidates(tables[i]!, tables[j]!)) link(c);
+            for (const c of joinCandidates(tables[i]!, tables[j]!, getSets)) {
+                link(c);
+            }
         }
     }
     for (const c of manual) link(c);

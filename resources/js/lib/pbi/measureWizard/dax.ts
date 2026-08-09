@@ -147,9 +147,10 @@ function exists(
  */
 /**
  * Wrap a numeric body in the DAX of a time window (W2 time engine). `ytd` →
- * `TOTALYTD(body, table[date])`, `mtd` → `TOTALMTD`, the year-ago and previous
- * month windows go through `CALCULATE(... , SAMEPERIODLASTYEAR / PREVIOUSMONTH
- * (table[date]))`. Returns the body untouched when no period is set.
+ * `TOTALYTD(body, table[date])`, `mtd` → `TOTALMTD`, `qtd` → `TOTALQTD`, the
+ * year-ago and previous month windows go through `CALCULATE(... ,
+ * SAMEPERIODLASTYEAR / PREVIOUSMONTH (table[date]))`. Returns the body
+ * untouched when no period is set.
  */
 function periodDax(body: string, period: PeriodSpec | undefined): string {
     if (!period) return body;
@@ -159,6 +160,8 @@ function periodDax(body: string, period: PeriodSpec | undefined): string {
             return `TOTALYTD(${body}, ${dates})`;
         case 'mtd':
             return `TOTALMTD(${body}, ${dates})`;
+        case 'qtd':
+            return `TOTALQTD(${body}, ${dates})`;
         case 'lastYear':
             return `CALCULATE(${body}, SAMEPERIODLASTYEAR(${dates}))`;
         case 'prevMonth':
@@ -292,6 +295,7 @@ export const KIND_LABELS: Record<MeasureKind, string> = {
 export const PERIOD_LABELS: Record<PeriodSpec['window'], string> = {
     ytd: 'Année en cours (cumul YTD)',
     mtd: 'Mois en cours (cumul MTD)',
+    qtd: 'Trimestre en cours (cumul QTD)',
     lastYear: 'Même année l’an dernier (SPLY)',
     prevMonth: 'Mois précédent (M-1)',
 };

@@ -1111,8 +1111,10 @@ function isTimeFunc(name: string): boolean {
         name === 'SAMEPERIODLASTYEAR' ||
         name === 'PREVIOUSMONTH' ||
         name === 'DATESYTD' ||
+        name === 'DATESQTD' ||
         name === 'TOTALYTD' ||
-        name === 'TOTALMTD'
+        name === 'TOTALMTD' ||
+        name === 'TOTALQTD'
     );
 }
 
@@ -1210,6 +1212,7 @@ function resolveDateColumn(
  *   DATESYTD            [Jan 1(anchor year), anchor]
  *   TOTALYTD (scalar)   the same YTD window
  *   TOTALMTD (scalar)   [1st of anchor month, anchor]
+ *   DATESQTD / TOTALQTD the quarter-to-date window of the anchor's quarter
  *   PREVIOUSMONTH       [1st of previous month, last of previous month]
  *   SAMEPERIODLASTYEAR  the YTD window shifted back one year
  *   DATEADD(n, unit)    the YTD window shifted by n×unit
@@ -1219,7 +1222,10 @@ function timeWindowFrames(
     args: MeasureNode[],
     ctx: EvalCtx,
 ): { table: string; row: Row }[] {
-    const datesIndex = fname === 'TOTALYTD' || fname === 'TOTALMTD' ? 1 : 0;
+    const datesIndex =
+        fname === 'TOTALYTD' || fname === 'TOTALMTD' || fname === 'TOTALQTD'
+            ? 1
+            : 0;
     const { table, column } = resolveDateColumn(args[datesIndex], ctx);
     const rows = tableRowsFor(table, ctx.tables ?? TABLES);
     const epochs = rows.map((r) => dateEpoch(r[column]));
@@ -1241,6 +1247,11 @@ function timeWindowFrames(
             break;
         case 'TOTALMTD':
             start = Date.UTC(year, month, 1);
+            end = anchor;
+            break;
+        case 'DATESQTD':
+        case 'TOTALQTD':
+            start = Date.UTC(year, Math.floor(month / 3) * 3, 1);
             end = anchor;
             break;
         case 'PREVIOUSMONTH':
@@ -1381,7 +1392,7 @@ function evalFunction(
             'VALUES renvoie une liste de valeurs et ne peut être utilisé qu’au niveau supérieur de la mesure.',
         );
     }
-    if (name === 'TOTALYTD' || name === 'TOTALMTD') {
+    if (name === 'TOTALYTD' || name === 'TOTALMTD' || name === 'TOTALQTD') {
         const expression = node.args[0];
         if (!expression) {
             throw new MeasureSyntaxError(

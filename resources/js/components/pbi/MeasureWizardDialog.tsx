@@ -5,8 +5,12 @@ import {
     ChevronLeft,
     ChevronRight,
     GitMerge,
+    Hash,
+    List,
+    Percent,
     Plus,
     Save,
+    Sigma,
     Sparkles,
     Table2,
     X,
@@ -50,23 +54,22 @@ import {
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 
-type StepKey = 'start' | 'path' | 'result' | 'composition' | 'save';
+type StepKey = 'objective' | 'table' | 'result' | 'operands' | 'save';
 
 const STEP_LABELS: Record<StepKey, string> = {
-    start: 'Départ',
-    path: 'Chemin',
+    objective: 'Objectif',
+    table: 'Table',
     result: 'Résultat',
-    composition: 'Composition',
+    operands: 'Opérandes',
     save: 'Enregistrer',
 };
 
-/** Step order without composition (result → save directly). */
-const SIMPLE_STEPS: StepKey[] = ['start', 'path', 'result', 'save'];
 /**
- * Step order when composing A • B. Composition is an entry mode chosen on the
- * Départ step: no endpoints are required, so Chemin and Résultat are skipped.
+ * Two ways of building a measure. Single reads a value from one table.
+ * Linked composes two operands (A • B) or reads a value on a table linked to
+ * another one.
  */
-const COMPOSE_STEPS: StepKey[] = ['start', 'composition', 'save'];
+type WizardMode = 'single' | 'linked';
 
 const COMPOSE_OPS: { key: CompositeSpec['op']; label: string }[] = [
     { key: '/', label: '÷' },
@@ -87,6 +90,71 @@ const DIV_ZERO_DAX: Record<DivZeroDefault, string> = {
     na: 'DIVIDE(A, B, NA())',
 };
 
+/** Readable result options shared by the "Valeurs liées" flow. */
+type SimpleOperation = {
+    key: string;
+    kind: MeasureKind;
+    agg?: NumericAgg;
+    label: string;
+    needsColumn: boolean;
+};
+
+const SIMPLE_OPERATIONS: SimpleOperation[] = [
+    {
+        key: 'countrows',
+        kind: 'countrows',
+        label: 'Nombre de lignes',
+        needsColumn: false,
+    },
+    {
+        key: 'sum',
+        kind: 'number',
+        agg: 'sum',
+        label: 'Somme',
+        needsColumn: true,
+    },
+    {
+        key: 'avg',
+        kind: 'number',
+        agg: 'avg',
+        label: 'Moyenne',
+        needsColumn: true,
+    },
+    {
+        key: 'min',
+        kind: 'number',
+        agg: 'min',
+        label: 'Min',
+        needsColumn: true,
+    },
+    {
+        key: 'max',
+        kind: 'number',
+        agg: 'max',
+        label: 'Max',
+        needsColumn: true,
+    },
+    {
+        key: 'list',
+        kind: 'list',
+        label: 'Liste des valeurs',
+        needsColumn: true,
+    },
+];
+
+function simpleIcon(key: string, cls: string) {
+    switch (key) {
+        case 'countrows':
+            return <Hash className={cls} />;
+        case 'avg':
+            return <Percent className={cls} />;
+        case 'list':
+            return <List className={cls} />;
+        default:
+            return <Sigma className={cls} />;
+    }
+}
+
 /** First usable column (prefers numeric) of a table, for sensible defaults. */
 function firstFieldOf(tables: TableDef[], name: string): string {
     const def = tables.find((t) => t.name === name);
@@ -99,7 +167,6 @@ function firstFieldOf(tables: TableDef[], name: string): string {
 /** Editable description of one side of a composed measure. */
 type OperandDraft = {
     kind: 'measure' | 'column' | 'number';
-    /** existing measure reference when kind === 'measure' */
     measure: string;
     /** source table when kind === 'column' */
     table: string;
@@ -114,6 +181,26 @@ const AGG_KEYS = Object.keys(AGG_LABELS) as NumericAgg[];
 const PERIOD_KEYS = Object.keys(PERIOD_LABELS) as PeriodWindow[];
 const EMPTY_HOPS: PathHop[] = [];
 
+const MODE_CARDS: {
+    key: WizardMode;
+    title: string;
+    hint: string;
+    icon: typeof Table2;
+}[] = [
+    {
+        key: 'single',
+        title: 'Valeur d’une table',
+        hint: 'Nombre de lignes, somme, moyenne, min, max, liste des valeurs… sur une seule table.',
+        icon: Table2,
+    },
+    {
+        key: 'linked',
+        title: 'Valeur composée / entre 2 tables',
+        hint: 'Comparez deux opérandes (A ÷ B, A − B…), ou lisez le compte / une somme / une liste des valeurs d’une table liée à une autre.',
+        icon: GitMerge,
+    },
+];
+
 export function MeasureWizardDialog({
     onClose,
     createCategory,
@@ -122,10 +209,15 @@ export function MeasureWizardDialog({
     createCategory?: string | null;
 }) {
     const { tables, addMeasure, sharedJoins, measures } = usePbi();
-    const [step, setStep] = useState<StepKey>('start');
+    const [step, setStep] = useState<StepKey>('objective');
+    const [mode, setMode] = useState<WizardMode | null>(null);
+    const [linkedStyle, setLinkedStyle] = useState<
+        'compose' | 'related' | null
+    >(null);
 
-    const [fromTable, setFromTable] = useState(tables[0]?.name ?? '');
-    const [toTable, setToTable] = useState('');
+    // Single value flow reads one table (from === to). The related flow reads
+    // a table linked to the operand pair, so its endpoints mirror operands A/B.
+    const [table, setTable] = useState(tables[0]?.name ?? '');
     const [paths, setPaths] = useState<PathHop[][]>([]);
     const [activeVariant, setActiveVariant] = useState(0);
     const [kind, setKind] = useState<MeasureKind>('number');
@@ -147,28 +239,38 @@ export function MeasureWizardDialog({
     const [allowWeak, setAllowWeak] = useState(false);
     const [rankBy, setRankBy] = useState<ProposalRankBy>('shortest');
 
-    // Composition (A • B) — chosen as an entry mode on the Départ step. When
-    // on, the flow becomes Départ → Composition → Enregistrer (no endpoints).
-    const [composeOn, setComposeOn] = useState(false);
+    // Composition operands (A • B). Seeded on the best working pair so the
+    // linked entry point always opens on a pair that yields live data.
     const [composeOp, setComposeOp] = useState<CompositeSpec['op']>('/');
     const [scaleHundreds, setScaleHundreds] = useState(true);
     const [divZero, setDivZero] = useState<DivZeroDefault>('zero');
     const [opA, setOpA] = useState<OperandDraft>(() => ({
         kind: 'column',
         measure: '',
-        table: fromTable,
-        column: firstFieldOf(tables, fromTable),
+        table: tables[0]?.name ?? '',
+        column: firstFieldOf(tables, tables[0]?.name ?? ''),
         agg: 'sum',
         value: '',
     }));
     const [opB, setOpB] = useState<OperandDraft>(() => ({
         kind: 'column',
         measure: '',
-        table: toTable || fromTable,
-        column: firstFieldOf(tables, toTable || fromTable),
+        table: tables[1]?.name ?? tables[0]?.name ?? '',
+        column: firstFieldOf(tables, tables[1]?.name ?? tables[0]?.name ?? ''),
         agg: 'sum',
         value: '',
     }));
+
+    const fromTable = table;
+    const bothColumnTables =
+        mode === 'linked' &&
+        opA.kind === 'column' &&
+        opB.kind === 'column' &&
+        opA.table !== '' &&
+        opB.table !== '' &&
+        opA.table !== opB.table;
+    const effectiveFrom = bothColumnTables ? opA.table : fromTable;
+    const effectiveTo = bothColumnTables ? opB.table : effectiveFrom;
 
     // The active chain is the hops of the currently selected variant. Edits
     // write back into its slot so switching variant keeps each one's tweaks.
@@ -187,10 +289,15 @@ export function MeasureWizardDialog({
     const pathReliable = isReliablePath(hops);
     const hasWeakHop = hops.some((h) => !isReliableHop(h));
 
-    const steps = composeOn ? COMPOSE_STEPS : SIMPLE_STEPS;
+    const steps: StepKey[] =
+        mode === 'linked'
+            ? ['objective', 'operands', 'save']
+            : mode === 'single'
+              ? ['objective', 'table', 'result', 'save']
+              : ['objective'];
     const stepIndex = steps.findIndex((s) => s === step);
 
-    // --- Composition operands -------------------------------------------------
+    // --- Composition operands ---------------------------------------------
     const toOperand = (d: OperandDraft): CompositeOperand | null => {
         if (d.kind === 'measure')
             return d.measure ? { type: 'measure', name: d.measure } : null;
@@ -208,43 +315,7 @@ export function MeasureWizardDialog({
     };
     const composeA = useMemo(() => toOperand(opA), [opA]);
     const composeB = useMemo(() => toOperand(opB), [opB]);
-    const composeReady = composeA !== null && composeB !== null;
-
-    const toggleCompose = (on: boolean) => {
-        setComposeOn(on);
-        // The step lists differ by mode, so never leave the user on a step
-        // that no longer exists: switching on jumps to the composition step,
-        // switching off drops back to Départ.
-        if (on && step !== 'composition') setStep('composition');
-        if (!on && step === 'composition') setStep('start');
-        if (on) {
-            setOpA((d) =>
-                d.kind === 'column' && d.table && d.column
-                    ? d
-                    : {
-                          ...d,
-                          kind: 'column',
-                          table: fromTable,
-                          column: firstFieldOf(tables, fromTable),
-                      },
-            );
-            setOpB((d) =>
-                d.kind === 'column' && d.table && d.column
-                    ? d
-                    : {
-                          ...d,
-                          kind: 'column',
-                          table: toTable || fromTable,
-                          column: firstFieldOf(tables, toTable || fromTable),
-                      },
-            );
-        }
-    };
-
-    const stepBack = () => {
-        if (stepIndex === 0) onClose();
-        else setStep(steps[stepIndex - 1] ?? 'start');
-    };
+    const operandsReady = composeA !== null && composeB !== null;
 
     const manual: JoinCandidate[] = useMemo(
         () =>
@@ -261,27 +332,135 @@ export function MeasureWizardDialog({
     );
 
     const proposals = useMemo(
-        () => proposePaths(tables, fromTable, toTable, manual, 5, rankBy),
-        [tables, fromTable, toTable, manual, rankBy],
+        () =>
+            proposePaths(tables, effectiveFrom, effectiveTo, manual, 5, rankBy),
+        [tables, effectiveFrom, effectiveTo, manual, rankBy],
     );
 
-    const toDef = tables.find((t) => t.name === toTable);
+    const toDef = tables.find((t) => t.name === effectiveTo);
     const toColumns = (toDef?.fields ?? []).map((f) => f.name);
 
-    const selectTarget = (name: string) => {
-        setToTable(name);
-        const def = tables.find((t) => t.name === name);
-        const num = def?.fields?.find((f) => f.type === 'number');
-        setColumn(num?.name ?? def?.fields?.[0]?.name ?? '');
-        setCondRows((rows) =>
-            rows.map((r) => ({ ...r, column: '', table: undefined })),
-        );
+    const chooseMode = (m: WizardMode) => {
+        setMode(m);
+        setLinkedStyle(m === 'linked' ? 'compose' : null);
+        if (m === 'single') {
+            setTable(tables[0]?.name ?? '');
+            setColumn(firstFieldOf(tables, tables[0]?.name ?? ''));
+            setPaths([]);
+            setActiveVariant(0);
+            setStep('table');
+        } else {
+            setPaths([]);
+            setStep('operands');
+        }
+    };
+
+    const switchToSingle = () => {
+        setMode('single');
+        setLinkedStyle(null);
+        setColumn(firstFieldOf(tables, table));
+        setPaths([]);
+        setActiveVariant(0);
+        setStep('table');
+    };
+
+    const chooseLinkedStyle = (s: 'compose' | 'related') => {
+        setLinkedStyle(s);
+        const a =
+            opA.kind === 'column'
+                ? opA
+                : {
+                      ...opA,
+                      kind: 'column' as const,
+                      table: tables[0]?.name ?? '',
+                      column: firstFieldOf(tables, tables[0]?.name ?? ''),
+                  };
+        const b =
+            opB.kind === 'column'
+                ? opB
+                : {
+                      ...opB,
+                      kind: 'column' as const,
+                      table: tables[1]?.name ?? tables[0]?.name ?? '',
+                      column: firstFieldOf(
+                          tables,
+                          tables[1]?.name ?? tables[0]?.name ?? '',
+                      ),
+                  };
+        setOpA(a);
+        setOpB(b);
+        if (s === 'compose') {
+            const x = opA.kind === 'column' ? opA.table : '';
+            const y = opB.kind === 'column' ? opB.table : '';
+            if (x && y && x !== y) {
+                setPaths(
+                    proposePaths(tables, x, y, manual, 5, rankBy).map(
+                        (p) => p.hops,
+                    ),
+                );
+                setActiveVariant(0);
+            } else {
+                setPaths([]);
+            }
+            return;
+        }
+        if (a.table && b.table && a.table !== b.table) {
+            setPaths(
+                proposePaths(tables, a.table, b.table, manual, 5, rankBy).map(
+                    (p) => p.hops,
+                ),
+            );
+            setActiveVariant(0);
+        } else {
+            setPaths([]);
+        }
+    };
+
+    const setOperand = (
+        side: 'A' | 'B',
+        patch: Partial<OperandDraft>,
+    ) => {
+        const draft = side === 'A' ? opA : opB;
+        let next = { ...draft, ...patch };
+        if (mode === 'linked' && linkedStyle === 'related') {
+            // Related mode always reads two table columns.
+            next = { ...next, kind: 'column' as const };
+        }
+        if (side === 'A') setOpA(next);
+        else setOpB(next);
+        if (mode === 'linked') {
+            const xKind = side === 'A' ? next.kind : opA.kind;
+            const yKind = side === 'B' ? next.kind : opB.kind;
+            const xTable = side === 'A' ? next.table : opA.table;
+            const yTable = side === 'B' ? next.table : opB.table;
+            if (
+                xKind === 'column' &&
+                yKind === 'column' &&
+                xTable &&
+                yTable &&
+                xTable !== yTable
+            ) {
+                setPaths(
+                    proposePaths(tables, xTable, yTable, manual, 5, rankBy).map(
+                        (p) => p.hops,
+                    ),
+                );
+                setActiveVariant(0);
+            } else {
+                setPaths([]);
+            }
+        }
+    };
+
+    const selectTable = (t: string) => {
+        setTable(t);
+        setColumn(firstFieldOf(tables, t));
     };
 
     const spec: WizardSpec = useMemo(() => {
         const base = {
-            from: fromTable,
-            to: toTable || fromTable,
+            from: effectiveFrom,
+            to: effectiveTo,
             hops,
             kind,
             column,
@@ -296,7 +475,12 @@ export function MeasureWizardDialog({
                 : rows.length > 1
                   ? { ...base, conditions: { combine: condCombine, rows } }
                   : base;
-        if (composeOn && composeA && composeB) {
+        if (
+            mode === 'linked' &&
+            linkedStyle === 'compose' &&
+            composeA &&
+            composeB
+        ) {
             return {
                 ...withCond,
                 kind: 'number',
@@ -324,8 +508,8 @@ export function MeasureWizardDialog({
               }
             : withCond;
     }, [
-        fromTable,
-        toTable,
+        effectiveFrom,
+        effectiveTo,
         hops,
         kind,
         column,
@@ -336,7 +520,8 @@ export function MeasureWizardDialog({
         periodOn,
         periodWindow,
         periodDateRef,
-        composeOn,
+        mode,
+        linkedStyle,
         composeA,
         composeB,
         composeOp,
@@ -352,20 +537,37 @@ export function MeasureWizardDialog({
         [name, spec],
     );
 
+    const pathGate = hops.length === 0 || pathReliable || allowWeak;
+
     const previewState = useMemo(() => {
         const none = {
             value: null as number | string[] | null,
             error: null as string | null,
         };
-        // Composition does not depend on the base from → to chain, so its
-        // gate is the operand validity alone.
-        if (
-            !composeOn &&
-            (toTable === '' || (toTable !== fromTable && hops.length === 0))
-        )
-            return none;
         const expr = measureExpression(name.trim() || 'Aperçu', spec);
-        if (composeOn) {
+        if (mode === 'single') {
+            if (fromTable === '' || (kind !== 'countrows' && column === ''))
+                return none;
+            if (kind === 'number' || kind === 'countrows') {
+                const r = evaluateMeasure(expr, []);
+                return {
+                    value: typeof r.value === 'number' ? r.value : null,
+                    error: r.error ?? null,
+                };
+            }
+            try {
+                const compiled = compileListMeasure(expr);
+                if (!compiled) return none;
+                const values = compiled([], {});
+                return {
+                    value: Array.isArray(values) ? values : [],
+                    error: null,
+                };
+            } catch {
+                return none;
+            }
+        }
+        if (mode === 'linked' && linkedStyle === 'compose') {
             if (!composeA || !composeB) return none;
             const r = evaluateMeasure(expr, []);
             return {
@@ -373,56 +575,66 @@ export function MeasureWizardDialog({
                 error: r.error ?? null,
             };
         }
-        if (kind === 'number' || kind === 'countrows') {
-            const r = evaluateMeasure(expr, []);
-            return {
-                value: typeof r.value === 'number' ? r.value : null,
-                error: r.error ?? null,
-            };
+        if (mode === 'linked' && linkedStyle === 'related') {
+            if (!hops.length || !pathGate) return none;
+            if (kind === 'number' || kind === 'countrows') {
+                const r = evaluateMeasure(expr, []);
+                return {
+                    value: typeof r.value === 'number' ? r.value : null,
+                    error: r.error ?? null,
+                };
+            }
+            try {
+                const compiled = compileListMeasure(expr);
+                if (!compiled) return none;
+                const values = compiled([], {});
+                return {
+                    value: Array.isArray(values) ? values : [],
+                    error: null,
+                };
+            } catch {
+                return none;
+            }
         }
-        // list: evaluate the VALUES(...) through the engine so the preview is
-        // truthful (empty here means the chain genuinely matches nothing).
-        try {
-            const compiled = compileListMeasure(expr);
-            if (!compiled) return none;
-            const values = compiled([], {});
-            return { value: Array.isArray(values) ? values : [], error: null };
-        } catch {
-            return none;
-        }
+        return none;
     }, [
         spec,
-        kind,
-        toTable,
+        mode,
+        linkedStyle,
         fromTable,
-        hops.length,
+        kind,
+        column,
+        hops,
+        pathGate,
         name,
-        composeOn,
         composeA,
         composeB,
     ]);
     const preview = previewState.value;
     const previewError = previewState.error;
 
-    const caseBlockedNeedsHop = toTable !== '' && toTable !== fromTable;
-    // Chemin is only valid when the route is fully reliable OR the user has
-    // explicitly accepted an unverified link.
-    const pathGate =
-        !caseBlockedNeedsHop || hops.length === 0 || pathReliable || allowWeak;
+    const relatedReady =
+        !mode || mode === 'single' || linkedStyle === 'compose'
+            ? true
+            : hops.length > 0 &&
+              pathGate &&
+              (kind === 'countrows' || column !== '');
+
     const canProceed =
-        (stepIndex === 0 &&
-            (composeOn || (fromTable !== '' && toTable !== ''))) ||
-        (stepIndex === 1 && (composeOn ? composeReady : pathGate)) ||
-        (stepIndex === 2 && (composeOn ? name.trim() !== '' : column !== '')) ||
-        (stepIndex === 3 && name.trim() !== '');
+        (step === 'objective' && mode !== null) ||
+        (step === 'table' && fromTable !== '') ||
+        (step === 'result' &&
+            (kind === 'countrows' || column !== '')) ||
+        (step === 'operands' &&
+            operandsReady &&
+            (linkedStyle === 'related' ? relatedReady : true)) ||
+        (step === 'save' && name.trim() !== '');
 
     const changeRankBy = (r: ProposalRankBy) => {
-        // Recompute ordering for the new ranking, then reseed the editable
-        // variants from it (avoids the memo lagging one render behind).
         const reordered = proposePaths(
             tables,
-            fromTable,
-            toTable,
+            effectiveFrom,
+            effectiveTo,
             manual,
             5,
             r,
@@ -432,39 +644,24 @@ export function MeasureWizardDialog({
         setActiveVariant(0);
     };
 
+    const stepBack = () => {
+        if (stepIndex === 0) onClose();
+        else setStep(steps[stepIndex - 1] ?? 'objective');
+    };
+
     const goNext = async () => {
-        if (step === 'start') {
-            if (composeOn) {
-                // Composition is an entry mode: no endpoints needed.
-                setStep('composition');
-                return;
-            }
-            setPaths(proposals.map((p) => p.hops));
+        if (step === 'objective') return;
+        if (step === 'table') {
+            setPaths([]);
             setActiveVariant(0);
-            setStep('path');
-            return;
-        }
-        if (step === 'path') {
-            if (hasWeakHop && !allowWeak) {
-                toast.error(
-                    'Une liaison n’est pas vérifiée sur les valeurs. Validez-la ou cochez « Autoriser une liaison non vérifiée ».',
-                );
-                return;
-            }
             setStep('result');
             return;
         }
         if (step === 'result') {
-            setStep(composeOn ? 'composition' : 'save');
+            setStep('save');
             return;
         }
-        if (step === 'composition') {
-            if (!composeA || !composeB) {
-                toast.error(
-                    'Définissez deux opérandes valides pour composer la mesure.',
-                );
-                return;
-            }
+        if (step === 'operands') {
             setStep('save');
             return;
         }
@@ -543,31 +740,14 @@ export function MeasureWizardDialog({
                         transition={{ duration: 0.18 }}
                         className="space-y-4 p-4"
                     >
-                        {step === 'start' && (
-                            <StartStep
-                                tables={tables}
-                                fromTable={fromTable}
-                                setFromTable={setFromTable}
-                                toTable={toTable}
-                                selectTarget={selectTarget}
-                                composeOn={composeOn}
-                                toggleCompose={toggleCompose}
-                            />
+                        {step === 'objective' && (
+                            <ObjectiveStep onPick={chooseMode} />
                         )}
-                        {step === 'path' && (
-                            <PathStep
+                        {step === 'table' && (
+                            <SingleTableStep
                                 tables={tables}
-                                proposals={proposals}
-                                paths={paths}
-                                activeVariant={activeVariant}
-                                setActiveVariant={setActiveVariant}
-                                rankBy={rankBy}
-                                setRankBy={changeRankBy}
-                                hops={hops}
-                                setHops={setHops}
-                                hasWeakHop={hasWeakHop}
-                                allowWeak={allowWeak}
-                                setAllowWeak={setAllowWeak}
+                                value={fromTable}
+                                onChange={selectTable}
                             />
                         )}
                         {step === 'result' && (
@@ -594,32 +774,52 @@ export function MeasureWizardDialog({
                                 setPeriodDateRef={setPeriodDateRef}
                                 tables={tables}
                                 fromTable={fromTable}
-                                composeOn={composeOn}
-                                toggleCompose={toggleCompose}
                                 dax={dax}
                             />
                         )}
-                        {step === 'composition' && (
-                            <CompositionStep
+                        {step === 'operands' && (
+                            <LinkedStep
                                 tables={tables}
                                 measures={measures}
                                 opA={opA}
-                                setOpA={setOpA}
+                                setOpA={(d) => setOperand('A', d)}
                                 opB={opB}
-                                setOpB={setOpB}
+                                setOpB={(d) => setOperand('B', d)}
+                                linkedStyle={linkedStyle}
+                                chooseLinkedStyle={chooseLinkedStyle}
                                 composeOp={composeOp}
                                 setComposeOp={setComposeOp}
                                 scaleHundreds={scaleHundreds}
                                 setScaleHundreds={setScaleHundreds}
                                 divZero={divZero}
                                 setDivZero={setDivZero}
-                                dax={dax}
+                                paths={paths}
+                                activeVariant={activeVariant}
+                                setActiveVariant={setActiveVariant}
+                                hops={hops}
+                                setHops={setHops}
+                                proposals={proposals}
+                                allowWeak={allowWeak}
+                                setAllowWeak={setAllowWeak}
+                                hasWeakHop={hasWeakHop}
+                                kind={kind}
+                                setKind={setKind}
+                                agg={agg}
+                                setAgg={setAgg}
+                                column={column}
+                                setColumn={setColumn}
+                                toDef={toDef}
+                                toColumns={toColumns}
+                                rankBy={rankBy}
+                                setRankBy={changeRankBy}
                                 value={
-                                    typeof preview === 'number' ? preview : null
+                                    typeof preview === 'number'
+                                        ? preview
+                                        : null
                                 }
                                 error={previewError}
-                                composeReady={composeReady}
-                                onCreateSimple={() => toggleCompose(false)}
+                                dax={dax}
+                                onCreateSimple={switchToSingle}
                             />
                         )}
                         {step === 'save' && (
@@ -666,113 +866,78 @@ export function MeasureWizardDialog({
     );
 }
 
-/* ───────────────────────── Step: Départ ─────────────────────────────── */
+/* ─────────────────────── Step: Objectif ─────────────────────────────── */
 
-function StartStep({
-    tables,
-    fromTable,
-    setFromTable,
-    toTable,
-    selectTarget,
-    composeOn,
-    toggleCompose,
+function ObjectiveStep({
+    onPick,
 }: {
-    tables: TableDef[];
-    fromTable: string;
-    setFromTable: (t: string) => void;
-    toTable: string;
-    selectTarget: (t: string) => void;
-    composeOn: boolean;
-    toggleCompose: (on: boolean) => void;
+    onPick: (m: WizardMode) => void;
 }) {
     return (
-        <div className="grid gap-4">
-            <div>
-                <div className="mb-1.5 text-[12px] font-semibold">
-                    Mode de calcul
-                </div>
-                <div className="flex flex-wrap gap-1">
-                    <button
-                        onClick={() => toggleCompose(false)}
-                        className={cn(
-                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
-                            !composeOn
-                                ? 'border-brand bg-brand/15 font-medium'
-                                : 'border-border hover:bg-accent',
-                        )}
-                    >
-                        Une valeur simple
-                    </button>
-                    <button
-                        onClick={() => toggleCompose(true)}
-                        className={cn(
-                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
-                            composeOn
-                                ? 'border-brand bg-brand/15 font-medium'
-                                : 'border-border hover:bg-accent',
-                        )}
-                    >
-                        Composition A • B
-                    </button>
-                </div>
+        <div>
+            <div className="mb-2 text-[15px] font-semibold">
+                Que voulez-vous créer ?
             </div>
+            <p className="mb-3 text-[12px] text-muted-foreground">
+                Deux types de mesure. L’assistant en déduit les étapes — vous
+                pourrez toujours ajuster le détail ensuite.
+            </p>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+                {MODE_CARDS.map((c) => (
+                    <button
+                        key={c.key}
+                        onClick={() => onPick(c.key)}
+                        className="group rounded-xl border border-border bg-panel p-4 text-left transition-colors hover:border-brand/50 hover:bg-brand/5"
+                    >
+                        <span className="mb-2 inline-flex size-9 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                            <c.icon className="size-4" />
+                        </span>
+                        <div className="text-[13px] font-semibold">
+                            {c.title}
+                        </div>
+                        <div className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+                            {c.hint}
+                        </div>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
 
-            {composeOn ? (
-                <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-[12px] leading-relaxed">
-                    <span className="font-semibold text-brand">
-                        Composition A • B
-                    </span>{' '}
-                    : aucune table n’est requise. Vous choisissez vos deux
-                    opérandes (mesure, colonne agrégée ou nombre) à l’étape
-                    suivante, puis l’opération et le format.
-                </div>
-            ) : (
-                <>
-                    <div>
-                        <div className="mb-1.5 text-[12px] font-semibold">
-                            Table de départ
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                            {tables.map((t) => (
-                                <button
-                                    key={t.name}
-                                    onClick={() => setFromTable(t.name)}
-                                    className={cn(
-                                        'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
-                                        fromTable === t.name
-                                            ? 'border-brand bg-brand/15 font-medium'
-                                            : 'border-border hover:bg-accent',
-                                    )}
-                                >
-                                    <Table2 className="mr-1.5 inline size-3.5 text-muted-foreground" />
-                                    {t.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div>
-                        <div className="mb-1.5 text-[12px] font-semibold">
-                            Table cible
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                            {tables.map((t) => (
-                                <button
-                                    key={t.name}
-                                    onClick={() => selectTarget(t.name)}
-                                    className={cn(
-                                        'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
-                                        toTable === t.name
-                                            ? 'border-brand bg-brand/15 font-medium'
-                                            : 'border-border hover:bg-accent',
-                                    )}
-                                >
-                                    {t.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </>
-            )}
+/* ──────────────────────── Step: Table ──────────────────────────────── */
+
+function SingleTableStep({
+    tables,
+    value,
+    onChange,
+}: {
+    tables: TableDef[];
+    value: string;
+    onChange: (t: string) => void;
+}) {
+    return (
+        <div>
+            <div className="mb-1.5 text-[12px] font-semibold">
+                Table à lire
+            </div>
+            <div className="flex flex-wrap gap-1">
+                {tables.map((t) => (
+                    <button
+                        key={t.name}
+                        onClick={() => onChange(t.name)}
+                        className={cn(
+                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
+                            value === t.name
+                                ? 'border-brand bg-brand/15 font-medium'
+                                : 'border-border hover:bg-accent',
+                        )}
+                    >
+                        <Table2 className="mr-1.5 inline size-3.5 text-muted-foreground" />
+                        {t.name}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 }
@@ -809,6 +974,8 @@ function HopBadge({ c }: { c: JoinCandidate }) {
         </span>
     );
 }
+
+/* ────────────────────────── Step: Chemin ────────────────────────────── */
 
 /** One editable stop on the route. */
 function StopCard({
@@ -1007,6 +1174,7 @@ function PathStep({
     hasWeakHop,
     allowWeak,
     setAllowWeak,
+    collapsible = false,
 }: {
     tables: TableDef[];
     proposals: ProposedPath[];
@@ -1020,7 +1188,9 @@ function PathStep({
     hasWeakHop: boolean;
     allowWeak: boolean;
     setAllowWeak: (b: boolean) => void;
+    collapsible?: boolean;
 }) {
+    const [open, setOpen] = useState(true);
     const replaceEdge = (index: number, hop: PathHop) =>
         setHops(hops.map((h, i) => (i === index ? hop : h)));
 
@@ -1070,9 +1240,21 @@ function PathStep({
     return (
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-[12px] font-semibold">
+                <button
+                    type="button"
+                    onClick={() => collapsible && setOpen((o) => !o)}
+                    className="flex items-center gap-1 text-[12px] font-semibold"
+                >
+                    {collapsible && (
+                        <ChevronDown
+                            className={cn(
+                                'size-3 text-muted-foreground transition-transform',
+                                open && 'rotate-180',
+                            )}
+                        />
+                    )}
                     Chemin de relation
-                </div>
+                </button>
                 <div className="flex items-center gap-1 rounded-full border border-border p-0.5 text-[11px]">
                     <button
                         onClick={() => setRankBy('shortest')}
@@ -1101,7 +1283,9 @@ function PathStep({
                 </div>
             </div>
 
-            {proposals.every((p) => p.blocked) ? (
+            {(!collapsible || open) && (
+                <>
+                    {proposals.every((p) => p.blocked) ? (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-[12px] text-amber-700">
                     <div className="font-semibold">
                         {proposals[0]?.blocked?.reason ?? 'Chemin introuvable'}
@@ -1178,7 +1362,7 @@ function PathStep({
                     <span className="mr-1">
                         Au moins une liaison de cet arrêt n'a{' '}
                         <b>aucune correspondance de valeurs vérifiée</b>. La
-                        mesure produira 0 / vide tant que ce lien n’est pas
+                        mesure produira 0 / vide tant que ce lien n'est pas
                         corrigé.
                     </span>
                     <label className="flex items-center gap-1.5 text-[11px] font-medium">
@@ -1229,6 +1413,8 @@ function PathStep({
                     })
                 }
             />
+                </>
+            )}
         </div>
     );
 }
@@ -1442,6 +1628,140 @@ function ConditionRowEditor({
     );
 }
 
+/** Result to read on the arrival table of the "Valeurs liées" flow. */
+function ResultAxisSelect({
+    toDef,
+    columns,
+    kind,
+    setKind,
+    agg,
+    setAgg,
+    column,
+    setColumn,
+}: {
+    toDef: TableDef | undefined;
+    columns: string[];
+    kind: WizardSpec['kind'];
+    setKind: (k: WizardSpec['kind']) => void;
+    agg: NumericAgg;
+    setAgg: (a: NumericAgg) => void;
+    column: string;
+    setColumn: (c: string) => void;
+}) {
+    const activeOp =
+        SIMPLE_OPERATIONS.find(
+            (o) => o.kind === kind && (o.kind !== 'number' || o.agg === agg),
+        ) ?? SIMPLE_OPERATIONS[1]!;
+    const opNeedsColumn = activeOp.needsColumn;
+    const clickOp = (o: SimpleOperation) => {
+        setKind(o.kind);
+        setAgg(o.agg ?? 'sum');
+        if (o.needsColumn && column === '') {
+            const num = toDef?.fields.find((f) => f.type === 'number');
+            setColumn(num?.name ?? toDef?.fields?.[0]?.name ?? '');
+        }
+    };
+    const toFields = toDef?.fields ?? [];
+    const numericColumns = toFields
+        .filter((f) => f.type === 'number')
+        .map((f) => f.name);
+    const orderedColumns = [
+        ...numericColumns,
+        ...columns.filter((c) => !numericColumns.includes(c)),
+    ];
+    const selectedType = toFields.find((f) => f.name === column)?.type;
+    const numOnly =
+        kind === 'number' && (agg === 'sum' || agg === 'avg');
+    const numOnlyMismatch = numOnly && selectedType !== 'number';
+    const clickColumn = (c: string) => {
+        const f = toFields.find((x) => x.name === c);
+        if (
+            f != null &&
+            f.type !== 'number' &&
+            numOnly
+        ) {
+            setAgg('count');
+            setColumn(c);
+            return;
+        }
+        setColumn(c);
+    };
+    return (
+        <div className="space-y-3">
+            <div>
+                <div className="mb-1.5 text-[12px] font-semibold">
+                    Résultat à lire
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3 lg:grid-cols-4">
+                    {SIMPLE_OPERATIONS.map((o) => (
+                        <button
+                            key={o.key}
+                            onClick={() => clickOp(o)}
+                            className={cn(
+                                'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors',
+                                activeOp.key === o.key
+                                    ? 'border-brand bg-brand/15 font-medium'
+                                    : 'border-border hover:bg-accent',
+                            )}
+                        >
+                            <span className="text-muted-foreground">
+                                {simpleIcon(o.key, 'size-3.5')}
+                            </span>
+                            {o.label}
+                        </button>
+                    ))}
+                </div>
+                {opNeedsColumn && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                        Colonne à lire sur la table d'arrivée.
+                    </p>
+                )}
+            </div>
+
+            {opNeedsColumn && (
+                <div>
+                    <div
+                        className={cn(
+                            'mb-1.5 text-[12px] font-semibold',
+                            column === '' && 'text-brand',
+                        )}
+                    >
+                        Colonne de la table « {toDef?.name ?? ''} »
+                    </div>
+                    {columns.length ? (
+                        <div className="flex max-h-40 flex-wrap gap-1 overflow-auto">
+                            {orderedColumns.map((c) => (
+                                <button
+                                    key={c}
+                                    onClick={() => clickColumn(c)}
+                                    className={cn(
+                                        'rounded border px-2 py-1 font-mono text-[11px] transition-colors',
+                                        column === c
+                                            ? 'border-brand bg-brand/15'
+                                            : 'border-border hover:bg-accent',
+                                    )}
+                                >
+                                    {c}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-[11px] text-muted-foreground">
+                            Aucune colonne disponible.
+                        </p>
+                    )}
+                    {numOnlyMismatch && (
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                            Somme et Moyenne exigent une colonne numérique —
+                            agrégation réglée sur Nombre (non vides).
+                        </p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function ResultStep({
     toDef,
     toColumns,
@@ -1465,8 +1785,6 @@ function ResultStep({
     setPeriodDateRef,
     tables,
     fromTable,
-    composeOn,
-    toggleCompose,
     dax,
 }: {
     toDef: TableDef | undefined;
@@ -1491,8 +1809,6 @@ function ResultStep({
     setPeriodDateRef: (v: string) => void;
     tables: TableDef[];
     fromTable: string;
-    composeOn: boolean;
-    toggleCompose: (on: boolean) => void;
     dax: string;
 }) {
     // Every `table[column]` across the loaded tables, so a time window can use
@@ -1524,255 +1840,206 @@ function ResultStep({
                 </div>
             </div>
 
-            <div>
-                <div className="mb-1.5 text-[12px] font-semibold">
-                    Mode de calcul
-                </div>
-                <div className="flex flex-wrap gap-1">
-                    <button
-                        onClick={() => toggleCompose(false)}
-                        className={cn(
-                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
-                            !composeOn
-                                ? 'border-brand bg-brand/15 font-medium'
-                                : 'border-border hover:bg-accent',
-                        )}
-                    >
-                        Une valeur simple
-                    </button>
-                    <button
-                        onClick={() => toggleCompose(true)}
-                        className={cn(
-                            'rounded-lg border px-3 py-1.5 text-[12px] transition-colors',
-                            composeOn
-                                ? 'border-brand bg-brand/15 font-medium'
-                                : 'border-border hover:bg-accent',
-                        )}
-                    >
-                        Composition A • B
-                    </button>
-                </div>
-            </div>
+            <>
+                {kind === 'number' && (
+                    <div>
+                        <div className="mb-1.5 text-[12px] font-semibold">
+                            Agrégation
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {AGG_KEYS.map((a) => (
+                                <button
+                                    key={a}
+                                    onClick={() => setAgg(a)}
+                                    className={cn(
+                                        'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
+                                        agg === a
+                                            ? 'border-brand bg-brand/15'
+                                            : 'border-border hover:bg-accent',
+                                    )}
+                                >
+                                    {AGG_LABELS[a]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
-            {!composeOn ? (
-                <>
-                    {kind === 'number' && (
-                        <div>
-                            <div className="mb-1.5 text-[12px] font-semibold">
-                                Agrégation
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                                {AGG_KEYS.map((a) => (
+                {kind !== 'countrows' && (
+                    <div>
+                        <div className="mb-1.5 text-[12px] font-semibold">
+                            Colonne de la table « {toDef?.name ?? ''} »
+                        </div>
+                        {toColumns.length ? (
+                            <div className="flex max-h-40 flex-wrap gap-1 overflow-auto">
+                                {toColumns.map((c) => (
                                     <button
-                                        key={a}
-                                        onClick={() => setAgg(a)}
+                                        key={c}
+                                        onClick={() => setColumn(c)}
                                         className={cn(
-                                            'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
-                                            agg === a
+                                            'rounded border px-2 py-1 font-mono text-[11px] transition-colors',
+                                            column === c
                                                 ? 'border-brand bg-brand/15'
                                                 : 'border-border hover:bg-accent',
                                         )}
                                     >
-                                        {AGG_LABELS[a]}
+                                        {c}
                                     </button>
                                 ))}
                             </div>
-                        </div>
-                    )}
+                        ) : (
+                            <p className="text-[11px] text-muted-foreground">
+                                Aucune colonne disponible.
+                            </p>
+                        )}
+                    </div>
+                )}
 
-                    {kind !== 'countrows' && (
-                        <div>
-                            <div className="mb-1.5 text-[12px] font-semibold">
-                                Colonne de la table « {toDef?.name ?? ''} »
-                            </div>
-                            {toColumns.length ? (
-                                <div className="flex max-h-40 flex-wrap gap-1 overflow-auto">
-                                    {toColumns.map((c) => (
-                                        <button
-                                            key={c}
-                                            onClick={() => setColumn(c)}
-                                            className={cn(
-                                                'rounded border px-2 py-1 font-mono text-[11px] transition-colors',
-                                                column === c
-                                                    ? 'border-brand bg-brand/15'
-                                                    : 'border-border hover:bg-accent',
-                                            )}
-                                        >
-                                            {c}
-                                        </button>
-                                    ))}
+                <div className="rounded-lg border border-border p-3">
+                    <label className="flex items-center gap-2 text-[12px]">
+                        <input
+                            type="checkbox"
+                            checked={condOn}
+                            onChange={(e) => setCondOn(e.target.checked)}
+                            className="accent-brand"
+                        />
+                        Appliquer une condition
+                    </label>
+                    {condOn && (
+                        <div className="mt-2 space-y-1.5">
+                            {condRows.length > 1 && (
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                    <span className="text-muted-foreground">
+                                        Combiner les conditions en
+                                    </span>
+                                    <select
+                                        value={condCombine}
+                                        onChange={(e) =>
+                                            setCondCombine(
+                                                e.target.value as 'and' | 'or',
+                                            )
+                                        }
+                                        className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                    >
+                                        <option value="and">ET (toutes)</option>
+                                        <option value="or">
+                                            OU (au moins une)
+                                        </option>
+                                    </select>
                                 </div>
-                            ) : (
-                                <p className="text-[11px] text-muted-foreground">
-                                    Aucune colonne disponible.
-                                </p>
                             )}
+                            {condRows.map((row, i) => (
+                                <ConditionRowEditor
+                                    key={i}
+                                    row={row}
+                                    tables={tables}
+                                    from={fromTable}
+                                    to={toDef?.name ?? ''}
+                                    onChange={(patch) =>
+                                        setCondRows((rows) =>
+                                            rows.map((r, idx) =>
+                                                idx === i
+                                                    ? { ...r, ...patch }
+                                                    : r,
+                                            ),
+                                        )
+                                    }
+                                    onRemove={() =>
+                                        setCondRows((rows) =>
+                                            rows.length > 1
+                                                ? rows.filter(
+                                                      (_, idx) => idx !== i,
+                                                  )
+                                                : rows,
+                                        )
+                                    }
+                                />
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setCondRows((rows) => [
+                                        ...rows,
+                                        { column: '', op: 'gt', value: '' },
+                                    ])
+                                }
+                                className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline"
+                            >
+                                <Plus className="size-3" />
+                                Ajouter une condition
+                            </button>
                         </div>
                     )}
+                </div>
 
+                {kind === 'number' && (
                     <div className="rounded-lg border border-border p-3">
                         <label className="flex items-center gap-2 text-[12px]">
                             <input
                                 type="checkbox"
-                                checked={condOn}
-                                onChange={(e) => setCondOn(e.target.checked)}
+                                checked={periodOn}
+                                onChange={(e) =>
+                                    setPeriodOn(e.target.checked)
+                                }
                                 className="accent-brand"
                             />
-                            Appliquer une condition
+                            Appliquer une période
                         </label>
-                        {condOn && (
+                        {periodOn && (
                             <div className="mt-2 space-y-1.5">
-                                {condRows.length > 1 && (
-                                    <div className="flex items-center gap-1.5 text-[11px]">
-                                        <span className="text-muted-foreground">
-                                            Combiner les conditions en
-                                        </span>
-                                        <select
-                                            value={condCombine}
-                                            onChange={(e) =>
-                                                setCondCombine(
-                                                    e.target.value as
-                                                        'and' | 'or',
-                                                )
-                                            }
-                                            className="rounded border border-border bg-background px-2 py-1 text-[11px]"
-                                        >
-                                            <option value="and">
-                                                ET (toutes)
-                                            </option>
-                                            <option value="or">
-                                                OU (au moins une)
-                                            </option>
-                                        </select>
-                                    </div>
-                                )}
-                                {condRows.map((row, i) => (
-                                    <ConditionRowEditor
-                                        key={i}
-                                        row={row}
-                                        tables={tables}
-                                        from={fromTable}
-                                        to={toDef?.name ?? ''}
-                                        onChange={(patch) =>
-                                            setCondRows((rows) =>
-                                                rows.map((r, idx) =>
-                                                    idx === i
-                                                        ? { ...r, ...patch }
-                                                        : r,
-                                                ),
-                                            )
-                                        }
-                                        onRemove={() =>
-                                            setCondRows((rows) =>
-                                                rows.length > 1
-                                                    ? rows.filter(
-                                                          (_, idx) => idx !== i,
-                                                      )
-                                                    : rows,
-                                            )
-                                        }
-                                    />
-                                ))}
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setCondRows((rows) => [
-                                            ...rows,
-                                            {
-                                                column: '',
-                                                op: 'gt',
-                                                value: '',
-                                            },
-                                        ])
+                                <select
+                                    value={periodWindow}
+                                    onChange={(e) =>
+                                        setPeriodWindow(
+                                            e.target.value as PeriodWindow,
+                                        )
                                     }
-                                    className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline"
+                                    className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
                                 >
-                                    <Plus className="size-3" />
-                                    Ajouter une condition
-                                </button>
+                                    {PERIOD_KEYS.map((w) => (
+                                        <option key={w} value={w}>
+                                            {PERIOD_LABELS[w]}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="text-[11px] text-muted-foreground">
+                                    Colonne de date (ex. kpi_br_print[mois])
+                                </div>
+                                <select
+                                    value={periodDateRef}
+                                    onChange={(e) =>
+                                        setPeriodDateRef(e.target.value)
+                                    }
+                                    className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
+                                >
+                                    <option value="">
+                                        Choisir une colonne…
+                                    </option>
+                                    {dateFieldOptions.map((ref) => (
+                                        <option key={ref} value={ref}>
+                                            {ref}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                         )}
                     </div>
+                )}
 
-                    {kind === 'number' && (
-                        <div className="rounded-lg border border-border p-3">
-                            <label className="flex items-center gap-2 text-[12px]">
-                                <input
-                                    type="checkbox"
-                                    checked={periodOn}
-                                    onChange={(e) =>
-                                        setPeriodOn(e.target.checked)
-                                    }
-                                    className="accent-brand"
-                                />
-                                Appliquer une période
-                            </label>
-                            {periodOn && (
-                                <div className="mt-2 space-y-1.5">
-                                    <select
-                                        value={periodWindow}
-                                        onChange={(e) =>
-                                            setPeriodWindow(
-                                                e.target.value as PeriodWindow,
-                                            )
-                                        }
-                                        className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
-                                    >
-                                        {PERIOD_KEYS.map((w) => (
-                                            <option key={w} value={w}>
-                                                {PERIOD_LABELS[w]}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="text-[11px] text-muted-foreground">
-                                        Colonne de date (ex. kpi_br_print[mois])
-                                    </div>
-                                    <select
-                                        value={periodDateRef}
-                                        onChange={(e) =>
-                                            setPeriodDateRef(e.target.value)
-                                        }
-                                        className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
-                                    >
-                                        <option value="">
-                                            Choisir une colonne…
-                                        </option>
-                                        {dateFieldOptions.map((ref) => (
-                                            <option key={ref} value={ref}>
-                                                {ref}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <div>
-                        <div className="mb-1.5 text-[12px] font-semibold">
-                            Formule générée
-                        </div>
-                        <pre className="overflow-auto rounded-lg border border-border bg-muted p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-                            {dax}
-                        </pre>
+                <div>
+                    <div className="mb-1.5 text-[12px] font-semibold">
+                        Formule générée
                     </div>
-                </>
-            ) : (
-                <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-[12px] leading-relaxed">
-                    <span className="font-semibold text-brand">
-                        Composition A • B
-                    </span>{' '}
-                    : la mesure est construite à partir de deux opérandes (une
-                    mesure existante, une colonne agrégée ou un nombre). Passez
-                    à l’étape suivante pour choisir l’opération et régler le
-                    format.
+                    <pre className="overflow-auto rounded-lg border border-border bg-muted p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                        {dax}
+                    </pre>
                 </div>
-            )}
+            </>
         </div>
     );
 }
 
-/* ───────────────────────── Step: Composition ────────────────────────── */
+/* ───────────────────────── Step: Opérandes ─────────────────────────── */
 
 function OperandEditor({
     label,
@@ -1781,6 +2048,7 @@ function OperandEditor({
     value,
     onChange,
     onCreateSimple,
+    tableOnly = false,
 }: {
     label: string;
     tables: TableDef[];
@@ -1788,36 +2056,73 @@ function OperandEditor({
     value: OperandDraft;
     onChange: (d: OperandDraft) => void;
     onCreateSimple: () => void;
+    tableOnly?: boolean;
 }) {
     const patch = (p: Partial<OperandDraft>) => onChange({ ...value, ...p });
     const operandFields = tables.find((t) => t.name === value.table)?.fields;
+    const selectedField = (operandFields ?? []).find(
+        (f) => f.name === value.column,
+    );
+    const isNumeric = selectedField?.type === 'number';
+    const numericFields = (operandFields ?? [])
+        .filter((f) => f.type === 'number')
+        .map((f) => f.name);
+    const otherFields = (operandFields ?? [])
+        .filter((f) => f.type !== 'number')
+        .map((f) => f.name);
+    const numOnlyRemark =
+        value.kind === 'column' &&
+        (value.agg === 'sum' || value.agg === 'avg') &&
+        !isNumeric;
+
+    const summary = tableOnly
+        ? value.table || 'Choisissez une table'
+        : value.kind === 'column'
+          ? value.table && value.column
+              ? `${AGG_LABELS[value.agg]} de ${value.table}[${value.column}]`
+              : 'Choisissez une table et une colonne'
+          : value.kind === 'measure'
+            ? value.measure
+                ? `Mesure [${value.measure}]`
+                : 'Choisissez une mesure'
+            : value.value
+              ? `Constante ${value.value}`
+              : 'Saisissez une constante';
+
     return (
         <div className="rounded-lg border border-border bg-panel p-3">
-            <div className="mb-2 text-[12px] font-semibold">
-                Opérande {label}
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+                <div className="text-[12px] font-semibold">
+                    {tableOnly ? label : `Opérande ${label}`}
+                </div>
+                <div className="truncate text-[11px] text-muted-foreground">
+                    {summary}
+                </div>
             </div>
-            <div className="mb-2 flex flex-wrap gap-1">
-                {(
-                    [
-                        { key: 'measure', label: 'Mesure' },
-                        { key: 'column', label: 'Colonne' },
-                        { key: 'number', label: 'Nombre' },
-                    ] as const
-                ).map((k) => (
-                    <button
-                        key={k.key}
-                        onClick={() => patch({ kind: k.key })}
-                        className={cn(
-                            'rounded border px-2.5 py-1 text-[11px] transition-colors',
-                            value.kind === k.key
-                                ? 'border-brand bg-brand/15'
-                                : 'border-border hover:bg-accent',
-                        )}
-                    >
-                        {k.label}
-                    </button>
-                ))}
-            </div>
+            {!tableOnly && (
+                <div className="mb-2 flex flex-wrap gap-1">
+                    {(
+                        [
+                            { key: 'measure', label: 'Mesure' },
+                            { key: 'column', label: 'Colonne' },
+                            { key: 'number', label: 'Nombre' },
+                        ] as const
+                    ).map((k) => (
+                        <button
+                            key={k.key}
+                            onClick={() => patch({ kind: k.key })}
+                            className={cn(
+                                'rounded border px-2.5 py-1 text-[11px] transition-colors',
+                                value.kind === k.key
+                                    ? 'border-brand bg-brand/15'
+                                    : 'border-border hover:bg-accent',
+                            )}
+                        >
+                            {k.label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {value.kind === 'measure' && (
                 <>
@@ -1835,7 +2140,7 @@ function OperandEditor({
                     </select>
                     {measures.length === 0 && (
                         <div className="mt-2 rounded border border-dashed border-border p-2 text-[11px] leading-relaxed text-muted-foreground">
-                            Aucune mesure existante. Créez d’abord une mesure
+                            Aucune mesure existante. Créez d'abord une mesure
                             simple — elle apparaîtra ici.
                             <button
                                 type="button"
@@ -1884,57 +2189,128 @@ function OperandEditor({
                             </option>
                         ))}
                     </select>
-                    <select
-                        value={value.column}
-                        onChange={(e) => patch({ column: e.target.value })}
-                        className="w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]"
-                    >
-                        <option value="">Colonne…</option>
-                        {(operandFields ?? []).map((f) => (
-                            <option key={f.name} value={f.name}>
-                                {f.name}
-                            </option>
-                        ))}
-                    </select>
-                    <div className="flex flex-wrap gap-1">
-                        {AGG_KEYS.map((a) => (
-                            <button
-                                key={a}
-                                onClick={() => patch({ agg: a })}
-                                className={cn(
-                                    'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
-                                    value.agg === a
-                                        ? 'border-brand bg-brand/15'
-                                        : 'border-border hover:bg-accent',
-                                )}
+                    {!tableOnly && (
+                        <>
+                            <select
+                                value={value.column}
+                                onChange={(e) => {
+                                    const c = e.target.value;
+                                    const f = (operandFields ?? []).find(
+                                        (x) => x.name === c,
+                                    );
+                                    const nonNum =
+                                        f != null && f.type !== 'number';
+                                    patch(
+                                        nonNum &&
+                                            (value.agg === 'sum' ||
+                                                value.agg === 'avg')
+                                            ? { column: c, agg: 'count' }
+                                            : { column: c },
+                                    );
+                                }}
+                                className="w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]"
                             >
-                                {AGG_LABELS[a]}
-                            </button>
-                        ))}
-                    </div>
+                                <option value="">Colonne…</option>
+                                {numericFields.length > 0 && (
+                                    <optgroup label="Colonnes numériques">
+                                        {numericFields.map((f) => (
+                                            <option key={f} value={f}>
+                                                {f}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                                {otherFields.length > 0 && (
+                                    <optgroup label="Autres colonnes">
+                                        {otherFields.map((f) => (
+                                            <option key={f} value={f}>
+                                                {f}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                            </select>
+                            <div className="flex flex-wrap gap-1">
+                                {AGG_KEYS.map((a) => {
+                                    const blocked =
+                                        (a === 'sum' || a === 'avg') &&
+                                        !isNumeric;
+                                    return (
+                                        <button
+                                            key={a}
+                                            onClick={() => patch({ agg: a })}
+                                            disabled={blocked}
+                                            title={
+                                                blocked
+                                                    ? 'Somme et Moyenne exigent une colonne numérique.'
+                                                    : undefined
+                                            }
+                                            className={cn(
+                                                'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+                                                value.agg === a
+                                                    ? 'border-brand bg-brand/15'
+                                                    : 'border-border hover:bg-accent',
+                                                blocked &&
+                                                    'cursor-not-allowed opacity-40',
+                                            )}
+                                        >
+                                            {AGG_LABELS[a]}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {numOnlyRemark && (
+                                <p className="text-[10px] leading-snug text-muted-foreground">
+                                    Somme et Moyenne exigent une colonne
+                                    numérique — agrégation réglée sur Nombre
+                                    (non vides).
+                                </p>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
         </div>
     );
 }
 
-function CompositionStep({
+function LinkedStep({
     tables,
     measures,
     opA,
     setOpA,
     opB,
     setOpB,
+    linkedStyle,
+    chooseLinkedStyle,
     composeOp,
     setComposeOp,
     scaleHundreds,
     setScaleHundreds,
     divZero,
     setDivZero,
-    dax,
+    paths,
+    activeVariant,
+    setActiveVariant,
+    hops,
+    setHops,
+    proposals,
+    allowWeak,
+    setAllowWeak,
+    hasWeakHop,
+    kind,
+    setKind,
+    agg,
+    setAgg,
+    column,
+    setColumn,
+    toDef,
+    toColumns,
+    rankBy,
+    setRankBy,
     value,
-    composeReady,
     error,
+    dax,
     onCreateSimple,
 }: {
     tables: TableDef[];
@@ -1943,196 +2319,303 @@ function CompositionStep({
     setOpA: (d: OperandDraft) => void;
     opB: OperandDraft;
     setOpB: (d: OperandDraft) => void;
+    linkedStyle: 'compose' | 'related' | null;
+    chooseLinkedStyle: (s: 'compose' | 'related') => void;
     composeOp: CompositeSpec['op'];
     setComposeOp: (op: CompositeSpec['op']) => void;
     scaleHundreds: boolean;
     setScaleHundreds: (b: boolean) => void;
     divZero: DivZeroDefault;
     setDivZero: (d: DivZeroDefault) => void;
-    dax: string;
+    paths: PathHop[][];
+    activeVariant: number;
+    setActiveVariant: (i: number) => void;
+    hops: PathHop[];
+    setHops: (h: PathHop[]) => void;
+    proposals: ProposedPath[];
+    allowWeak: boolean;
+    setAllowWeak: (b: boolean) => void;
+    hasWeakHop: boolean;
+    kind: WizardSpec['kind'];
+    setKind: (k: WizardSpec['kind']) => void;
+    agg: NumericAgg;
+    setAgg: (a: NumericAgg) => void;
+    column: string;
+    setColumn: (c: string) => void;
+    toDef: TableDef | undefined;
+    toColumns: string[];
+    rankBy: ProposalRankBy;
+    setRankBy: (r: ProposalRankBy) => void;
     value: number | null;
-    composeReady: boolean;
     error: string | null;
+    dax: string;
     onCreateSimple: () => void;
 }) {
-    const operandLabel = (d: OperandDraft): string => {
-        switch (d.kind) {
-            case 'measure':
-                return d.measure ? `[${d.measure}]` : '—';
-            case 'number':
-                return d.value === '' ? '…' : d.value;
-            case 'column':
-                return d.table && d.column
-                    ? `${AGG_LABELS[d.agg]}(${d.table}[${d.column}])`
-                    : '—';
-        }
-    };
+    const style = linkedStyle ?? 'compose';
+
     return (
         <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr]">
-                <OperandEditor
-                    label="A"
-                    tables={tables}
-                    measures={measures}
-                    value={opA}
-                    onChange={setOpA}
-                    onCreateSimple={onCreateSimple}
-                />
-                <div className="flex items-center justify-center">
-                    <div className="flex flex-col gap-1.5">
-                        {COMPOSE_OPS.map((o) => (
-                            <button
-                                key={o.key}
-                                onClick={() => setComposeOp(o.key)}
-                                className={cn(
-                                    'flex size-9 items-center justify-center rounded border text-[14px] transition-colors',
-                                    composeOp === o.key
-                                        ? 'border-brand bg-brand/15 text-brand'
-                                        : 'border-border hover:bg-accent',
-                                )}
-                            >
-                                {o.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <OperandEditor
-                    label="B"
-                    tables={tables}
-                    measures={measures}
-                    value={opB}
-                    onChange={setOpB}
-                    onCreateSimple={onCreateSimple}
-                />
-            </div>
-
-            <div className="rounded-lg border border-border p-3">
-                <label className="flex items-center gap-2 text-[12px]">
-                    <input
-                        type="checkbox"
-                        checked={scaleHundreds}
-                        onChange={(e) => setScaleHundreds(e.target.checked)}
-                        className="accent-brand"
-                    />
-                    Résultat en pourcentage (multiplié par 100)
-                </label>
-            </div>
-
-            {composeOp === '/' && (
-                <div className="rounded-lg border border-border p-3">
-                    <div className="mb-1.5 text-[12px] font-semibold">
-                        Si le dénominateur est 0
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5">
-                        {DIV_ZERO_OPTIONS.map((o) => (
-                            <button
-                                key={o.key}
-                                onClick={() => setDivZero(o.key)}
-                                className={cn(
-                                    'rounded border px-2 py-1 text-[11px] transition-colors',
-                                    divZero === o.key
-                                        ? 'border-brand bg-brand/15 text-brand'
-                                        : 'border-border hover:bg-accent',
-                                )}
-                            >
-                                {o.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="mt-1.5 font-mono text-[11px] text-muted-foreground">
-                        {DIV_ZERO_DAX[divZero]}
-                    </div>
-                </div>
-            )}
-
-            <div className="rounded-lg border border-border bg-muted p-3">
-                <div className="mb-1 text-[11px] font-semibold">Formule</div>
-                <div className="font-mono text-[13px] leading-relaxed">
-                    {composeOp === '/' ? (
-                        <>
-                            <span className="font-semibold text-brand">
-                                DIVIDE
-                            </span>
-                            <span className="text-muted-foreground">(</span>
-                            <span className="text-foreground">
-                                {operandLabel(opA)}
-                            </span>
-                            <span className="text-muted-foreground">, </span>
-                            <span className="text-foreground">
-                                {operandLabel(opB)}
-                            </span>
-                            {divZero !== 'blank' && (
-                                <>
-                                    <span className="text-muted-foreground">
-                                        ,{' '}
-                                    </span>
-                                    <span className="text-foreground">
-                                        {divZero === 'na' ? 'NA()' : '0'}
-                                    </span>
-                                </>
-                            )}
-                            <span className="text-muted-foreground">)</span>
-                            {scaleHundreds && (
-                                <span className="text-muted-foreground">
-                                    {' '}
-                                    × 100
-                                </span>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <span className="text-foreground">
-                                {operandLabel(opA)}
-                            </span>{' '}
-                            <span className="font-bold text-brand">
-                                {composeOp}
-                            </span>{' '}
-                            <span className="text-foreground">
-                                {operandLabel(opB)}
-                            </span>
-                            {scaleHundreds && (
-                                <span className="text-muted-foreground">
-                                    {' '}
-                                    × 100
-                                </span>
-                            )}
-                        </>
+            <div className="inline-flex rounded-lg border border-border p-0.5">
+                <button
+                    onClick={() => chooseLinkedStyle('compose')}
+                    className={cn(
+                        'rounded-md px-3 py-1 text-[12px] font-medium transition-colors',
+                        style === 'compose'
+                            ? 'bg-brand text-brand-foreground'
+                            : 'text-muted-foreground hover:bg-accent',
                     )}
-                </div>
+                >
+                    Composer A • B
+                </button>
+                <button
+                    onClick={() => chooseLinkedStyle('related')}
+                    className={cn(
+                        'rounded-md px-3 py-1 text-[12px] font-medium transition-colors',
+                        style === 'related'
+                            ? 'bg-brand text-brand-foreground'
+                            : 'text-muted-foreground hover:bg-accent',
+                    )}
+                >
+                    Valeurs liées
+                </button>
             </div>
 
-            <div className="rounded-lg border border-border p-3">
-                <div className="mb-1 text-[11px] font-semibold">DAX</div>
-                <pre className="overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-                    {dax}
-                </pre>
-            </div>
-
-            <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2">
-                <div className="text-[12px] font-semibold text-brand">
-                    Résultat en direct
-                </div>
-                {composeReady && value !== null && !error ? (
-                    <div className="mt-1 font-mono text-[16px] font-bold">
-                        {value}
+            {style === 'compose' && (
+                <>
+                    <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr]">
+                        <OperandEditor
+                            label="A"
+                            tables={tables}
+                            measures={measures}
+                            value={opA}
+                            onChange={setOpA}
+                            onCreateSimple={onCreateSimple}
+                        />
+                        <div className="flex items-center justify-center">
+                            <div className="flex flex-col gap-1.5">
+                                {COMPOSE_OPS.map((o) => (
+                                    <button
+                                        key={o.key}
+                                        onClick={() => setComposeOp(o.key)}
+                                        className={cn(
+                                            'flex size-9 items-center justify-center rounded border text-[14px] transition-colors',
+                                            composeOp === o.key
+                                                ? 'border-brand bg-brand/15 text-brand'
+                                                : 'border-border hover:bg-accent',
+                                        )}
+                                    >
+                                        {o.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <OperandEditor
+                            label="B"
+                            tables={tables}
+                            measures={measures}
+                            value={opB}
+                            onChange={setOpB}
+                            onCreateSimple={onCreateSimple}
+                        />
                     </div>
-                ) : (
-                    <div className="mt-1 text-[12px] text-muted-foreground">
-                        {error ? (
-                            <>
-                                Impossible de calculer :{' '}
-                                <span className="font-mono text-[11px] text-red-600">
-                                    {error}
-                                </span>
-                            </>
-                        ) : composeReady ? (
-                            'Aucune valeur calculable pour ces opérandes.'
+
+                    {opA.kind === 'column' &&
+                        opB.kind === 'column' &&
+                        opA.table &&
+                        opB.table &&
+                        opA.table !== opB.table && (
+                            <PathStep
+                                tables={tables}
+                                proposals={proposals}
+                                paths={paths}
+                                activeVariant={activeVariant}
+                                setActiveVariant={setActiveVariant}
+                                rankBy={rankBy}
+                                setRankBy={setRankBy}
+                                hops={hops}
+                                setHops={setHops}
+                                hasWeakHop={hasWeakHop}
+                                allowWeak={allowWeak}
+                                setAllowWeak={setAllowWeak}
+                                collapsible
+                            />
+                        )}
+
+                    <div className="rounded-lg border border-border p-3">
+                        <label className="flex items-center gap-2 text-[12px]">
+                            <input
+                                type="checkbox"
+                                checked={scaleHundreds}
+                                onChange={(e) =>
+                                    setScaleHundreds(e.target.checked)
+                                }
+                                className="accent-brand"
+                            />
+                            Résultat en pourcentage (multiplié par 100)
+                        </label>
+                    </div>
+
+                    {composeOp === '/' && (
+                        <div className="rounded-lg border border-border p-3">
+                            <div className="mb-1.5 text-[12px] font-semibold">
+                                Si le dénominateur est 0
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                                {DIV_ZERO_OPTIONS.map((o) => (
+                                    <button
+                                        key={o.key}
+                                        onClick={() => setDivZero(o.key)}
+                                        className={cn(
+                                            'rounded border px-2 py-1 text-[11px] transition-colors',
+                                            divZero === o.key
+                                                ? 'border-brand bg-brand/15 text-brand'
+                                                : 'border-border hover:bg-accent',
+                                        )}
+                                    >
+                                        {o.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="mt-1.5 font-mono text-[11px] text-muted-foreground">
+                                {DIV_ZERO_DAX[divZero]}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="rounded-lg border border-border p-3">
+                        <div className="mb-1 text-[11px] font-semibold">DAX</div>
+                        <pre className="overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                            {dax}
+                        </pre>
+                    </div>
+
+                    <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2">
+                        <div className="text-[12px] font-semibold text-brand">
+                            Résultat en direct
+                        </div>
+                        {value !== null && !error ? (
+                            <div className="mt-1 font-mono text-[16px] font-bold">
+                                {value}
+                            </div>
                         ) : (
-                            'Complétez les deux opérandes pour voir le résultat.'
+                            <div className="mt-1 text-[12px] text-muted-foreground">
+                                {error ? (
+                                    <>
+                                        Impossible de calculer :{' '}
+                                        <span className="font-mono text-[11px] text-red-600">
+                                            {error}
+                                        </span>
+                                    </>
+                                ) : (
+                                    'Complétez les deux opérandes pour voir le résultat.'
+                                )}
+                            </div>
                         )}
                     </div>
-                )}
-            </div>
+                </>
+            )}
+
+            {style === 'related' && (
+                <>
+                    <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-[12px] leading-relaxed">
+                        <span className="font-semibold text-brand">
+                            Valeurs liées
+                        </span>{' '}
+                        — choisissez la <b>table de départ</b> (A) et la{' '}
+                        <b>table d'arrivée</b> (B) à relier, puis le chemin de
+                        relation ci-dessous. La mesure se lira sur la table
+                        d'arrivée.
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <OperandEditor
+                            label="Table de départ"
+                            tables={tables}
+                            measures={measures}
+                            value={opA}
+                            onChange={setOpA}
+                            onCreateSimple={onCreateSimple}
+                            tableOnly
+                        />
+                        <OperandEditor
+                            label="Table d'arrivée"
+                            tables={tables}
+                            measures={measures}
+                            value={opB}
+                            onChange={setOpB}
+                            onCreateSimple={onCreateSimple}
+                            tableOnly
+                        />
+                    </div>
+                    {opA.table !== '' &&
+                        opB.table !== '' &&
+                        opA.table === opB.table && (
+                            <div className="rounded border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-700">
+                                Les deux tables sont identiques — choisissez
+                                deux tables différentes à relier.
+                            </div>
+                        )}
+
+                    <PathStep
+                        tables={tables}
+                        proposals={proposals}
+                        paths={paths}
+                        activeVariant={activeVariant}
+                        setActiveVariant={setActiveVariant}
+                        rankBy={rankBy}
+                        setRankBy={setRankBy}
+                        hops={hops}
+                        setHops={setHops}
+                        hasWeakHop={hasWeakHop}
+                        allowWeak={allowWeak}
+                        setAllowWeak={setAllowWeak}
+                        collapsible
+                    />
+
+                    <ResultAxisSelect
+                        toDef={toDef}
+                        columns={toColumns}
+                        kind={kind}
+                        setKind={setKind}
+                        agg={agg}
+                        setAgg={setAgg}
+                        column={column}
+                        setColumn={setColumn}
+                    />
+
+                    <div>
+                        <div className="mb-1.5 text-[12px] font-semibold">
+                            Formule générée
+                        </div>
+                        <pre className="overflow-auto rounded-lg border border-border bg-muted p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                            {dax}
+                        </pre>
+                    </div>
+
+                    <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2">
+                        <div className="text-[12px] font-semibold text-brand">
+                            Résultat en direct
+                        </div>
+                        {value !== null && !error ? (
+                            <div className="mt-1 font-mono text-[16px] font-bold">
+                                {value}
+                            </div>
+                        ) : (
+                            <div className="mt-1 text-[12px] text-muted-foreground">
+                                {error ? (
+                                    <>
+                                        Impossible de calculer :{' '}
+                                        <span className="font-mono text-[11px] text-red-600">
+                                            {error}
+                                        </span>
+                                    </>
+                                ) : (
+                                    'Choisissez une liaison vérifiée entre A et B pour voir le résultat.'
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -2198,7 +2681,7 @@ function SaveStep({
                         <span className="text-muted-foreground">
                             {error
                                 ? `Impossible de calculer : ${error}`
-                                : 'Choisissez un chemin valide'}
+                                : 'Choisissez une mesure valide'}
                         </span>
                     ) : (
                         String(preview)

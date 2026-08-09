@@ -240,6 +240,36 @@ describe('golden wave 2 (real month-granularity time windows — W2-2)', () => {
         expect(near(r.value, scen('kpi_br_mtd_rejets'))).toBe(true);
     });
 
+    it('kpi_br_print DATESQTD/TOTALQTD cover only the anchor quarter (Q3 2026)', () => {
+        const rows = payload.tables.find((t) => t.name === 'kpi_br_print')!
+            .rows as { mois: string; nb_rejets: number }[];
+        const months = rows.map((r) => r.mois).filter(Boolean).sort();
+        const anchor = months[months.length - 1]!;
+        const [ay, am] = anchor.split('-').map(Number);
+        const qFirst = `${ay}-${String(Math.floor((am - 1) / 3) * 3 + 1).padStart(2, '0')}`;
+        const qtdRows = rows
+            .filter((r) => r.mois >= qFirst && r.mois <= anchor)
+            .map((r) => r.nb_rejets);
+        const qtdSum = qtdRows.reduce((a, b) => a + b, 0);
+        expect(qtdRows).toHaveLength(2); // 2026-07 + 2026-08
+        expect(qtdSum).toBe(3); // 3 + 0
+
+        const count = evaluateMeasure(
+            'M = COUNTROWS(DATESQTD(kpi_br_print[mois]))',
+            [],
+        );
+        expect(count.error).toBeUndefined();
+        expect(count.value).toBe(qtdRows.length);
+
+        const sum = evaluateMeasure(
+            'M = TOTALQTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+            [],
+        );
+        expect(sum.error).toBeUndefined();
+        expect(sum.value).toBe(qtdSum);
+        expect(sum.value).toBeLessThan(scen('kpi_br_ytd_rejets'));
+    });
+
     it('kpi_br_print PREVIOUSMONTH selects the previous calendar month', () => {
         const r = evaluateMeasure(
             'M = COUNTROWS(PREVIOUSMONTH(kpi_br_print[mois]))',

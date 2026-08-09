@@ -83,7 +83,7 @@ export type DivZeroDefault = 'zero' | 'blank' | 'na';
  * engine evaluates TOTALYTD / TOTALMTD / CALCULATE+… over the given date-ish
  * column, which may live on any loaded table (`table`).
  */
-export type PeriodWindow = 'ytd' | 'mtd' | 'lastYear' | 'prevMonth';
+export type PeriodWindow = 'ytd' | 'mtd' | 'qtd' | 'lastYear' | 'prevMonth';
 
 export type PeriodSpec = {
     window: PeriodWindow;

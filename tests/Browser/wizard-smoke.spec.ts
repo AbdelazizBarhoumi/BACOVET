@@ -39,7 +39,10 @@ test('measure wizard opens from a builder page', async ({ page }) => {
     await page.getByRole('button', { name: 'Assistant' }).click();
 
     await expect(page.getByText('Assistant de mesure')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Départ' })).toBeVisible();
+    await expect(page.getByText('Que voulez-vous créer ?')).toBeVisible();
+    await expect(
+        page.getByRole('button', { name: /Valeur d’une table/i }),
+    ).toBeVisible();
     await page.getByRole('button', { name: "Fermer l'assistant" }).click();
     await expect(page.getByText('Assistant de mesure')).toHaveCount(0);
 });

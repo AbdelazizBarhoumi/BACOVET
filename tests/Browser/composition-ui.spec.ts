@@ -43,9 +43,11 @@ async function openWizard(page: Page) {
 
 async function openCompositionStep(page: Page) {
     await openWizard(page);
-    // toggleCompose(true) jumps the wizard directly onto the composition step
-    // — no "Continuer" needed here.
-    await page.getByRole('button', { name: 'Composition A • B' }).click();
+    // The objective step's "Valeur composée" card jumps straight onto the
+    // Opérandes step (Composer A • B is the default linked style).
+    await page
+        .getByRole('button', { name: /Valeur composée/ })
+        .click();
     await expect(page.getByText('Opérande A')).toBeVisible({
         timeout: 45_000,
     });

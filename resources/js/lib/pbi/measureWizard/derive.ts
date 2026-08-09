@@ -196,6 +196,7 @@ function unwrapPeriod(s: string): { inner: string; period: PeriodSpec } | null {
     for (const [head, window] of [
         ['TOTALYTD', 'ytd'],
         ['TOTALMTD', 'mtd'],
+        ['TOTALQTD', 'qtd'],
     ] as const) {
         const open = checkPrefix(t, head);
         if (open < 0) continue;

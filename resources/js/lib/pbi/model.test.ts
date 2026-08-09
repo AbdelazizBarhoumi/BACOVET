@@ -2235,6 +2235,21 @@ describe('time windows (Wave 2 — W2-2)', () => {
         expect(r.value).toBe(50);
     });
 
+    it('DATESQTD slices the quarter-to-date window around the anchor', () => {
+        const r = evaluateMeasure('M = COUNTROWS(DATESQTD(sales[Date]))', []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(2); // 2026-07-20, 2026-08-15 (Q3)
+    });
+
+    it('TOTALQTD sums the wrapped expression over the current quarter', () => {
+        const r = evaluateMeasure(
+            'M = TOTALQTD(SUM(sales[Amount]), sales[Date])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(90); // 40 + 50
+    });
+
     it('PREVIOUSMONTH returns the calendar month before the anchor', () => {
         const r = evaluateMeasure(
             'M = COUNTROWS(PREVIOUSMONTH(sales[Date]))',
@@ -2349,6 +2364,24 @@ describe('time windows on month-granularity dates (YYYY-MM)', () => {
         );
         expect(r.error).toBeUndefined();
         expect(r.value).toBe(0);
+    });
+
+    it('DATESQTD covers the anchor quarter rows (Q3: July + August 2026)', () => {
+        const r = evaluateMeasure(
+            'M = COUNTROWS(DATESQTD(kpi_br_print[mois]))',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(2);
+    });
+
+    it('TOTALQTD sums nb_rejets across the current quarter', () => {
+        const r = evaluateMeasure(
+            'M = TOTALQTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(3); // July (3) + August (0)
     });
 
     it('PREVIOUSMONTH selects the previous calendar month', () => {

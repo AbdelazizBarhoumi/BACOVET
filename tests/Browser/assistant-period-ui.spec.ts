@@ -17,8 +17,8 @@ import { login } from '../../playwright.config';
  * snapshot above — and the figures above are what you should see in the UI.
  *
  * Manual repro (what the tests drive): open e2e-dashboard → Modifier → Créer
- * une nouvelle mesure → Assistant → Départ: table kpi_br_print (source + cible)
- * → Continuer ×2 → Résultat: « Appliquer une période » + colonne
+ * une nouvelle mesure → Assistant → Objectif: « Valeur d’une table » → Table:
+ * kpi_br_print → Continuer → Résultat: « Appliquer une période » + colonne
  * kpi_br_print[mois]. « Aperçu en direct » / « Formule générée » follow.
  */
 
@@ -28,6 +28,7 @@ type KpiRow = { mois?: string; nb_rejets?: number; [k: string]: unknown };
 
 /** The live kpi_br_print rows, or fail loudly when the dataset isn't synced. */
 async function kpiBrRows(page: Page): Promise<KpiRow[]> {
+    await login(page); // the datasets route requires an authenticated session
     const res = await page.request.get(DATASETS_URL);
     expect(res.ok()).toBeTruthy();
     const body = (await res.json()) as {
@@ -49,12 +50,12 @@ const monthKey = (mois: string) => mois.slice(0, 7);
 
 /**
  * Mirror of the time engine's window (anchor = latest loaded month, YYYY-MM):
- * YTD = every month of the anchor year up to the anchor, MTD = anchor month
- * only, M-1 = the calendar month before the anchor.
+ * YTD = every month of the anchor year up to the anchor, MTD/MTD-quarter =
+ * anchor month / anchor quarter, M-1 = the calendar month before the anchor.
  */
 function windowSum(
     rows: KpiRow[],
-    window: 'ytd' | 'mtd' | 'prevMonth',
+    window: 'ytd' | 'mtd' | 'qtd' | 'prevMonth',
 ): number {
     const months = rows
         .map((r) => monthKey(String(r.mois ?? '')))
@@ -64,11 +65,13 @@ function windowSum(
     const anchor = months[months.length - 1]!;
     const [ay, am] = anchor.split('-').map(Number);
     const prev = `${ay}-${String((am ?? 1) - 1).padStart(2, '0')}`;
+    const qFirst = `${ay}-${String(Math.floor(((am ?? 1) - 1) / 3) * 3 + 1).padStart(2, '0')}`;
     return rows
         .filter((r) => {
             const m = monthKey(String(r.mois ?? ''));
             if (window === 'ytd') return m.startsWith(`${ay}-`) && m <= anchor;
             if (window === 'mtd') return m === anchor;
+            if (window === 'qtd') return m >= qFirst && m <= anchor;
             return m === prev;
         })
         .reduce((acc, r) => acc + (Number(r.nb_rejets) || 0), 0);
@@ -92,16 +95,17 @@ async function openWizard(page: Page) {
     await expect(page.getByText('Assistant de mesure')).toBeVisible();
 }
 
-/** Walk Départ (source = target = kpi_br_print) → Chemin → Résultat. */
+/** Walk Objectif (« Valeur d’une table ») → Table → Résultat. */
 async function walkToResultStep(page: Page) {
     await openWizard(page);
-    const tableBtn = page.getByRole('button', {
-        name: 'kpi_br_print',
-    });
+    // Objectif: the single-table card jumps straight to the Table step.
+    await page.getByRole('button', { name: /Valeur d’une table/i }).click();
+    const tableBtn = page
+        .getByText('Table à lire')
+        .locator('..')
+        .getByRole('button', { name: 'kpi_br_print' });
     await expect(tableBtn.first()).toBeVisible({ timeout: 45_000 });
     await tableBtn.first().click();
-    await tableBtn.nth(1).click();
-    await page.getByRole('button', { name: 'Continuer', exact: true }).click();
     await page.getByRole('button', { name: 'Continuer', exact: true }).click();
     await expect(page.getByText('Type de résultat')).toBeVisible();
 }
@@ -165,7 +169,7 @@ test('assistant YTD matches data.json: TOTALYTD(SUM(nb_rejets)) = 24', async ({
     await page.getByRole('button', { name: 'Vérifier' }).click();
     await page
         .getByPlaceholder('p. ex. Style Codes')
-        .fill('Rejets cumul annuels (YTD)');
+        .fill(`Rejets cumul annuels (YTD) ${Date.now()}`);
     const daxBlock = page
         .locator('div')
         .filter({ hasText: /^DAX$/ })
@@ -176,8 +180,11 @@ test('assistant YTD matches data.json: TOTALYTD(SUM(nb_rejets)) = 24', async ({
     );
     await expect.poll(async () => previewNumber(page)).toBe(expected);
 
-    await page.getByRole('button', { name: 'Enregistrer' }).click();
-    await expect(page.getByText('Mesure créée')).toBeVisible({
+    await page
+        .getByRole('button', { name: 'Enregistrer' })
+        .last()
+        .click();
+    await expect(page.getByText('Mesure créée').first()).toBeVisible({
         timeout: 20_000,
     });
 });
@@ -231,6 +238,27 @@ test('assistant windows: MTD = 0, M-1 = 3, same period last year = 0 (data.json)
     );
     await page.getByRole('button', { name: 'Vérifier' }).click();
     await expect.poll(async () => previewNumber(page)).toBe(0);
+});
+
+test('assistant QTD sums the current quarter only: TOTALQTD = 3 (data.json)', async ({
+    page,
+}) => {
+    test.setTimeout(120_000);
+    const expected = windowSum(await kpiBrRows(page), 'qtd');
+    expect(expected).toBe(3); // 2026-07 (3) + 2026-08 (0), Q3 2026
+
+    await walkToResultStep(page);
+    await page.getByRole('button', { name: 'nb_rejets', exact: true }).click();
+    await pickPeriod(
+        page,
+        'Trimestre en cours (cumul QTD)',
+        'kpi_br_print[mois]',
+    );
+    await expect(formulaBox(page)).toContainText(
+        'TOTALQTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+    );
+    await page.getByRole('button', { name: 'Vérifier' }).click();
+    await expect.poll(async () => previewNumber(page)).toBe(expected);
 });
 
 test('assistant NOT IN excludes the picked live value (data.json)', async ({

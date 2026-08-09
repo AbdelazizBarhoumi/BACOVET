@@ -1612,7 +1612,18 @@ describe('period / time window (Wave 2 – assistant)', () => {
         );
     });
 
-    it('MTD, year-ago and M-1 keep their DAX window', () => {
+    it('QTD, MTD, year-ago and M-1 keep their DAX window', () => {
+        expect(
+            buildMeasureDax(
+                kpiSpec({
+                    window: 'qtd',
+                    table: 'kpi_br_print',
+                    field: 'mois',
+                }),
+            ),
+        ).toBe(
+            'TOTALQTD(SUM(kpi_br_print[nb_rejets]), kpi_br_print[mois])',
+        );
         expect(
             buildMeasureDax(
                 kpiSpec({
@@ -1656,6 +1667,7 @@ describe('period / time window (Wave 2 – assistant)', () => {
         const windows = [
             { window: 'ytd', table: 'kpi_br_print', field: 'mois' },
             { window: 'mtd', table: 'kpi_br_print', field: 'mois' },
+            { window: 'qtd', table: 'kpi_br_print', field: 'mois' },
             { window: 'lastYear', table: 'kpi_br_print', field: 'mois' },
             { window: 'prevMonth', table: 'kpi_br_print', field: 'mois' },
         ] as const;

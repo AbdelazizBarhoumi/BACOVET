@@ -327,8 +327,10 @@ const TABLE_FUNCS = new Set([
     'SAMEPERIODLASTYEAR',
     'PREVIOUSMONTH',
     'DATESYTD',
+    'DATESQTD',
     'TOTALYTD',
     'TOTALMTD',
+    'TOTALQTD',
 ]);
 
 export { TABLE_FUNCS };
