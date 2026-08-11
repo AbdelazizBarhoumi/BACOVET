@@ -1,5 +1,5 @@
 import { AlertTriangle, Eye, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Panel } from '@/components/widgets';
@@ -12,6 +12,7 @@ import {
     type EndpointHealth,
     type EndpointSummary,
 } from '@/services/endpointManagerApi';
+import { RetryBadge } from './RetryBadge';
 import { StatusBadge } from './StatusBadge';
 
 function formatRelative(iso: string | null | undefined): string {
@@ -152,16 +153,22 @@ export function RefreshHealthPanel({
 
     const meta = health?.meta;
     const lastErrorCount = items.filter((item) => item.last_error).length;
+    const retryCount = health?.retry_pending_count ?? 0;
+    const retryById = useMemo(
+        () => new Map((health?.retry_ids ?? []).map((r) => [r.id, r])),
+        [health],
+    );
 
     return (
         <div className="space-y-4">
-            {health?.retry_pending && (
+            {health?.retry_pending && retryCount > 0 && (
                 <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-warning">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>
-                        Relances horaires armées — la dernière exécution s'est
-                        terminée avec 0 succès. Le rafraîchissement sera relancé
-                        automatiquement toutes les heures jusqu'à 21:59.
+                        {retryCount} endpoint(s) en échec retryable (5xx /
+                        timeout) — ils seront relancés automatiquement toutes
+                        les heures jusqu'à 21:59. Utilisez « Relancer les
+                        échecs » pour le faire immédiatement.
                     </span>
                 </div>
             )}
@@ -172,7 +179,7 @@ export function RefreshHealthPanel({
                 </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 <Panel title="Dernière exécution">
                     <div className="font-mono text-sm font-bold">
                         {formatRelative(meta?.last_run_at)}
@@ -198,6 +205,18 @@ export function RefreshHealthPanel({
                         )}
                     >
                         {meta?.failed ?? 0}
+                    </div>
+                </Panel>
+                <Panel title="En relance (5xx)">
+                    <div
+                        className={cn(
+                            'font-mono text-2xl font-bold',
+                            retryCount > 0
+                                ? 'text-warning'
+                                : 'text-muted-foreground',
+                        )}
+                    >
+                        {retryCount}
                     </div>
                 </Panel>
                 <Panel title="Ignorés">
@@ -255,7 +274,7 @@ export function RefreshHealthPanel({
             <Panel
                 title="État par endpoint"
                 right={
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         {refreshing && (
                             <span className="text-[10px] text-muted-foreground">
                                 Mise à jour…
@@ -266,6 +285,7 @@ export function RefreshHealthPanel({
                             variant="outline"
                             onClick={handleRefreshNow}
                             disabled={running || refreshing}
+                            className="h-7 text-[10px] tracking-wider uppercase"
                         >
                             <RefreshCw
                                 className={cn(
@@ -315,7 +335,21 @@ export function RefreshHealthPanel({
                                             </span>
                                         </td>
                                         <td className="py-2 pr-3">
-                                            <StatusBadge status={item.status} />
+                                            <div className="flex items-center gap-1.5">
+                                                <StatusBadge
+                                                    status={item.status}
+                                                />
+                                                {item.retry_pending &&
+                                                    retryById.has(item.id) && (
+                                                        <RetryBadge
+                                                            attempts={
+                                                                retryById.get(
+                                                                    item.id,
+                                                                )?.attempts
+                                                            }
+                                                        />
+                                                    )}
+                                            </div>
                                         </td>
                                         <td className="py-2 pr-3 font-mono text-[10px] text-muted-foreground">
                                             {formatRelative(item.checked_at)}
@@ -343,6 +377,15 @@ export function RefreshHealthPanel({
                                                             ✗
                                                         </span>
                                                         {item.last_error}
+                                                        {item.last_error_at && (
+                                                            <span className="ml-1 text-muted-foreground">
+                                                                (
+                                                                {formatRelative(
+                                                                    item.last_error_at,
+                                                                )}
+                                                                )
+                                                            </span>
+                                                        )}
                                                     </>
                                                 ) : (
                                                     '—'

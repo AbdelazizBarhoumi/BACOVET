@@ -45,6 +45,46 @@ class EndpointDatasetRegistry
     }
 
     /**
+     * Last-known-good rows from data.json keyed by dataset slug (`response.data`).
+     *
+     * Used as a fallback by the datasets API so registered endpoints stay
+     * usable in the builder / measure wizard even when the live sync has
+     * never stored rows (fresh DB or unreachable API).
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    public function rowsBySlug(): array
+    {
+        $items = $this->readItems();
+
+        if ($items === null) {
+            return [];
+        }
+
+        $rowsBySlug = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $slug = $this->slugOf((string) ($item['endpoint'] ?? ''));
+
+            if ($slug === '') {
+                continue;
+            }
+
+            $data = $item['response']['data'] ?? null;
+
+            if (is_array($data)) {
+                $rowsBySlug[$slug] = array_values($data);
+            }
+        }
+
+        return $rowsBySlug;
+    }
+
+    /**
      * Apply fresh live responses (HTTP 200 only) to data.json entries.
      *
      * Entries whose slug is present are patched with status 200, the full
@@ -147,21 +187,9 @@ class EndpointDatasetRegistry
 
     private function readFromFile(): array
     {
-        $path = storage_path((string) config('novacity.data_file', 'app/private/data.json'));
+        $json = $this->readItems();
 
-        if (! file_exists($path)) {
-            return [];
-        }
-
-        $raw = file_get_contents($path);
-
-        if ($raw === false) {
-            return [];
-        }
-
-        $json = json_decode($raw, true);
-
-        if (! is_array($json)) {
+        if ($json === null) {
             return [];
         }
 
@@ -180,6 +208,31 @@ class EndpointDatasetRegistry
         }
 
         return $endpoints;
+    }
+
+    /**
+     * Decode the raw data.json payload, or null when missing / unreadable /
+     * not an object array.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function readItems(): ?array
+    {
+        $path = $this->path();
+
+        if (! file_exists($path)) {
+            return null;
+        }
+
+        $raw = file_get_contents($path);
+
+        if ($raw === false) {
+            return null;
+        }
+
+        $json = json_decode($raw, true);
+
+        return is_array($json) ? $json : null;
     }
 
     /**

@@ -87,6 +87,17 @@ export type WellField = {
      * `raw` return a single code; `nth` returns the code at `index`.
      */
     listAgg?: Agg;
+    /**
+     * When true the visual computes a 1-based "Rang" column for the whole
+     * result set: groups are ordered by this value (descending, largest → 1)
+     * and each cell holds the rank instead of the value (W3-3).
+     */
+    rank?: boolean;
+    /**
+     * When true the visual accumulates this value across the groups ordered
+     * by the (numeric) axis — a running / cumulative total (W3-4).
+     */
+    running?: boolean;
 };
 
 export type FieldReference = {

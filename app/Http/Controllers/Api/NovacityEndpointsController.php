@@ -7,6 +7,7 @@ use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
 use App\Support\EndpointSchemaAnalyzer;
+use App\Support\SyncStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -128,12 +129,15 @@ class NovacityEndpointsController extends Controller
         }
 
         $meta = $this->loadRefreshMeta();
+        $retryState = $this->loadRefreshRetry();
 
         return response()->json([
             'stats' => $this->summaries($items),
             'meta' => $meta,
             'retry_pending' => (bool) Cache::get('endpoints:refresh:retry_pending', false),
-            'sync' => \App\Support\SyncStatus::payload(),
+            'retry_pending_count' => count($retryState),
+            'retry_ids' => array_values(array_slice($retryState, 0, 200)),
+            'sync' => SyncStatus::payload(),
         ]);
     }
 
@@ -146,16 +150,20 @@ class NovacityEndpointsController extends Controller
         $exitCode = Artisan::call('sync:endpoint-data', [
             '--phase' => 'all',
             '--force' => true,
-            '--timeout' => (int) config('novacity.timeout', 60),
+            '--timeout' => (int) config('novacity.web_timeout', 20),
         ]);
 
         self::flushCache();
+
+        $retryState = $this->loadRefreshRetry();
 
         return response()->json([
             'success' => $exitCode === 0,
             'exit_code' => $exitCode,
             'output' => Artisan::output(),
             'meta' => $this->loadRefreshMeta(),
+            'retry_pending_count' => count($retryState),
+            'retry_ids' => array_values(array_slice($retryState, 0, 200)),
         ]);
     }
 
@@ -175,7 +183,7 @@ class NovacityEndpointsController extends Controller
         $exitCode = Artisan::call('sync:endpoint-data', [
             '--phase' => 'refresh',
             '--force' => true,
-            '--timeout' => (int) config('novacity.timeout', 60),
+            '--timeout' => (int) config('novacity.web_timeout', 20),
             '--id' => $id,
         ]);
 
@@ -188,6 +196,111 @@ class NovacityEndpointsController extends Controller
             'meta' => $this->loadRefreshMeta(),
             'entry' => $this->summarizeItem($this->findById($id) ?? []),
         ]);
+    }
+
+    /**
+     * Re-fetch only the endpoints currently flagged as retryable (5xx /
+     * connection errors) via the sync command's retry phase, then return the
+     * refreshed summary.
+     */
+    public function retryFailed(): JsonResponse
+    {
+        $pending = $this->loadRefreshRetry();
+
+        if ($pending === []) {
+            return response()->json([
+                'success' => true,
+                'exit_code' => 0,
+                'output' => 'No endpoints pending retry.',
+                'meta' => $this->loadRefreshMeta(),
+                'retry_pending_count' => 0,
+                'retry_ids' => [],
+            ]);
+        }
+
+        $exitCode = Artisan::call('sync:endpoint-data', [
+            '--phase' => 'retry',
+            '--force' => true,
+            '--timeout' => (int) config('novacity.web_timeout', 20),
+        ]);
+
+        self::flushCache();
+
+        $remaining = $this->loadRefreshRetry();
+
+        return response()->json([
+            'success' => $exitCode === 0,
+            'exit_code' => $exitCode,
+            'output' => Artisan::output(),
+            'meta' => $this->loadRefreshMeta(),
+            'retry_pending_count' => count($remaining),
+            'retry_ids' => array_values(array_slice($remaining, 0, 200)),
+        ]);
+    }
+
+    /**
+     * Rewrite every endpoint that uses the given (old) root so it points at the
+     * new root. Endpoints with a custom/different root are left untouched.
+     */
+    public function rewriteRoot(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'old_root' => 'required|string|max:1000',
+            'new_root' => 'required|string|max:1000',
+        ]);
+
+        $normalized = static fn (string $value): string => rtrim(trim($value), '/');
+        $oldRoot = $normalized($validated['old_root']);
+        $newRoot = $normalized($validated['new_root']);
+
+        if ($oldRoot === '' || $newRoot === '' || $oldRoot === $newRoot) {
+            return response()->json(['success' => true, 'changed' => 0]);
+        }
+
+        $items = $this->loadItems();
+
+        if ($items === null) {
+            return response()->json(['success' => false, 'error' => 'data.json not found or invalid'], 404);
+        }
+
+        $changed = 0;
+
+        foreach ($items as $index => $item) {
+            $endpoint = (string) ($item['endpoint'] ?? '');
+            $normalizedEndpoint = rtrim($endpoint, '/');
+
+            $matches = $normalizedEndpoint === $oldRoot || str_starts_with($normalizedEndpoint, $oldRoot.'/');
+
+            if (! $matches) {
+                continue;
+            }
+
+            $suffix = substr($endpoint, strlen($oldRoot));
+            $items[$index]['endpoint'] = $newRoot.$suffix;
+            $changed++;
+        }
+
+        if ($changed === 0) {
+            return response()->json(['success' => true, 'changed' => 0]);
+        }
+
+        if (! $this->persistItems($items)) {
+            return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
+        }
+
+        $this->invalidateDatasetCaches();
+
+        return response()->json(['success' => true, 'changed' => $changed]);
+    }
+
+    /**
+     * Read the pending-retry set from cache (id/name/status/attempts records).
+     */
+    private function loadRefreshRetry(): array
+    {
+        $state = Cache::get('endpoints:refresh:retry_ids', []);
+
+        return is_array($state) ? $state : [];
     }
 
     /**
@@ -817,6 +930,7 @@ class NovacityEndpointsController extends Controller
             'endpoint' => '',
             'status' => 200,
             'response' => new \stdClass,
+            'consecutive_failures' => 0,
         ], $item);
     }
 
@@ -973,6 +1087,7 @@ class NovacityEndpointsController extends Controller
     private function summarizeItem(array $item): array
     {
         $data = $item['response']['data'] ?? [];
+        $status = $item['status'] ?? null;
 
         return [
             'id' => $item['id'] ?? '',
@@ -980,7 +1095,7 @@ class NovacityEndpointsController extends Controller
             'method' => strtoupper($item['method'] ?? 'GET'),
             'endpoint' => $item['endpoint'] ?? '',
             'slug' => $this->extractSlug($item['endpoint'] ?? ''),
-            'status' => $item['status'] ?? null,
+            'status' => $status,
             'source' => $this->detectSource($item),
             'object_type' => $item['response']['object_type'] ?? null,
             'row_count' => is_array($data) ? count($data) : 0,
@@ -988,8 +1103,19 @@ class NovacityEndpointsController extends Controller
             'columns' => $this->extractFields($item),
             'checked_at' => $item['checked_at'] ?? null,
             'last_ok_at' => $item['last_ok_at'] ?? null,
+            'last_error_at' => $item['last_error_at'] ?? $item['checked_at'] ?? null,
             'last_error' => $item['last_error'] ?? null,
+            'consecutive_failures' => (int) ($item['consecutive_failures'] ?? 0),
+            'retry_pending' => $this->isRetryableStatus($status),
         ];
+    }
+
+    /**
+     * Whether a recorded status is retryable (5xx or unknown/connection error).
+     */
+    private function isRetryableStatus(?int $status): bool
+    {
+        return $status === null || $status >= 500;
     }
 
     /**

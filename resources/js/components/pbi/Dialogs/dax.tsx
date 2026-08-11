@@ -12,7 +12,6 @@ import {
 } from '@/lib/pbi/dax';
 import { deriveMeasureSpec } from '@/lib/pbi/measureWizard';
 import {
-    MEASURES,
     validateMeasureExpression,
     type Field,
 } from '@/lib/pbi/model';
@@ -174,7 +173,7 @@ export function DaxDialog({
     };
 
     const measures = useMemo(
-        () => [...MEASURES, ...(state.measures ?? [])],
+        () => state.measures ?? [],
         [state.measures],
     );
 

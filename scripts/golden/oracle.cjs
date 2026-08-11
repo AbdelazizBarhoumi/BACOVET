@@ -253,6 +253,69 @@ scenarios.kpi_annee_ratio_denominator = iY;
 // The user's target KPI: rejets / inspections * 100 (division-by-zero safe).
 scenarios.kpi_annee_ratio_div = iY === 0 ? 0 : (rY / iY) * 100;
 
+// ---- kpi_rft — RFT "premier coup" snapshot, per chaîne, jour en cours ----
+// Real endpoint: "RFT (Right First Time) par chaîne — jour" (period: jour,
+// date: today). Rows carry `chaine`, `ok_premier_coup`, `pieces_controlees`
+// (and a stored `rft_pct`). The oracle recomputes the exact first-pass KPI
+// `ok_premier_coup / pieces_controlees * 100` with plain JS, per chain and
+// total, so the measure engine is never compared against the rounded stored
+// percentage.
+{
+    const rft = findEndpoint(/\/api\/data\/q\/kpi_rft\b/);
+    if (rft) {
+        const all = (rft.response.data ?? []).filter(
+            (r) => r && typeof r === 'object',
+        );
+        const rows = all.map((r) => ({
+            chaine: String(r.chaine ?? ''),
+            ok_premier_coup: Number(r.ok_premier_coup) || 0,
+            pieces_controlees: Number(r.pieces_controlees) || 0,
+        }));
+        data.push({
+            name: 'kpi_rft',
+            fields: [
+                { table: 'kpi_rft', name: 'chaine', type: 'text' },
+                { table: 'kpi_rft', name: 'ok_premier_coup', type: 'number' },
+                { table: 'kpi_rft', name: 'pieces_controlees', type: 'number' },
+            ],
+            rows,
+        });
+
+        scenarios.kpi_rft_rows = rows.length;
+        scenarios.kpi_rft_ok_first_coup = rows.reduce(
+            (s, r) => s + r.ok_premier_coup,
+            0,
+        );
+        scenarios.kpi_rft_pieces_controlees = rows.reduce(
+            (s, r) => s + r.pieces_controlees,
+            0,
+        );
+        const denom = scenarios.kpi_rft_pieces_controlees;
+        scenarios.kpi_rft_ratio =
+            denom === 0 ? 0 : (scenarios.kpi_rft_ok_first_coup / denom) * 100;
+
+        // Per-chain shares: the "par chaîne de production" granularity. Keep
+        // every chain (the golden test asserts the DEP-J low performer at 68).
+        const byChain = Object.fromEntries(
+            rows
+                .map((r) => [
+                    r.chaine,
+                    {
+                        ok: r.ok_premier_coup,
+                        controlled: r.pieces_controlees,
+                        pct:
+                            r.pieces_controlees === 0
+                                ? 0
+                                : (r.ok_premier_coup / r.pieces_controlees) *
+                                  100,
+                    },
+                ])
+                .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+        );
+        scenarios.kpi_rft_by_chain = byChain;
+    }
+}
+
 // ---- Pareto defect FG (KPI-D16) — precomputed share column to verify -----
 const pareto = findEndpoint(/\/api\/data\/q\/kpi_pareto_defects_fg\b/);
 if (pareto) {
@@ -292,6 +355,9 @@ console.log(`golden.json written (${data.length} tables)`);
 console.log(`  itemtrx: rows=${scenarios.itemtrx_row_count}, sumQty=${scenarios.itemtrx_sum_quantity}`);
 console.log(
     `  YTD ratio = ${scenarios.kpi_annee_ratio_numerator}/${scenarios.kpi_annee_ratio_denominator} * 100 = ${scenarios.kpi_annee_ratio_div}`,
+);
+console.log(
+    `  RFT jour = ${scenarios.kpi_rft_ok_first_coup}/${scenarios.kpi_rft_pieces_controlees} * 100 = ${Number(scenarios.kpi_rft_ratio).toFixed(2)} (${scenarios.kpi_rft_rows} chains)`,
 );
 console.log(`  source_signature=${hash(raw).slice(0, 12)}…`);
 

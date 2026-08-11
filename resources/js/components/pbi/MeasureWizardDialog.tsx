@@ -176,6 +176,32 @@ type OperandDraft = {
     value: string;
 };
 
+/**
+ * Wave-3 result post-processing state (shared by the single-value flow, the
+ * linked "Valeurs liées" flow and, reduced to pct/period, composed measures).
+ */
+type Wave3State = {
+    /** Part du total (W3-2): axis '' = whole target table */
+    pctOn: boolean;
+    pctAxis: string;
+    /** Top-N (W3-3): keep only the n rows ordered by a column */
+    topNOn: boolean;
+    topNCount: number;
+    topNOrder: string;
+    topNDir: 'desc' | 'asc';
+    /** Texte concaténé (W3-5) for list results */
+    concatOn: boolean;
+    concatSep: string;
+    /** Modèle SI (W3-6): conditional branch template */
+    ifOn: boolean;
+    ifColumn: string;
+    ifOp: ValueCondition['op'];
+    ifValue: string;
+    ifValues: string[];
+    ifThen: number;
+    ifElse: number;
+};
+
 const OP_KEYS = Object.keys(COND_LABELS) as ValueCondition['op'][];
 const AGG_KEYS = Object.keys(AGG_LABELS) as NumericAgg[];
 const PERIOD_KEYS = Object.keys(PERIOD_LABELS) as PeriodWindow[];
@@ -234,6 +260,28 @@ export function MeasureWizardDialog({
     const [periodOn, setPeriodOn] = useState(false);
     const [periodWindow, setPeriodWindow] = useState<PeriodWindow>('ytd');
     const [periodDateRef, setPeriodDateRef] = useState('');
+    // Wave-3 result post-processing (shared by the single-value flow, the
+    // linked "Valeurs liées" flow and, in a reduced form, composed measures):
+    // percent-of-total, Top-N, CONCATENATEX list and IF template.
+    const [w3, setW3] = useState<Wave3State>({
+        pctOn: false,
+        pctAxis: '',
+        topNOn: false,
+        topNCount: 10,
+        topNOrder: '',
+        topNDir: 'desc',
+        concatOn: false,
+        concatSep: ', ',
+        ifOn: false,
+        ifColumn: '',
+        ifOp: 'gt',
+        ifValue: '',
+        ifValues: [],
+        ifThen: 1,
+        ifElse: 0,
+    });
+    const patchW3 = (patch: Partial<Wave3State>) =>
+        setW3((s) => ({ ...s, ...patch }));
     const [name, setName] = useState('');
     const [saving, setSaving] = useState(false);
     const [allowWeak, setAllowWeak] = useState(false);
@@ -475,6 +523,17 @@ export function MeasureWizardDialog({
                 : rows.length > 1
                   ? { ...base, conditions: { combine: condCombine, rows } }
                   : base;
+        const refMatch =
+            periodOn && periodDateRef
+                ? /^([a-zA-Z_][\w]*)\[([^\]]+)\]$/.exec(periodDateRef)
+                : null;
+        const periodSpec = refMatch
+            ? {
+                  window: periodWindow,
+                  table: refMatch[1]!,
+                  field: refMatch[2]!,
+              }
+            : undefined;
         if (
             mode === 'linked' &&
             linkedStyle === 'compose' &&
@@ -484,6 +543,10 @@ export function MeasureWizardDialog({
             return {
                 ...withCond,
                 kind: 'number',
+                ...(periodSpec ? { period: periodSpec } : {}),
+                ...(w3.pctOn
+                    ? { percentOfTotal: { axis: w3.pctAxis } }
+                    : {}),
                 composition: {
                     a: composeA,
                     b: composeB,
@@ -493,20 +556,46 @@ export function MeasureWizardDialog({
                 },
             };
         }
-        const refMatch =
-            periodOn && periodDateRef
-                ? /^([a-zA-Z_][\w]*)\[([^\]]+)\]$/.exec(periodDateRef)
-                : null;
-        return refMatch
-            ? {
-                  ...withCond,
-                  period: {
-                      window: periodWindow,
-                      table: refMatch[1]!,
-                      field: refMatch[2]!,
-                  },
-              }
-            : withCond;
+        const withW3 =
+            kind === 'number'
+                ? {
+                      ...withCond,
+                      ...(w3.pctOn
+                          ? { percentOfTotal: { axis: w3.pctAxis } }
+                          : {}),
+                      ...(w3.topNOn
+                          ? {
+                                topN: {
+                                    n: w3.topNCount,
+                                    orderColumn: w3.topNOrder,
+                                    dir: w3.topNDir,
+                                },
+                            }
+                          : {}),
+                      ...(w3.ifOn
+                          ? {
+                                ifTemplate: {
+                                    column: w3.ifColumn,
+                                    op: w3.ifOp,
+                                    ...(w3.ifOp === 'in' ||
+                                    w3.ifOp === 'notIn'
+                                        ? { values: w3.ifValues }
+                                        : { value: w3.ifValue }),
+                                    then: w3.ifThen,
+                                    else: w3.ifElse,
+                                },
+                            }
+                          : {}),
+                  }
+                : kind === 'list'
+                  ? {
+                        ...withCond,
+                        ...(w3.concatOn
+                            ? { concat: { column, sep: w3.concatSep } }
+                            : {}),
+                    }
+                  : withCond;
+        return periodSpec ? { ...withW3, period: periodSpec } : withW3;
     }, [
         effectiveFrom,
         effectiveTo,
@@ -520,6 +609,7 @@ export function MeasureWizardDialog({
         periodOn,
         periodWindow,
         periodDateRef,
+        w3,
         mode,
         linkedStyle,
         composeA,
@@ -775,6 +865,8 @@ export function MeasureWizardDialog({
                                 tables={tables}
                                 fromTable={fromTable}
                                 dax={dax}
+                                w3={w3}
+                                patchW3={patchW3}
                             />
                         )}
                         {step === 'operands' && (
@@ -820,6 +912,20 @@ export function MeasureWizardDialog({
                                 error={previewError}
                                 dax={dax}
                                 onCreateSimple={switchToSingle}
+                                condOn={condOn}
+                                setCondOn={setCondOn}
+                                condRows={condRows}
+                                setCondRows={setCondRows}
+                                condCombine={condCombine}
+                                setCondCombine={setCondCombine}
+                                periodOn={periodOn}
+                                setPeriodOn={setPeriodOn}
+                                periodWindow={periodWindow}
+                                setPeriodWindow={setPeriodWindow}
+                                periodDateRef={periodDateRef}
+                                setPeriodDateRef={setPeriodDateRef}
+                                w3={w3}
+                                patchW3={patchW3}
                             />
                         )}
                         {step === 'save' && (
@@ -1762,6 +1868,507 @@ function ResultAxisSelect({
     );
 }
 
+/**
+ * Card: the multi-row AND / OR condition section, shared by the single-value
+ * flow and composed measures (its rows are folded into the spec the engine
+ * turns into the correlated FILTER rear the CALCULATE wrapper).
+ */
+function ConditionCard({
+    condOn,
+    setCondOn,
+    condRows,
+    setCondRows,
+    condCombine,
+    setCondCombine,
+    tables,
+    from,
+    to,
+}: {
+    condOn: boolean;
+    setCondOn: (b: boolean) => void;
+    condRows: ValueCondition[];
+    setCondRows: Dispatch<SetStateAction<ValueCondition[]>>;
+    condCombine: 'and' | 'or';
+    setCondCombine: (c: 'and' | 'or') => void;
+    tables: TableDef[];
+    from: string;
+    to: string;
+}) {
+    return (
+        <div className="rounded-lg border border-border p-3">
+            <label className="flex items-center gap-2 text-[12px]">
+                <input
+                    type="checkbox"
+                    checked={condOn}
+                    onChange={(e) => setCondOn(e.target.checked)}
+                    className="accent-brand"
+                />
+                Appliquer une condition
+            </label>
+            {condOn && (
+                <div className="mt-2 space-y-1.5">
+                    {condRows.length > 1 && (
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                            <span className="text-muted-foreground">
+                                Combiner les conditions en
+                            </span>
+                            <select
+                                value={condCombine}
+                                onChange={(e) =>
+                                    setCondCombine(
+                                        e.target.value as 'and' | 'or',
+                                    )
+                                }
+                                className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                            >
+                                <option value="and">ET (toutes)</option>
+                                <option value="or">OU (au moins une)</option>
+                            </select>
+                        </div>
+                    )}
+                    {condRows.map((row, i) => (
+                        <ConditionRowEditor
+                            key={i}
+                            row={row}
+                            tables={tables}
+                            from={from}
+                            to={to}
+                            onChange={(patch) =>
+                                setCondRows((rows) =>
+                                    rows.map((r, idx) =>
+                                        idx === i
+                                            ? { ...r, ...patch }
+                                            : r,
+                                    ),
+                                )
+                            }
+                            onRemove={() =>
+                                setCondRows((rows) =>
+                                    rows.length > 1
+                                        ? rows.filter(
+                                              (_, idx) => idx !== i,
+                                          )
+                                        : rows,
+                                )
+                            }
+                        />
+                    ))}
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setCondRows((rows) => [
+                                ...rows,
+                                { column: '', op: 'gt', value: '' },
+                            ])
+                        }
+                        className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline"
+                    >
+                        <Plus className="size-3" />
+                        Ajouter une condition
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** Card: the time-window (YTD / MTD / year-ago / M-1) section. */
+function PeriodCard({
+    periodOn,
+    setPeriodOn,
+    periodWindow,
+    setPeriodWindow,
+    periodDateRef,
+    setPeriodDateRef,
+    tables,
+}: {
+    periodOn: boolean;
+    setPeriodOn: (b: boolean) => void;
+    periodWindow: PeriodWindow;
+    setPeriodWindow: (w: PeriodWindow) => void;
+    periodDateRef: string;
+    setPeriodDateRef: (v: string) => void;
+    tables: TableDef[];
+}) {
+    const dateFieldOptions = tables.flatMap((t) =>
+        (t.fields ?? []).map((f) => `${t.name}[${f.name}]`),
+    );
+    return (
+        <div className="rounded-lg border border-border p-3">
+            <label className="flex items-center gap-2 text-[12px]">
+                <input
+                    type="checkbox"
+                    checked={periodOn}
+                    onChange={(e) => setPeriodOn(e.target.checked)}
+                    className="accent-brand"
+                />
+                Appliquer une période
+            </label>
+            {periodOn && (
+                <div className="mt-2 space-y-1.5">
+                    <select
+                        value={periodWindow}
+                        onChange={(e) =>
+                            setPeriodWindow(e.target.value as PeriodWindow)
+                        }
+                        className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                    >
+                        {PERIOD_KEYS.map((w) => (
+                            <option key={w} value={w}>
+                                {PERIOD_LABELS[w]}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="text-[11px] text-muted-foreground">
+                        Colonne de date (ex. kpi_br_print[mois])
+                    </div>
+                    <select
+                        value={periodDateRef}
+                        onChange={(e) =>
+                            setPeriodDateRef(e.target.value)
+                        }
+                        className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
+                    >
+                        <option value="">Choisir une colonne…</option>
+                        {dateFieldOptions.map((ref) => (
+                            <option key={ref} value={ref}>
+                                {ref}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Wave-3 cards: « Part du total », « Top N », « Texte concaténé » and
+ * « Modèle SI ». Number wrappers (pct / topN / IF) are mutually exclusive;
+ * `compose` narrows the set to the percent-of-total card (row-iteration
+ * wrappers have no meaning over a composed scalar ratio).
+ */
+function Wave3Options({
+    toColumns,
+    column,
+    kind,
+    compose,
+    w3,
+    patch,
+}: {
+    toColumns: string[];
+    column: string;
+    kind: MeasureKind;
+    compose?: boolean;
+    w3: Wave3State;
+    patch: (p: Partial<Wave3State>) => void;
+}) {
+    const defaultColumn = column || toColumns[0] || '';
+    const setPct = (on: boolean) => {
+        if (on) patch({ pctOn: true, topNOn: false, ifOn: false });
+        else patch({ pctOn: false });
+    };
+    const setTopN = (on: boolean) => {
+        if (on)
+            patch({
+                topNOn: true,
+                pctOn: false,
+                ifOn: false,
+                ...(w3.topNOrder === ''
+                    ? { topNOrder: defaultColumn }
+                    : {}),
+            });
+        else patch({ topNOn: false });
+    };
+    const setIf = (on: boolean) =>
+        on
+            ? patch({
+                  ifOn: true,
+                  pctOn: false,
+                  topNOn: false,
+                  ...(w3.ifColumn === '' ? { ifColumn: defaultColumn } : {}),
+              })
+            : patch({ ifOn: false });
+    const setConcat = (on: boolean) => patch({ concatOn: on });
+
+    const ifListOp = w3.ifOp === 'in' || w3.ifOp === 'notIn';
+
+    return (
+        <div className="space-y-2">
+            {/* ── Part du total (W3-2) ── */}
+            {(kind === 'number' || compose) && (
+                <div className="rounded-lg border border-border p-3">
+                    <label className="flex items-center gap-2 text-[12px]">
+                        <input
+                            type="checkbox"
+                            checked={w3.pctOn}
+                            onChange={(e) => setPct(e.target.checked)}
+                            className="accent-brand"
+                        />
+                        <Percent className="size-3.5 text-muted-foreground" />
+                        Part du total (%)
+                    </label>
+                    {w3.pctOn && (
+                        <div className="mt-2 space-y-1.5">
+                            <select
+                                value={w3.pctAxis}
+                                onChange={(e) =>
+                                    patch({ pctAxis: e.target.value })
+                                }
+                                className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                            >
+                                <option value="">
+                                    Toute la table ({compose ? 'ALL(...)' : 'ALL(to)'})
+                                </option>
+                                {toColumns.map((c) => (
+                                    <option key={c} value={c}>
+                                        Par « {c} »
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="font-mono text-[10px] text-muted-foreground">
+                                DIVIDE(résultat, CALCULATE(résultat, ALL(
+                                {w3.pctAxis ? `to[${w3.pctAxis}]` : 'to'}
+                                )), 0) * 100
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── Top N (W3-3) ── */}
+            {kind === 'number' && !compose && (
+                <div className="rounded-lg border border-border p-3">
+                    <label className="flex items-center gap-2 text-[12px]">
+                        <input
+                            type="checkbox"
+                            checked={w3.topNOn}
+                            onChange={(e) => setTopN(e.target.checked)}
+                            className="accent-brand"
+                        />
+                        <Sigma className="size-3.5 text-muted-foreground" />
+                        Top N (n premières lignes)
+                    </label>
+                    {w3.topNOn && (
+                        <div className="mt-2 grid gap-1.5">
+                            <div className="flex items-center gap-1.5">
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={w3.topNCount}
+                                    onChange={(e) =>
+                                        patch({
+                                            topNCount: Math.max(
+                                                1,
+                                                Math.floor(
+                                                    Number(e.target.value) ||
+                                                        1,
+                                                ),
+                                            ),
+                                        })
+                                    }
+                                    className="w-20 rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                />
+                                <span className="text-[11px] text-muted-foreground">
+                                    lignes ordonnées par
+                                </span>
+                                <select
+                                    value={w3.topNOrder}
+                                    onChange={(e) =>
+                                        patch({
+                                            topNOrder: e.target.value,
+                                        })
+                                    }
+                                    className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
+                                >
+                                    <option value="" disabled>
+                                        Colonne…
+                                    </option>
+                                    {toColumns.map((c) => (
+                                        <option key={c} value={c}>
+                                            {c}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => patch({ topNDir: 'desc' })}
+                                    className={cn(
+                                        'rounded border px-2 py-1 text-[11px] transition-colors',
+                                        w3.topNDir === 'desc'
+                                            ? 'border-brand bg-brand/15 text-brand'
+                                            : 'border-border hover:bg-accent',
+                                    )}
+                                >
+                                    DESC (plus grandes)
+                                </button>
+                                <button
+                                    onClick={() => patch({ topNDir: 'asc' })}
+                                    className={cn(
+                                        'rounded border px-2 py-1 text-[11px] transition-colors',
+                                        w3.topNDir === 'asc'
+                                            ? 'border-brand bg-brand/15 text-brand'
+                                            : 'border-border hover:bg-accent',
+                                    )}
+                                >
+                                    ASC (plus petites)
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── Texte concaténé (W3-5) ── */}
+            {kind === 'list' && !compose && (
+                <div className="rounded-lg border border-border p-3">
+                    <label className="flex items-center gap-2 text-[12px]">
+                        <input
+                            type="checkbox"
+                            checked={w3.concatOn}
+                            onChange={(e) => setConcat(e.target.checked)}
+                            className="accent-brand"
+                        />
+                        <List className="size-3.5 text-muted-foreground" />
+                        Concaténer en texte
+                    </label>
+                    {w3.concatOn && (
+                        <div className="mt-2 space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                                <input
+                                    value={w3.concatSep}
+                                    onChange={(e) =>
+                                        patch({
+                                            concatSep: e.target.value,
+                                        })
+                                    }
+                                    className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                />
+                                <span className="text-[11px] text-muted-foreground">
+                                    séparateur
+                                </span>
+                            </div>
+                            <div className="font-mono text-[10px] text-muted-foreground">
+                                CONCATENATEX(to, to[{column}], "
+                                {w3.concatSep.replace(/"/g, '""')}")
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── Modèle SI (W3-6) ── */}
+            {kind === 'number' && !compose && (
+                <div className="rounded-lg border border-border p-3">
+                    <label className="flex items-center gap-2 text-[12px]">
+                        <input
+                            type="checkbox"
+                            checked={w3.ifOn}
+                            onChange={(e) => setIf(e.target.checked)}
+                            className="accent-brand"
+                        />
+                        <Hash className="size-3.5 text-muted-foreground" />
+                        Modèle SI (IF)
+                    </label>
+                    {w3.ifOn && (
+                        <div className="mt-2 space-y-1.5">
+                            <select
+                                value={w3.ifColumn}
+                                onChange={(e) =>
+                                    patch({ ifColumn: e.target.value })
+                                }
+                                className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
+                            >
+                                <option value="" disabled>
+                                    Colonne de branche…
+                                </option>
+                                {toColumns.map((c) => (
+                                    <option key={c} value={c}>
+                                        {c}
+                                    </option>
+                                ))}
+                            </select>
+                            <select
+                                value={w3.ifOp}
+                                onChange={(e) =>
+                                    patch({
+                                        ifOp: e.target
+                                            .value as ValueCondition['op'],
+                                    })
+                                }
+                                className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                            >
+                                {OP_KEYS.map((op) => (
+                                    <option key={op} value={op}>
+                                        {COND_LABELS[op]}
+                                    </option>
+                                ))}
+                            </select>
+                            {ifListOp ? (
+                                <input
+                                    value={w3.ifValues.join(', ')}
+                                    onChange={(e) =>
+                                        patch({
+                                            ifValues: e.target.value
+                                                .split(',')
+                                                .map((v) => v.trim())
+                                                .filter((v) => v !== ''),
+                                        })
+                                    }
+                                    placeholder="valeur1, valeur2, …"
+                                    className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
+                                />
+                            ) : (
+                                <input
+                                    value={w3.ifValue}
+                                    onChange={(e) =>
+                                        patch({ ifValue: e.target.value })
+                                    }
+                                    placeholder="valeur comparée"
+                                    className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
+                                />
+                            )}
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] text-muted-foreground">
+                                    alors
+                                </span>
+                                <input
+                                    type="number"
+                                    value={w3.ifThen}
+                                    onChange={(e) =>
+                                        patch({
+                                            ifThen: Number(
+                                                e.target.value,
+                                            ) || 0,
+                                        })
+                                    }
+                                    className="w-24 rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                />
+                                <span className="text-[11px] text-muted-foreground">
+                                    sinon
+                                </span>
+                                <input
+                                    type="number"
+                                    value={w3.ifElse}
+                                    onChange={(e) =>
+                                        patch({
+                                            ifElse: Number(
+                                                e.target.value,
+                                            ) || 0,
+                                        })
+                                    }
+                                    className="w-24 rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function ResultStep({
     toDef,
     toColumns,
@@ -1786,6 +2393,8 @@ function ResultStep({
     tables,
     fromTable,
     dax,
+    w3,
+    patchW3,
 }: {
     toDef: TableDef | undefined;
     toColumns: string[];
@@ -1810,12 +2419,9 @@ function ResultStep({
     tables: TableDef[];
     fromTable: string;
     dax: string;
+    w3: Wave3State;
+    patchW3: (p: Partial<Wave3State>) => void;
 }) {
-    // Every `table[column]` across the loaded tables, so a time window can use
-    // a date-ish field from any dataset (mois, DataPoint, LogDate, …).
-    const dateFieldOptions = tables.flatMap((t) =>
-        (t.fields ?? []).map((f) => `${t.name}[${f.name}]`),
-    );
     return (
         <div className="grid gap-4">
             <div>
@@ -1895,135 +2501,36 @@ function ResultStep({
                     </div>
                 )}
 
-                <div className="rounded-lg border border-border p-3">
-                    <label className="flex items-center gap-2 text-[12px]">
-                        <input
-                            type="checkbox"
-                            checked={condOn}
-                            onChange={(e) => setCondOn(e.target.checked)}
-                            className="accent-brand"
-                        />
-                        Appliquer une condition
-                    </label>
-                    {condOn && (
-                        <div className="mt-2 space-y-1.5">
-                            {condRows.length > 1 && (
-                                <div className="flex items-center gap-1.5 text-[11px]">
-                                    <span className="text-muted-foreground">
-                                        Combiner les conditions en
-                                    </span>
-                                    <select
-                                        value={condCombine}
-                                        onChange={(e) =>
-                                            setCondCombine(
-                                                e.target.value as 'and' | 'or',
-                                            )
-                                        }
-                                        className="rounded border border-border bg-background px-2 py-1 text-[11px]"
-                                    >
-                                        <option value="and">ET (toutes)</option>
-                                        <option value="or">
-                                            OU (au moins une)
-                                        </option>
-                                    </select>
-                                </div>
-                            )}
-                            {condRows.map((row, i) => (
-                                <ConditionRowEditor
-                                    key={i}
-                                    row={row}
-                                    tables={tables}
-                                    from={fromTable}
-                                    to={toDef?.name ?? ''}
-                                    onChange={(patch) =>
-                                        setCondRows((rows) =>
-                                            rows.map((r, idx) =>
-                                                idx === i
-                                                    ? { ...r, ...patch }
-                                                    : r,
-                                            ),
-                                        )
-                                    }
-                                    onRemove={() =>
-                                        setCondRows((rows) =>
-                                            rows.length > 1
-                                                ? rows.filter(
-                                                      (_, idx) => idx !== i,
-                                                  )
-                                                : rows,
-                                        )
-                                    }
-                                />
-                            ))}
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setCondRows((rows) => [
-                                        ...rows,
-                                        { column: '', op: 'gt', value: '' },
-                                    ])
-                                }
-                                className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline"
-                            >
-                                <Plus className="size-3" />
-                                Ajouter une condition
-                            </button>
-                        </div>
-                    )}
-                </div>
+                <Wave3Options
+                    toColumns={toColumns}
+                    column={column}
+                    kind={kind}
+                    w3={w3}
+                    patch={patchW3}
+                />
+
+                <ConditionCard
+                    condOn={condOn}
+                    setCondOn={setCondOn}
+                    condRows={condRows}
+                    setCondRows={setCondRows}
+                    condCombine={condCombine}
+                    setCondCombine={setCondCombine}
+                    tables={tables}
+                    from={fromTable}
+                    to={toDef?.name ?? ''}
+                />
 
                 {kind === 'number' && (
-                    <div className="rounded-lg border border-border p-3">
-                        <label className="flex items-center gap-2 text-[12px]">
-                            <input
-                                type="checkbox"
-                                checked={periodOn}
-                                onChange={(e) =>
-                                    setPeriodOn(e.target.checked)
-                                }
-                                className="accent-brand"
-                            />
-                            Appliquer une période
-                        </label>
-                        {periodOn && (
-                            <div className="mt-2 space-y-1.5">
-                                <select
-                                    value={periodWindow}
-                                    onChange={(e) =>
-                                        setPeriodWindow(
-                                            e.target.value as PeriodWindow,
-                                        )
-                                    }
-                                    className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
-                                >
-                                    {PERIOD_KEYS.map((w) => (
-                                        <option key={w} value={w}>
-                                            {PERIOD_LABELS[w]}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="text-[11px] text-muted-foreground">
-                                    Colonne de date (ex. kpi_br_print[mois])
-                                </div>
-                                <select
-                                    value={periodDateRef}
-                                    onChange={(e) =>
-                                        setPeriodDateRef(e.target.value)
-                                    }
-                                    className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-[11px]"
-                                >
-                                    <option value="">
-                                        Choisir une colonne…
-                                    </option>
-                                    {dateFieldOptions.map((ref) => (
-                                        <option key={ref} value={ref}>
-                                            {ref}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
+                    <PeriodCard
+                        periodOn={periodOn}
+                        setPeriodOn={setPeriodOn}
+                        periodWindow={periodWindow}
+                        setPeriodWindow={setPeriodWindow}
+                        periodDateRef={periodDateRef}
+                        setPeriodDateRef={setPeriodDateRef}
+                        tables={tables}
+                    />
                 )}
 
                 <div>
@@ -2312,6 +2819,20 @@ function LinkedStep({
     error,
     dax,
     onCreateSimple,
+    condOn,
+    setCondOn,
+    condRows,
+    setCondRows,
+    condCombine,
+    setCondCombine,
+    periodOn,
+    setPeriodOn,
+    periodWindow,
+    setPeriodWindow,
+    periodDateRef,
+    setPeriodDateRef,
+    w3,
+    patchW3,
 }: {
     tables: TableDef[];
     measures: Field[];
@@ -2350,6 +2871,20 @@ function LinkedStep({
     error: string | null;
     dax: string;
     onCreateSimple: () => void;
+    condOn: boolean;
+    setCondOn: (b: boolean) => void;
+    condRows: ValueCondition[];
+    setCondRows: Dispatch<SetStateAction<ValueCondition[]>>;
+    condCombine: 'and' | 'or';
+    setCondCombine: (c: 'and' | 'or') => void;
+    periodOn: boolean;
+    setPeriodOn: (b: boolean) => void;
+    periodWindow: PeriodWindow;
+    setPeriodWindow: (w: PeriodWindow) => void;
+    periodDateRef: string;
+    setPeriodDateRef: (v: string) => void;
+    w3: Wave3State;
+    patchW3: (p: Partial<Wave3State>) => void;
 }) {
     const style = linkedStyle ?? 'compose';
 
@@ -2482,6 +3017,41 @@ function LinkedStep({
                         </div>
                     )}
 
+                    <ConditionCard
+                        condOn={condOn}
+                        setCondOn={setCondOn}
+                        condRows={condRows}
+                        setCondRows={setCondRows}
+                        condCombine={condCombine}
+                        setCondCombine={setCondCombine}
+                        tables={tables}
+                        from={
+                            opA.kind === 'column' && opA.table
+                                ? opA.table
+                                : toDef?.name ?? ''
+                        }
+                        to={toDef?.name ?? ''}
+                    />
+
+                    <PeriodCard
+                        periodOn={periodOn}
+                        setPeriodOn={setPeriodOn}
+                        periodWindow={periodWindow}
+                        setPeriodWindow={setPeriodWindow}
+                        periodDateRef={periodDateRef}
+                        setPeriodDateRef={setPeriodDateRef}
+                        tables={tables}
+                    />
+
+                    <Wave3Options
+                        toColumns={toColumns}
+                        column={column}
+                        kind="number"
+                        compose
+                        w3={w3}
+                        patch={patchW3}
+                    />
+
                     <div className="rounded-lg border border-border p-3">
                         <div className="mb-1 text-[11px] font-semibold">DAX</div>
                         <pre className="overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
@@ -2580,6 +3150,14 @@ function LinkedStep({
                         setAgg={setAgg}
                         column={column}
                         setColumn={setColumn}
+                    />
+
+                    <Wave3Options
+                        toColumns={toColumns}
+                        column={column}
+                        kind={kind}
+                        w3={w3}
+                        patch={patchW3}
                     />
 
                     <div>

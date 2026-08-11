@@ -75,7 +75,6 @@ export {
     isNumberFormat,
     isValueAggregationMode,
     LIST_AGG_NUMERIC_MODES,
-    MEASURES,
     NUMBER_FORMATS,
     PAGE_PRESETS,
     VALUE_AGGREGATION_MODES,

@@ -288,6 +288,7 @@ type Ctx = State & {
         config?: string | null,
     ) => Promise<void>;
     removeMeasure: (id: string | number) => Promise<void>;
+    removeMeasureLocal: (name: string) => void;
     setTheme: (t: string) => void;
     saveTheme: (name: string, palette: string[], fontFamily?: string) => void;
     updateTheme: (id: string, patch: Partial<ReportTheme>) => void;
@@ -1822,6 +1823,14 @@ export function PbiProvider({
                 measures: (s.measures ?? []).filter(
                     (m) => String(m.id) !== String(id),
                 ),
+            }));
+        },
+        removeMeasureLocal: (name) => {
+            const target = (state.measures ?? []).find((m) => m.name === name);
+            if (target) unregisterMeasure(target.name);
+            setState((s) => ({
+                ...s,
+                measures: (s.measures ?? []).filter((m) => m.name !== name),
             }));
         },
         setTheme: (theme) => setState((s) => ({ ...s, theme })),

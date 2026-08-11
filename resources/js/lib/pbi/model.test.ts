@@ -2402,3 +2402,223 @@ describe('time windows on month-granularity dates (YYYY-MM)', () => {
         expect(r.value).toBe(0);
     });
 });
+
+describe('wave 3 — CALCULATE(ALL), % of total, TOPN/RANK, Cumul, CONCATENATEX, IF (W3-1…W3-6)', () => {
+    const sales: TableDef = {
+        name: 'sales',
+        fields: [
+            { table: 'sales', name: 'Region', type: 'text' },
+            { table: 'sales', name: 'Amount', type: 'number' },
+            { table: 'sales', name: 'Idx', type: 'number' },
+        ],
+        rows: [
+            { Region: 'North', Amount: 10, Idx: 1 },
+            { Region: 'North', Amount: 5, Idx: 1 },
+            { Region: 'South', Amount: 7, Idx: 2 },
+            { Region: 'East', Amount: 3, Idx: 3 },
+            { Region: 'South', Amount: 4, Idx: 4 },
+        ],
+    };
+    const regionCtx = (region: string) => ({
+        tables: applyTableRows(
+            [sales],
+            filterTableRows([sales], [
+                {
+                    column: 'Region',
+                    table: 'sales',
+                    values: [region],
+                    scope: 'report',
+                    type: 'list',
+                } satisfies ReportFilter,
+            ]),
+        ),
+    });
+
+    beforeEach(() => setTables([sales]));
+
+    it('W3-1 CALCULATE(SUM, ALL(col)) returns the grand total under a per-group ctx', () => {
+        const share = compileMeasure(
+            'M = CALCULATE(SUM(sales[Amount]), ALL(sales[Region]))',
+        );
+        const plain = compileMeasure('M = SUM(sales[Amount])');
+        expect(share([], regionCtx('North'))).toBe(29);
+        // The same scalar WITHOUT ALL stays inside the group filter.
+        expect(plain([], regionCtx('North'))).toBe(15);
+    });
+
+    it('W3-1 COUNTROWS(ALL(table)) is not restricted by the group filter', () => {
+        const impl = compileMeasure('M = COUNTROWS(ALL(sales))');
+        expect(impl([], regionCtx('South'))).toBe(5);
+    });
+
+    it('W3-2 per-group % of total shares sum to ~100', () => {
+        const pct = compileMeasure(
+            'M = DIVIDE(SUM(sales[Amount]), CALCULATE(SUM(sales[Amount]), ALL(sales[Region])), 0) * 100',
+        );
+        expect(pct([], regionCtx('North'))).toBeCloseTo((15 / 29) * 100);
+        expect(pct([], regionCtx('South'))).toBeCloseTo((11 / 29) * 100);
+        expect(pct([], regionCtx('East'))).toBeCloseTo((3 / 29) * 100);
+        const total =
+            pct([], regionCtx('North')) +
+            pct([], regionCtx('South')) +
+            pct([], regionCtx('East'));
+        expect(total).toBeCloseTo(100);
+    });
+
+    it('W3-3 SUMX(TOPN(n, …)) picks the top / bottom n rows by direction', () => {
+        const desc = evaluateMeasure(
+            'M = SUMX(TOPN(2, sales, sales[Amount], DESC), sales[Amount])',
+            [],
+        );
+        expect(desc.error).toBeUndefined();
+        expect(desc.value).toBe(17); // 10 + 7
+        const asc = evaluateMeasure(
+            'M = SUMX(TOPN(2, sales, sales[Amount], ASC), sales[Amount])',
+            [],
+        );
+        expect(asc.error).toBeUndefined();
+        expect(asc.value).toBe(7); // 3 + 4
+        // Default direction is descending (DAX TOPN).
+        const def = evaluateMeasure(
+            'M = SUMX(TOPN(2, sales, sales[Amount]), sales[Amount])',
+            [],
+        );
+        expect(def.error).toBeUndefined();
+        expect(def.value).toBe(17);
+    });
+
+    it('W3-3 RANKX returns the 1-based rank of a value (desc default, ASC opt-in)', () => {
+        const r1 = evaluateMeasure('M = RANKX(sales, sales[Amount], 10)', []);
+        expect(r1.error).toBeUndefined();
+        expect(r1.value).toBe(1);
+        const rLast = evaluateMeasure(
+            'M = RANKX(sales, sales[Amount], 3)',
+            [],
+        );
+        expect(rLast.value).toBe(5);
+        const asc = evaluateMeasure(
+            'M = RANKX(sales, sales[Amount], 3, ASC)',
+            [],
+        );
+        expect(asc.value).toBe(1);
+    });
+
+    it('W3-4 SUMX(FILTER(index <= n)) is a cumulative total up to the index', () => {
+        const upTo2 = evaluateMeasure(
+            'M = SUMX(FILTER(sales, sales[Idx] <= 2), sales[Amount])',
+            [],
+        );
+        expect(upTo2.error).toBeUndefined();
+        expect(upTo2.value).toBe(22); // 10 + 5 + 7
+        const upTo4 = evaluateMeasure(
+            'M = SUMX(FILTER(sales, sales[Idx] <= 4), sales[Amount])',
+            [],
+        );
+        expect(upTo4.value).toBe(29);
+    });
+
+    it('W3-4 buildTableCells running column accumulates across the numeric axis', () => {
+        const { data } = buildTableCells(
+            sales.rows,
+            [{ table: 'sales', name: 'Idx', agg: 'sum' }],
+            [],
+            [{ table: 'sales', name: 'Amount', agg: 'sum', running: true }],
+        );
+        const key = measureLabel({
+            table: 'sales',
+            name: 'Amount',
+            agg: 'sum',
+        });
+        const nums = data.map((d) => d[key]);
+        expect(nums).toEqual([15, 22, 25, 29]);
+        // Axis order stays ascending by index.
+        expect(data.map((d) => d['category'])).toEqual(['1', '2', '3', '4']);
+    });
+
+    it('W3-4 buildChartData running column accumulates (numeric axis ascending)', () => {
+        const { data } = buildChartData(
+            sales.rows,
+            [{ table: 'sales', name: 'Idx', agg: 'sum' }],
+            [],
+            [{ table: 'sales', name: 'Amount', agg: 'sum', running: true }],
+        );
+        const key = measureLabel({
+            table: 'sales',
+            name: 'Amount',
+            agg: 'sum',
+        });
+        expect(data.map((d) => d[key])).toEqual([15, 22, 25, 29]);
+    });
+
+    it('W3-3 buildTableCells rank column orders rows by descending value (1..N)', () => {
+        const { data } = buildTableCells(
+            sales.rows,
+            [{ table: 'sales', name: 'Idx', agg: 'sum' }],
+            [],
+            [{ table: 'sales', name: 'Amount', agg: 'sum', rank: true }],
+        );
+        const key = measureLabel({
+            table: 'sales',
+            name: 'Amount',
+            agg: 'sum',
+        });
+        expect(data.map((d) => d[key])).toEqual([1, 2, 3, 4]);
+        expect(data.map((d) => d['category'])).toEqual([
+            '1', // 15
+            '2', // 7
+            '4', // 4
+            '3', // 3
+        ]);
+    });
+
+    it('W3-5 CONCATENATEX compiles to a text-list and joins per-frame values', () => {
+        const impl = compileListMeasure(
+            'M = CONCATENATEX(sales, sales[Region], "; ")',
+        );
+        expect(impl).not.toBeNull();
+        expect(impl!([], {})).toEqual([
+            'North; North; South; East; South',
+        ]);
+        // Respects the group ctx like a VALUES list.
+        expect(impl!([], regionCtx('North'))).toEqual(['North; North']);
+    });
+
+    it('W3-5 a CONCATENATEX measure registers as a list measure', () => {
+        registerMeasure('ConcatRegions', 'ConcatRegions = CONCATENATEX(sales, sales[Region], "; ")');
+        expect(isListMeasure('ConcatRegions')).toBe(true);
+        expect(listMeasureValue([], 'ConcatRegions')).toEqual([
+            'North; North; South; East; South',
+        ]);
+        unregisterMeasure('ConcatRegions');
+    });
+
+    it('W3-6 IF template branches compute per frame inside an iterator', () => {
+        const thenOnly = evaluateMeasure(
+            "M = SUMX(sales, IF(TRIM(sales[Region]) = 'North', sales[Amount], 0))",
+            [],
+        );
+        expect(thenOnly.error).toBeUndefined();
+        expect(thenOnly.value).toBe(15);
+        const elseOnly = evaluateMeasure(
+            "M = SUMX(sales, IF(TRIM(sales[Region]) <> 'North', sales[Amount], 0))",
+            [],
+        );
+        expect(elseOnly.error).toBeUndefined();
+        expect(elseOnly.value).toBe(14); // 29 − 15
+    });
+
+    it('W3-5/6 RANKX and CONCATENATEX validate without "non supportée"', () => {
+        expect(
+            validateMeasureExpression(
+                'M = CONCATENATEX(sales, sales[Region], "; ")',
+                ['Region'],
+            ).ok,
+        ).toBe(true);
+        expect(
+            validateMeasureExpression(
+                'M = RANKX(sales, sales[Amount], 1)',
+                ['Amount'],
+            ).ok,
+        ).toBe(true);
+    });
+});

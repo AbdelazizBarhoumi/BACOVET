@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { MEASURES, measureError, type Field } from '@/lib/pbi/model';
+import { measureError, type Field } from '@/lib/pbi/model';
 import { defaultDropWell, usePbi, type WellName } from '@/lib/pbi/store';
 import { isSingleValueType } from '@/lib/pbi/visualConfig';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
         tables,
         measures,
         removeMeasure,
+        removeMeasureLocal,
         updateMeasure,
     } = usePbi();
     const [query, setQuery] = useState('');
@@ -67,13 +68,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
     const skipRenameBlur = useRef(false);
 
     const custom = useMemo(() => measures ?? [], [measures]);
-    const measureFields = useMemo(
-        () => [
-            ...MEASURES.filter((m) => !custom.some((c) => c.name === m.name)),
-            ...custom,
-        ],
-        [custom],
-    );
+    const measureFields = useMemo(() => custom, [custom]);
 
     const folderLabel = (folder: string) =>
         DEFAULT_FOLDER_LABELS[folder] ?? folder;
@@ -90,8 +85,23 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
     }, [measureFields]);
 
     const del = async (name: string) => {
+        if (busy) return;
         const target = custom.find((m) => m.name === name);
-        if (busy || !target || target.id == null) return;
+        if (!target) {
+            toast.error(
+                `La mesure « ${name} » est introuvable dans la bibliothèque`,
+            );
+            setConfirmDelete(null);
+            setMenuFor(null);
+            return;
+        }
+        if (target.id == null) {
+            removeMeasureLocal(target.name);
+            toast.success(`Mesure « ${name} » supprimée`);
+            setConfirmDelete(null);
+            setMenuFor(null);
+            return;
+        }
         setBusy(true);
         try {
             await removeMeasure(target.id);
@@ -160,16 +170,20 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
     };
 
     const deleteFolder = async (name: string) => {
-        const target = customIn(
-            measureFields.filter(
-                (m) => (m.category?.trim() || 'Other') === name,
-            ),
+        if (busy) return;
+        const folderMeasures = measureFields.filter(
+            (m) => (m.category?.trim() || 'Other') === name,
         );
-        if (!target.length) return;
+        const serverTargets = customIn(folderMeasures);
+        const localTargets = folderMeasures.filter((m) => m.id == null);
+        if (!serverTargets.length && !localTargets.length) {
+            toast.error(`Impossible de supprimer le dossier « ${name} »`);
+            return;
+        }
         setBusy(true);
         try {
             await Promise.all(
-                target.map((m) =>
+                serverTargets.map((m) =>
                     updateMeasure(
                         m.id!,
                         m.name,
@@ -179,6 +193,7 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                     ),
                 ),
             );
+            for (const m of localTargets) removeMeasureLocal(m.name);
             toast.success(`Dossier « ${name} » supprimé — mesures déplacées`);
             setFolderMenuFor(null);
             setConfirmFolderDelete(null);

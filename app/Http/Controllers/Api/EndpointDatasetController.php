@@ -30,7 +30,7 @@ class EndpointDatasetController extends Controller
         $exitCode = Artisan::call('sync:endpoint-data', [
             '--phase' => 'all',
             '--force' => true,
-            '--timeout' => (int) config('novacity.timeout', 60),
+            '--timeout' => (int) config('novacity.web_timeout', 20),
         ]);
 
         $registry = app(EndpointDatasetRegistry::class);
@@ -67,6 +67,11 @@ class EndpointDatasetController extends Controller
     /**
      * Merge the tabular structure from data.json with the rows stored by
      * sync:endpoint-data (fetched live from NOVACITY_BASE_URL).
+     *
+     * Every eligible dataset in the registry is exposed. Rows come from the
+     * live sync when available, and fall back to the last-known-good snapshot
+     * in data.json so the builder / measure wizard stay usable even when the
+     * API is unreachable or the database has never synced.
      */
     public function index(EndpointDatasetRegistry $registry): JsonResponse
     {
@@ -80,26 +85,32 @@ class EndpointDatasetController extends Controller
             ->get()
             ->keyBy('slug');
 
-        $datasets = $records->map(function (EndpointDataset $record) use ($structureBySlug) {
-            $meta = $structureBySlug->get($record->slug);
+        $snapshots = $registry->rowsBySlug();
+
+        $datasets = $structureBySlug->map(function (array $meta, string $slug) use ($records, $snapshots) {
+            $record = $records->get($slug);
+
+            $rows = ! empty($record?->sample_data)
+                ? $record->sample_data
+                : ($snapshots[$slug] ?? null);
 
             return [
-                'slug' => $record->slug,
-                'name' => $meta['name'] ?? $record->name,
-                'label' => $meta['label'] ?? $record->label,
-                'object' => $meta['object'] ?? $record->object,
-                'object_type' => $meta['object_type'] ?? $record->object_type,
-                'source' => $meta['source'] ?? $record->source,
+                'slug' => $slug,
+                'name' => $meta['name'] ?? $record->name ?? $slug,
+                'label' => $meta['label'] ?? $record->label ?? null,
+                'object' => $meta['object'] ?? $record->object ?? null,
+                'object_type' => $meta['object_type'] ?? $record->object_type ?? null,
+                'source' => $meta['source'] ?? $record->source ?? null,
                 'method' => 'GET',
                 'columns' => $this->mergeColumns(
                     $meta['columns'] ?? [],
                     $record->columns ?? [],
                 ),
-                'sample_data' => $record->sample_data,
-                'row_count' => $record->row_count,
-                'status' => $record->last_status,
-                'last_error' => $record->last_error,
-                'last_synced_at' => $record->last_synced_at?->toISOString(),
+                'sample_data' => $rows,
+                'row_count' => is_array($rows) ? count($rows) : (int) ($record->row_count ?? 0),
+                'status' => $record?->last_status,
+                'last_error' => $record?->last_error,
+                'last_synced_at' => $record?->last_synced_at?->toISOString(),
             ];
         })->values();
 

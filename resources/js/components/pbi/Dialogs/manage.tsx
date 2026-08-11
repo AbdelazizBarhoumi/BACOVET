@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { MeasureWizardDialog } from '@/components/pbi/MeasureWizardDialog';
 import {
-    MEASURES,
     measureError,
     type Field,
 } from '@/lib/pbi/model';
@@ -12,20 +11,14 @@ import { DaxDialog } from './dax';
 import { Modal } from './modal';
 
 export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
-    const { measures, removeMeasure } = usePbi();
+    const { measures, removeMeasure, removeMeasureLocal } = usePbi();
     const [createOpen, setCreateOpen] = useState(false);
     const [wizardOpen, setWizardOpen] = useState(false);
     const [editTarget, setEditTarget] = useState<Field | null>(null);
     const [confirm, setConfirm] = useState<Field | null>(null);
     const [busy, setBusy] = useState(false);
 
-    const items = useMemo(
-        () => [
-            ...MEASURES.filter((m) => !measures.some((c) => c.name === m.name)),
-            ...measures,
-        ],
-        [measures],
-    );
+    const items = useMemo(() => measures ?? [], [measures]);
 
     const folders = useMemo(() => {
         const map = new Map<string, Field[]>();
@@ -39,7 +32,13 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
     }, [items]);
 
     const del = async (m: Field) => {
-        if (busy || m.id == null) return;
+        if (busy) return;
+        if (m.id == null) {
+            removeMeasureLocal(m.name);
+            toast.success(`Mesure « ${m.name} » supprimée`);
+            setConfirm(null);
+            return;
+        }
         setBusy(true);
         try {
             await removeMeasure(m.id);
@@ -93,9 +92,6 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                         <ul className="mt-1 space-y-1">
                             {list.map((m) => {
                                 const error = measureError(m.name);
-                                const builtin = MEASURES.some(
-                                    (b) => b.name === m.name,
-                                );
                                 return (
                                     <li
                                         key={m.name}
@@ -106,11 +102,6 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                                                 <span className="truncate font-mono text-[12px] font-semibold">
                                                     {m.name}
                                                 </span>
-                                                {builtin && (
-                                                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                                                        Intégrée
-                                                    </span>
-                                                )}
                                                 {error && (
                                                     <span
                                                         className="inline-flex min-w-0 shrink-0 items-center gap-1 truncate text-[10px] text-red-500"
@@ -130,28 +121,22 @@ export function ManageMeasuresDialog({ onClose }: { onClose: () => void }) {
                                                 </div>
                                             )}
                                         </div>
-                                        {!builtin && (
-                                            <>
-                                                <button
-                                                    onClick={() =>
-                                                        setEditTarget(m)
-                                                    }
-                                                    title="Modifier la mesure"
-                                                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                                                >
-                                                    <Pencil className="size-3.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        setConfirm(m)
-                                                    }
-                                                    title="Supprimer la mesure"
-                                                    className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-                                                >
-                                                    <Trash2 className="size-3.5" />
-                                                </button>
-                                            </>
-                                        )}
+                                        <>
+                                            <button
+                                                onClick={() => setEditTarget(m)}
+                                                title="Modifier la mesure"
+                                                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                            >
+                                                <Pencil className="size-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => setConfirm(m)}
+                                                title="Supprimer la mesure"
+                                                className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                            </button>
+                                        </>
                                     </li>
                                 );
                             })}

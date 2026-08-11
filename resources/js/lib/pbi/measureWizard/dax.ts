@@ -4,6 +4,7 @@ import type {
     MeasureKind,
     NumericAgg,
     PathHop,
+    PercentOfTotalSpec,
     PeriodSpec,
     ValueCondition,
     WizardSpec,
@@ -170,8 +171,14 @@ function periodDax(body: string, period: PeriodSpec | undefined): string {
 }
 
 export function buildMeasureDax(spec: WizardSpec): string {
-    if (spec.composition) return buildCompositionDax(spec.composition);
+    if (spec.composition) return buildComposedDax(spec);
+    if (spec.ifTemplate) return buildIfTemplateDax(spec);
+    if (spec.topN) return buildTopNDax(spec);
     const { from, to, hops, kind, column, agg, condition, conditions } = spec;
+    // Numeric bodies are wrapped (innermost → outermost): period, then the
+    // percent-of-total share: DIVIDE(<body>, CALCULATE(<body>, ALL(…)), 0)*100.
+    const wrapNumber = (body: string) =>
+        percentOfTotalDax(periodDax(body, spec.period), spec.percentOfTotal, to);
     const rows =
         conditions && conditions.rows.length
             ? conditions.rows
@@ -198,6 +205,21 @@ export function buildMeasureDax(spec: WizardSpec): string {
               ? block
               : chain;
 
+    const aggBody = (expr: string, iter: boolean): string => {
+        switch (agg) {
+            case 'sum':
+                return iter ? `SUMX(${expr})` : `SUM(${expr})`;
+            case 'avg':
+                return iter ? `AVERAGEX(${expr})` : `AVERAGE(${expr})`;
+            case 'min':
+                return iter ? `MINX(${expr})` : `MIN(${expr})`;
+            case 'max':
+                return iter ? `MAXX(${expr})` : `MAX(${expr})`;
+            case 'count':
+                return iter ? `COUNTX(${expr})` : `COUNT(${expr})`;
+        }
+    };
+
     if (
         hops.length === 0 &&
         condition === undefined &&
@@ -205,30 +227,14 @@ export function buildMeasureDax(spec: WizardSpec): string {
     ) {
         switch (kind) {
             case 'list':
-                return `VALUES(${to}[${column}])`;
+                return spec.concat
+                    ? buildConcatDax(spec)
+                    : `VALUES(${to}[${column}])`;
             case 'countrows':
                 return `COUNTROWS(${to})`;
             case 'number': {
-                const expr = `${to}[${column}]`;
-                let body: string;
-                switch (agg) {
-                    case 'sum':
-                        body = `SUM(${expr})`;
-                        break;
-                    case 'avg':
-                        body = `AVERAGE(${expr})`;
-                        break;
-                    case 'min':
-                        body = `MIN(${expr})`;
-                        break;
-                    case 'max':
-                        body = `MAX(${expr})`;
-                        break;
-                    case 'count':
-                        body = `COUNT(${expr})`;
-                        break;
-                }
-                return periodDax(body, spec.period);
+                const body = aggBody(`${to}[${column}]`, false);
+                return wrapNumber(body);
             }
         }
     }
@@ -237,32 +243,143 @@ export function buildMeasureDax(spec: WizardSpec): string {
 
     switch (kind) {
         case 'list':
-            return `VALUES(${filter}[${column}])`;
+            return spec.concat
+                ? buildConcatDax(spec)
+                : `VALUES(${filter}[${column}])`;
         case 'countrows':
             return `COUNTROWS(${filter})`;
         case 'number': {
-            const expr = `${to}[${column}]`;
-            let body: string;
-            switch (agg) {
-                case 'sum':
-                    body = `SUMX(${filter}, ${expr})`;
-                    break;
-                case 'avg':
-                    body = `AVERAGEX(${filter}, ${expr})`;
-                    break;
-                case 'min':
-                    body = `MINX(${filter}, ${expr})`;
-                    break;
-                case 'max':
-                    body = `MAXX(${filter}, ${expr})`;
-                    break;
-                case 'count':
-                    body = `COUNTX(${filter}, ${expr})`;
-                    break;
-            }
-            return periodDax(body, spec.period);
+            const body = aggBody(`${filter}, ${to}[${column}]`, true);
+            return wrapNumber(body);
         }
     }
+}
+
+/**
+ * Percent-of-total (W3-2): `DIVIDE(<expr>, CALCULATE(<expr>, ALL(axis)), 0)*100`
+ * with `ALL(<to>)` when no axis column is chosen.
+ */
+function percentOfTotalDax(
+    body: string,
+    spec: PercentOfTotalSpec | undefined,
+    to: string,
+): string {
+    if (!spec) return body;
+    const all = spec.axis ? `ALL(${to}[${spec.axis}])` : `ALL(${to})`;
+    return `DIVIDE(${body}, CALCULATE(${body}, ${all}), 0) * 100`;
+}
+
+/**
+ * A composed measure wrapped by the shared numeric post-processing (compose
+ * flow): innermost → outermost — <condition via CALCULATE + FILTER>, then
+ * <period>, then <percent-of-total>. With none of the three set this returns
+ * exactly the bare composition, so existing composed DAX is unchanged.
+ */
+function buildComposedDax(spec: WizardSpec): string {
+    let body = buildCompositionDax(spec.composition!);
+    const { from, to, hops, condition, conditions } = spec;
+    const rows =
+        conditions && conditions.rows.length
+            ? conditions.rows
+            : condition
+              ? [condition]
+              : [];
+    if (rows.length) {
+        const combine = conditions?.combine ?? 'and';
+        const baseRows = rows.filter(
+            (c) => c.table !== undefined && c.table !== to,
+        );
+        const targetRows = rows.filter(
+            (c) => c.table === undefined || c.table === to,
+        );
+        const baseBlock = rowsToBlock(baseRows, combine, to);
+        const block = rowsToBlock(targetRows, combine, to);
+        const chain = exists(hops, hops.length, from, baseBlock ?? undefined);
+        const scaled =
+            block !== null && chain
+                ? `${chain} && ${block}`
+                : block !== null
+                  ? block
+                  : chain;
+        if (scaled) body = `CALCULATE(${body}, FILTER(${to}, ${scaled}))`;
+    }
+    body = periodDax(body, spec.period);
+    return percentOfTotalDax(body, spec.percentOfTotal, to);
+}
+
+/**
+ * Top-N (W3-3): `SUMX(TOPN(n, <target>, <to>[<orderColumn>], <dir>), <to>[col])`
+ * over the same filtered target rows the plain number uses.
+ */
+function buildTopNDax(spec: WizardSpec): string {
+    const { to, topN } = spec;
+    if (!topN) return 'BLANK()';
+    const n = Math.max(1, Math.floor(topN.n || 10));
+    const dir = topN.dir === 'asc' ? 'ASC' : 'DESC';
+    const rows = targetRowsOf(spec);
+    const target = rows.filterExpr || to;
+    const expr = `${to}[${spec.column}]`;
+    return `SUMX(TOPN(${n}, ${target}, ${to}[${topN.orderColumn}], ${dir}), ${expr})`;
+}
+
+/**
+ * Conditional branch template (W3-6):
+ * `SUMX(<target>, IF(TRIM(to[col]) <op> <literal>, <then>, <else>))`.
+ */
+function buildIfTemplateDax(spec: WizardSpec): string {
+    const { to, ifTemplate } = spec;
+    if (!ifTemplate) return 'BLANK()';
+    const rows = targetRowsOf(spec);
+    const target = rows.filterExpr || to;
+    const col = `TRIM(${to}[${ifTemplate.column}])`;
+    const literal =
+        ifTemplate.op === 'in' || ifTemplate.op === 'notIn'
+            ? `{${(
+                  ifTemplate.values && ifTemplate.values.length
+                      ? ifTemplate.values
+                      : [ifTemplate.value]
+              )
+                  .filter((v): v is string => v !== undefined)
+                  .map(quoteValue)
+                  .join(', ')}}`
+            : quoteValue(ifTemplate.value ?? '');
+    return `SUMX(${target}, IF(${col} ${COND_OPS[ifTemplate.op]} ${literal}, ${ifTemplate.then}, ${ifTemplate.else}))`;
+}
+
+/**
+ * Text-list (W3-5): `CONCATENATEX(<target>, to[column], "<sep>")`.
+ */
+function buildConcatDax(spec: WizardSpec): string {
+    const { to, concat } = spec;
+    if (!concat) return 'BLANK()';
+    const rows = targetRowsOf(spec);
+    const target = rows.filterExpr || to;
+    return `CONCATENATEX(${target}, ${to}[${concat.column}], "${concat.sep.replace(/"/g, '""')}")`;
+}
+
+/** Shared target-table expression (filtered or whole) for the W3 builders. */
+function targetRowsOf(spec: WizardSpec): {
+    filterExpr: string;
+} {
+    const { from, to, hops, condition, conditions } = spec;
+    const rows = conditions?.rows.length ? conditions.rows : condition ? [condition] : [];
+    const combine = conditions?.combine ?? 'and';
+    const baseRows = rows.filter(
+        (c) => c.table !== undefined && c.table !== to,
+    );
+    const targetRows = rows.filter(
+        (c) => c.table === undefined || c.table === to,
+    );
+    const baseBlock = rowsToBlock(baseRows, combine, to);
+    const block = rowsToBlock(targetRows, combine, to);
+    const chain = exists(hops, hops.length, from, baseBlock ?? undefined);
+    const scaled =
+        block !== null && chain
+            ? `${chain} && ${block}`
+            : block !== null
+              ? block
+              : chain;
+    return { filterExpr: scaled ? `FILTER(${to}, ${scaled})` : '' };
 }
 
 // --- French labels ----------------------------------------------------------

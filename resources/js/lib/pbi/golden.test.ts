@@ -22,6 +22,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { applyTableRows, filterTableRows, type ReportFilter } from './filters';
 import {
     compileListMeasure,
+    compileMeasure,
     evaluateMeasure,
     setTables,
     type Field,
@@ -312,6 +313,78 @@ describe('golden wave 2 (real month-granularity time windows — W2-2)', () => {
         expect(r.value).toBe(0);
         // Blank, not a silent whole-table total (the 24 regression).
         expect(r.value).not.toBe(scen('kpi_br_ytd_rejets'));
+    });
+});
+
+describe('golden wave 4 — « Nombre de pièces OK premier coup / produites » par chaîne, jour (kpi_rft)', () => {
+    beforeEach(() => setTables(tables.map((t) => ({ ...t }))));
+
+    it('the exact first-pass KPI equals the oracle: DIVIDE(SUM(ok), SUM(controlled), 0) * 100', () => {
+        const r = evaluateMeasure(
+            'M = DIVIDE(SUM(kpi_rft[ok_premier_coup]), SUM(kpi_rft[pieces_controlees]), 0) * 100',
+            [],
+        );
+        expect(r.error).toBeUndefined();
+        expect(near(r.value, scen('kpi_rft_ratio'))).toBe(true);
+        // Sanity for the reference point documented in the UI examples (~99.2 %).
+        expect(r.value).toBeGreaterThan(99);
+        expect(r.value).toBeLessThan(100);
+    });
+
+    it('the numerator (ok premier coup) and denominator (produites/contrôlées) match the oracle totals', () => {
+        const ok = evaluateMeasure('M = SUM(kpi_rft[ok_premier_coup])', []);
+        const ctl = evaluateMeasure('M = SUM(kpi_rft[pieces_controlees])', []);
+        expect(ok.error).toBeUndefined();
+        expect(ctl.error).toBeUndefined();
+        expect(ok.value).toBe(scen('kpi_rft_ok_first_coup'));
+        expect(ctl.value).toBe(scen('kpi_rft_pieces_controlees'));
+    });
+
+    it('grouped per chaîne de production, each chain shows its own first-pass ratio (W4-3.3)', () => {
+        const byChain = payload.scenarios['kpi_rft_by_chain'] as unknown as Record<
+            string,
+            { ok: number; controlled: number; pct: number }
+        >;
+        const chains = Object.keys(byChain).sort();
+        expect(chains.length).toBe(scen('kpi_rft_rows'));
+        const impl = compileMeasure(
+            'M = DIVIDE(SUM(kpi_rft[ok_premier_coup]), SUM(kpi_rft[pieces_controlees]), 0) * 100',
+        );
+        expect(impl).not.toBeNull();
+        for (const chain of chains) {
+            const exp = byChain[chain]!;
+            const filter: ReportFilter = {
+                column: 'chaine',
+                table: 'kpi_rft',
+                values: [chain],
+                scope: 'report',
+                type: 'list',
+            };
+            const ctx = {
+                tables: applyTableRows(tables, filterTableRows(tables, [filter])),
+            };
+            expect(near(impl!([], ctx), exp.pct)).toBe(true);
+        }
+    });
+
+    it('a chain at 100 % (CH02) and the DEP-J low performer keep their exact ratios', () => {
+        const ctxFor = (chain: string) => ({
+            tables: applyTableRows(tables, filterTableRows(tables, [
+                {
+                    column: 'chaine',
+                    table: 'kpi_rft',
+                    values: [chain],
+                    scope: 'report',
+                    type: 'list',
+                } satisfies ReportFilter,
+            ])),
+        });
+        const impl = compileMeasure(
+            'M = DIVIDE(SUM(kpi_rft[ok_premier_coup]), SUM(kpi_rft[pieces_controlees]), 0) * 100',
+        );
+        expect(impl).not.toBeNull();
+        expect(impl!([], ctxFor('CH02'))).toBe(100);
+        expect(impl!([], ctxFor('DEP-J'))).toBe(68);
     });
 });
 

@@ -17,6 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { splitFormFields } from '@/lib/endpoint-form-fields';
 import { stringifyValue } from '@/lib/json-utils';
 import {
     testEndpoint,
@@ -38,18 +39,6 @@ function isTimeoutError(err: unknown): boolean {
     );
 }
 
-function splitEndpointUrl(url: string): { root: string; path: string } {
-    try {
-        const u = new URL(url);
-        return {
-            root: `${u.protocol}//${u.host}`,
-            path: `${u.pathname}${u.search}`.replace(/^\/+/, ''),
-        };
-    } catch {
-        return { root: '', path: url };
-    }
-}
-
 function TestEndpointFields({
     entry,
     defaultRoot,
@@ -65,14 +54,16 @@ function TestEndpointFields({
 }) {
     const initial = useMemo(
         () =>
-            entry ? splitEndpointUrl(entry.endpoint) : { root: '', path: '' },
-        [entry],
+            entry
+                ? splitFormFields(entry.endpoint, defaultRoot)
+                : { baseUrl: '', path: '' },
+        [entry, defaultRoot],
     );
     const [name, setName] = useState(entry?.name ?? '');
     const [method, setMethod] = useState<'GET' | 'POST'>(
         entry?.method ?? 'GET',
     );
-    const [baseUrl, setBaseUrl] = useState(initial.root);
+    const [baseUrl, setBaseUrl] = useState(initial.baseUrl);
     const [path, setPath] = useState(initial.path);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<TestEndpointResult | null>(
@@ -84,7 +75,7 @@ function TestEndpointFields({
 
     const paramsChanged = entry
         ? method !== entry.method ||
-          baseUrl.trim() !== initial.root ||
+          baseUrl.trim() !== initial.baseUrl ||
           path.trim() !== initial.path
         : true;
 

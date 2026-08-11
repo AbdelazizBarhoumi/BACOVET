@@ -79,6 +79,50 @@ export type CompositeOperand =
 export type DivZeroDefault = 'zero' | 'blank' | 'na';
 
 /**
+ * Percent-of-total wrapper (W3-2): the numeric body is divided by the same
+ * expression computed over the whole axis (`CALCULATE(…, ALL(axis))`) so each
+ * group shows its share of the grand total. `axis: ''` means the whole target
+ * table (`ALL(to)`).
+ */
+export type PercentOfTotalSpec = {
+    /** column used as the `ALL(…)` denominator context ('' → whole table) */
+    axis: string;
+};
+
+/** Top-N wrapper (W3-3): keep only the `n` rows ordered by a column. */
+export type TopNSpec = {
+    n: number;
+    /** column the rows are ordered by */
+    orderColumn: string;
+    dir: 'desc' | 'asc';
+};
+
+/**
+ * Conditional branch template (W3-6):
+ * `SUMX(<target>, IF(TRIM(to[column]) <op> <literal>, <then>, <else>))`.
+ * Comparison ops use `value`; `in` / `notIn` use `values` rendered as `IN {…}`.
+ */
+export type IfTemplateSpec = {
+    /** column the branch reads on the target table */
+    column: string;
+    op: ValueCondition['op'];
+    /** scalar operand for comparison ops (gt/gte/lt/lte/eq/neq) */
+    value?: string;
+    /** list operand for `in` / `notIn` (rendered as `{ … }`) */
+    values?: string[];
+    /** number literal returned when the condition holds */
+    then: number;
+    /** number literal returned otherwise */
+    else: number;
+};
+
+/** Text-list option (W3-5): `CONCATENATEX(<target>, to[column], <sep>)`. */
+export type ConcatListSpec = {
+    column: string;
+    sep: string;
+};
+
+/**
  * A time-window applied around a numeric result (kind === 'number'). The DAX
  * engine evaluates TOTALYTD / TOTALMTD / CALCULATE+… over the given date-ish
  * column, which may live on any loaded table (`table`).
@@ -131,6 +175,17 @@ export type WizardSpec = {
     conditions?: ConditionGroup;
     /** time window (YTD / MTD / year-ago / M-1) wrapping a numeric result */
     period?: PeriodSpec;
+    /**
+     * Percent-of-total (W3-2): divides the numeric result by the same
+     * expression over the whole axis. When present it wraps `period`.
+     */
+    percentOfTotal?: PercentOfTotalSpec;
+    /** Top-N (W3-3): aggregates only the `n` top/bottom rows. */
+    topN?: TopNSpec;
+    /** Conditional branch template (W3-6) over the target rows. */
+    ifTemplate?: IfTemplateSpec;
+    /** Text-list via CONCATENATEX (W3-5) for kind === 'list'. */
+    concat?: ConcatListSpec;
     /** composed measure (A ÷ B × 100 …). When present, overrides kind/column. */
     composition?: CompositeSpec;
 };

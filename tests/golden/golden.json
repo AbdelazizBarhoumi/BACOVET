@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-09T10:22:00.117Z",
-  "source_signature": "2bdb5f54",
+  "generated_at": "2026-08-10T13:06:29.101Z",
+  "source_signature": "3c579c6b",
   "tables": [
     {
       "name": "itemtrx",
@@ -1484,6 +1484,153 @@
       ]
     },
     {
+      "name": "kpi_rft",
+      "fields": [
+        {
+          "table": "kpi_rft",
+          "name": "chaine",
+          "type": "text"
+        },
+        {
+          "table": "kpi_rft",
+          "name": "ok_premier_coup",
+          "type": "number"
+        },
+        {
+          "table": "kpi_rft",
+          "name": "pieces_controlees",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        {
+          "chaine": "CH02",
+          "ok_premier_coup": 600,
+          "pieces_controlees": 600
+        },
+        {
+          "chaine": "CH03",
+          "ok_premier_coup": 760,
+          "pieces_controlees": 760
+        },
+        {
+          "chaine": "CH03J",
+          "ok_premier_coup": 240,
+          "pieces_controlees": 240
+        },
+        {
+          "chaine": "CH04",
+          "ok_premier_coup": 360,
+          "pieces_controlees": 360
+        },
+        {
+          "chaine": "CH07",
+          "ok_premier_coup": 960,
+          "pieces_controlees": 960
+        },
+        {
+          "chaine": "CH07J",
+          "ok_premier_coup": 532,
+          "pieces_controlees": 532
+        },
+        {
+          "chaine": "CH08",
+          "ok_premier_coup": 260,
+          "pieces_controlees": 260
+        },
+        {
+          "chaine": "CH05",
+          "ok_premier_coup": 660,
+          "pieces_controlees": 660
+        },
+        {
+          "chaine": "CH10",
+          "ok_premier_coup": 440,
+          "pieces_controlees": 440
+        },
+        {
+          "chaine": "CH13",
+          "ok_premier_coup": 400,
+          "pieces_controlees": 400
+        },
+        {
+          "chaine": "CH13J",
+          "ok_premier_coup": 30,
+          "pieces_controlees": 30
+        },
+        {
+          "chaine": "CH14",
+          "ok_premier_coup": 240,
+          "pieces_controlees": 240
+        },
+        {
+          "chaine": "CH16",
+          "ok_premier_coup": 624,
+          "pieces_controlees": 624
+        },
+        {
+          "chaine": "CH17",
+          "ok_premier_coup": 560,
+          "pieces_controlees": 560
+        },
+        {
+          "chaine": "CH11",
+          "ok_premier_coup": 494,
+          "pieces_controlees": 494
+        },
+        {
+          "chaine": "CH11J",
+          "ok_premier_coup": 288,
+          "pieces_controlees": 288
+        },
+        {
+          "chaine": "Departage",
+          "ok_premier_coup": 1244,
+          "pieces_controlees": 1244
+        },
+        {
+          "chaine": "SERG-J",
+          "ok_premier_coup": 2036,
+          "pieces_controlees": 2036
+        },
+        {
+          "chaine": "CH10J",
+          "ok_premier_coup": 671,
+          "pieces_controlees": 672
+        },
+        {
+          "chaine": "CH09J",
+          "ok_premier_coup": 478,
+          "pieces_controlees": 480
+        },
+        {
+          "chaine": "CH08J",
+          "ok_premier_coup": 438,
+          "pieces_controlees": 440
+        },
+        {
+          "chaine": "CH12J",
+          "ok_premier_coup": 486,
+          "pieces_controlees": 490
+        },
+        {
+          "chaine": "CH04J",
+          "ok_premier_coup": 431,
+          "pieces_controlees": 435
+        },
+        {
+          "chaine": "CH05J",
+          "ok_premier_coup": 313,
+          "pieces_controlees": 316
+        },
+        {
+          "chaine": "DEP-J",
+          "ok_premier_coup": 204,
+          "pieces_controlees": 300
+        }
+      ]
+    },
+    {
       "name": "kpi_pareto_defects",
       "fields": [
         {
@@ -1834,6 +1981,137 @@
     "kpi_annee_ratio_numerator": 0,
     "kpi_annee_ratio_denominator": 4,
     "kpi_annee_ratio_div": 0,
+    "kpi_rft_rows": 25,
+    "kpi_rft_ok_first_coup": 13749,
+    "kpi_rft_pieces_controlees": 13861,
+    "kpi_rft_ratio": 99.19197749080153,
+    "kpi_rft_by_chain": {
+      "CH02": {
+        "ok": 600,
+        "controlled": 600,
+        "pct": 100
+      },
+      "CH03": {
+        "ok": 760,
+        "controlled": 760,
+        "pct": 100
+      },
+      "CH03J": {
+        "ok": 240,
+        "controlled": 240,
+        "pct": 100
+      },
+      "CH04": {
+        "ok": 360,
+        "controlled": 360,
+        "pct": 100
+      },
+      "CH04J": {
+        "ok": 431,
+        "controlled": 435,
+        "pct": 99.08045977011494
+      },
+      "CH05": {
+        "ok": 660,
+        "controlled": 660,
+        "pct": 100
+      },
+      "CH05J": {
+        "ok": 313,
+        "controlled": 316,
+        "pct": 99.0506329113924
+      },
+      "CH07": {
+        "ok": 960,
+        "controlled": 960,
+        "pct": 100
+      },
+      "CH07J": {
+        "ok": 532,
+        "controlled": 532,
+        "pct": 100
+      },
+      "CH08": {
+        "ok": 260,
+        "controlled": 260,
+        "pct": 100
+      },
+      "CH08J": {
+        "ok": 438,
+        "controlled": 440,
+        "pct": 99.54545454545455
+      },
+      "CH09J": {
+        "ok": 478,
+        "controlled": 480,
+        "pct": 99.58333333333333
+      },
+      "CH10": {
+        "ok": 440,
+        "controlled": 440,
+        "pct": 100
+      },
+      "CH10J": {
+        "ok": 671,
+        "controlled": 672,
+        "pct": 99.85119047619048
+      },
+      "CH11": {
+        "ok": 494,
+        "controlled": 494,
+        "pct": 100
+      },
+      "CH11J": {
+        "ok": 288,
+        "controlled": 288,
+        "pct": 100
+      },
+      "CH12J": {
+        "ok": 486,
+        "controlled": 490,
+        "pct": 99.18367346938776
+      },
+      "CH13": {
+        "ok": 400,
+        "controlled": 400,
+        "pct": 100
+      },
+      "CH13J": {
+        "ok": 30,
+        "controlled": 30,
+        "pct": 100
+      },
+      "CH14": {
+        "ok": 240,
+        "controlled": 240,
+        "pct": 100
+      },
+      "CH16": {
+        "ok": 624,
+        "controlled": 624,
+        "pct": 100
+      },
+      "CH17": {
+        "ok": 560,
+        "controlled": 560,
+        "pct": 100
+      },
+      "DEP-J": {
+        "ok": 204,
+        "controlled": 300,
+        "pct": 68
+      },
+      "Departage": {
+        "ok": 1244,
+        "controlled": 1244,
+        "pct": 100
+      },
+      "SERG-J": {
+        "ok": 2036,
+        "controlled": 2036,
+        "pct": 100
+      }
+    },
     "pareto_rows": 35,
     "pareto_total_defauts": 854,
     "pareto_part_pct_max_delta": 0.004800936768150521

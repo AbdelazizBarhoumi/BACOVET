@@ -8,6 +8,7 @@ use App\Support\DatasetRows;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -17,7 +18,9 @@ class SyncEndpointData extends Command
 {
     protected $signature = 'sync:endpoint-data
         {--timeout=60 : Per-request timeout in seconds}
-        {--phase=auto : auto|refresh|datasets|all}
+        {--phase=auto : auto|refresh|datasets|all|retry}
+        {--retry=3 : Number of retries per endpoint request (0 = no retry; extra attempts only for 5xx / connection errors)}
+        {--batch=15 : Max concurrent endpoint requests per batch}
         {--dry-run : Fetch live data but do not write data.json}
         {--force : Run even outside the 08:00-21:59 window}
         {--id= : Only refresh the endpoint with this id}';
@@ -25,6 +28,8 @@ class SyncEndpointData extends Command
     protected $description = 'Refresh the endpoint registry (data.json) and/or sync live rows into endpoint_datasets from NOVACITY_BASE_URL';
 
     private const RETRY_KEY = 'endpoints:refresh:retry_pending';
+
+    private const RETRY_IDS_KEY = 'endpoints:refresh:retry_ids';
 
     private const JWT_KEY = 'endpoints:refresh:jwt';
 
@@ -40,22 +45,22 @@ class SyncEndpointData extends Command
 
         $phase = strtolower((string) $this->option('phase'));
 
-        if (! in_array($phase, ['auto', 'refresh', 'datasets', 'all'], true)) {
-            $this->error("Unknown phase '{$phase}' (auto|refresh|datasets|all).");
+        if (! in_array($phase, ['auto', 'refresh', 'datasets', 'all', 'retry'], true)) {
+            $this->error("Unknown phase '{$phase}' (auto|refresh|datasets|all|retry).");
 
             return self::FAILURE;
         }
 
-        $manual = (bool) $this->option('force') || $this->option('id') !== '';
+        $manual = (bool) $this->option('force') || $this->option('id') !== '' || $phase !== 'auto';
 
         $runRefresh = match ($phase) {
-            'refresh', 'all' => true,
-            'auto' => $manual || $this->refreshDue(),
+            'refresh', 'all', 'retry' => true,
+            'auto' => $manual || $this->refreshDue() !== false,
             default => false,
         };
 
         $runDatasets = match ($phase) {
-            'refresh' => false,
+            'refresh', 'retry' => false,
             default => ! ($phase === 'auto' && $manual),
         };
 
@@ -112,13 +117,29 @@ class SyncEndpointData extends Command
 
         $indexes = [];
 
+        $phase = strtolower((string) $this->option('phase'));
         $onlyId = (string) $this->option('id');
+
+        // Retry-only pass: only endpoints currently flagged as retryable
+        // (5xx or connection/timeout failure) are re-fetched.
+        $retryOnly = $onlyId === ''
+            && ($phase === 'retry' || ($phase === 'auto' && $this->refreshDue() === 'retry'));
+
+        $pendingIds = $retryOnly ? $this->pendingRetryIds() : [];
 
         foreach ($items as $i => $item) {
             if ($onlyId !== '') {
                 if ((string) ($item['id'] ?? '') === $onlyId) {
                     $indexes[] = $i;
                     break;
+                }
+
+                continue;
+            }
+
+            if ($retryOnly) {
+                if (in_array((string) ($item['id'] ?? ''), $pendingIds, true)) {
+                    $indexes[] = $i;
                 }
 
                 continue;
@@ -134,6 +155,12 @@ class SyncEndpointData extends Command
         }
 
         if ($indexes === []) {
+            if ($retryOnly) {
+                $this->info('No endpoints pending retry.');
+
+                return self::SUCCESS;
+            }
+
             $this->warn('No endpoints to refresh.');
 
             return self::SUCCESS;
@@ -162,12 +189,16 @@ class SyncEndpointData extends Command
         $apiKey = (string) config('novacity.api_key');
         $staticToken = (string) config('novacity.admin_token');
         $timeout = max(1, (int) $this->option('timeout'));
+        $connectTimeout = max(1, (int) config('novacity.connect_timeout', 15));
+        $retries = max(0, (int) $this->option('retry'));
+        $batchSize = max(1, (int) $this->option('batch'));
         $dryRun = (bool) $this->option('dry-run');
 
-        $urls = array_map(
-            fn ($i) => $this->buildUrl($baseUrl, (string) ($items[$i]['endpoint'] ?? '')),
-            $indexes
-        );
+        $urlByIndex = [];
+
+        foreach ($indexes as $index) {
+            $urlByIndex[$index] = $this->buildUrl($baseUrl, (string) ($items[$index]['endpoint'] ?? ''));
+        }
 
         $hasAdmin = false;
 
@@ -184,37 +215,59 @@ class SyncEndpointData extends Command
         $start = microtime(true);
         $this->info('Refreshing '.count($indexes).' endpoint(s) from '.$baseUrl.($dryRun ? ' [dry-run]' : '').' ...');
 
-        $responses = Http::pool(function (Pool $pool) use ($items, $indexes, $urls, $apiKey, $jwt, $staticToken, $timeout) {
-            foreach ($indexes as $pos => $index) {
-                $isAdmin = str_contains(strtolower((string) ($items[$index]['endpoint'] ?? '')), '/api/admin/');
-                $auth = $isAdmin && $jwt !== null ? $jwt : ($isAdmin ? $staticToken : null);
-
-                $headers = [
-                    'x-api-key' => $apiKey,
-                    'Accept' => 'application/json',
-                ];
-
-                if ($auth !== null && $auth !== '') {
-                    $headers['Authorization'] = 'Bearer '.$auth;
-                }
-
-                $request = $pool->as((string) $index)
-                    ->withHeaders($headers)
-                    ->timeout($timeout);
-
-                if (strtoupper((string) ($items[$index]['method'] ?? 'GET')) === 'POST') {
-                    $request->post($urls[$pos]);
-                } else {
-                    $request->get($urls[$pos]);
-                }
+        $retryWhen = function (mixed $exception): bool {
+            if ($exception instanceof ConnectionException) {
+                return true;
             }
-        });
+
+            return $exception instanceof RequestException
+                && $exception->response !== null
+                && $exception->response->status() >= 500;
+        };
+
+        // Fire the pool in small batches (concurrency cap) so the origin's
+        // proxy/WAF is not overwhelmed — the main source of transient 5xx.
+        $responses = [];
+
+        foreach (array_chunk($indexes, $batchSize) as $batch) {
+            $batchResponses = Http::pool(function (Pool $pool) use ($items, $batch, $urlByIndex, $apiKey, $jwt, $staticToken, $timeout, $connectTimeout, $retries, $retryWhen) {
+                foreach ($batch as $index) {
+                    $isAdmin = str_contains(strtolower((string) ($items[$index]['endpoint'] ?? '')), '/api/admin/');
+                    $auth = $isAdmin && $jwt !== null ? $jwt : ($isAdmin ? $staticToken : null);
+
+                    $headers = [
+                        'x-api-key' => $apiKey,
+                        'Accept' => 'application/json',
+                    ];
+
+                    if ($auth !== null && $auth !== '') {
+                        $headers['Authorization'] = 'Bearer '.$auth;
+                    }
+
+                    $request = $pool->as((string) $index)
+                        ->withHeaders($headers)
+                        ->timeout($timeout)
+                        ->connectTimeout($connectTimeout)
+                        ->retry($retries + 1, 500, $retryWhen);
+
+                    if (strtoupper((string) ($items[$index]['method'] ?? 'GET')) === 'POST') {
+                        $request->post($urlByIndex[$index]);
+                    } else {
+                        $request->get($urlByIndex[$index]);
+                    }
+                }
+            });
+
+            foreach ($batchResponses as $key => $response) {
+                $responses[$key] = $response;
+            }
+        }
 
         $ok = 0;
         $failed = [];
         $now = now()->toIso8601String();
 
-        foreach ($indexes as $pos => $index) {
+        foreach ($indexes as $index) {
             $result = $this->fetchResult($responses[(string) $index] ?? null);
             $items[$index]['checked_at'] = $now;
 
@@ -223,27 +276,31 @@ class SyncEndpointData extends Command
                 $items[$index]['response'] = $result['data'];
                 $items[$index]['last_ok_at'] = $now;
                 $items[$index]['last_error'] = null;
+                $items[$index]['consecutive_failures'] = 0;
                 $ok++;
             } else {
+                $status = $result['status'];
                 $items[$index]['last_error'] = mb_substr((string) $result['error'], 0, 500);
-                $items[$index]['status'] = $result['status'] ?? 500;
+                $items[$index]['last_error_at'] = $now;
+                $items[$index]['status'] = $status ?? 500;
+                $items[$index]['consecutive_failures'] = (int) ($items[$index]['consecutive_failures'] ?? 0) + 1;
                 $failed[] = [
+                    'index' => $index,
+                    'id' => (string) ($items[$index]['id'] ?? ''),
                     'name' => (string) ($items[$index]['name'] ?? ''),
-                    'endpoint' => $urls[$pos],
+                    'endpoint' => $urlByIndex[$index],
                     'error' => $result['error'],
+                    'status' => $status,
                 ];
             }
         }
 
         $elapsed = round(microtime(true) - $start, 2);
         $skipped = count($items) - count($indexes);
+        $pending = $this->reconcileRetryState($items, $failed, $now);
 
         if (! $dryRun) {
-            if ($ok === 0) {
-                Cache::put(self::RETRY_KEY, true, now()->endOfDay());
-            } else {
-                Cache::forget(self::RETRY_KEY);
-            }
+            $this->persistRetryState($pending);
 
             $savedData = $this->saveItems($path, $items);
             $savedMeta = $this->saveMeta([
@@ -252,7 +309,8 @@ class SyncEndpointData extends Command
                 'ok' => $ok,
                 'failed' => count($failed),
                 'skipped' => $skipped,
-                'retry_pending' => (bool) Cache::get(self::RETRY_KEY, false),
+                'retry_pending' => $pending !== [],
+                'retry_pending_count' => count($pending),
             ]);
 
             if (! $savedData || ! $savedMeta) {
@@ -285,7 +343,9 @@ class SyncEndpointData extends Command
         ));
 
         if ($ok === 0) {
-            $this->warn('No endpoint succeeded — hourly retries are armed until a run succeeds or the day ends.');
+            $this->warn('No endpoint succeeded — retryable failures are armed for the next scheduled run.');
+        } elseif ($pending !== []) {
+            $this->warn(count($pending).' retryable endpoint(s) (5xx/timeout) will be retried on the next scheduled run.');
         }
 
         return self::SUCCESS;
@@ -326,6 +386,9 @@ class SyncEndpointData extends Command
 
         $apiKey = (string) config('novacity.api_key');
         $timeout = max(1, (int) $this->option('timeout'));
+        $connectTimeout = max(1, (int) config('novacity.connect_timeout', 15));
+        $retries = max(0, (int) $this->option('retry'));
+        $batchSize = max(1, (int) $this->option('batch'));
 
         $urls = array_map(
             fn (array $ep): string => $this->buildUrl($baseUrl, (string) $ep['endpoint']),
@@ -335,17 +398,37 @@ class SyncEndpointData extends Command
         $start = microtime(true);
         $this->info('Fetching '.count($endpoints).' endpoint(s) from '.$baseUrl.' ...');
 
-        $responses = Http::pool(function (Pool $pool) use ($endpoints, $urls, $apiKey, $timeout) {
-            foreach ($endpoints as $i => $endpoint) {
-                $pool->as((string) $i)
-                    ->withHeaders([
-                        'x-api-key' => $apiKey,
-                        'Accept' => 'application/json',
-                    ])
-                    ->timeout($timeout)
-                    ->get($urls[$i]);
+        $retryWhen = function (mixed $exception): bool {
+            if ($exception instanceof ConnectionException) {
+                return true;
             }
-        });
+
+            return $exception instanceof RequestException
+                && $exception->response !== null
+                && $exception->response->status() >= 500;
+        };
+
+        $responses = [];
+
+        foreach (array_chunk(range(0, count($endpoints) - 1), $batchSize) as $batch) {
+            $batchResponses = Http::pool(function (Pool $pool) use ($batch, $urls, $apiKey, $timeout, $connectTimeout, $retries, $retryWhen) {
+                foreach ($batch as $i) {
+                    $pool->as((string) $i)
+                        ->withHeaders([
+                            'x-api-key' => $apiKey,
+                            'Accept' => 'application/json',
+                        ])
+                        ->timeout($timeout)
+                        ->connectTimeout($connectTimeout)
+                        ->retry($retries + 1, 500, $retryWhen)
+                        ->get($urls[$i]);
+                }
+            });
+
+            foreach ($batchResponses as $key => $response) {
+                $responses[$key] = $response;
+            }
+        }
 
         $syncedAt = now();
         $ok = 0;
@@ -410,27 +493,27 @@ class SyncEndpointData extends Command
     /**
      * Whether the scheduled registry refresh is due today.
      *
-     * Replaces the former dailyAt(08:30) + hourly retry schedule entries:
-     *  - once per day at/after 08:00
-     *  - hourly retries while retry_pending is armed and > 1h since the last attempt
+     *  - once per day at/after 08:00 → 'daily'
+     *  - hourly retries while retryable endpoints (5xx/timeout) are pending
+     *    and > 1h has passed since the last attempt → 'retry'
+     *  - otherwise false
      */
-    private function refreshDue(): bool
+    private function refreshDue(): string|false
     {
         if (! $this->withinWindow()) {
             return false;
         }
 
-        $lastDaily = (string) Cache::get(self::DAILY_KEY, '');
-
-        if ($lastDaily !== now()->toDateString()) {
-            return true;
+        if ((string) Cache::get(self::DAILY_KEY, '') !== now()->toDateString()) {
+            return 'daily';
         }
 
-        if (! (bool) Cache::get(self::RETRY_KEY, false)) {
-            return false;
+        if ($this->pendingRetryIds() !== []
+            && (time() - (int) Cache::get(self::LAST_ATTEMPT_KEY, 0)) >= 3600) {
+            return 'retry';
         }
 
-        return (time() - (int) Cache::get(self::LAST_ATTEMPT_KEY, 0)) >= 3600;
+        return false;
     }
 
     /**
@@ -493,6 +576,107 @@ class SyncEndpointData extends Command
         }
     }
 
+    /**
+     * Pending retryable endpoints (5xx or connection/timeout) keyed by id.
+     *
+     * @return array<int, array{id: string, name: string, status: ?int, attempts: int, last_attempt_at: string}>
+     */
+    private function pendingRetryState(): array
+    {
+        $state = Cache::get(self::RETRY_IDS_KEY, []);
+
+        return is_array($state) ? $state : [];
+    }
+
+    /**
+     * Ids of the endpoints currently pending retry.
+     *
+     * @return list<string>
+     */
+    private function pendingRetryIds(): array
+    {
+        return array_values(array_filter(
+            array_map(
+                fn ($entry): string => is_array($entry) ? (string) ($entry['id'] ?? '') : '',
+                $this->pendingRetryState()
+            ),
+            static fn (string $id): bool => $id !== ''
+        ));
+    }
+
+    /**
+     * A failure is retryable when it is a connection/timeout error (no HTTP
+     * status) or an HTTP 5xx. 4xx errors are permanent — retrying is useless.
+     */
+    private function isRetryableStatus(?int $status): bool
+    {
+        return $status === null || $status >= 500;
+    }
+
+    /**
+     * Reconcile the pending-retry set after a refresh run: failed endpoints
+     * that are retryable (5xx / connection error) are kept/added with a
+     * bumped attempt count; every endpoint that this run fetched successfully
+     * is dropped from the set.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<int, array{index: int, id: string, name: string, endpoint: string, error: string, status: ?int}>  $failed
+     * @return array<int, array{id: string, name: string, status: ?int, attempts: int, last_attempt_at: string}>
+     */
+    private function reconcileRetryState(array $items, array $failed, string $now): array
+    {
+        $state = [];
+
+        foreach ($this->pendingRetryState() as $entry) {
+            if (is_array($entry) && ($entry['id'] ?? '') !== '') {
+                $state[(string) $entry['id']] = $entry;
+            }
+        }
+
+        foreach ($failed as $failure) {
+            $id = $failure['id'];
+
+            if ($id === '' || ! $this->isRetryableStatus($failure['status'])) {
+                continue;
+            }
+
+            $state[$id] = [
+                'id' => $id,
+                'name' => $failure['name'],
+                'status' => $failure['status'],
+                'attempts' => (int) ($state[$id]['attempts'] ?? 0) + 1,
+                'last_attempt_at' => $now,
+            ];
+        }
+
+        // Any endpoint this run fetched successfully leaves the retry set.
+        $okIds = [];
+
+        foreach ($items as $item) {
+            if (is_array($item) && (int) ($item['status'] ?? 0) === 200) {
+                $okIds[(string) ($item['id'] ?? '')] = true;
+            }
+        }
+
+        if ($okIds !== []) {
+            $state = array_filter(
+                $state,
+                static fn (array $entry): bool => ! isset($okIds[$entry['id']])
+            );
+        }
+
+        return array_values($state);
+    }
+
+    /**
+     * Persist the pending-retry set (and the legacy all-or-nothing flag).
+     */
+    private function persistRetryState(array $pending): void
+    {
+        Cache::put(self::RETRY_IDS_KEY, $pending, now()->endOfDay());
+        Cache::put(self::RETRY_KEY, $pending !== [], now()->endOfDay());
+    }
+
     private function dataPath(): string
     {
         return storage_path((string) config('novacity.data_file', 'app/private/data.json'));
@@ -540,6 +724,7 @@ class SyncEndpointData extends Command
             'endpoint' => '',
             'status' => 200,
             'response' => new \stdClass,
+            'consecutive_failures' => 0,
         ], $item);
     }
 
@@ -569,6 +754,10 @@ class SyncEndpointData extends Command
         try {
             if ($response instanceof ConnectionException) {
                 return ['ok' => false, 'data' => null, 'error' => $response->getMessage(), 'status' => null];
+            }
+
+            if ($response instanceof RequestException) {
+                $response = $response->response;
             }
 
             if (! $response instanceof Response) {

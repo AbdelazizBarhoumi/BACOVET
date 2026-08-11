@@ -147,6 +147,8 @@ export function normalizeWellField(
         value.windowDir === 'first' || value.windowDir === 'last'
             ? value.windowDir
             : undefined;
+    const rank = value.rank === true ? true : undefined;
+    const running = value.running === true ? true : undefined;
     return {
         table: reference.table ?? '',
         name: reference.name,
@@ -158,6 +160,8 @@ export function normalizeWellField(
         ...(index !== undefined ? { index } : {}),
         ...(window !== undefined ? { window } : {}),
         ...(windowDir ? { windowDir } : {}),
+        ...(rank ? { rank } : {}),
+        ...(running ? { running } : {}),
     };
 }
 

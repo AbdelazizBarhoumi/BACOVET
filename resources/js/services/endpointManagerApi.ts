@@ -43,7 +43,10 @@ export type EndpointSummary = {
     columns: string[];
     checked_at?: string | null;
     last_ok_at?: string | null;
+    last_error_at?: string | null;
     last_error?: string | null;
+    consecutive_failures?: number;
+    retry_pending?: boolean;
 };
 
 export type EndpointsStats = {
@@ -309,12 +312,32 @@ export type RefreshMeta = {
     failed?: number;
     skipped?: number;
     retry_pending?: boolean;
+    retry_pending_count?: number;
+};
+
+export type RetryRecord = {
+    id: string;
+    name: string;
+    status: number | null;
+    attempts: number;
+    last_attempt_at: string;
+};
+
+export type RefreshResult = {
+    success: boolean;
+    exit_code: number;
+    output: string;
+    meta: RefreshMeta | null;
+    retry_pending_count?: number;
+    retry_ids?: RetryRecord[];
 };
 
 export type EndpointHealth = {
     stats: EndpointsStats;
     meta: RefreshMeta | null;
     retry_pending: boolean;
+    retry_pending_count?: number;
+    retry_ids?: RetryRecord[];
     sync?: {
         last_success_at?: string | null;
         last_run_at?: string | null;
@@ -336,32 +359,42 @@ export const fetchHealth = async (force = false): Promise<EndpointHealth> => {
     return healthCache;
 };
 
-export const triggerRefresh = async (): Promise<{
-    success: boolean;
-    exit_code: number;
-    output: string;
-    meta: RefreshMeta | null;
-}> => {
+export const triggerRefresh = async (): Promise<RefreshResult> => {
     clearEndpointCaches();
-    return fetchWithToken(`${BASE_URL}/novacity-endpoints/refresh`, {
+    return fetchWithToken<RefreshResult>(`${BASE_URL}/novacity-endpoints/refresh`, {
         method: 'POST',
     });
 };
 
 export const triggerEndpointRefresh = async (
     id: string,
-): Promise<{
-    success: boolean;
-    exit_code: number;
-    output: string;
-    meta: RefreshMeta | null;
-    entry?: EndpointSummary;
-}> => {
+): Promise<
+    RefreshResult & { entry?: EndpointSummary }
+> => {
     clearEndpointCaches();
     return fetchWithToken(
         `${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}/refresh`,
         { method: 'POST' },
     );
+};
+
+export const triggerRetryFailed = async (): Promise<RefreshResult> => {
+    clearEndpointCaches();
+    return fetchWithToken<RefreshResult>(
+        `${BASE_URL}/novacity-endpoints/retry-failed`,
+        { method: 'POST' },
+    );
+};
+
+export const rewriteEndpointRoot = async (
+    oldRoot: string,
+    newRoot: string,
+): Promise<{ success: boolean; changed: number }> => {
+    clearEndpointCaches();
+    return fetchWithToken(`${BASE_URL}/novacity-endpoints/rewrite-root`, {
+        method: 'POST',
+        body: JSON.stringify({ old_root: oldRoot, new_root: newRoot }),
+    });
 };
 
 // ── Mutations ────────────────────────────────────────────────────────────

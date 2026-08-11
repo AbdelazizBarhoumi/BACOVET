@@ -225,14 +225,6 @@ export const defaultVisuals = (tables: TableDef[]): Visual[] => {
             }),
         );
     }
-    out.push(
-        mkVisual('card', 278, 16, 250, 120, {
-            values: [wf('Nombre de lignes')],
-            title: 'Nombre de lignes',
-            name: 'Carte — Nombre de lignes',
-            z: 2,
-        }),
-    );
     if (by && val) {
         out.push(
             mkVisual('column', 16, 148, 512, 260, {

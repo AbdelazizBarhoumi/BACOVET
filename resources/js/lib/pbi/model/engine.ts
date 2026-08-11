@@ -674,6 +674,19 @@ function tableRowsFor(table: string, tables?: TableDef[]): Row[] {
 }
 
 /**
+ * The keyword a bare `ASC` / `DESC` (or `'ASC'`) token parses to. Direction
+ * arguments are literal words, not column cells, so `evalCondition` (which
+ * would read a cell) must not be used for them.
+ */
+function dirKeyword(node: MeasureNode | undefined): string {
+    if (!node) return '';
+    if (node.kind === 'col') return String(node.column).toUpperCase();
+    if (node.kind === 'ref') return String(node.name).toUpperCase();
+    if (node.kind === 'string') return String(node.value).toUpperCase();
+    return '';
+}
+
+/**
  * Resolves a single cell of a table-qualified (or bare) column inside an
  * iterator context: the current iteration row first, then enclosing iterator
  * rows (outermost last), then falls back to the loaded table's first row.
@@ -1022,9 +1035,73 @@ function evalScalarFunction(
                     return Math.round(ms / 1000);
             }
         }
+        case 'RANK':
+        case 'RANKX': {
+            // RANKX(<table>, <orderExpr>, [<value>], [<dir>])  (W3-3)
+            // RANK(<value>, <table>, <orderExpr>, [<dir>])
+            // Both return the 1-based ordinal of `value` among the table's
+            // distinct ordered keys (default descending, DAX RANKX default).
+            const isRankx = name === 'RANKX';
+            const tableNode = isRankx ? args[0] : args[1];
+            const orderNode = isRankx ? args[1] : args[2];
+            const valueNode = isRankx ? args[2] : args[0];
+            if (!tableNode || !orderNode) return 0;
+            const frames = evalTableArg(tableNode, ctx);
+            const keys = [
+                ...new Set(
+                    frames.map((f) =>
+                        scalarNumber(evalCondition(orderNode, f, ctx)),
+                    ),
+                ),
+            ].sort((x, y) => x - y);
+            if (!keys.length) return 0;
+            const ascending = dirKeyword(args[3]) === 'ASC';
+            const ordered = ascending ? keys : [...keys].reverse();
+            let value = valueNode
+                ? scalarNumber(evalCondition(valueNode, frame, ctx))
+                : Number.NaN;
+            if (!Number.isFinite(value)) {
+                // RANKX with no explicit value: the current row's own key.
+                value =
+                    frame && isRankx
+                        ? scalarNumber(evalCondition(orderNode, frame, ctx))
+                        : Number.NaN;
+            }
+            if (!Number.isFinite(value)) return 0;
+            const idx = ordered.findIndex((k) => k === value);
+            return idx < 0 ? 0 : idx + 1;
+        }
         default:
             return undefined;
     }
+}
+
+/**
+ * Rows of a table expression with the per-group axis filter removed (W3-1):
+ * `ALL(<col>|<table>)` evaluates against the store's tables (`TABLES`), which
+ * carry the global/slicer filters but *not* the per-group axis slice that lives
+ * in `ctx.tables` — so `CALCULATE(<expr>, ALL(axis))` re-aggregates the scalar
+ * over the whole dataset (the percent-of-total denominator).
+ */
+function unfilteredRows(
+    node: MeasureNode,
+    _ctx: EvalCtx,
+): { table: string; row: Row }[] {
+    let table: string;
+    if (node.kind === 'table') {
+        table = node.name;
+    } else if (node.kind === 'col') {
+        table =
+            node.table ||
+            (TABLES.some((t) => t.name === node.column)
+                ? node.column
+                : findTableForField(node.column, TABLES));
+    } else {
+        throw new MeasureSyntaxError(
+            'ALL() attend une table ou une colonne.',
+        );
+    }
+    return tableRowsFor(table, TABLES).map((row) => ({ table, row }));
 }
 
 /**
@@ -1060,7 +1137,8 @@ function evalTableArg(
     if (node.kind === 'func') {
         const fname = node.name.toUpperCase();
         if (fname === 'TOPN') {
-            const frames = evalTableArg(node.args[0]!, ctx);
+            // DAX signature: TOPN(<n>, <table>, [<orderBy>], [<asc|desc>]).
+            const frames = evalTableArg(node.args[1]!, ctx);
             const orderColumn = node.args[2];
             const ranked = frames
                 .map((frame) => ({
@@ -1068,10 +1146,13 @@ function evalTableArg(
                     key: scalarNumber(evalCondition(orderColumn, frame, ctx)),
                 }))
                 .sort((x, y) => y.key - x.key);
+            // Direction is the optional 4th argument; DAX defaults to descending.
+            const dir = dirKeyword(node.args[3]);
+            if (dir === 'ASC') ranked.reverse();
             const n = Math.max(
                 0,
                 Math.floor(
-                    scalarNumber(evalCondition(node.args[1], null, ctx)),
+                    scalarNumber(evalCondition(node.args[0]!, null, ctx)),
                 ),
             );
             return ranked.slice(0, n).map((r) => r.frame);
@@ -1088,10 +1169,18 @@ function evalTableArg(
             }
             return out;
         }
-        if (fname === 'ALL' || fname === 'ALLEXCEPT' || fname === 'CALCULATE') {
+        if (fname === 'ALL' || fname === 'ALLEXCEPT') {
             const base = node.args[0];
             if (!base)
                 throw new MeasureSyntaxError(`${fname}() attend une table.`);
+            // Remove the per-group axis filter so `COUNTROWS(ALL(t))` /
+            // `SUMX(ALL(t), …)` see the whole dataset (W3-1).
+            return unfilteredRows(base, ctx);
+        }
+        if (fname === 'CALCULATE') {
+            const base = node.args[0];
+            if (!base)
+                throw new MeasureSyntaxError('CALCULATE() attend une table.');
             return evalTableArg(base, ctx);
         }
         if (isTimeFunc(fname)) {
@@ -1378,6 +1467,10 @@ function evalFunction(
                 first.kind === 'col' ||
                 (first.kind === 'func' &&
                     (first.name.toUpperCase() === 'FILTER' ||
+                        first.name.toUpperCase() === 'ALL' ||
+                        first.name.toUpperCase() === 'ALLEXCEPT' ||
+                        first.name.toUpperCase() === 'TOPN' ||
+                        first.name.toUpperCase() === 'CALCULATE' ||
                         isTimeFunc(first.name.toUpperCase()))))
         ) {
             return evalTableArg(first, ctx).length;
@@ -1428,6 +1521,46 @@ function evalFunction(
             return evalNode(expression, windowRows, {
                 ...ctx,
                 strictEmpty: windowRows.length === 0,
+            });
+        }
+        // CALCULATE(<scalar>, ALL(<col>|<table>)) (W3-1): drop the current
+        // group filter so the scalar aggregates over the whole dataset — the
+        // denominator of a percent-of-total. ALLEXCEPT is treated the same way
+        // (the app only authors ALL over the axis column).
+        if (
+            filterArg &&
+            filterArg.kind === 'func' &&
+            (win === 'ALL' || win === 'ALLEXCEPT')
+        ) {
+            const frames = unfilteredRows(filterArg.args[0], ctx);
+            const allRows = frames.map((frame) => frame.row);
+            return evalNode(expression, allRows, {
+                ...ctx,
+                tables: undefined,
+                strictEmpty: allRows.length === 0,
+            });
+        }
+        // CALCULATE(<scalar>, FILTER(<table>, <predicate>)) — wrapped composed
+        // measures. The filter restricts the target-table rows; the descriptor
+        // re-scopes that table's rows so the inner aggregate operands (SUM,
+        // AVERAGE, …) sum only the matching rows.
+        if (filterArg && filterArg.kind === 'func' && win === 'FILTER') {
+            const frames = evalTableArg(filterArg, ctx);
+            const filterRows = frames.map((frame) => frame.row);
+            const filterTable = frames[0]?.table;
+            if (!filterTable) {
+                throw new MeasureSyntaxError(
+                    'CALCULATE() FILTER attend une table.',
+                );
+            }
+            const baseTables = ctx.tables ?? TABLES;
+            const scopedTables = baseTables.map((t) =>
+                t.name === filterTable ? { ...t, rows: filterRows } : t,
+            );
+            return evalNode(expression, [], {
+                ...ctx,
+                tables: scopedTables,
+                strictEmpty: filterRows.length === 0,
             });
         }
         // Any other CALCULATE shape keeps the unsupported-function error.
@@ -1595,21 +1728,44 @@ export function compileMeasure(expression: string): MeasureImpl {
 }
 
 /**
- * Compiles a top-level `VALUES(<column>)` or
- * `VALUES(<table-expr>[<column>])` measure into a list aggregator. Returns
- * `null` when the expression is not a VALUES measure, so the numeric
+ * Compiles a top-level `VALUES(<column>)`, `VALUES(<table-expr>[<column>])`,
+ * or `CONCATENATEX(<table>, <expr>, <delim>)` measure into a list aggregator.
+ * Returns `null` when the expression is none of those, so the numeric
  * `compileMeasure` path keeps handling everything else.
  */
 export function compileListMeasure(expression: string): ListMeasureImpl | null {
     const compiled = tryCompile(expression);
     if (!compiled.ok) return null;
     const node = compiled.node;
-    if (
-        node.kind !== 'func' ||
-        (node.name.toUpperCase() !== 'VALUES' &&
-            node.name.toUpperCase() !== 'DISTINCT')
-    )
-        return null;
+    if (node.kind !== 'func') return null;
+    const topName = node.name.toUpperCase();
+    if (topName === 'CONCATENATEX') {
+        // CONCATENATEX(<table-expr>, <value-expr>, [<delim>]) (W3-5): joins the
+        // per-row values into a single text cell (returned as a one-element
+        // string list so the existing list/chips rendering path shows it).
+        const tableNode = node.args[0];
+        const exprNode = node.args[1];
+        if (!tableNode || !exprNode)
+            throw new MeasureSyntaxError(
+                'CONCATENATEX() attend une table et une expression.',
+            );
+        const delimNode = node.args[2];
+        return (rows, ctx = {}) => {
+            const frames = evalTableArg(tableNode, ctx);
+            const delim =
+                delimNode && delimNode.kind === 'string'
+                    ? delimNode.value
+                    : ', ';
+            const parts = frames
+                .map((frame) => {
+                    const v = evalCondition(exprNode, frame, ctx);
+                    return v === null || v === undefined ? '' : String(v);
+                })
+                .filter((p) => p !== '');
+            return parts.length ? [parts.join(delim)] : [];
+        };
+    }
+    if (topName !== 'VALUES' && topName !== 'DISTINCT') return null;
     const arg = node.args[0];
     if (!arg)
         throw new MeasureSyntaxError(
@@ -1759,6 +1915,12 @@ export function validateMeasureExpression(
             knownColumns.size > 0 &&
             node.column
         ) {
+            // Bare ASC / DESC are the sort-direction keyword of RANKX / TOPN
+            // (parsed as a bare `col`), not column cells — never flag them.
+            if (!node.table) {
+                const bare = node.column.trim().toUpperCase();
+                if (bare === 'ASC' || bare === 'DESC') return;
+            }
             if (!node.table && TABLES.some((t) => t.name === node.column))
                 return;
             if (!knownColumns.has(node.column.trim().toLowerCase())) {
@@ -2232,6 +2394,10 @@ export function buildChartData(
         data.sort((a, b) => Number(b[key]) - Number(a[key]));
     }
 
+    // Rang / Cumul passes (W3-3 / W3-4) — only over the full series with no
+    // legend bucket ("Autre" would corrupt a running total).
+    if (!legendCol && !capped) applyRankRunning(data, values, measureLabel);
+
     return { data, series: [...seriesSet] };
 }
 
@@ -2368,7 +2534,57 @@ export function buildTableCells(
     if (fieldType(axisCol, axis[0]?.table) === 'number')
         data.sort((a, b) => Number(a['category']) - Number(b['category']));
 
+    // Rang / Cumul column passes (W3-3 / W3-4). Only on the non-legend path:
+    // a matrix with a legend has no single row ordering to rank/cumulate over.
+    if (!legendCol) applyRankRunning(data, values, measureLabel);
+
     return { data, series: [...seriesSet] };
+}
+
+/**
+ * Visual-layer "Rang" and "Cumul" passes over the per-group cells built by
+ * `buildTableCells` / `buildChartData` (W3-3 / W3-4):
+ *  - a value with `running` becomes a running / cumulative total across the
+ *    axis order already applied to `data` (numeric axis ascending, otherwise
+ *    group insertion order);
+ *  - a value with `rank` becomes a 1-based descending rank over the whole
+ *    result set (largest value → 1) and `data` is reordered so ranks run 1..N.
+ */
+function applyRankRunning(
+    data: Record<string, unknown>[],
+    values: WellField[],
+    labelOf: (v: WellField) => string,
+): void {
+    const numeric = (v: unknown): number => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+    };
+    for (const v of values) {
+        if (v.running !== true) continue;
+        const label = labelOf(v);
+        let acc = 0;
+        for (const item of data) {
+            acc += numeric(item[label]);
+            item[label] = acc;
+        }
+    }
+    const rankField = values.find((v) => v.rank === true);
+    if (!rankField) return;
+    const label = labelOf(rankField);
+    const entries = data
+        .map((item) => ({ item, value: numeric(item[label]) }))
+        .sort(
+            (a, b) =>
+                b.value - a.value ||
+                String(a.item['category']).localeCompare(
+                    String(b.item['category']),
+                ),
+        );
+    entries.forEach((entry, i) => {
+        entry.item[label] = i + 1;
+    });
+    data.length = 0;
+    for (const entry of entries) data.push(entry.item);
 }
 
 /**

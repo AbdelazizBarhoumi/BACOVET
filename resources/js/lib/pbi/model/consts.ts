@@ -12,7 +12,6 @@ import type {
     DataLabelContent,
     DataLabelPosition,
     DisplayUnit,
-    Field,
     GridlineStyle,
     LegendPosition,
     NumberFormat,
@@ -157,23 +156,8 @@ export const PAGE_PRESETS: {
     { name: 'Personnalisé', width: 1280, height: 720 },
 ];
 
-export const MEASURES: Field[] = [
-    {
-        table: 'Measures',
-        name: 'Nombre de lignes',
-        type: 'number',
-        measure: true,
-        expression: 'Nombre de lignes = COUNTROWS ( <table> )',
-    },
-];
-
 /** Numeric modes of `listAgg`: they operate on numeric codes only. */
 export const LIST_AGG_NUMERIC_MODES: Agg[] = ['sum', 'avg', 'min', 'max'];
-
-/** The built-in measure implementation for "Nombre de lignes". */
-const BUILTIN_COUNTROWS_IMPL = (rows: unknown[]): number => rows.length;
-
-export { BUILTIN_COUNTROWS_IMPL };
 
 const DECIMALS: Record<Exclude<NumberFormat, 'auto'>, number | null> = {
     int: 0,
@@ -297,6 +281,8 @@ const SCALAR_FUNCS = new Set([
     'DATEDIFF',
     'BLANK',
     'NA',
+    'RANK',
+    'RANKX',
 ]);
 
 export { SCALAR_FUNCS };
@@ -312,6 +298,7 @@ const ITERATOR_FUNCS = new Set([
     'MINX',
     'MAXX',
     'PRODUCTX',
+    'CONCATENATEX',
 ]);
 
 export { ITERATOR_FUNCS };

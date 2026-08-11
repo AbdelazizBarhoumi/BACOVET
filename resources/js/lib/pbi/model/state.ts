@@ -2,7 +2,6 @@
 // This module intentionally has no internal `model` dependencies so that
 // `format`, `engine` and `aggregate` can all import it without cycles.
 
-import { BUILTIN_COUNTROWS_IMPL } from './consts';
 import type {
     FieldType,
     ListMeasureImpl,
@@ -16,10 +15,8 @@ export function setTables(tables: TableDef[]): void {
     TABLES = tables;
 }
 
-/** Compiled measure implementations (built-in + custom, via `registerMeasure`). */
-export const MEASURE_IMPL: Record<string, MeasureImpl> = {
-    'Nombre de lignes': BUILTIN_COUNTROWS_IMPL,
-};
+/** Compiled measure implementations (custom, via `registerMeasure`). */
+export const MEASURE_IMPL: Record<string, MeasureImpl> = {};
 
 /** Compiled list-measure (VALUES/DISTINCT) implementations. */
 export const LIST_MEASURE_IMPL: Record<string, ListMeasureImpl> = {};

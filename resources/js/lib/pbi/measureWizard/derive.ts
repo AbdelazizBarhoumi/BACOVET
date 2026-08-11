@@ -1,6 +1,7 @@
 import type {
     CompositeOperand,
     CompositeSpec,
+    ConditionGroup,
     MeasureKind,
     NumericAgg,
     PathHop,
@@ -255,8 +256,367 @@ function splitWindowBody(
     return { body, table: ref[1]!, field: ref[2]!.trim() };
 }
 
+/**
+ * Recognise the percent-of-total wrapper (W3-2):
+ *   DIVIDE(<inner>, CALCULATE(<inner>, ALL(<to>[<axis>])), 0) * 100
+ *   DIVIDE(<inner>, CALCULATE(<inner>, ALL(<to>)), 0) * 100
+ * Returns `null` when not wrapped at the top level.
+ */
+function unwrapPercentOfTotal(
+    s: string,
+): { inner: string; axis: string } | null {
+    const t = s.trim();
+    const scale = /^(.*?)\s*\*\s*100\s*$/i.exec(t);
+    const body = (scale ? scale[1]! : t).trim();
+    const div = /^DIVIDE\(\s*(.+?)\s*,\s*CALCULATE\(\s*\1\s*,\s*ALL\(\s*([a-zA-Z_][\w]*)(?:\s*\[\s*([^\]]+)\s*\])?\s*\)\s*\)\s*,\s*0\s*\)$/i.exec(
+        body,
+    );
+    if (!div) return null;
+    return { inner: div[1]!.trim(), axis: div[3] ? div[3]!.trim() : '' };
+}
+
+/**
+ * Split a measure's target expression into its table and FILTER predicate.
+ * Accepts `<table>` (whole) or `FILTER(<table>, <predicate>)`.
+ */
+function splitTarget(
+    s: string,
+): { to: string; predicate: string | null } | null {
+    const t = s.trim();
+    const fi = checkPrefix(t, 'FILTER');
+    if (fi < 0) {
+        return /^[a-zA-Z_][\w]*$/.test(t) ? { to: t, predicate: null } : null;
+    }
+    const fc = matchingParen(t, fi);
+    if (fc !== t.length - 1) return null;
+    const inner = t.slice(fi + 1, fc).trim();
+    const comma = topLevelComma(inner);
+    if (comma < 0) return null;
+    const to = inner.slice(0, comma).trim();
+    const predicate = inner.slice(comma + 1).trim();
+    if (!/^[a-zA-Z_][\w]*$/.test(to)) return null;
+    return { to, predicate };
+}
+
+/** Recover hops/conditions from a FILTER predicate over `to`. */
+function deriveFiltered(
+    to: string,
+    predicate: string,
+): {
+    from: string;
+    hops: PathHop[];
+    condition?: ValueCondition;
+    conditions?: ConditionGroup;
+} | null {
+    const parsed = parseFilterPredicate(predicate, to);
+    if (parsed === null) return null;
+    const hops = parseChain(parsed.chain.join(' && '));
+    if (hops === null) return null;
+    const from = hops.length ? hops[0]!.from : to;
+    const base: {
+        from: string;
+        hops: PathHop[];
+        condition?: ValueCondition;
+        conditions?: ConditionGroup;
+    } = { from, hops };
+    if (parsed.rows.length === 1) base.condition = parsed.rows[0];
+    else if (parsed.rows.length > 1)
+        base.conditions = { combine: parsed.combine, rows: parsed.rows };
+    return base;
+}
+
+/** Split `s` on top-level commas (ignoring nested parens / quotes). */
+function splitTopLevelArgs(s: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let cur = '';
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i]!;
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+        else if (c === ',' && depth === 0) {
+            parts.push(cur.trim());
+            cur = '';
+            continue;
+        }
+        cur += c;
+    }
+    parts.push(cur.trim());
+    return parts;
+}
+
+/**
+ * Split IF-template args on commas, honouring parens, `{…}` IN lists and
+ * quoted literals (`'a', 'b'` inside braces must not split the args).
+ */
+function splitIfArgs(s: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let brace = 0;
+    let quote: string | null = null;
+    let cur = '';
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i]!;
+        if (quote) {
+            cur += c;
+            if (c === quote) {
+                if (s[i + 1] === quote) {
+                    cur += s[i + 1]!;
+                    i += 1;
+                } else quote = null;
+            }
+            continue;
+        }
+        if (c === "'" || c === '"') {
+            quote = c;
+            cur += c;
+            continue;
+        }
+        if (c === '(') {
+            depth++;
+            cur += c;
+            continue;
+        }
+        if (c === ')') {
+            depth--;
+            cur += c;
+            continue;
+        }
+        if (c === '{') {
+            brace++;
+            cur += c;
+            continue;
+        }
+        if (c === '}') {
+            brace--;
+            cur += c;
+            continue;
+        }
+        if (c === ',' && depth === 0 && brace === 0) {
+            parts.push(cur.trim());
+            cur = '';
+            continue;
+        }
+        cur += c;
+    }
+    parts.push(cur.trim());
+    return parts;
+}
+
+/** The value-side expression of an iterated builder is `<table>[<col>]`. */
+function columnRef(s: string): { table: string; column: string } | null {
+    const m = /^([a-zA-Z_][\w]*)\s*\[\s*([^\]]+)\s*\]$/.exec(s.trim());
+    return m ? { table: m[1]!, column: m[2]!.trim() } : null;
+}
+
+/** Map a `COND_OP_RE` operator token (friends of parseCondition) to an op. */
+function condOpFromToken(tok: string): ValueCondition['op'] | null {
+    const map: Record<string, ValueCondition['op']> = {
+        '>': 'gt',
+        '>=': 'gte',
+        '<': 'lt',
+        '<=': 'lte',
+        '=': 'eq',
+        '<>': 'neq',
+    };
+    return map[tok] ?? null;
+}
+
+/**
+ * Reverse the Top-N wrapper (W3-3):
+ * `SUMX(TOPN(n, <target>, <to>[<orderColumn>], <dir>), <to>[<col>])`, where
+ * `<target>` is `<to>` or `FILTER(<to>, <predicate>)`.
+ */
+function parseTopN(s: string): WizardSpec | null {
+    const t = s.trim();
+    const open = t.indexOf('(');
+    if (open < 0 || t.slice(0, open).trim().toUpperCase() !== 'SUMX') return null;
+    const close = matchingParen(t, open);
+    if (close !== t.length - 1) return null;
+    const comma = topLevelComma(t.slice(open + 1, close));
+    if (comma < 0) return null;
+    const topn = t.slice(open + 1, open + 1 + comma).trim();
+    const ref = columnRef(t.slice(open + 1 + comma + 1, close));
+    if (!ref || !/^TOPN\s*\(/i.test(topn)) return null;
+
+    const tnOpen = topn.indexOf('(');
+    const tnClose = matchingParen(topn, tnOpen);
+    if (tnClose !== topn.length - 1) return null;
+    const args = splitTopLevelArgs(topn.slice(tnOpen + 1, tnClose));
+    if (args.length !== 4) return null;
+    const [nStr, targetStr, orderStr, dirStr] = args;
+    if (!/^[0-9]+$/.test(nStr ?? '')) return null;
+    const target = splitTarget(targetStr ?? '');
+    if (!target || target.to !== ref.table) return null;
+    const order = columnRef(orderStr ?? '');
+    if (!order || order.table !== ref.table) return null;
+    const dir = /^DESC$/i.test(dirStr ?? '')
+        ? ('desc' as const)
+        : /^ASC$/i.test(dirStr ?? '')
+          ? ('asc' as const)
+          : null;
+    if (!dir) return null;
+
+    const spec: WizardSpec = {
+        from: target.to,
+        to: target.to,
+        hops: [],
+        kind: 'number',
+        column: ref.column,
+        agg: 'sum',
+        topN: {
+            n: Number(nStr),
+            orderColumn: order.column,
+            dir,
+        },
+    };
+    if (target.predicate) {
+        const derived = deriveFiltered(target.to, target.predicate);
+        if (derived === null) return null;
+        spec.from = derived.from;
+        spec.hops = derived.hops;
+        spec.condition = derived.condition;
+        spec.conditions = derived.conditions;
+    }
+    return spec;
+}
+
+/**
+ * Reverse the CONCATENATEX text-list (W3-5):
+ * `CONCATENATEX(<target>, <to>[<column>], "<sep>")`.
+ */
+function parseConcat(s: string): WizardSpec | null {
+    const t = s.trim();
+    const open = t.indexOf('(');
+    if (open < 0) return null;
+    if (t.slice(0, open).trim().toUpperCase() !== 'CONCATENATEX') return null;
+    const close = matchingParen(t, open);
+    if (close !== t.length - 1) return null;
+    const args = splitTopLevelArgs(t.slice(open + 1, close));
+    if (args.length < 2) return null;
+    const target = splitTarget(args[0] ?? '');
+    const ref = columnRef(args[1] ?? '');
+    if (!target || !ref || target.to !== ref.table) return null;
+    const sepMatch = /^"((?:[^"]|"")*)"$/.exec((args[2] ?? '').trim());
+    if (!sepMatch) return null;
+
+    const spec: WizardSpec = {
+        from: target.to,
+        to: target.to,
+        hops: [],
+        kind: 'list',
+        column: ref.column,
+        agg: 'count',
+        concat: { column: ref.column, sep: sepMatch[1]!.replace(/""/g, '"') },
+    };
+    if (target.predicate) {
+        const derived = deriveFiltered(target.to, target.predicate);
+        if (derived === null) return null;
+        spec.from = derived.from;
+        spec.hops = derived.hops;
+        spec.condition = derived.condition;
+        spec.conditions = derived.conditions;
+    }
+    return spec;
+}
+
+/**
+ * Reverse the conditional branch template (W3-6):
+ * `SUMX(<target>, IF(TRIM(<to>[<column>]) <op> <value>, <then>, <else>))`.
+ */
+function parseIfTemplate(s: string): WizardSpec | null {
+    const t = s.trim();
+    const open = t.indexOf('(');
+    if (open < 0 || t.slice(0, open).trim().toUpperCase() !== 'SUMX') return null;
+    const close = matchingParen(t, open);
+    if (close !== t.length - 1) return null;
+    const comma = topLevelComma(t.slice(open + 1, close));
+    if (comma < 0) return null;
+    const target = splitTarget(t.slice(open + 1, open + 1 + comma));
+    const ifExpr = t.slice(open + 1 + comma + 1, close).trim();
+    if (!target) return null;
+
+    const ifOpen = ifExpr.indexOf('(');
+    if (ifOpen < 0 || ifExpr.slice(0, ifOpen).trim().toUpperCase() !== 'IF') {
+        return null;
+    }
+    const ifClose = matchingParen(ifExpr, ifOpen);
+    if (ifClose !== ifExpr.length - 1) return null;
+    const args = splitIfArgs(ifExpr.slice(ifOpen + 1, ifClose));
+    if (args.length !== 3) return null;
+    const [condStr, thenStr, elseStr] = args;
+    if (!/^-?\d+(\.\d+)?$/.test((thenStr ?? '').trim()) ||
+        !/^-?\d+(\.\d+)?$/.test((elseStr ?? '').trim())) {
+        return null;
+    }
+
+    const cond = (condStr ?? '').trim();
+    const notInRe = /^(.+?)\s+(NOT\s+IN|IN)\s*\{([\s\S]*)\}\s*$/i.exec(cond);
+    const m = COND_OP_RE.exec(cond);
+    let colPart: string;
+    let op: ValueCondition['op'] | null;
+    let value: string | undefined;
+    let values: string[] | undefined;
+    if (m) {
+        colPart = cond.slice(0, m.index).trim();
+        const valPart = cond.slice(m.index + m[0].length).trim();
+        op = condOpFromToken(m[1]!);
+        if (!op || !isLiteral(valPart)) return null;
+        value = unescapeValue(valPart);
+    } else if (notInRe) {
+        colPart = notInRe[1]!.trim();
+        op = notInRe[2]!.toUpperCase().includes('NOT') ? 'notIn' : 'in';
+        values = splitInList(notInRe[3]!)
+            .map(unescapeValue)
+            .filter((v) => v !== '');
+        if (!values.length) return null;
+    } else {
+        return null;
+    }
+    const colMatch = /^TRIM\(\s*([a-zA-Z_][\w]*)\s*\[\s*([^\]]+)\s*\]\s*\)$/i.exec(
+        colPart,
+    );
+    if (!colMatch || colMatch[1]! !== target.to) return null;
+
+    const spec: WizardSpec = {
+        from: target.to,
+        to: target.to,
+        hops: [],
+        kind: 'number',
+        column: colMatch[2]!.trim(),
+        agg: 'sum',
+        ifTemplate: {
+            column: colMatch[2]!.trim(),
+            op: op!,
+            ...(value !== undefined ? { value } : {}),
+            ...(values !== undefined ? { values } : {}),
+            then: Number(thenStr!.trim()),
+            else: Number(elseStr!.trim()),
+        },
+    };
+    if (target.predicate) {
+        const derived = deriveFiltered(target.to, target.predicate);
+        if (derived === null) return null;
+        spec.from = derived.from;
+        spec.hops = derived.hops;
+        spec.condition = derived.condition;
+        spec.conditions = derived.conditions;
+    }
+    return spec;
+}
+
 export function deriveMeasureSpec(body: string): WizardSpec | null {
     const trimmed = body.trim();
+
+    // ---- percent-of-total wrapper ------------------------------------------
+    // Reverse DIVIDE(<inner>, CALCULATE(<inner>, ALL(…)), 0)*100 so the
+    // "Part du total" toggle re-fills on edit (W3-2).
+    const pctWrapped = unwrapPercentOfTotal(trimmed);
+    if (pctWrapped) {
+        const inner = deriveMeasureSpec(pctWrapped.inner);
+        if (inner === null) return null;
+        return { ...inner, percentOfTotal: { axis: pctWrapped.axis } };
+    }
 
     // ---- time-window wrappers ----------------------------------------------
     // Reverse TOTALYTD / TOTALMTD / CALCULATE(…, PREVIOUSMONTH | SAMEPERIOD-
@@ -268,6 +628,14 @@ export function deriveMeasureSpec(body: string): WizardSpec | null {
         if (inner === null) return null;
         return { ...inner, period: periodWrapped.period };
     }
+
+    // ---- Top-N / CONCATENATEX / IF template --------------------------------
+    const topN = parseTopN(trimmed);
+    if (topN) return topN;
+    const concat = parseConcat(trimmed);
+    if (concat) return concat;
+    const ifTemplate = parseIfTemplate(trimmed);
+    if (ifTemplate) return ifTemplate;
 
     const composite = parseComposition(trimmed);
     if (composite) return composite;
@@ -370,24 +738,19 @@ export function deriveMeasureSpec(body: string): WizardSpec | null {
     // The predicate is a mix of chain edges (`TRIM(a)=TRIM(b)`) and scalar
     // conditions. Classify every segment so multi-condition AND / OR and
     // base-table conditions all round-trip (W2-2, W2-3, W2-4).
-    const parsed = parseFilterPredicate(cond, to);
-    if (parsed === null) return null;
-    const chainStr = parsed.chain.join(' && ');
-    const hops = parseChain(chainStr);
-    if (hops === null) return null;
-    const from = hops.length ? hops[0]!.from : to;
+    const derived = deriveFiltered(to, cond);
+    if (derived === null) return null;
 
     const spec: WizardSpec = {
-        from,
+        from: derived.from,
         to,
-        hops,
+        hops: derived.hops,
         kind: kind as MeasureKind,
         column,
         agg,
     };
-    if (parsed.rows.length === 1) spec.condition = parsed.rows[0];
-    else if (parsed.rows.length > 1)
-        spec.conditions = { combine: parsed.combine, rows: parsed.rows };
+    if (derived.condition) spec.condition = derived.condition;
+    if (derived.conditions) spec.conditions = derived.conditions;
     return spec;
 }
 

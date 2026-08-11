@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { EndpointSummary } from '@/services/endpointManagerApi';
+import { RetryBadge } from './RetryBadge';
 import { StatusBadge } from './StatusBadge';
 
 const SOURCE_STYLES: Record<string, string> = {
@@ -238,7 +239,19 @@ export function EndpointsTable({
                                         <SourceBadge source={item.source} />
                                     </td>
                                     <td className="px-3">
-                                        <StatusBadge status={item.status} />
+                                        <div className="flex items-center gap-1.5">
+                                            <StatusBadge
+                                                status={item.status}
+                                            />
+                                            {item.retry_pending && (
+                                                <RetryBadge
+                                                    attempts={
+                                                        item.consecutive_failures ??
+                                                        1
+                                                    }
+                                                />
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-3 text-right text-xs tabular-nums">
                                         {item.row_count}

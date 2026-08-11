@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { applyTableRows, filterTableRows, type ReportFilter } from './filters';
 import {
     buildMeasureDax,
     chainRowCount,
@@ -1728,5 +1729,486 @@ describe('period / time window (Wave 2 – assistant)', () => {
         // 2019-07-01 only → 30.
         expect(prevR.value).toBe(0);
         expect(slyR.value).toBe(30);
+    });
+});
+
+describe('Wave 3 round-trips (percent-of-total, Top-N, CONCATENATEX, IF template)', () => {
+    const kpi: WizardSpec = {
+        from: 'kpi_br_print',
+        to: 'kpi_br_print',
+        hops: [],
+        kind: 'number',
+        column: 'nb_rejets',
+        agg: 'sum',
+    };
+
+    it('percent-of-total with an axis column round-trips (W3-2)', () => {
+        const spec: WizardSpec = { ...kpi, percentOfTotal: { axis: 'mois' } };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toBe(
+            'DIVIDE(SUM(kpi_br_print[nb_rejets]), CALCULATE(SUM(kpi_br_print[nb_rejets]), ALL(kpi_br_print[mois])), 0) * 100',
+        );
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.percentOfTotal).toEqual({ axis: 'mois' });
+        expect(derived!.agg).toBe('sum');
+    });
+
+    it('percent-of-total over the whole table round-trips (axis "")', () => {
+        const spec: WizardSpec = { ...kpi, percentOfTotal: { axis: '' } };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toBe(
+            'DIVIDE(SUM(kpi_br_print[nb_rejets]), CALCULATE(SUM(kpi_br_print[nb_rejets]), ALL(kpi_br_print)), 0) * 100',
+        );
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.percentOfTotal).toEqual({ axis: '' });
+    });
+
+    it('period + percent-of-total round-trips (percent wraps period)', () => {
+        const spec: WizardSpec = {
+            ...kpi,
+            period: { window: 'ytd', table: 'kpi_br_print', field: 'mois' },
+            percentOfTotal: { axis: 'mois' },
+        };
+        const derived = deriveMeasureSpec(buildMeasureDax(spec));
+        expect(derived).not.toBeNull();
+        expect(derived!.period).toEqual(spec.period);
+        expect(derived!.percentOfTotal).toEqual({ axis: 'mois' });
+    });
+
+    it('Top-N DESC over a linked chain round-trips (W3-3)', () => {
+        const spec: WizardSpec = {
+            ...styleLinkSpec(),
+            kind: 'number',
+            column: 'StyleCode',
+            agg: 'sum',
+            topN: { n: 5, orderColumn: 'StyleCode', dir: 'desc' },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain(
+            'SUMX(TOPN(5, FILTER(codestyle,',
+        );
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.topN).toEqual({
+            n: 5,
+            orderColumn: 'StyleCode',
+            dir: 'desc',
+        });
+        expect(derived!.from).toBe('taging_reel');
+        expect(derived!.hops).toHaveLength(1);
+    });
+
+    it('Top-N ASC over a whole table round-trips', () => {
+        const spec: WizardSpec = {
+            from: 'codestyle',
+            to: 'codestyle',
+            hops: [],
+            kind: 'number',
+            column: 'StyleCode',
+            agg: 'sum',
+            topN: { n: 3, orderColumn: 'SONo', dir: 'asc' },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toBe(
+            'SUMX(TOPN(3, codestyle, codestyle[SONo], ASC), codestyle[StyleCode])',
+        );
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.topN).toEqual({ n: 3, orderColumn: 'SONo', dir: 'asc' });
+    });
+
+    it('CONCATENATEX list with a separator round-trips (W3-5)', () => {
+        const spec: WizardSpec = {
+            ...styleLinkSpec(),
+            kind: 'list',
+            column: 'StyleCode',
+            agg: 'count',
+            concat: { column: 'StyleCode', sep: ' – ' },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain('CONCATENATEX(FILTER(codestyle,');
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.concat).toEqual({ column: 'StyleCode', sep: ' – ' });
+        expect(derived!.kind).toBe('list');
+        expect(derived!.from).toBe('taging_reel');
+    });
+
+    it('IF template recovers its condition, value and branches (W3-6)', () => {
+        const spec: WizardSpec = {
+            from: 'codestyle',
+            to: 'codestyle',
+            hops: [],
+            kind: 'number',
+            column: 'StyleCode',
+            agg: 'sum',
+            ifTemplate: {
+                column: 'StyleCode',
+                op: 'eq',
+                value: 'P01',
+                then: 1,
+                else: 0,
+            },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toBe(
+            "SUMX(codestyle, IF(TRIM(codestyle[StyleCode]) = 'P01', 1, 0))",
+        );
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.ifTemplate).toEqual(spec.ifTemplate);
+    });
+
+    it('IF template apostrophes survive the round-trip', () => {
+        const spec: WizardSpec = {
+            from: 'codestyle',
+            to: 'codestyle',
+            hops: [],
+            kind: 'number',
+            column: 'StyleCode',
+            agg: 'sum',
+            ifTemplate: {
+                column: 'SONo',
+                op: 'eq',
+                value: "O'Brien",
+                then: 1,
+                else: 0,
+            },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain("= 'O''Brien', 1, 0)");
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.ifTemplate).toEqual(spec.ifTemplate);
+    });
+
+    it('IF template over a filtered target keeps the chain', () => {
+        const spec: WizardSpec = {
+            ...styleLinkSpec(),
+            kind: 'number',
+            column: 'StyleCode',
+            agg: 'sum',
+            ifTemplate: {
+                column: 'SONo',
+                op: 'gt',
+                value: '100',
+                then: 1,
+                else: 0,
+            },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain('SUMX(FILTER(codestyle,');
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.ifTemplate).toEqual(spec.ifTemplate);
+        expect(derived!.from).toBe('taging_reel');
+        expect(derived!.hops).toHaveLength(1);
+    });
+
+    it('IF template with an IN list emits {…} and round-trips (full ops)', () => {
+        const spec: WizardSpec = {
+            from: 'codestyle',
+            to: 'codestyle',
+            hops: [],
+            kind: 'number',
+            column: 'StyleCode',
+            agg: 'sum',
+            ifTemplate: {
+                column: 'StyleCode',
+                op: 'in',
+                values: ['P01', 'P02'],
+                then: 1,
+                else: 0,
+            },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toBe(
+            "SUMX(codestyle, IF(TRIM(codestyle[StyleCode]) IN {'P01', 'P02'}, 1, 0))",
+        );
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.ifTemplate).toEqual(spec.ifTemplate);
+    });
+
+    it('IF template with a NOT IN list round-trips (full ops)', () => {
+        const spec: WizardSpec = {
+            from: 'codestyle',
+            to: 'codestyle',
+            hops: [],
+            kind: 'number',
+            column: 'StyleCode',
+            agg: 'sum',
+            ifTemplate: {
+                column: 'SONo',
+                op: 'notIn',
+                values: ['4524091437'],
+                then: 1,
+                else: 0,
+            },
+        };
+        const dax = buildMeasureDax(spec);
+        expect(dax).toContain('NOT IN {4524091437}');
+        const derived = deriveMeasureSpec(dax);
+        expect(derived).not.toBeNull();
+        expect(derived!.ifTemplate).toEqual(spec.ifTemplate);
+    });
+
+    it('composed measure with a condition wraps in CALCULATE + FILTER and evaluates', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                    { table: 'kpi_a', name: 'Zone', type: 'text' },
+                ],
+                rows: [
+                    { Rejets: 25, Inspections: 200, Zone: 'N' },
+                    { Rejets: 5, Inspections: 0, Zone: 'N' },
+                    { Rejets: 70, Inspections: 300, Zone: 'S' },
+                ],
+            },
+        ]);
+        const spec: WizardSpec = {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: 'Rejets',
+            agg: 'sum',
+            conditions: {
+                combine: 'and',
+                rows: [{ column: 'Zone', op: 'eq', value: 'N' }],
+            },
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+            },
+        };
+        const body = buildMeasureDax(spec);
+        expect(body).toBe(
+            "CALCULATE(DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100, FILTER(kpi_a, TRIM(kpi_a[Zone]) = 'N'))",
+        );
+        const r = evaluateMeasure(measureExpression('Taux', spec), []);
+        expect(r.error).toBeUndefined();
+        // Filtered rows: 30 / 200 * 100
+        expect(r.value).toBe(15);
+    });
+
+    it('composed measure with a condition keeps the bare ratio when none is set', () => {
+        const spec: WizardSpec = {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: 'Rejets',
+            agg: 'sum',
+            composition: {
+                a: { type: 'number', value: 2 },
+                b: { type: 'number', value: 4 },
+                op: '/',
+                scale: true,
+            },
+        };
+        expect(buildMeasureDax(spec)).toBe('DIVIDE(2, 4, 0) * 100');
+    });
+
+    it('composed measure wraps in percent-of-total over the whole table', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                ],
+                rows: [
+                    { Rejets: 25, Inspections: 200 },
+                    { Rejets: 5, Inspections: 0 },
+                ],
+            },
+        ]);
+        const spec: WizardSpec = {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: 'Rejets',
+            agg: 'sum',
+            percentOfTotal: { axis: '' },
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+            },
+        };
+        const body = buildMeasureDax(spec);
+        expect(body).toBe(
+            'DIVIDE(DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100, CALCULATE(DIVIDE(SUM(kpi_a[Rejets]), SUM(kpi_a[Inspections]), 0) * 100, ALL(kpi_a)), 0) * 100',
+        );
+        const derived = deriveMeasureSpec(body);
+        expect(derived).not.toBeNull();
+        expect(derived!.percentOfTotal).toEqual({ axis: '' });
+        expect(derived!.composition).toEqual(spec.composition);
+        const r = evaluateMeasure(measureExpression('Taux', spec), []);
+        expect(r.error).toBeUndefined();
+        expect(r.value).toBe(100);
+    });
+
+    it('composed measure wraps in a time window (period)', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'mois', type: 'text' },
+                ],
+                rows: [{ Rejets: 10, mois: '2024-01' }],
+            },
+        ]);
+        const spec: WizardSpec = {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: 'Rejets',
+            agg: 'sum',
+            period: { window: 'ytd', table: 'kpi_a', field: 'mois' },
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: { type: 'number', value: 2 },
+                op: '/',
+                scale: true,
+            },
+        };
+        const body = buildMeasureDax(spec);
+        expect(body).toBe(
+            'TOTALYTD(DIVIDE(SUM(kpi_a[Rejets]), 2, 0) * 100, kpi_a[mois])',
+        );
+        const derived = deriveMeasureSpec(body);
+        expect(derived).not.toBeNull();
+        expect(derived!.period).toEqual(spec.period);
+        expect(derived!.composition).toEqual(spec.composition);
+    });
+});
+
+describe('first-pass day KPI — « pièces OK premier coup / produites» par chaîne, jour (W4-3)', () => {
+    // Mirror of the real kpi_rft snapshot ("RFT par chaîne — jour", date: today):
+    // per-chain rows carrying ok_premier_coup and pieces_controlees (controlled).
+    const kpiRft: TableDef = {
+        name: 'kpi_rft',
+        fields: [
+            { table: 'kpi_rft', name: 'chaine', type: 'text' },
+            { table: 'kpi_rft', name: 'ok_premier_coup', type: 'number' },
+            { table: 'kpi_rft', name: 'pieces_controlees', type: 'number' },
+        ],
+        rows: [
+            { chaine: 'CH02', ok_premier_coup: 600, pieces_controlees: 600 },
+            { chaine: 'CH03', ok_premier_coup: 760, pieces_controlees: 760 },
+            { chaine: 'DEP-J', ok_premier_coup: 204, pieces_controlees: 300 },
+        ],
+    };
+
+    function firstPassSpec(): WizardSpec {
+        return {
+            from: 'kpi_rft',
+            to: 'kpi_rft',
+            hops: [],
+            kind: 'number',
+            column: 'ok_premier_coup',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_rft',
+                    column: 'ok_premier_coup',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_rft',
+                    column: 'pieces_controlees',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+                divZero: 'zero',
+            },
+        };
+    }
+
+    it('W4-3.2 the Composition step emits the exact KPI: DIVIDE(SUM(ok), SUM(controlées), 0) * 100', () => {
+        const dax = measureExpression('Rft Jour', firstPassSpec());
+        expect(dax).toBe(
+            'Rft Jour = DIVIDE(SUM(kpi_rft[ok_premier_coup]), SUM(kpi_rft[pieces_controlees]), 0) * 100',
+        );
+    });
+
+    it('W4-3.2 the KPI round-trips through deriveMeasureSpec on edit', () => {
+        const body = buildMeasureDax(firstPassSpec());
+        const derived = deriveMeasureSpec(body);
+        expect(derived).not.toBeNull();
+        expect(derived!.composition).toEqual(firstPassSpec().composition);
+        expect(derived!.to).toBe('kpi_rft');
+    });
+
+    it('W4-3.2 evaluates to the day first-pass ratio over the loaded rows', () => {
+        setTables([kpiRft]);
+        const r = evaluateMeasure(measureExpression('Rft Jour', firstPassSpec()), []);
+        expect(r.error).toBeUndefined();
+        // (600 + 760 + 204) / (600 + 760 + 300) * 100 = 1564 / 1660 * 100 ≈ 94.2169
+        expect(r.value).toBeCloseTo((1564 / 1660) * 100, 6);
+    });
+
+    it('W4-3.3 the same fraction grouped per chaîne yields one ratio per chain', () => {
+        setTables([kpiRft]);
+        const impl = compileMeasure(measureExpression('Rft Jour', firstPassSpec()));
+        expect(impl).not.toBeNull();
+        const ctx = (chaine: string) => ({
+            tables: applyTableRows(
+                [kpiRft],
+                filterTableRows([kpiRft], [
+                    {
+                        column: 'chaine',
+                        table: 'kpi_rft',
+                        values: [chaine],
+                        scope: 'report',
+                        type: 'list',
+                    } satisfies ReportFilter,
+                ]),
+            ),
+        });
+        expect(impl!([], ctx('CH02'))).toBe(100);
+        expect(impl!([], ctx('CH03'))).toBe(100);
+        expect(impl!([], ctx('DEP-J'))).toBe(68);
     });
 });

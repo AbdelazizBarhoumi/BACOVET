@@ -24,6 +24,7 @@ import { useEndpoints } from '@/hooks/use-endpoints';
 import { inferEntryKeys } from '@/lib/relationship-utils';
 import {
     fetchEndpoint,
+    rewriteEndpointRoot,
     triggerEndpointRefresh,
     triggerRefresh,
     type EndpointEntry,
@@ -110,6 +111,7 @@ export function EndpointsManager() {
 
     const [globalRoot, setGlobalRoot] = useState('');
     const [rootSaved, setRootSaved] = useState(false);
+    const rootRef = useRef('');
 
     // Load the global endpoint root: saved setting first, then .env config.
     useEffect(() => {
@@ -121,7 +123,9 @@ export function EndpointsManager() {
             .then((data) => {
                 if (cancelled) return;
                 if (data?.value) {
-                    setGlobalRoot(String(data.value));
+                    const value = String(data.value);
+                    setGlobalRoot(value);
+                    rootRef.current = value;
                     return;
                 }
                 fetch('/novacity-config', {
@@ -130,7 +134,9 @@ export function EndpointsManager() {
                     .then((r) => (r.ok ? r.json() : null))
                     .then((config) => {
                         if (cancelled || !config?.base_url) return;
-                        setGlobalRoot(String(config.base_url));
+                        const value = String(config.base_url);
+                        setGlobalRoot(value);
+                        rootRef.current = value;
                     })
                     .catch(() => {});
             })
@@ -140,34 +146,64 @@ export function EndpointsManager() {
         };
     }, []);
 
-    const handleRootChange = useCallback((value: string) => {
-        setGlobalRoot(value);
-        setRootSaved(false);
-        if (rootTimerRef.current) {
-            clearTimeout(rootTimerRef.current);
-        }
-        rootTimerRef.current = setTimeout(() => {
-            const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-            fetch('/api/settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    ...(xsrf
-                        ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrf[1]) }
-                        : {}),
-                },
-                body: JSON.stringify({
-                    key: 'novacity_base_url',
-                    value: value.trim(),
-                }),
-            })
-                .then((r) => r.ok)
-                .then((ok) => setRootSaved(ok))
-                .catch(() => setRootSaved(false));
-        }, 600);
-    }, []);
+    const handleRootChange = useCallback(
+        (value: string) => {
+            setGlobalRoot(value);
+            setRootSaved(false);
+            if (rootTimerRef.current) {
+                clearTimeout(rootTimerRef.current);
+            }
+            rootTimerRef.current = setTimeout(() => {
+                const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+                fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        ...(xsrf
+                            ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrf[1]) }
+                            : {}),
+                    },
+                    body: JSON.stringify({
+                        key: 'novacity_base_url',
+                        value: value.trim(),
+                    }),
+                })
+                    .then((r) => r.ok)
+                    .then(async (ok) => {
+                        setRootSaved(ok);
+                        if (!ok) return;
+                        const newRoot = value.trim();
+                        const oldRoot = rootRef.current;
+                        rootRef.current = newRoot;
+                        if (!oldRoot || !newRoot || oldRoot === newRoot) {
+                            return;
+                        }
+                        try {
+                            const result = await rewriteEndpointRoot(
+                                oldRoot,
+                                newRoot,
+                            );
+                            if (result.changed > 0) {
+                                toast.success(
+                                    `${result.changed} endpoint(s) mis à jour vers la nouvelle racine`,
+                                );
+                            }
+                        } catch (err) {
+                            toast.error(
+                                err instanceof Error
+                                    ? err.message
+                                    : 'Échec de la mise à jour des endpoints',
+                            );
+                        }
+                        applyFilters(toFilters(toolbar));
+                    })
+                    .catch(() => setRootSaved(false));
+            }, 600);
+        },
+        [applyFilters, toolbar],
+    );
 
     useEffect(
         () => () => {

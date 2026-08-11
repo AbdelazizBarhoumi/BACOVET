@@ -199,7 +199,9 @@ export function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         [],
         visual.values.length
             ? visual.values
-            : [{ table: 'Measures', name: 'Nombre de lignes', agg: 'sum' }],
+            : textKey
+              ? [{ table: '', name: textKey, agg: 'count' }]
+              : [],
         [],
         undefined,
         undefined,
