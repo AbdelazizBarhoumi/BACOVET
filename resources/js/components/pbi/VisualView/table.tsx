@@ -5,10 +5,12 @@ import { iconById } from '@/lib/pbi/icons';
 import {
     buildTableCells,
     fieldLabel,
+    fieldType,
     isListMeasure,
     listTreatment,
     measureLabel,
     normalizeConditionalFormat,
+    singleValueLabel,
     type ConditionalFormat,
     type Row,
     type Visual,
@@ -155,7 +157,13 @@ export function TableVisual({
             ? (visual.values[0] ?? null)
             :
               visual.values.find(
-                  (v) => measureLabel(v) === s || fieldLabel(v) === s,
+                  (v) =>
+                      measureLabel(v) === s ||
+                      fieldLabel(v) === s ||
+                      singleValueLabel(
+                          v,
+                          fieldType(v.name, v.table),
+                      ) === s,
               ) ?? null;
 
     const numericSeries = series.filter((s) =>

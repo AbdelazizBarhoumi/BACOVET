@@ -506,6 +506,19 @@ export function VisualizationsPane({
                                     ].includes(name) &&
                                     fieldType(f.name, f.table) === 'number' &&
                                     !isMeasure(f.name);
+                                const tableValueWell =
+                                    name === 'values' &&
+                                    (selected.type === 'table' ||
+                                        selected.type === 'matrix');
+                                // Row-detail mode: raw per-row values. Text
+                                // defaults to it (unless an explicit collapse
+                                // choice is set); numeric opts in via detail.
+                                const detailOn =
+                                    tableValueWell &&
+                                    !isMeasure(f.name) &&
+                                    (f.detail === true ||
+                                        (!numericField &&
+                                            f.valueAggregation === undefined));
                                 return (
                                     <Fragment key={`${f.name}-${i}`}>
                                         <div
@@ -539,7 +552,7 @@ export function VisualizationsPane({
                                                     ? measureLabel(f)
                                                     : fieldLabel(f)}
                                             </span>
-                                            {numericField && (
+                                            {numericField && !detailOn && (
                                                 <select
                                                     value={f.agg}
                                                     onChange={(e) =>
@@ -551,6 +564,7 @@ export function VisualizationsPane({
                                                                 .value as Agg,
                                                         )
                                                     }
+                                                    data-testid={`agg-select-${name}-${i}`}
                                                     className="rounded border border-border bg-background text-[10px]"
                                                 >
                                                     {AGGS.map((a) => (
@@ -565,7 +579,8 @@ export function VisualizationsPane({
                                             )}
                                             {SINGLE_VALUE_WELLS.has(name) &&
                                                 !numericField &&
-                                                !isMeasure(f.name) && (
+                                                !isMeasure(f.name) &&
+                                                !detailOn && (
                                                     <select
                                                         value={
                                                             f.valueAggregation ??
@@ -580,6 +595,7 @@ export function VisualizationsPane({
                                                                     .value as ValueAggregationMode,
                                                             )
                                                         }
+                                                        data-testid={`value-agg-select-${name}-${i}`}
                                                         className="rounded border border-border bg-background text-[10px]"
                                                     >
                                                         {VALUE_AGGREGATION_MODES.map(
@@ -674,78 +690,137 @@ export function VisualizationsPane({
                                         {SINGLE_VALUE_WELLS.has(name) &&
                                             !isMeasure(f.name) && (
                                                 <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-dashed border-border/60 bg-background/60 px-2 py-1 text-[10px] text-muted-foreground">
-                                                    {((numericField &&
-                                                        f.agg === 'nth') ||
-                                                        (!numericField &&
-                                                            (f.valueAggregation ??
-                                                                'first') ===
-                                                                'nth')) && (
+                                                    {tableValueWell && (
+                                                        <label
+                                                            className="flex cursor-pointer items-center gap-1"
+                                                            title="Afficher chaque ligne de données avec sa valeur brute (désactive la synthèse par groupe)"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                data-testid={`detail-toggle-${name}-${i}`}
+                                                                checked={
+                                                                    detailOn
+                                                                }
+                                                                onChange={() =>
+                                                                    detailOn
+                                                                        ? patchWellField(
+                                                                              selected.id,
+                                                                              name,
+                                                                              i,
+                                                                              numericField
+                                                                                  ? {
+                                                                                        detail: false,
+                                                                                    }
+                                                                                  : {
+                                                                                        detail: false,
+                                                                                        valueAggregation:
+                                                                                            'first',
+                                                                                        index: undefined,
+                                                                                        window: undefined,
+                                                                                        windowDir: undefined,
+                                                                                    },
+                                                                          )
+                                                                        : patchWellField(
+                                                                              selected.id,
+                                                                              name,
+                                                                              i,
+                                                                              {
+                                                                                  detail: true,
+                                                                                  valueAggregation:
+                                                                                      undefined,
+                                                                                  index: undefined,
+                                                                                  window: undefined,
+                                                                                  windowDir: undefined,
+                                                                              },
+                                                                          )
+                                                                }
+                                                            />
+                                                            Détail des
+                                                            lignes
+                                                        </label>
+                                                    )}
+                                                    {!detailOn &&
+                                                        ((numericField &&
+                                                            f.agg ===
+                                                                'nth') ||
+                                                            (!numericField &&
+                                                                (f.valueAggregation ??
+                                                                    'first') ===
+                                                                    'nth')) && (
+                                                            <label className="flex items-center gap-1">
+                                                                Position
+                                                                <InlineIntInput
+                                                                    value={
+                                                                        f.index
+                                                                    }
+                                                                    min={1}
+                                                                    placeholder="1"
+                                                                    onCommit={(
+                                                                        v,
+                                                                    ) =>
+                                                                        patchWellField(
+                                                                            selected.id,
+                                                                            name,
+                                                                            i,
+                                                                            {
+                                                                                index: v,
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </label>
+                                                        )}
+                                                    {!detailOn && (
                                                         <label className="flex items-center gap-1">
-                                                            Position
+                                                            <select
+                                                                value={
+                                                                    f.windowDir ??
+                                                                    'last'
+                                                                }
+                                                                onChange={(
+                                                                    e,
+                                                                ) =>
+                                                                    patchWellField(
+                                                                        selected.id,
+                                                                        name,
+                                                                        i,
+                                                                        {
+                                                                            windowDir:
+                                                                                e
+                                                                                    .target
+                                                                                    .value as
+                                                                                    | 'first'
+                                                                                    | 'last',
+                                                                        },
+                                                                    )
+                                                                }
+                                                                className="rounded border border-border bg-background text-[10px]"
+                                                            >
+                                                                <option value="last">
+                                                                    Derniers
+                                                                </option>
+                                                                <option value="first">
+                                                                    Premiers
+                                                                </option>
+                                                            </select>
                                                             <InlineIntInput
-                                                                value={f.index}
+                                                                value={f.window}
                                                                 min={1}
-                                                                placeholder="1"
+                                                                placeholder="toutes"
                                                                 onCommit={(v) =>
                                                                     patchWellField(
                                                                         selected.id,
                                                                         name,
                                                                         i,
                                                                         {
-                                                                            index: v,
+                                                                            window: v,
                                                                         },
                                                                     )
                                                                 }
                                                             />
+                                                            <span>lignes</span>
                                                         </label>
                                                     )}
-                                                    <label className="flex items-center gap-1">
-                                                        <select
-                                                            value={
-                                                                f.windowDir ??
-                                                                'last'
-                                                            }
-                                                            onChange={(e) =>
-                                                                patchWellField(
-                                                                    selected.id,
-                                                                    name,
-                                                                    i,
-                                                                    {
-                                                                        windowDir:
-                                                                            e
-                                                                                .target
-                                                                                .value as
-                                                                                | 'first'
-                                                                                | 'last',
-                                                                    },
-                                                                )
-                                                            }
-                                                            className="rounded border border-border bg-background text-[10px]"
-                                                        >
-                                                            <option value="last">
-                                                                Derniers
-                                                            </option>
-                                                            <option value="first">
-                                                                Premiers
-                                                            </option>
-                                                        </select>
-                                                        <InlineIntInput
-                                                            value={f.window}
-                                                            min={1}
-                                                            placeholder="toutes"
-                                                            onCommit={(v) =>
-                                                                patchWellField(
-                                                                    selected.id,
-                                                                    name,
-                                                                    i,
-                                                                    {
-                                                                        window: v,
-                                                                    },
-                                                                )
-                                                            }
-                                                        />
-                                                        <span>lignes</span>
-                                                    </label>
                                                 </div>
                                             )}
                                     </Fragment>

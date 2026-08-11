@@ -769,7 +769,9 @@ describe('singleValue — string/date support for single-value visuals', () => {
         expect(singleValue(rows, text, 'first')).toBe('Open');
         expect(singleValue(rows, text, 'latest')).toBe('Closed');
         expect(singleValue(rows, text, 'count')).toBe(2);
-        expect(singleValueLabel(text, 'text', 'first')).toBe('Status');
+        expect(singleValueLabel(text, 'text', 'first')).toBe(
+            'Premier de Status',
+        );
         expect(singleValueLabel(text, 'text', 'count')).toBe(
             'Nombre de Status',
         );
@@ -798,7 +800,7 @@ describe('singleValue — string/date support for single-value visuals', () => {
             valueAggregation: 'latest' as const,
         };
         expect(singleValue(rows, text)).toBe('Closed');
-        expect(singleValueLabel(text, 'text')).toBe('Status');
+        expect(singleValueLabel(text, 'text')).toBe('Dernier de Status');
         expect(
             singleValue(rows, { ...text, valueAggregation: 'count' as const }),
         ).toBe(2);
@@ -864,6 +866,7 @@ describe('singleValue — list-style aggregations (nth + window)', () => {
         expect(aggregate(rows, { ...wf, index: 5 })).toBe(5);
         expect(aggregate(rows, { ...wf, index: 99 })).toBe(0);
         expect(singleValue(rows, { ...wf, index: 2 })).toBe(2);
+        expect(singleValue(rows, { ...wf, index: 99 })).toBeNull();
     });
 
     it('picks the nth non-null cell for text fields', () => {
@@ -2005,6 +2008,271 @@ describe('buildTableCells — per-row list (W1-12/14)', () => {
         expect(isListMeasure('My Orders')).toBe(true);
         unregisterMeasure('My Orders');
         expect(isListMeasure('My Orders')).toBe(false);
+    });
+});
+
+describe('buildTableCells — text value aggregation choices (row-detail vs grouped)', () => {
+    const people: TableDef = {
+        name: 'employees',
+        fields: [
+            { table: 'employees', name: 'Id', type: 'text' },
+            { table: 'employees', name: 'Name', type: 'text' },
+            { table: 'employees', name: 'Qty', type: 'number' },
+        ],
+        rows: [
+            { Id: 'E1', Name: 'Ada', Qty: 10 },
+            { Id: 'E1', Name: 'Ada B', Qty: 20 },
+            { Id: 'E2', Name: 'Eve', Qty: 40 },
+        ],
+    };
+    beforeAll(() => setTables([structuredClone(people)]));
+    const axis: WellField = { table: 'employees', name: 'Id', agg: 'sum' };
+
+    it('default (no valueAggregation) keeps the raw row-detail list', () => {
+        const value: WellField = { table: 'employees', name: 'Name', agg: 'count' };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Name']);
+        expect(data).toEqual([
+            { category: 'E1', Name: 'Ada' },
+            { category: 'E1', Name: 'Ada B' },
+            { category: 'E2', Name: 'Eve' },
+        ]);
+    });
+
+    it("'first' collapses each group to its first non-empty code", () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'first',
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Premier de Name']);
+        expect(data).toEqual([
+            { category: 'E1', 'Premier de Name': 'Ada' },
+            { category: 'E2', 'Premier de Name': 'Eve' },
+        ]);
+    });
+
+    it("'latest' collapses each group to its last non-empty code", () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'latest',
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Dernier de Name']);
+        expect(data).toEqual([
+            { category: 'E1', 'Dernier de Name': 'Ada B' },
+            { category: 'E2', 'Dernier de Name': 'Eve' },
+        ]);
+    });
+
+    it("'count' collapses each group to its number of rows", () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'count',
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Nombre de Name']);
+        expect(data).toEqual([
+            { category: 'E1', 'Nombre de Name': 2 },
+            { category: 'E2', 'Nombre de Name': 1 },
+        ]);
+    });
+
+    it("'nth' picks the code at the given 1-based position", () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'nth',
+            index: 2,
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Valeur N°2 de Name']);
+        expect(data).toEqual([
+            { category: 'E1', 'Valeur N°2 de Name': 'Ada B' },
+            { category: 'E2', 'Valeur N°2 de Name': null },
+        ]);
+    });
+});
+
+describe('buildTableCells — numeric row-detail vs grouped', () => {
+    const people: TableDef = {
+        name: 'employees',
+        fields: [
+            { table: 'employees', name: 'Id', type: 'text' },
+            { table: 'employees', name: 'Name', type: 'text' },
+            { table: 'employees', name: 'Qty', type: 'number' },
+        ],
+        rows: [
+            { Id: 'E1', Name: 'Ada', Qty: 10 },
+            { Id: 'E1', Name: 'Ada B', Qty: 20 },
+            { Id: 'E2', Name: 'Eve', Qty: 40 },
+        ],
+    };
+    beforeAll(() => setTables([structuredClone(people)]));
+    const axis: WellField = { table: 'employees', name: 'Id', agg: 'sum' };
+
+    it('numeric values group by default (aggregate per axis group)', () => {
+        const value: WellField = { table: 'employees', name: 'Qty', agg: 'sum' };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Somme de Qty']);
+        expect(data).toEqual([
+            { category: 'E1', 'Somme de Qty': 30 },
+            { category: 'E2', 'Somme de Qty': 40 },
+        ]);
+    });
+
+    it('numeric values with detail:true render the raw per-row list', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Qty',
+            agg: 'sum',
+            detail: true,
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Qty']);
+        expect(data).toEqual([
+            { category: 'E1', Qty: 10 },
+            { category: 'E1', Qty: 20 },
+            { category: 'E2', Qty: 40 },
+        ]);
+    });
+
+    it('numeric nth beyond the group shows null ("—") instead of 0', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Qty',
+            agg: 'nth',
+            index: 99,
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Valeur N°99 de Qty']);
+        expect(data).toEqual([
+            { category: 'E1', 'Valeur N°99 de Qty': null },
+            { category: 'E2', 'Valeur N°99 de Qty': null },
+        ]);
+    });
+});
+
+describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") for text and numeric', () => {
+    const people: TableDef = {
+        name: 'employees',
+        fields: [
+            { table: 'employees', name: 'Id', type: 'text' },
+            { table: 'employees', name: 'Name', type: 'text' },
+            { table: 'employees', name: 'Qty', type: 'number' },
+        ],
+        rows: [
+            { Id: 'E1', Name: 'A', Qty: 10 },
+            { Id: 'E1', Name: 'B', Qty: 20 },
+            { Id: 'E1', Name: 'C', Qty: 30 },
+        ],
+    };
+    beforeAll(() => setTables([structuredClone(people)]));
+    const axis: WellField = { table: 'employees', name: 'Id', agg: 'sum' };
+
+    it('text "Dernier de" takes the last non-empty code within the last N rows', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'latest',
+            window: 2,
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Dernier de Name (derniers 2 lignes)']);
+        expect(data).toEqual([
+            { category: 'E1', 'Dernier de Name (derniers 2 lignes)': 'C' },
+        ]);
+    });
+
+    it('text windowDirection "Premiers" scopes to the first N rows', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'latest',
+            window: 2,
+            windowDir: 'first',
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Dernier de Name (premiers 2 lignes)']);
+        expect(data).toEqual([
+            { category: 'E1', 'Dernier de Name (premiers 2 lignes)': 'B' },
+        ]);
+    });
+
+    it('text "Nième valeur" resolves within the window', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'nth',
+            index: 2,
+            window: 2,
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Valeur N°2 de Name (derniers 2 lignes)']);
+        expect(data).toEqual([
+            { category: 'E1', 'Valeur N°2 de Name (derniers 2 lignes)': 'C' },
+        ]);
+    });
+
+    it('text "Nombre" counts rows inside the window', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'count',
+            window: 1,
+            windowDir: 'last',
+        };
+        const { data } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(data).toEqual([{ category: 'E1', 'Nombre de Name (derniers 1 lignes)': 1 }]);
+    });
+
+    it('numeric "Somme de" sums within the last N rows', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Qty',
+            agg: 'sum',
+            window: 2,
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Somme de Qty (derniers 2 lignes)']);
+        expect(data).toEqual([{ category: 'E1', 'Somme de Qty (derniers 2 lignes)': 50 }]);
+    });
+
+    it('numeric "Nième valeur" resolves within the window', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Qty',
+            agg: 'nth',
+            index: 1,
+            window: 2,
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Valeur N°1 de Qty (derniers 2 lignes)']);
+        expect(data).toEqual([
+            { category: 'E1', 'Valeur N°1 de Qty (derniers 2 lignes)': 20 },
+        ]);
+    });
+
+    it('no window set means toutes les lignes (windowless behavior)', () => {
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+            valueAggregation: 'latest',
+        };
+        const { data } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(data).toEqual([{ category: 'E1', 'Dernier de Name': 'C' }]);
     });
 });
 

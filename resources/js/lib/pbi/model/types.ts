@@ -98,6 +98,12 @@ export type WellField = {
      * by the (numeric) axis — a running / cumulative total (W3-4).
      */
     running?: boolean;
+    /**
+     * Table/matrix only: render this value as raw per-row detail (one table
+     * row per dataset row) instead of collapsing the group. Enabled via the
+     * "Détail des lignes" toggle in the values well.
+     */
+    detail?: boolean;
 };
 
 export type FieldReference = {

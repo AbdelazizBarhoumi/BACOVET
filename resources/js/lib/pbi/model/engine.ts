@@ -12,7 +12,7 @@ import {
     SLICER_TYPES,
     TABLE_FUNCS,
 } from './consts';
-import { fieldLabel, measureLabel } from './format';
+import { fieldLabel, measureLabel, singleValueLabel } from './format';
 import {
     fieldType,
     findTableByName,
@@ -2114,7 +2114,14 @@ export function singleValue(
     mode?: ValueAggregationMode,
 ): string | number | boolean | null {
     if (isMeasure(wf.name)) return aggregate(rows, wf);
-    if (fieldType(wf.name, wf.table) === 'number') return aggregate(rows, wf);
+    if (fieldType(wf.name, wf.table) === 'number') {
+        if (wf.agg === 'nth') {
+            const nums = numericValues(scopedRows(rows, wf), wf.name);
+            const at = Math.max(0, Math.floor((wf.index ?? 1) - 1));
+            return nums[at] ?? null;
+        }
+        return aggregate(rows, wf);
+    }
     const scoped = scopedRows(rows, wf);
     const aggregation = mode ?? wf.valueAggregation ?? 'first';
     if (aggregation === 'count') {
@@ -2405,7 +2412,7 @@ export function buildChartData(
  * A table cell: a numeric aggregate, a plain value, or a per-row distinct list
  * (string[]) when the value well holds a list measure (VALUES / DISTINCT).
  */
-export type TableCellValue = number | string | string[] | null;
+export type TableCellValue = number | string | boolean | string[] | null;
 
 /** One cell value: list measures resolve in the filtered-table ctx. */
 function tableCellFor(
@@ -2414,8 +2421,14 @@ function tableCellFor(
     ctx: EvalCtx | undefined,
 ): TableCellValue {
     if (v.name in LIST_MEASURE_IMPL) return listMeasureValue(rows, v.name, ctx);
-    if (isMeasure(v.name) || fieldType(v.name, v.table) === 'number')
+    if (isMeasure(v.name) || fieldType(v.name, v.table) === 'number') {
+        if (v.agg === 'nth') {
+            const nums = numericValues(scopedRows(rows, v), v.name);
+            const at = Math.max(0, Math.floor((v.index ?? 1) - 1));
+            return nums[at] ?? null;
+        }
         return aggregate(rows, v, ctx);
+    }
     return singleValue(rows, v);
 }
 
@@ -2497,12 +2510,17 @@ export function buildTableCells(
         return { data: [single], series };
     }
 
+    // Row-detail mode: one table row per dataset row so each raw value is
+    // visible. A value participates when the user opted in (`detail`) or it is
+    // a plain text field without an explicit collapse choice (kept as the
+    // default). Numeric fields aggregate per group unless `detail` is set.
+    const canDetail = (v: WellField) =>
+        !isMeasure(v.name) &&
+        (v.detail === true ||
+            (fieldType(v.name, v.table) !== 'number' &&
+                v.valueAggregation === undefined));
     const isRowDetailMode =
-        !legendCol &&
-        values.length > 0 &&
-        values.every(
-            (v) => !isMeasure(v.name) && fieldType(v.name, v.table) !== 'number',
-        );
+        !legendCol && values.length > 0 && values.every(canDetail);
     if (isRowDetailMode) {
         const seriesSet = new Set<string>();
         const data = rows.map((r) => {
@@ -2551,7 +2569,11 @@ export function buildTableCells(
             }
         } else {
             values.forEach((v) => {
-                const label = measureLabel(v);
+                const label =
+                    isMeasure(v.name) ||
+                    fieldType(v.name, v.table) === 'number'
+                        ? measureLabel(v)
+                        : singleValueLabel(v, fieldType(v.name, v.table));
                 seriesSet.add(label);
                 item[label] = tableCellFor(groupRows, v, ctx);
             });

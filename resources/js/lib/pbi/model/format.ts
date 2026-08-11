@@ -149,6 +149,7 @@ export function normalizeWellField(
             : undefined;
     const rank = value.rank === true ? true : undefined;
     const running = value.running === true ? true : undefined;
+    const detail = value.detail === true ? true : undefined;
     return {
         table: reference.table ?? '',
         name: reference.name,
@@ -162,6 +163,7 @@ export function normalizeWellField(
         ...(windowDir ? { windowDir } : {}),
         ...(rank ? { rank } : {}),
         ...(running ? { running } : {}),
+        ...(detail ? { detail } : {}),
     };
 }
 
@@ -426,6 +428,10 @@ export function singleValueLabel(
     const aggregation = mode ?? wf.valueAggregation;
     if (aggregation === 'nth' && type !== 'number') return nthLabel(wf);
     if (type === 'number' || aggregation === 'count') return measureLabel(wf);
+    if (aggregation === 'first')
+        return `Premier de ${fieldLabel(wf)}${windowSuffix(wf)}`;
+    if (aggregation === 'latest')
+        return `Dernier de ${fieldLabel(wf)}${windowSuffix(wf)}`;
     return fieldLabel(wf);
 }
 
