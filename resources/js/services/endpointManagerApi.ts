@@ -35,6 +35,7 @@ export type EndpointSummary = {
     method: string;
     endpoint: string;
     slug: string;
+    root: string;
     status: number | null;
     source: string;
     object_type: string | null;
@@ -54,6 +55,7 @@ export type EndpointsStats = {
     by_method: Record<string, number>;
     by_source: Record<string, number>;
     by_status: Record<number, number>;
+    by_root: Record<string, number>;
 };
 
 export type EndpointsIndexResponse = {
@@ -70,6 +72,7 @@ export type EndpointFilters = {
     status?: string;
     status_group?: 'ok' | 'warn' | 'error';
     source?: string;
+    root?: string;
     page?: number;
     per_page?: number;
 };
@@ -152,6 +155,7 @@ export const fetchEndpoints = (
     if (filters.status) params.set('status', filters.status);
     if (filters.status_group) params.set('status_group', filters.status_group);
     if (filters.source) params.set('source', filters.source);
+    if (filters.root) params.set('root', filters.root);
     params.set('page', String(filters.page ?? 1));
     params.set('per_page', String(filters.per_page ?? 50));
 
@@ -254,6 +258,7 @@ let healthCache: EndpointHealth | null = null;
 export const clearEndpointCaches = (): void => {
     schemaCache = null;
     healthCache = null;
+    builderSchemaCache = null;
 };
 
 export const fetchSchema = async (
@@ -361,20 +366,34 @@ export const fetchHealth = async (force = false): Promise<EndpointHealth> => {
 
 export const triggerRefresh = async (): Promise<RefreshResult> => {
     clearEndpointCaches();
-    return fetchWithToken<RefreshResult>(`${BASE_URL}/novacity-endpoints/refresh`, {
-        method: 'POST',
-    });
+    return fetchWithToken<RefreshResult>(
+        `${BASE_URL}/novacity-endpoints/refresh`,
+        {
+            method: 'POST',
+        },
+    );
 };
 
 export const triggerEndpointRefresh = async (
     id: string,
-): Promise<
-    RefreshResult & { entry?: EndpointSummary }
-> => {
+): Promise<RefreshResult & { entry?: EndpointSummary }> => {
     clearEndpointCaches();
     return fetchWithToken(
         `${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}/refresh`,
         { method: 'POST' },
+    );
+};
+
+export const triggerGroupRefresh = async (
+    root: string,
+): Promise<RefreshResult> => {
+    clearEndpointCaches();
+    return fetchWithToken<RefreshResult>(
+        `${BASE_URL}/novacity-endpoints/refresh-group`,
+        {
+            method: 'POST',
+            body: JSON.stringify({ root }),
+        },
     );
 };
 
@@ -395,6 +414,43 @@ export const rewriteEndpointRoot = async (
         method: 'POST',
         body: JSON.stringify({ old_root: oldRoot, new_root: newRoot }),
     });
+};
+
+export type RootCredentialInfo = {
+    root: string;
+    count: number;
+    has_api_key: boolean;
+    masked_api_key: string;
+};
+
+export const fetchRootCredentials = async (): Promise<{
+    roots: RootCredentialInfo[];
+}> => {
+    return fetchWithToken(`${BASE_URL}/novacity-endpoints/roots`);
+};
+
+export const saveRootCredential = async (
+    root: string,
+    apiKey: string,
+): Promise<{
+    success: boolean;
+    root: string;
+    has_api_key: boolean;
+    masked_api_key: string;
+}> => {
+    return fetchWithToken(`${BASE_URL}/novacity-endpoints/roots`, {
+        method: 'POST',
+        body: JSON.stringify({ root, api_key: apiKey }),
+    });
+};
+
+export const removeRootCredential = async (
+    root: string,
+): Promise<{ success: boolean; root: string }> => {
+    return fetchWithToken(
+        `${BASE_URL}/novacity-endpoints/roots/${encodeURIComponent(root)}`,
+        { method: 'DELETE' },
+    );
 };
 
 // ── Mutations ────────────────────────────────────────────────────────────
@@ -463,81 +519,37 @@ export type TestEndpointResult =
     | { success: true; status: 200; url: string; response: EndpointResponse }
     | { success: false; status: number | null; error: string };
 
-type NovacityConfig = { baseUrl: string; apiKey: string; token: string };
-
-let cachedNovacityConfig: NovacityConfig | null = null;
-let loadingNovacityConfig: Promise<NovacityConfig> | null = null;
-
-async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
-    try {
-        const res = await fetch(url, {
-            headers: { Accept: 'application/json' },
-        });
-        const json: unknown = res.ok ? await res.json() : null;
-        return json && typeof json === 'object'
-            ? (json as Record<string, unknown>)
-            : null;
-    } catch {
-        return null;
-    }
-}
-
-function getNovacityConfig(): Promise<NovacityConfig> {
-    if (cachedNovacityConfig) return Promise.resolve(cachedNovacityConfig);
-    if (loadingNovacityConfig) return loadingNovacityConfig;
-    loadingNovacityConfig = fetchJson('/api/settings/novacity_base_url')
-        .then((setting) => {
-            const saved =
-                typeof setting?.value === 'string' ? setting.value : '';
-            return fetchJson('/novacity-config').then((cfg) => ({
-                baseUrl:
-                    saved ||
-                    (typeof cfg?.base_url === 'string' ? cfg.base_url : ''),
-                apiKey: typeof cfg?.api_key === 'string' ? cfg.api_key : '',
-                token: typeof cfg?.token === 'string' ? cfg.token : '',
-            }));
-        })
-        .catch(() => ({ baseUrl: '', apiKey: '', token: '' }))
-        .then((config) => {
-            cachedNovacityConfig = config;
-            return config;
-        })
-        .finally(() => {
-            loadingNovacityConfig = null;
-        });
-    return loadingNovacityConfig;
-}
-
 export const testEndpoint = async (
     payload: TestEndpointPayload,
     signal?: AbortSignal,
 ): Promise<TestEndpointResult> => {
-    const { baseUrl: configBaseUrl, apiKey, token } = await getNovacityConfig();
-    const baseUrl =
-        (payload.baseUrl ?? '').trim().replace(/\/+$/, '') ||
-        (configBaseUrl ?? '').replace(/\/+$/, '');
-    if (!baseUrl) {
+    try {
+        const response = await fetchWithToken<{
+            success: boolean;
+            status?: number | null;
+            url?: string;
+            response?: EndpointResponse;
+            error?: string;
+        }>(`${BASE_URL}/novacity-endpoints/test`, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            signal,
+        });
+
+        if (response.success) {
+            return {
+                success: true,
+                status: 200,
+                url: response.url ?? '',
+                response: response.response ?? null,
+            };
+        }
+
         return {
             success: false,
-            status: null,
-            error: 'URL de base Novacity non configurée',
+            status: response.status ?? null,
+            error: response.error || 'Échec du test de l’endpoint',
         };
-    }
-
-    const url = `${baseUrl}/${payload.path.replace(/^\/+/, '')}`;
-
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (apiKey) headers['x-api-key'] = apiKey;
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    let response: Response;
-    try {
-        response = await fetch(url, {
-            method: payload.method,
-            headers,
-            signal,
-            cache: 'no-store',
-        });
     } catch (err) {
         if (signal?.aborted) throw err;
         return {
@@ -545,30 +557,10 @@ export const testEndpoint = async (
             status: null,
             error:
                 err instanceof Error
-                    ? `Échec de la requête : ${err.message}`
-                    : 'Échec de la requête',
+                    ? err.message
+                    : 'Échec du test de l’endpoint',
         };
     }
-
-    const status = response.status;
-    if (status !== 200) {
-        return {
-            success: false,
-            status,
-            error: `HTTP ${status}: ${response.statusText}`,
-        };
-    }
-
-    const body: unknown = await response.json().catch(() => null);
-    if (!Array.isArray(body) && (typeof body !== 'object' || body === null)) {
-        return {
-            success: false,
-            status,
-            error: "La réponse n'est pas un objet ou tableau JSON valide",
-        };
-    }
-
-    return { success: true, status, url, response: body as EndpointResponse };
 };
 
 export const testLiveEndpoint = async (payload: {

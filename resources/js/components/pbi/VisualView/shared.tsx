@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { LabelList } from 'recharts';
 import { CfIcon } from '@/components/pbi/CfIcon';
 import {
@@ -8,6 +8,7 @@ import {
 import { iconById } from '@/lib/pbi/icons';
 import { crossFilterRows } from '@/lib/pbi/joins';
 import {
+    formatAxisDefTick,
     formatCallout,
     formatDisplayUnitValue,
     formatNumberWith,
@@ -23,6 +24,7 @@ import {
     type AxisStyle,
     type DataLabelPosition,
     type FieldType,
+    type AxisDef,
     type Row,
     type Visual,
     type WellField,
@@ -138,12 +140,17 @@ export function legendLabelFormatter(
     );
 }
 
-/** Left margin reserved for a rotated Y-axis title (outside the plot). */
-export const AXIS_TITLE_LEFT_MARGIN = 28;
-/** Bottom margin reserved for an X-axis title (outside the plot). */
-export const AXIS_TITLE_BOTTOM_MARGIN = 18;
-/** X position (from the SVG left edge) of a Y-axis title. */
-export const Y_TITLE_PAD = 2;
+/** Gap between the tick lane and the axis title (px). */
+export const AXIS_TITLE_GAP = 4;
+/** Height of the category-axis lane (X on column charts, Y on bar charts).
+ * Recharts defaults a missing XAxis `height` to a roomy 30; sizing it to a
+ * single line of tick text keeps the axis title hugging the labels. */
+export function estimateCategoryAxisLane(fontSize: number): number {
+    return Math.min(24, Math.max(14, fontSize + 6));
+}
+/** Extra chart margin reserved on a side that carries an axis title, so a
+ * rotated/stacked title is never clipped by the SVG edge. */
+export const AXIS_TITLE_RESERVE = 12;
 /** Gutter width for the column value axis; wide enough that tick labels like
  * `1,234,567.89` fit on one line instead of wrapping. */
 export const VALUE_AXIS_WIDTH = 80;
@@ -151,25 +158,23 @@ export const VALUE_AXIS_WIDTH = 80;
 export const CATEGORY_AXIS_WIDTH = 110;
 
 /** Recharts `label` prop for an axis title (undefined when empty). Vertical
- * (Y) axes get rotated text in the left margin, outside the plot; horizontal
- * (X) axes get text below the ticks. `gutterWidth` is the vertical axis tick
- * gutter so the Y title can be pushed clear of the tick labels. */
+ * (Y) axes get rotated text just outside their tick lane; horizontal (X) axes
+ * get text just below/above the ticks. Recharts places the anchor at
+ * `viewBox ± offset`, and every axis lane is carved out of the plot area, so a
+ * small `AXIS_TITLE_GAP` offset parks the title tight against the lane's outer
+ * edge on its own side. */
 export function axisTitle(
     axis: AxisStyle,
     vertical?: boolean,
-    gutterWidth = 60,
 ): Record<string, unknown> | undefined {
-    if (!axis.title) return undefined;
+    if (!axis.title || axis.showTitle === false) return undefined;
     const f = axis.titleFont;
+    const gap = AXIS_TITLE_GAP + (axis.titleOffset ?? 0);
     return {
         value: axis.title,
         position: vertical ? ('insideLeft' as const) : ('bottom' as const),
         angle: vertical ? -90 : undefined,
-        // `insideLeft` places x at axisX + offset; a negative offset of
-        // -(gutterWidth + margin) parks the rotated title in the left margin.
-        offset: vertical
-            ? -(gutterWidth + AXIS_TITLE_LEFT_MARGIN - Y_TITLE_PAD)
-            : 0,
+        offset: vertical ? -gap : gap,
         fill: f?.color || 'var(--muted-foreground)',
         fontSize: f?.fontSize ?? 11,
         fontWeight: f?.bold ? 700 : undefined,
@@ -182,13 +187,15 @@ export function valueAxisProps(
     axis: AxisStyle,
     visual: Visual,
     vertical?: boolean,
-    gutterWidth = 60,
 ) {
+    const color = axis.color || visual.fontColor || 'var(--muted-foreground)';
     const props: Record<string, unknown> = {
         hide: !axis.show,
+        stroke: color,
+        axisLine: axis.showLine !== false,
         tick: fontStyleProps(axis.labelsFont, {
             fontSize: visual.fontSize ?? 10,
-            color: visual.fontColor || 'var(--muted-foreground)',
+            color,
             fontFamily: visual.fontFamily,
         }),
         tickFormatter: (v: number) =>
@@ -199,9 +206,95 @@ export function valueAxisProps(
                 axis.suffix,
             ),
     };
-    const label = axisTitle(axis, vertical, gutterWidth);
+    if (axis.showLabels === false)
+        props.tick = {
+            ...(props.tick as Record<string, unknown>),
+            fontSize: 0,
+        };
+    const label = axisTitle(axis, vertical);
     if (label) props.label = label;
     if (axis.min !== undefined || axis.max !== undefined)
+        props.domain = [axis.min ?? 'auto', axis.max ?? 'auto'];
+    return props;
+}
+
+/** Converts an `AxisDef` (multi-axis system) into an `AxisStyle` so the
+ * existing single-axis prop builders can reuse the styling/format logic. */
+export function axisDefAsStyle(axis: AxisDef): AxisStyle {
+    return {
+        show: axis.showLine || axis.showLabels,
+        title: axis.showTitle ? axis.title : '',
+        titleFont: axis.titleFont,
+        labelsFont: axis.labelsFont,
+        displayUnits: axis.displayUnits,
+        ...(axis.suffix ? { suffix: axis.suffix } : {}),
+        ...(axis.decimals !== undefined ? { decimals: axis.decimals } : {}),
+        ...(!axis.auto &&
+        (axis.min !== undefined || axis.max !== undefined)
+            ? {
+                  min: axis.min,
+                  max: axis.max,
+              }
+            : {}),
+    };
+}
+
+/** Recharts `YAxis` (or X for horizontal plots) props for one `AxisDef` in the
+ * multi-axis system, including the series binding id and orientation. */
+export function axisDefProps(
+    axis: AxisDef,
+    visual: Visual,
+    vertical: boolean,
+    _gutterWidth = 60,
+) {
+    const style = axisDefAsStyle(axis);
+    const props = valueAxisProps(style, visual, vertical);
+    props.hide = !axis.showLine && !axis.showLabels;
+    props.axisLine = !!axis.showLine;
+    props.orientation = axis.position === 'right' || axis.position === 'top'
+        ? (vertical ? 'right' : 'top')
+        : (vertical ? 'left' : 'bottom');
+    props.stroke = axis.color || 'var(--border)';
+    // Title parked just outside this axis's own tick lane: rotated -90° for
+    // vertical axes, stacked above/below for horizontal ones. A tiny gap
+    // (not the gutter) keeps it tight against the line on the correct side.
+    if (axis.showTitle && axis.title) {
+        const f = axis.titleFont;
+        const gap = AXIS_TITLE_GAP + (axis.titleOffset ?? 0);
+        props.label = {
+            value: axis.title,
+            position: vertical
+                ? (axis.position === 'right' ? ('insideRight' as const) : ('insideLeft' as const))
+                : (axis.position === 'top' ? ('top' as const) : ('bottom' as const)),
+            angle: vertical ? -90 : undefined,
+            offset: vertical ? -gap : gap,
+            fill: f?.color || 'var(--muted-foreground)',
+            fontSize: f?.fontSize ?? 11,
+            fontWeight: f?.bold ? 700 : undefined,
+            fontStyle: f?.italic ? 'italic' : undefined,
+        };
+    } else {
+        delete props.label;
+    }
+    const axisColor = axis.color || visual.fontColor || 'var(--muted-foreground)';
+    props.tick = fontStyleProps(axis.labelsFont, {
+        fontSize: visual.fontSize ?? 10,
+        color: axisColor,
+        fontFamily: visual.fontFamily,
+    });
+    if (!axis.showLabels)
+        props.tick = {
+            ...(props.tick as Record<string, unknown>),
+            fontSize: 0,
+        };
+    props.tickFormatter = (v: number) =>
+        formatAxisDefTick(v, {
+            displayUnits: axis.displayUnits,
+            numberFormat: axis.numberFormat,
+            decimals: axis.decimals,
+            suffix: axis.suffix,
+        });
+    if (!axis.auto && (axis.min !== undefined || axis.max !== undefined))
         props.domain = [axis.min ?? 'auto', axis.max ?? 'auto'];
     return props;
 }
@@ -213,15 +306,24 @@ export function categoryAxisProps(
     vertical?: boolean,
     gutterWidth = 90,
 ) {
+    const color = axis.color || visual.fontColor || 'var(--muted-foreground)';
     const props: Record<string, unknown> = {
         hide: !axis.show,
+        stroke: color,
+        axisLine: axis.showLine !== false,
+        tickLine: axis.showLine !== false,
         tick: fontStyleProps(axis.labelsFont, {
             fontSize: visual.fontSize ?? 10,
-            color: visual.fontColor || 'var(--muted-foreground)',
+            color,
             fontFamily: visual.fontFamily,
         }),
     };
-    const label = axisTitle(axis, vertical, gutterWidth);
+    if (axis.showLabels === false)
+        props.tick = {
+            ...(props.tick as Record<string, unknown>),
+            fontSize: 0,
+        };
+    const label = axisTitle(axis, vertical);
     if (label) props.label = label;
     return props;
 }
@@ -365,20 +467,24 @@ export function CustomTooltip({
 }) {
     const { setTooltipHover } = usePbi();
     const hoverCol = visual.axis[0]?.name;
+    const lastHoverKeyRef = useRef<string | null>(null);
 
     useEffect(() => {
-        if (active && label !== undefined && label !== '' && hoverCol) {
-            setTooltipHover({
-                sourceId: visual.id,
-                column: hoverCol,
-                value: String(label),
-            });
-        } else if (active === false || active === undefined) {
+        const key =
+            active && label !== undefined && label !== '' && hoverCol
+                ? `${hoverCol}\u0000${String(label)}`
+                : null;
+        if (key === lastHoverKeyRef.current) return;
+        lastHoverKeyRef.current = key;
+        if (key === null) {
             setTooltipHover(null);
+            return;
         }
-        return () => {
-            setTooltipHover(null);
-        };
+        setTooltipHover({
+            sourceId: visual.id,
+            column: hoverCol!,
+            value: String(label),
+        });
         // setTooltipHover is an unstable context helper (recreated every
         // provider render). Depending on it here would re-run this effect on
         // every render and loop forever; it only wraps a stable setState.

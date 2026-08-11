@@ -18,6 +18,7 @@ const EMPTY_STATS: EndpointsStats = {
     by_method: {},
     by_source: {},
     by_status: {},
+    by_root: {},
 };
 
 export function useEndpoints(initialFilters: EndpointFilters = {}) {

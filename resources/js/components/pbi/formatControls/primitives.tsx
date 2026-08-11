@@ -170,6 +170,55 @@ export function NumberInput({
     );
 }
 
+/** Stepper with − / + buttons for small integer adjustments (e.g. title
+ * offset). Shows the raw value between the buttons. */
+export function Stepper({
+    label,
+    value,
+    onChange,
+    min,
+    max,
+    step = 1,
+}: {
+    label: string;
+    value: number;
+    onChange: (v: number) => void;
+    min?: number;
+    max?: number;
+    step?: number;
+}) {
+    const clamp = (v: number) =>
+        Math.min(max ?? v, Math.max(min ?? v, v));
+    return (
+        <div className="block">
+            <span className="mb-1 block text-muted-foreground">{label}</span>
+            <div className="flex items-center">
+                <button
+                    type="button"
+                    onClick={() => onChange(clamp(value - step))}
+                    disabled={min !== undefined && value <= min}
+                    className="h-7 w-7 rounded-l border border-border bg-background text-sm hover:border-brand disabled:opacity-30"
+                    aria-label={`Réduire ${label.toLowerCase()}`}
+                >
+                    −
+                </button>
+                <span className="h-7 flex-1 border-y border-border bg-background px-1 text-center text-[11px] leading-7 tabular-nums text-foreground">
+                    {value}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => onChange(clamp(value + step))}
+                    disabled={max !== undefined && value >= max}
+                    className="h-7 w-7 rounded-r border border-border bg-background text-sm hover:border-brand disabled:opacity-30"
+                    aria-label={`Augmenter ${label.toLowerCase()}`}
+                >
+                    +
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export function ColorInput({
     label,
     value,

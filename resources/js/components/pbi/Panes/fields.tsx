@@ -229,7 +229,11 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
         toggleField(selected.id, targetWell(f), f.name, 'Measures');
     };
 
-    const groups = tables.map((t) => ({ name: t.name, fields: t.fields }));
+    const groups = tables.map((t) => ({
+        name: t.name,
+        displayName: t.displayName,
+        fields: t.fields,
+    }));
 
     return (
         <div className="flex h-full flex-col">
@@ -709,7 +713,9 @@ export function FieldsPane({ onCollapse }: { onCollapse?: () => void }) {
                                     )}
                                 />
                                 <Table2 className="size-3 text-muted-foreground" />
-                                <span className="truncate">{g.name}</span>
+                                <span className="truncate" title={g.name}>
+                                    {g.displayName ?? g.name}
+                                </span>
                             </button>
                             {open[g.name] &&
                                 fields.map((f) => (

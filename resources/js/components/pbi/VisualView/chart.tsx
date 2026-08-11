@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
     Area,
     AreaChart,
@@ -37,11 +37,13 @@ import {
     buildScatterData,
     fieldLabel,
     fieldType,
+    formatAxisDefTick,
     formatDisplayUnitValue,
     gaugeBoundValue,
     isListMeasure,
     listMeasureValue,
     listTreatment,
+    normalizeAxes,
     normalizeAxisStyle,
     normalizeBarStyle,
     normalizeCalloutStyle,
@@ -52,7 +54,10 @@ import {
     normalizePlotAreaStyle,
     singleValue,
     singleValueLabel,
+    STACKED_EMPTY_FILL,
     wellForReference,
+    type AxisDef,
+    type AxisStyle,
     type Row,
     type Visual,
 } from '@/lib/pbi/model';
@@ -66,8 +71,8 @@ import {
     SmartNarrative,
 } from './ai';
 import {
-    AXIS_TITLE_BOTTOM_MARGIN,
-    AXIS_TITLE_LEFT_MARGIN,
+    AXIS_TITLE_GAP,
+    AXIS_TITLE_RESERVE,
     CATEGORY_AXIS_WIDTH,
     CalloutValue,
     CategoryLabel,
@@ -76,8 +81,10 @@ import {
     PALETTE,
     ShapeVisual,
     VALUE_AXIS_WIDTH,
+    axisDefProps,
     axisPropsFor,
     categoryAxisProps,
+    estimateCategoryAxisLane,
     chartTooltip,
     fontStyleProps,
     labelBlockAnchor,
@@ -92,15 +99,43 @@ import { TableVisual } from './table';
 
 function normalize(data: Record<string, string | number>[], series: string[]) {
     return data.map((d) => {
-        const total = series.reduce((t, s) => t + (Number(d[s]) || 0), 0) || 1;
+        const total = series.reduce((t, s) => t + (Number(d[s]) || 0), 0);
         const out: Record<string, string | number> = {
             category: d['category'] as string,
         };
         if (d['_cf'] !== undefined) out['_cf'] = d['_cf'];
         if (d['_cfx'] !== undefined) out['_cfx'] = d['_cfx'];
-        series.forEach((s) => (out[s] = ((Number(d[s]) || 0) / total) * 100));
+        if (total <= 0) {
+            series.forEach((s) => (out[s] = 0));
+        } else {
+            series.forEach(
+                (s) => (out[s] = ((Number(d[s]) || 0) / total) * 100),
+            );
+        }
         return out;
     });
+}
+
+/** Estimate the pixel width of the widest tick label a value axis can emit for
+ * `keys` across `data`, so the axis lane hugs the labels and a title stays
+ * tight against them instead of floating at a fixed wide gutter. Capped at
+ * `VALUE_AXIS_WIDTH` so very long numbers keep the room they need. */
+function estimateValueAxisWidth(
+    data: Record<string, string | number>[],
+    keys: string[],
+    fmt: (n: number) => string,
+    fontSize: number,
+): number {
+    const values = new Set<number>([0]);
+    for (const d of data)
+        for (const k of keys) {
+            const n = Number(d[k]);
+            if (Number.isFinite(n)) values.add(n);
+        }
+    let maxChars = 0;
+    for (const v of values) maxChars = Math.max(maxChars, fmt(v).length);
+    const est = Math.ceil(maxChars * fontSize * 0.62) + 12;
+    return Math.min(VALUE_AXIS_WIDTH, Math.max(30, est));
 }
 
 function analyticsLines(
@@ -125,7 +160,7 @@ function analyticsLines(
     /** Stat line (average/constant/min/max/median) positioned on the value axis. */
     const statLine = (value: number, color: string, label: string) => (
         <ReferenceLine
-            key={label}
+            key={`stat:${label}`}
             {...(horizontal ? { x: value } : { y: value })}
             stroke={color}
             strokeDasharray="4 4"
@@ -166,7 +201,7 @@ function analyticsLines(
         if (a.kind === 'trend' || a.kind === 'forecast')
             return (
                 <Line
-                    key={a.kind}
+                    key={`trend:${a.kind}`}
                     type="linear"
                     dataKey={key}
                     stroke="var(--chart-6)"
@@ -200,6 +235,17 @@ export function ChartBody({
         filteredTables,
     } = usePbi();
 
+    // Clear a lingering cross-chart hover lens when this visual actually
+    // unmounts. Runs exactly once per mount (empty deps), so the hover
+    // update below cannot cascade into the mount/unmount loop the tooltip
+    // content's own cleanup caused.
+    useEffect(() => {
+        return () => {
+            if (tooltipHover?.sourceId === visual.id) setTooltipHover(null);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const animate = staticRender ? false : undefined;
     const cf = normalizeConditionalFormat(visual.conditionalFormat);
     const extra = useMemo(() => {
@@ -216,7 +262,7 @@ export function ChartBody({
     const extraColor =
         cf.style === 'fieldValue' && cf.fieldValue ? cf.fieldValue : undefined;
 
-    const { data, series } = useMemo(
+    const { data, series, seriesMeta } = useMemo(
         () =>
             buildChartData(
                 rows,
@@ -316,11 +362,43 @@ export function ChartBody({
         visual.type === 'stacked100Bar';
     const xAxis = normalizeAxisStyle(visual.xAxis);
     const yAxis = normalizeAxisStyle(visual.yAxis);
-    const gridlines = normalizeGridlinesStyle(visual.gridlines);
+    const gridlinesStyle = normalizeGridlinesStyle(visual.gridlines);
     const bars = normalizeBarStyle(visual.bars);
     const dataLabels = normalizeDataLabelStyle(visual.dataLabels);
     const legend = normalizeLegendStyle(visual.legendStyle);
     const plotArea = normalizePlotAreaStyle(visual.plotArea);
+
+    /** Multi-axis system: normalized value axes + series→axis binding. When the
+     * visual has no explicit `axes` (legacy) this stays empty so rendering
+     * falls back to the classic single `xAxis`/`yAxis` styling. */
+    const valueAxes = useMemo(
+        () => (visual.axes?.length ? normalizeAxes(visual.axes) : []),
+        [visual.axes],
+    );
+    const axesById = useMemo(
+        () => new Map(valueAxes.map((a) => [a.id, a])),
+        [valueAxes],
+    );
+    const metaByKey = useMemo(
+        () => new Map(seriesMeta.map((m) => [m.key, m])),
+        [seriesMeta],
+    );
+    /** Resolved axis overrides for a series key. */
+    const resolveSeries = (s: string) => {
+        const meta = metaByKey.get(s);
+        const axisId =
+            meta && axesById.has(meta.axisId) ? meta.axisId : valueAxes[0]?.id;
+        const axis = axesById.get(axisId) ?? valueAxes[0];
+        const type =
+            meta?.type ??
+            (visual.seriesType === 'line' || visual.seriesType === 'area'
+                ? visual.seriesType
+                : 'bar');
+        return { meta, axis, axisId, type } as const;
+    };
+    /** Recharts axis id token for binding series to a value axis. */
+    const rtAxisId = (id: string) => `axis-${id}`;
+    const gridlines = gridlinesStyle;
 
     /** Base (series) fill honoring `bars.color` + palette rotation. */
     const seriesBaseFill = (i: number) =>
@@ -561,6 +639,321 @@ export function ChartBody({
             {node}
         </div>
     );
+
+    /**
+     * Unified cartesian renderer. When a visual has multiple value axes
+     * (`visual.axes.length > 1`) each coordinate system gets its own value
+     * axis (X for the horizontal/bar family, Y for the vertical/column one)
+     * and every series binds to the axis referenced by its `WellField.axisId`
+     * via `seriesMeta`. Mixed `seriesType` values plot as bars, lines or areas
+     * side by side on their respective scales.
+     */
+    const renderCartesian = (
+        chartData: Record<string, string | number>[],
+        horizontal: boolean,
+    ) => {
+        const type =
+            visual.type === 'stackedColumn' ||
+            visual.type === 'stacked100Column' ||
+            visual.type === 'stackedBar' ||
+            visual.type === 'stacked100Bar' ||
+            visual.type === 'ribbon';
+        const stacked = type || visual.legend.length > 0 ? true : undefined;
+        const gridH = horizontal ? gridlines.vertical : gridlines.horizontal;
+        const gridV = horizontal ? gridlines.horizontal : gridlines.vertical;
+        const multi = valueAxes.length > 1;
+        const primary = valueAxes[0];
+        /** 100 % stacked charts plot each category as a share of its own row
+         * total, so their value axis is a fixed 0–100 scale — a wider range
+         * (custom min/max or auto-scaling) would leave empty space above the
+         * bars. These overrides pin the domain and label the ticks in %. */
+        const is100 =
+            visual.type === 'stacked100Column' ||
+            visual.type === 'stacked100Bar';
+        const pctTick = (v: number) =>
+            `${Number.isInteger(v) ? v : v.toFixed(1)} %`;
+        const valueAxisOverrides = is100
+            ? {
+                  domain: [0, 100] as [number, number],
+                  tickFormatter: pctTick,
+              }
+            : {};
+        /** Tick-lane size for a value axis: sized to the widest tick label when
+         * labels are shown (so the title hugs them), otherwise a thin lane so a
+         * line/title axis adds no dead band. */
+        const axisLane = (axis: AxisDef) => {
+            if (!axis.showLabels)
+                return (axis.showLine || axis.showTitle ? 8 : 0) +
+                    (axis.gap ?? 0);
+            const keys = series.filter(
+                (s) => resolveSeries(s).axisId === axis.id,
+            );
+            return (
+                estimateValueAxisWidth(
+                    chartData,
+                    keys,
+                    (v) =>
+                        formatAxisDefTick(v, {
+                            displayUnits: axis.displayUnits,
+                            numberFormat: axis.numberFormat,
+                            decimals: axis.decimals,
+                            suffix: axis.suffix,
+                        }),
+                    visual.fontSize ?? 10,
+                ) + (axis.gap ?? 0)
+            );
+        };
+        /** Lane for the single-value-axis (legacy) path, sized to the widest
+         * tick label across all series. */
+        const fallbackLane = (style: AxisStyle) =>
+            estimateValueAxisWidth(
+                chartData,
+                series,
+                (v) =>
+                    formatDisplayUnitValue(
+                        v,
+                        style.displayUnits,
+                        style.decimals,
+                        style.suffix,
+                    ),
+                visual.fontSize ?? 10,
+            ) + (style.gap ?? 0);
+        /** Empty-space fill for a stacked bar's track. Only applied on stacked
+         * charts. Multi-axis visuals read it from the series' own value axis;
+         * legacy ones from the style of the value axis (X for horizontal bars,
+         * Y for vertical columns). */
+        const emptyFill = (s: string): string | undefined =>
+            stacked
+                ? resolveSeries(s).axis?.emptyColor ??
+                  (horizontal ? xAxis : yAxis).emptyColor ??
+                  STACKED_EMPTY_FILL
+                : undefined;
+        const valueElement = (axis: AxisDef): React.ReactElement =>
+            horizontal ? (
+                <XAxis
+                    key={`axis:${axis.id}`}
+                    type="number"
+                    xAxisId={rtAxisId(axis.id)}
+                    height={axisLane(axis)}
+                    {...axisDefProps(axis, visual, false)}
+                    {...valueAxisOverrides}
+                />
+            ) : (
+                <YAxis
+                    key={`axis:${axis.id}`}
+                    yAxisId={rtAxisId(axis.id)}
+                    width={axisLane(axis)}
+                    {...axisDefProps(axis, visual, true, axisLane(axis))}
+                    {...valueAxisOverrides}
+                />
+            );
+        const hasTitleAt = (pos: string) =>
+            valueAxes.some((a) => a.position === pos && a.showTitle && a.title);
+        /** Bottom/top axis titles are stacked under the lane and recharts anchors
+         * them at the SVG edge minus the margin, so the margin must fit the title
+         * glyphs (their font size) on top of the tick lane. Side (rotated) titles
+         * only need `AXIS_TITLE_RESERVE`. */
+        const titleLine = (font: { fontSize?: number } | undefined) =>
+            (font?.fontSize ?? 11) + AXIS_TITLE_GAP + 2;
+        const titlePadY =
+            !horizontal && !multi && yAxis.title ? AXIS_TITLE_RESERVE : 0;
+        const titlePadX =
+            (!horizontal || !multi) && xAxis.title
+                ? titleLine(xAxis.titleFont)
+                : 0;
+        const multiTitleLeft = multi && !horizontal && hasTitleAt('left');
+        const multiTitleRight = multi && !horizontal && hasTitleAt('right');
+        const multiTitleBottom = multi && horizontal && hasTitleAt('bottom');
+        const multiTitleTop = multi && horizontal && hasTitleAt('top');
+        const margin = {
+            top: 8 + (multiTitleTop ? titleLine(undefined) : 0),
+            right: (multiTitleRight ? AXIS_TITLE_RESERVE : 0) + 8,
+            left:
+                (horizontal && yAxis.title ? AXIS_TITLE_RESERVE : 0) +
+                titlePadY +
+                (multiTitleLeft ? AXIS_TITLE_RESERVE : 0),
+            bottom:
+                titlePadX + (multiTitleBottom ? titleLine(undefined) : 0),
+        };
+        const gridRef = multi
+            ? {
+                  [horizontal ? 'xAxisId' : 'yAxisId']: rtAxisId(
+                      (valueAxes.find((a) => a.showGridlines) ?? valueAxes[0])
+                          ?.id ?? 'y0',
+                  ),
+              }
+            : {};
+        return (
+            <ComposedChart
+                data={chartData}
+                margin={margin}
+                {...(horizontal ? { layout: 'vertical' as const } : {})}
+            >
+                <CartesianGrid
+                    stroke={gridlines.color}
+                    horizontal={gridH}
+                    vertical={gridV}
+                    strokeDasharray={GRIDLINE_DASH[gridlines.style]}
+                    {...gridRef}
+                />
+                {horizontal ? (
+                    <YAxis
+                        type="category"
+                        dataKey="category"
+                        width={CATEGORY_AXIS_WIDTH + (yAxis.gap ?? 0)}
+                        {...categoryAxisProps(
+                            yAxis,
+                            visual,
+                            true,
+                            CATEGORY_AXIS_WIDTH,
+                        )}
+                    />
+                ) : (
+                    <XAxis
+                        dataKey="category"
+                        height={
+                            estimateCategoryAxisLane(
+                                visual.fontSize ?? 10,
+                            ) + (xAxis.gap ?? 0)
+                        }
+                        {...categoryAxisProps(xAxis, visual, false)}
+                    />
+                )}
+                {multi ? (
+                    valueAxes.map(valueElement)
+                ) : horizontal ? (
+                    <XAxis
+                        type="number"
+                        height={
+                            primary ? axisLane(primary) : fallbackLane(xAxis)
+                        }
+                        {...(primary
+                            ? axisDefProps(
+                                  primary,
+                                  visual,
+                                  false,
+                                  axisLane(primary),
+                              )
+                            : valueAxisProps(xAxis, visual, false))}
+                        {...valueAxisOverrides}
+                    />
+                ) : (
+                    <YAxis
+                        width={
+                            primary ? axisLane(primary) : fallbackLane(yAxis)
+                        }
+                        {...(primary
+                            ? axisDefProps(
+                                  primary,
+                                  visual,
+                                  true,
+                                  axisLane(primary),
+                              )
+                            : valueAxisProps(yAxis, visual, true))}
+                        {...valueAxisOverrides}
+                    />
+                )}
+                <Tooltip content={chartTooltip(visual)} />
+                {legendShown && series.length > 1 && (
+                    <Legend
+                        layout={
+                            legend.position === 'left' ||
+                            legend.position === 'right'
+                                ? 'vertical'
+                                : 'horizontal'
+                        }
+                        verticalAlign={
+                            legend.position === 'top'
+                                ? 'top'
+                                : legend.position === 'bottom'
+                                  ? 'bottom'
+                                  : 'middle'
+                        }
+                        align={
+                            legend.position === 'left'
+                                ? 'left'
+                                : legend.position === 'right'
+                                  ? 'right'
+                                  : 'center'
+                        }
+                        wrapperStyle={legendStyle}
+                        formatter={legendLabelFormatter(legend.font)}
+                    />
+                )}
+                {series.map((s, i) => {
+                    const { axisId, type } = resolveSeries(s);
+                    const ref = multi
+                        ? ({
+                              [horizontal ? 'xAxisId' : 'yAxisId']:
+                                  rtAxisId(axisId),
+                          } as const)
+                        : {};
+                    const color = seriesBaseFill(i);
+                    if (type === 'line')
+                        return (
+                            <Line
+                                key={s}
+                                type="monotone"
+                                dataKey={s}
+                                stroke={color}
+                                strokeWidth={2}
+                                dot={pointDot(color)}
+                                isAnimationActive={animate}
+                                {...ref}
+                            />
+                        );
+                    if (type === 'area')
+                        return (
+                            <Area
+                                key={s}
+                                type="monotone"
+                                dataKey={s}
+                                stroke={color}
+                                fill={color}
+                                fillOpacity={0.25}
+                                {...(stacked ? { stackId: 's' } : {})}
+                                isAnimationActive={animate}
+                                {...ref}
+                            />
+                        );
+                    return (
+                        <Bar
+                            key={s}
+                            dataKey={s}
+                            {...(stacked ? { stackId: 'a' } : {})}
+                            fill={color}
+                            radius={barRadius}
+                            isAnimationActive={animate}
+                            onClick={onPointClick}
+                            {...(emptyFill(s)
+                                ? { background: { fill: emptyFill(s) } }
+                                : {})}
+                            {...ref}
+                        >
+                            {chartData.map((d, idx) => (
+                                <Cell
+                                    key={idx}
+                                    fill={barFill(d, i)}
+                                    fillOpacity={barOpacity(d)}
+                                />
+                            ))}
+                            {labelsShown && (
+                                <LabelList
+                                    position={labelPosition(
+                                        dataLabels.position,
+                                        horizontal,
+                                    )}
+                                    content={renderLabelContent(chartData, s)}
+                                    style={labelStyleFor(s)}
+                                />
+                            )}
+                        </Bar>
+                    );
+                })}
+                {analyticsLines(visual, chartData, series, horizontal, animate)}
+            </ComposedChart>
+        );
+    };
 
     switch (visual.type) {
         case 'shape':
@@ -1223,95 +1616,9 @@ export function ChartBody({
                 visual.type === 'stacked100Bar'
                     ? normalize(data, series)
                     : data;
-            const stacked = visual.type !== 'bar' || visual.legend.length > 0;
-            const barMargin = {
-                top: 8,
-                right: 12,
-                left: 8 + (yAxis.title ? AXIS_TITLE_LEFT_MARGIN : 0),
-                bottom: xAxis.title ? AXIS_TITLE_BOTTOM_MARGIN : 0,
-            };
             return plotWrap(
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={bdata} layout="vertical" margin={barMargin}>
-                        <CartesianGrid
-                            stroke={gridlines.color}
-                            horizontal={gridlines.vertical}
-                            vertical={gridlines.horizontal}
-                            strokeDasharray={GRIDLINE_DASH[gridlines.style]}
-                        />
-                        <XAxis
-                            type="number"
-                            {...valueAxisProps(xAxis, visual, false)}
-                        />
-                        <YAxis
-                            type="category"
-                            dataKey="category"
-                            width={CATEGORY_AXIS_WIDTH}
-                            {...categoryAxisProps(
-                                yAxis,
-                                visual,
-                                true,
-                                CATEGORY_AXIS_WIDTH,
-                            )}
-                        />
-                        <Tooltip content={chartTooltip(visual)} />
-                        {legendShown && series.length > 1 && (
-                            <Legend
-                                layout={
-                                    legend.position === 'left' ||
-                                    legend.position === 'right'
-                                        ? 'vertical'
-                                        : 'horizontal'
-                                }
-                                verticalAlign={
-                                    legend.position === 'top'
-                                        ? 'top'
-                                        : legend.position === 'bottom'
-                                          ? 'bottom'
-                                          : 'middle'
-                                }
-                                align={
-                                    legend.position === 'left'
-                                        ? 'left'
-                                        : legend.position === 'right'
-                                          ? 'right'
-                                          : 'center'
-                                }
-                                wrapperStyle={legendStyle}
-                                formatter={legendLabelFormatter(legend.font)}
-                            />
-                        )}
-                        {series.map((s, i) => (
-                            <Bar
-                                key={s}
-                                dataKey={s}
-                                {...(stacked ? { stackId: 'a' } : {})}
-                                fill={seriesBaseFill(i)}
-                                radius={barRadius}
-                                isAnimationActive={animate}
-                                onClick={onPointClick}
-                            >
-                                {bdata.map((d, idx) => (
-                                    <Cell
-                                        key={idx}
-                                        fill={barFill(d, i)}
-                                        fillOpacity={barOpacity(d)}
-                                    />
-                                ))}
-                                {labelsShown && (
-                                    <LabelList
-                                        position={labelPosition(
-                                            dataLabels.position,
-                                            true,
-                                        )}
-                                        content={renderLabelContent(bdata, s)}
-                                        style={labelStyleFor(s)}
-                                    />
-                                )}
-                            </Bar>
-                        ))}
-                        {analyticsLines(visual, bdata, series, true, animate)}
-                    </BarChart>
+                    {renderCartesian(bdata, true)}
                 </ResponsiveContainer>,
             );
         }
@@ -1324,97 +1631,9 @@ export function ChartBody({
                 visual.type === 'stacked100Column'
                     ? normalize(data, series)
                     : data;
-            const stacked =
-                visual.type === 'stackedColumn' ||
-                visual.type === 'stacked100Column' ||
-                visual.type === 'ribbon' ||
-                visual.legend.length > 0;
-            const colMargin = {
-                top: 8,
-                right: 8,
-                left: yAxis.title ? AXIS_TITLE_LEFT_MARGIN : 0,
-                bottom: xAxis.title ? AXIS_TITLE_BOTTOM_MARGIN : 0,
-            };
             return plotWrap(
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={cdata} margin={colMargin}>
-                        <CartesianGrid
-                            stroke={gridlines.color}
-                            horizontal={gridlines.horizontal}
-                            vertical={gridlines.vertical}
-                            strokeDasharray={GRIDLINE_DASH[gridlines.style]}
-                        />
-                        <XAxis
-                            dataKey="category"
-                            {...categoryAxisProps(xAxis, visual, false)}
-                        />
-                        <YAxis
-                            width={VALUE_AXIS_WIDTH}
-                            {...valueAxisProps(
-                                yAxis,
-                                visual,
-                                true,
-                                VALUE_AXIS_WIDTH,
-                            )}
-                        />
-                        <Tooltip content={chartTooltip(visual)} />
-                        {legendShown && series.length > 1 && (
-                            <Legend
-                                layout={
-                                    legend.position === 'left' ||
-                                    legend.position === 'right'
-                                        ? 'vertical'
-                                        : 'horizontal'
-                                }
-                                verticalAlign={
-                                    legend.position === 'top'
-                                        ? 'top'
-                                        : legend.position === 'bottom'
-                                          ? 'bottom'
-                                          : 'middle'
-                                }
-                                align={
-                                    legend.position === 'left'
-                                        ? 'left'
-                                        : legend.position === 'right'
-                                          ? 'right'
-                                          : 'center'
-                                }
-                                wrapperStyle={legendStyle}
-                                formatter={legendLabelFormatter(legend.font)}
-                            />
-                        )}
-                        {series.map((s, i) => (
-                            <Bar
-                                key={s}
-                                dataKey={s}
-                                {...(stacked ? { stackId: 'a' } : {})}
-                                fill={seriesBaseFill(i)}
-                                radius={barRadius}
-                                isAnimationActive={animate}
-                                onClick={onPointClick}
-                            >
-                                {cdata.map((d, idx) => (
-                                    <Cell
-                                        key={idx}
-                                        fill={barFill(d, i)}
-                                        fillOpacity={barOpacity(d)}
-                                    />
-                                ))}
-                                {labelsShown && (
-                                    <LabelList
-                                        position={labelPosition(
-                                            dataLabels.position,
-                                            false,
-                                        )}
-                                        content={renderLabelContent(cdata, s)}
-                                        style={labelStyleFor(s)}
-                                    />
-                                )}
-                            </Bar>
-                        ))}
-                        {analyticsLines(visual, cdata, series, false, animate)}
-                    </BarChart>
+                    {renderCartesian(cdata, false)}
                 </ResponsiveContainer>,
             );
         }

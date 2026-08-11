@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
+use App\Support\RootCredentials;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
@@ -23,7 +24,8 @@ class SyncEndpointData extends Command
         {--batch=15 : Max concurrent endpoint requests per batch}
         {--dry-run : Fetch live data but do not write data.json}
         {--force : Run even outside the 08:00-21:59 window}
-        {--id= : Only refresh the endpoint with this id}';
+        {--id= : Only refresh the endpoint with this id}
+        {--root= : Only refresh endpoints whose stored URL uses this root (scheme://host[:port])}';
 
     protected $description = 'Refresh the endpoint registry (data.json) and/or sync live rows into endpoint_datasets from NOVACITY_BASE_URL';
 
@@ -51,7 +53,8 @@ class SyncEndpointData extends Command
             return self::FAILURE;
         }
 
-        $manual = (bool) $this->option('force') || $this->option('id') !== '' || $phase !== 'auto';
+        $manual = (bool) $this->option('force') || $this->option('id') !== ''
+            || $this->option('root') !== '' || $phase !== 'auto';
 
         $runRefresh = match ($phase) {
             'refresh', 'all', 'retry' => true,
@@ -119,10 +122,12 @@ class SyncEndpointData extends Command
 
         $phase = strtolower((string) $this->option('phase'));
         $onlyId = (string) $this->option('id');
+        $onlyRoot = rtrim((string) $this->option('root'), '/');
 
         // Retry-only pass: only endpoints currently flagged as retryable
         // (5xx or connection/timeout failure) are re-fetched.
         $retryOnly = $onlyId === ''
+            && $onlyRoot === ''
             && ($phase === 'retry' || ($phase === 'auto' && $this->refreshDue() === 'retry'));
 
         $pendingIds = $retryOnly ? $this->pendingRetryIds() : [];
@@ -132,6 +137,14 @@ class SyncEndpointData extends Command
                 if ((string) ($item['id'] ?? '') === $onlyId) {
                     $indexes[] = $i;
                     break;
+                }
+
+                continue;
+            }
+
+            if ($onlyRoot !== '') {
+                if (strtolower($this->rootOf((string) ($item['endpoint'] ?? ''))) === strtolower($onlyRoot)) {
+                    $indexes[] = $i;
                 }
 
                 continue;
@@ -150,6 +163,12 @@ class SyncEndpointData extends Command
 
         if ($onlyId !== '' && $indexes === []) {
             $this->error("No endpoint found with id {$onlyId}.");
+
+            return self::FAILURE;
+        }
+
+        if ($onlyRoot !== '' && $indexes === []) {
+            $this->error("No endpoint found with root {$onlyRoot}.");
 
             return self::FAILURE;
         }
@@ -186,7 +205,6 @@ class SyncEndpointData extends Command
     private function runRefresh(string $path, array $items, array $indexes): int
     {
         $baseUrl = rtrim((string) config('novacity.base_url', ''), '/');
-        $apiKey = (string) config('novacity.api_key');
         $staticToken = (string) config('novacity.admin_token');
         $timeout = max(1, (int) $this->option('timeout'));
         $connectTimeout = max(1, (int) config('novacity.connect_timeout', 15));
@@ -195,22 +213,35 @@ class SyncEndpointData extends Command
         $dryRun = (bool) $this->option('dry-run');
 
         $urlByIndex = [];
+        $rootByIndex = [];
+        $adminRoots = [];
 
         foreach ($indexes as $index) {
             $urlByIndex[$index] = $this->buildUrl($baseUrl, (string) ($items[$index]['endpoint'] ?? ''));
-        }
+            $rootByIndex[$index] = $this->rootOf((string) ($items[$index]['endpoint'] ?? ''), $baseUrl);
 
-        $hasAdmin = false;
-
-        foreach ($indexes as $index) {
             if (str_contains(strtolower((string) ($items[$index]['endpoint'] ?? '')), '/api/admin/')) {
-                $hasAdmin = true;
-
-                break;
+                $adminRoots[$rootByIndex[$index]] = true;
             }
         }
 
-        $jwt = $hasAdmin ? $this->obtainJwt($baseUrl, $apiKey, $timeout) : null;
+        // Every distinct root in the selection gets its own optional x-api-key
+        // so data requests always target the correct credentials. Only roots
+        // hosting admin endpoints additionally get a cached JWT.
+        $jwtByRoot = [];
+        $apiKeyByRoot = [];
+
+        foreach (array_unique($rootByIndex) as $root) {
+            if ($root === '') {
+                continue;
+            }
+
+            $apiKeyByRoot[$root] = RootCredentials::apiKeyFor($root);
+        }
+
+        foreach (array_keys($adminRoots) as $root) {
+            $jwtByRoot[$root] = $this->obtainJwt($root, $apiKeyByRoot[$root] ?? RootCredentials::apiKeyFor($root), $timeout);
+        }
 
         $start = microtime(true);
         $this->info('Refreshing '.count($indexes).' endpoint(s) from '.$baseUrl.($dryRun ? ' [dry-run]' : '').' ...');
@@ -230,10 +261,12 @@ class SyncEndpointData extends Command
         $responses = [];
 
         foreach (array_chunk($indexes, $batchSize) as $batch) {
-            $batchResponses = Http::pool(function (Pool $pool) use ($items, $batch, $urlByIndex, $apiKey, $jwt, $staticToken, $timeout, $connectTimeout, $retries, $retryWhen) {
+            $batchResponses = Http::pool(function (Pool $pool) use ($items, $batch, $urlByIndex, $rootByIndex, $jwtByRoot, $apiKeyByRoot, $staticToken, $timeout, $connectTimeout, $retries, $retryWhen) {
                 foreach ($batch as $index) {
                     $isAdmin = str_contains(strtolower((string) ($items[$index]['endpoint'] ?? '')), '/api/admin/');
+                    $jwt = $jwtByRoot[$rootByIndex[$index]] ?? null;
                     $auth = $isAdmin && $jwt !== null ? $jwt : ($isAdmin ? $staticToken : null);
+                    $apiKey = $apiKeyByRoot[$rootByIndex[$index]] ?? (string) config('novacity.api_key');
 
                     $headers = [
                         'x-api-key' => $apiKey,
@@ -265,6 +298,7 @@ class SyncEndpointData extends Command
 
         $ok = 0;
         $failed = [];
+        $okIndexes = [];
         $now = now()->toIso8601String();
 
         foreach ($indexes as $index) {
@@ -278,6 +312,7 @@ class SyncEndpointData extends Command
                 $items[$index]['last_error'] = null;
                 $items[$index]['consecutive_failures'] = 0;
                 $ok++;
+                $okIndexes[] = $index;
             } else {
                 $status = $result['status'];
                 $items[$index]['last_error'] = mb_substr((string) $result['error'], 0, 500);
@@ -321,6 +356,10 @@ class SyncEndpointData extends Command
 
             Cache::put(self::DAILY_KEY, now()->toDateString(), now()->endOfDay());
             Cache::put(self::LAST_ATTEMPT_KEY, time(), now()->addHours(6));
+
+            foreach ($okIndexes as $index) {
+                $this->syncDatasetEntry($items[$index]);
+            }
 
             app(EndpointDatasetRegistry::class)->forgetCache();
         }
@@ -384,16 +423,33 @@ class SyncEndpointData extends Command
             return self::SUCCESS;
         }
 
-        $apiKey = (string) config('novacity.api_key');
+        $onlyRoot = strtolower(rtrim((string) $this->option('root'), '/'));
+
+        if ($onlyRoot !== '') {
+            $endpoints = array_values(array_filter(
+                $endpoints,
+                fn (array $ep): bool => strtolower($this->rootOf((string) ($ep['endpoint'] ?? ''), $baseUrl)) === $onlyRoot,
+            ));
+
+            if ($endpoints === []) {
+                $this->error("No endpoint found with root {$onlyRoot}.");
+
+                return self::FAILURE;
+            }
+        }
+
         $timeout = max(1, (int) $this->option('timeout'));
         $connectTimeout = max(1, (int) config('novacity.connect_timeout', 15));
         $retries = max(0, (int) $this->option('retry'));
         $batchSize = max(1, (int) $this->option('batch'));
 
-        $urls = array_map(
-            fn (array $ep): string => $this->buildUrl($baseUrl, (string) $ep['endpoint']),
-            $endpoints
-        );
+        $urls = [];
+        $apiKeys = [];
+
+        foreach ($endpoints as $i => $ep) {
+            $urls[$i] = $this->buildUrl($baseUrl, (string) $ep['endpoint']);
+            $apiKeys[$i] = RootCredentials::apiKeyFor($this->rootOf((string) $ep['endpoint'], $baseUrl));
+        }
 
         $start = microtime(true);
         $this->info('Fetching '.count($endpoints).' endpoint(s) from '.$baseUrl.' ...');
@@ -411,11 +467,11 @@ class SyncEndpointData extends Command
         $responses = [];
 
         foreach (array_chunk(range(0, count($endpoints) - 1), $batchSize) as $batch) {
-            $batchResponses = Http::pool(function (Pool $pool) use ($batch, $urls, $apiKey, $timeout, $connectTimeout, $retries, $retryWhen) {
+            $batchResponses = Http::pool(function (Pool $pool) use ($batch, $urls, $apiKeys, $timeout, $connectTimeout, $retries, $retryWhen) {
                 foreach ($batch as $i) {
                     $pool->as((string) $i)
                         ->withHeaders([
-                            'x-api-key' => $apiKey,
+                            'x-api-key' => $apiKeys[$i],
                             'Accept' => 'application/json',
                         ])
                         ->timeout($timeout)
@@ -478,7 +534,7 @@ class SyncEndpointData extends Command
             }
         }
 
-        $updatedJson = $registry->applyLiveResponses($responsesBySlug);
+        $updatedJson = $this->patchDataJson($registry, $responsesBySlug);
 
         $elapsed = round(microtime(true) - $start, 2);
         $this->info("Done: {$ok} ok, {$errors} errors | {$elapsed}s");
@@ -488,6 +544,27 @@ class SyncEndpointData extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Apply live dataset responses to data.json under the shared lock so the
+     * per-root dataset workers never clobber each other's read-modify-write.
+     */
+    private function patchDataJson(EndpointDatasetRegistry $registry, array $responsesBySlug): int
+    {
+        $lock = Cache::lock(self::LOCK_KEY, 120);
+
+        if (! $lock->block(90)) {
+            $this->warn('Skipped data.json patch (another sync holds the lock).');
+
+            return 0;
+        }
+
+        try {
+            return $registry->applyLiveResponses($responsesBySlug);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -527,11 +604,13 @@ class SyncEndpointData extends Command
     }
 
     /**
-     * Obtain a JWT for admin endpoints, from the login response or the cache.
+     * Obtain a JWT for the given root, from the login response or the cache.
      */
     private function obtainJwt(string $baseUrl, string $apiKey, int $timeout): ?string
     {
-        $cached = Cache::get(self::JWT_KEY);
+        $cacheKey = self::JWT_KEY.':'.md5($baseUrl);
+
+        $cached = Cache::get($cacheKey);
 
         if (is_string($cached) && $cached !== '') {
             return $cached;
@@ -566,7 +645,7 @@ class SyncEndpointData extends Command
                 return null;
             }
 
-            Cache::put(self::JWT_KEY, $decoded['token'], now()->addHours(7));
+            Cache::put($cacheKey, $decoded['token'], now()->addHours(7));
 
             return $decoded['token'];
         } catch (\Throwable $e) {
@@ -677,6 +756,49 @@ class SyncEndpointData extends Command
         Cache::put(self::RETRY_KEY, $pending !== [], now()->endOfDay());
     }
 
+    /**
+     * Upsert the endpoint_datasets row for a single refreshed item so the
+     * builder / measure wizard see fresh rows without waiting for the next
+     * dataset-phase sync.
+     */
+    private function syncDatasetEntry(array $item): void
+    {
+        $registry = app(EndpointDatasetRegistry::class);
+        $slug = $registry->slugOf((string) ($item['endpoint'] ?? ''));
+
+        if ($slug === '') {
+            return;
+        }
+
+        $entry = $registry->buildEntry($item);
+
+        if ($entry === null) {
+            EndpointDataset::where('slug', $slug)->delete();
+
+            return;
+        }
+
+        $rows = DatasetRows::extractRows($item['response'] ?? null);
+
+        EndpointDataset::updateOrCreate(
+            ['slug' => $slug],
+            [
+                'name' => (string) $entry['name'],
+                'label' => $entry['label'],
+                'object' => $entry['object'],
+                'object_type' => $entry['object_type'],
+                'source' => (string) $entry['source'],
+                'method' => 'GET',
+                'columns' => DatasetRows::buildColumns((array) $entry['columns'], $rows),
+                'sample_data' => $rows,
+                'row_count' => count($rows),
+                'last_status' => 'ok',
+                'last_error' => null,
+                'last_synced_at' => now(),
+            ],
+        );
+    }
+
     private function dataPath(): string
     {
         return storage_path((string) config('novacity.data_file', 'app/private/data.json'));
@@ -729,11 +851,41 @@ class SyncEndpointData extends Command
     }
 
     /**
+     * Extract the root (scheme://host[:port]) of a URL, falling back to the
+     * given default root when the URL carries no scheme/host.
+     */
+    private function rootOf(string $url, string $default = ''): string
+    {
+        $parts = parse_url($url);
+
+        if (isset($parts['scheme'], $parts['host'])) {
+            $root = $parts['scheme'].'://'.$parts['host'];
+
+            if (isset($parts['port'])) {
+                $root .= ':'.$parts['port'];
+            }
+
+            return $root;
+        }
+
+        return rtrim($default, '/');
+    }
+
+    /**
      * Rebuild the live URL from the base URL + stored path + preserved query.
+     *
+     * When the stored endpoint is already an absolute URL (it has its own
+     * root/host), that host is honored so endpoints on other roots refresh
+     * against the right server; otherwise the path is joined to the default.
      */
     private function buildUrl(string $baseUrl, string $endpoint): string
     {
         $parts = parse_url($endpoint);
+
+        if (isset($parts['scheme'], $parts['host'])) {
+            return $endpoint;
+        }
+
         $path = isset($parts['path']) ? ltrim($parts['path'], '/') : '';
         $url = $path !== '' ? $baseUrl.'/'.$path : $baseUrl;
 

@@ -3,10 +3,12 @@ import type { ReportFilter } from '../filters';
 import { isCustomFilter, type CustomFilterColumn } from '../filters';
 import {
     conditionalFormatFromFx,
+    normalizeAxes,
     normalizeConditionalFormat,
     normalizeWellField,
     registerMeasure,
     unregisterMeasure,
+    type AxisDef,
     type CrossFilter,
     type Field,
     type Interaction,
@@ -16,6 +18,7 @@ import {
 } from '../model';
 import type { ReportTheme } from '../themes';
 import type { PaneName, SlicerDateRange } from './consts';
+import { CARTESIAN_TYPES } from './consts';
 import { defaultVisuals, mkPage } from './helpers';
 
 export type Bookmark = {
@@ -262,6 +265,29 @@ export function normalizeState(state: State): State {
                         .map((field) => normalizeWellField(field))
                         .filter((field): field is WellField => field !== null)
                         .map((field) => normalizeWellField(field) as WellField);
+                }
+                if (CARTESIAN_TYPES.includes(next.type)) {
+                    next.axes =
+                        next.axes === undefined || next.axes === null
+                            ? normalizeAxes(undefined)
+                            : normalizeAxes(next.axes);
+                    const axes: AxisDef[] = next.axes;
+                    const primaryId = axes[0]?.id ?? 'y0';
+                    const knownIds = new Set(axes.map((a) => a.id));
+                    next.values = next.values.map((value) =>
+                        value.axisId && knownIds.has(value.axisId)
+                            ? value
+                            : { ...value, axisId: primaryId },
+                    );
+                    if (
+                        next.seriesType !== 'bar' &&
+                        next.seriesType !== 'line' &&
+                        next.seriesType !== 'area'
+                    )
+                        next.seriesType = 'auto';
+                } else {
+                    next.axes = undefined;
+                    next.seriesType = 'auto';
                 }
                 return next;
             }),

@@ -4,12 +4,16 @@ import {
     DISPLAY_UNITS,
     distinctValues,
     measureLabel,
+    normalizeAxes,
     normalizeAxisStyle,
     normalizeBarStyle,
     normalizeDataLabelStyle,
     normalizeGridlinesStyle,
     normalizeLegendStyle,
     normalizePlotAreaStyle,
+    STACKED_EMPTY_FILL,
+    type AxisDef,
+    type AxisPosition,
     type AxisStyle,
     type BarStyle,
     type DataLabelContent,
@@ -21,6 +25,7 @@ import {
     type GridlinesStyle,
     type LegendPosition,
     type LegendStyle,
+    type NumberFormat,
     type PlotAreaStyle,
     type Visual,
 } from '@/lib/pbi/model';
@@ -34,6 +39,7 @@ import {
     OptionalNumberInput,
     Section,
     Select,
+    Stepper,
     TextInput,
     TitleSection,
     Toggle,
@@ -41,6 +47,16 @@ import {
 
 /** Horizontal (bar) family — the value axis sits on X, categories on Y. */
 const HORIZONTAL_TYPES = ['bar', 'stackedBar', 'stacked100Bar'];
+
+/** Stacked family — bars pile up, so the empty space above them can be
+ * filled via the value axis' `emptyColor`. */
+const STACKED_TYPES = [
+    'stackedColumn',
+    'stacked100Column',
+    'stackedBar',
+    'stacked100Bar',
+    'ribbon',
+];
 
 const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
     auto: 'Auto',
@@ -86,6 +102,29 @@ const LEGEND_POSITIONS: { value: LegendPosition; label: string }[] = [
     { value: 'right', label: 'Droite' },
 ];
 
+/** Vertical charts place the value axis on the left/right; the horizontal
+ * (bar) family runs it along the bottom/top, so only the matching pair is
+ * offered. */
+const AXIS_POSITIONS_VERTICAL: { value: AxisPosition; label: string }[] = [
+    { value: 'left', label: 'Gauche' },
+    { value: 'right', label: 'Droite' },
+];
+
+const AXIS_POSITIONS_HORIZONTAL: { value: AxisPosition; label: string }[] = [
+    { value: 'bottom', label: 'Bas' },
+    { value: 'top', label: 'Haut' },
+];
+
+const NUMBER_FORMATS: { value: NumberFormat; label: string }[] = [
+    { value: 'auto', label: 'Auto (champ)' },
+    { value: 'int', label: 'Entier' },
+    { value: '1dec', label: '1 décimale' },
+    { value: '2dec', label: '2 décimales' },
+    { value: 'compact', label: 'Compact' },
+    { value: 'percent', label: 'Pourcentage' },
+    { value: 'currency', label: 'Devise' },
+];
+
 /** One axis section. Numeric-axis-only controls (units, range) render only
  * when the axis is the value axis. */
 function AxisSection({
@@ -93,11 +132,14 @@ function AxisSection({
     axis,
     isValue,
     onPatch,
+    showEmptyFill,
 }: {
     title: string;
     axis: AxisStyle;
     isValue: boolean;
     onPatch: (patch: Partial<AxisStyle>) => void;
+    /** Stacked bar/column charts: offer the empty-space fill behind the bars. */
+    showEmptyFill?: boolean;
 }) {
     return (
         <Section title={title}>
@@ -114,6 +156,11 @@ function AxisSection({
                         placeholder="Aucun"
                         onChange={(v) => onPatch({ title: v })}
                     />
+                    <Toggle
+                        label="Afficher le titre"
+                        checked={axis.showTitle !== false}
+                        onChange={(v) => onPatch({ showTitle: v })}
+                    />
                     <FontStyleControls
                         label="Police du titre"
                         font={axis.titleFont}
@@ -121,6 +168,37 @@ function AxisSection({
                             onPatch({
                                 titleFont: { ...axis.titleFont, ...p },
                             })
+                        }
+                    />
+                    <Stepper
+                        label="Décalage du titre (px)"
+                        value={axis.titleOffset ?? 0}
+                        min={-40}
+                        max={80}
+                        onChange={(v) => onPatch({ titleOffset: v })}
+                    />
+                    <Stepper
+                        label="Décalage de l'axe (px)"
+                        value={axis.gap ?? 0}
+                        min={-30}
+                        max={80}
+                        onChange={(v) => onPatch({ gap: v })}
+                    />
+                    <Toggle
+                        label="Afficher la ligne"
+                        checked={axis.showLine !== false}
+                        onChange={(v) => onPatch({ showLine: v })}
+                    />
+                    <Toggle
+                        label="Afficher les valeurs"
+                        checked={axis.showLabels !== false}
+                        onChange={(v) => onPatch({ showLabels: v })}
+                    />
+                    <ColorInput
+                        label="Couleur"
+                        value={axis.color || 'default'}
+                        onChange={(v) =>
+                            onPatch({ color: v === 'default' ? '' : v })
                         }
                     />
                     <FontStyleControls
@@ -178,6 +256,20 @@ function AxisSection({
                                     onChange={(v) => onPatch({ max: v })}
                                 />
                             </div>
+                            {showEmptyFill && (
+                                <ColorInput
+                                    label="Espace vide des barres"
+                                    value={axis.emptyColor ?? STACKED_EMPTY_FILL}
+                                    onChange={(v) =>
+                                        onPatch({
+                                            emptyColor:
+                                                v === 'default'
+                                                    ? undefined
+                                                    : v,
+                                        })
+                                    }
+                                />
+                            )}
                         </>
                     )}
                 </>
@@ -189,8 +281,15 @@ function AxisSection({
 /** Format tab for the bar/column family: axes, gridlines, bars, data labels,
  * legend, plot area and general. Each section is collapsible. */
 export function CartesianFormat({ visual }: { visual: Visual }) {
-    const { updateVisual, tables } = usePbi();
+    const {
+        updateVisual,
+        addValueAxis,
+        removeValueAxis,
+        moveValueAxis,
+        tables,
+    } = usePbi();
     const horizontal = HORIZONTAL_TYPES.includes(visual.type);
+    const stackedFamily = STACKED_TYPES.includes(visual.type);
     const xAxis = normalizeAxisStyle(visual.xAxis);
     const yAxis = normalizeAxisStyle(visual.yAxis);
     const gridlines = normalizeGridlinesStyle(visual.gridlines);
@@ -198,6 +297,20 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
     const dataLabels = normalizeDataLabelStyle(visual.dataLabels);
     const legend = normalizeLegendStyle(visual.legendStyle);
     const plotArea = normalizePlotAreaStyle(visual.plotArea);
+
+    const axes = useMemo(
+        () => (visual.axes?.length ? normalizeAxes(visual.axes) : []),
+        [visual.axes],
+    );
+    const setAxes = (next: AxisDef[]) =>
+        updateVisual(visual.id, { axes: next });
+    const patchAxisDef = (
+        axisId: string,
+        patch: Partial<AxisDef>,
+    ) =>
+        setAxes(
+            axes.map((a) => (a.id === axisId ? { ...a, ...patch } : a)),
+        );
 
     const patchAxis = (key: 'xAxis' | 'yAxis', patch: Partial<AxisStyle>) =>
         updateVisual(visual.id, {
@@ -256,14 +369,266 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 title="Axe X"
                 axis={xAxis}
                 isValue={horizontal}
+                showEmptyFill={stackedFamily && horizontal}
                 onPatch={(p) => patchAxis('xAxis', p)}
             />
-            <AxisSection
-                title="Axe Y"
-                axis={yAxis}
-                isValue={!horizontal}
-                onPatch={(p) => patchAxis('yAxis', p)}
-            />
+            {axes.length > 0 ? (
+                <Section title="Axe Y" defaultOpen={axes.length > 1}>
+                    {axes.map((a, i) => (
+                        <div
+                            key={a.id}
+                            className="space-y-1.5 rounded border border-dashed border-border/60 p-2"
+                        >
+                            <div className="flex items-center gap-1">
+                                <span className="flex-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    Axe {i + 1}
+                                </span>
+                                {axes.length > 1 && (
+                                    <>
+                                        <button
+                                            onClick={() =>
+                                                moveValueAxis(
+                                                    visual.id,
+                                                    a.id,
+                                                    -1,
+                                                )
+                                            }
+                                            disabled={i === 0}
+                                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                            title="Monter"
+                                        >
+                                            ↑
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                moveValueAxis(
+                                                    visual.id,
+                                                    a.id,
+                                                    1,
+                                                )
+                                            }
+                                            disabled={i === axes.length - 1}
+                                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                            title="Descendre"
+                                        >
+                                            ↓
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                removeValueAxis(
+                                                    visual.id,
+                                                    a.id,
+                                                )
+                                            }
+                                            className="text-muted-foreground hover:text-destructive"
+                                            title="Supprimer l'axe"
+                                        >
+                                            ×
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                            <Toggle
+                                label="Afficher l'axe"
+                                checked={a.showLine || a.showLabels}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, {
+                                        showLine: v,
+                                        showLabels: v,
+                                    })
+                                }
+                            />
+                            <TextInput
+                                label="Titre"
+                                value={a.title}
+                                placeholder="Aucun"
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, { title: v })
+                                }
+                            />
+                            <Toggle
+                                label="Afficher le titre"
+                                checked={a.showTitle}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, { showTitle: v })
+                                }
+                            />
+                            <Stepper
+                                label="Décalage du titre (px)"
+                                value={a.titleOffset ?? 0}
+                                min={-40}
+                                max={80}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, { titleOffset: v })
+                                }
+                            />
+                            <Stepper
+                                label="Décalage de l'axe (px)"
+                                value={a.gap ?? 0}
+                                min={-30}
+                                max={80}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, { gap: v })
+                                }
+                            />
+                            <Toggle
+                                label="Afficher la ligne"
+                                checked={a.showLine}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, { showLine: v })
+                                }
+                            />
+                            <Toggle
+                                label="Afficher les valeurs"
+                                checked={a.showLabels}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, { showLabels: v })
+                                }
+                            />
+                            {!a.lockRange && (
+                                <>
+                                    <Toggle
+                                        label="Échelle automatique"
+                                        checked={a.auto}
+                                        onChange={(v) =>
+                                            patchAxisDef(a.id, {
+                                                auto: v,
+                                                ...(v
+                                                    ? { min: undefined, max: undefined }
+                                                    : {}),
+                                            })
+                                        }
+                                    />
+                                    {!a.auto && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <OptionalNumberInput
+                                                label="Min"
+                                                value={a.min}
+                                                onChange={(v) =>
+                                                    patchAxisDef(a.id, {
+                                                        min: v,
+                                                    })
+                                                }
+                                            />
+                                            <OptionalNumberInput
+                                                label="Max"
+                                                value={a.max}
+                                                onChange={(v) =>
+                                                    patchAxisDef(a.id, {
+                                                        max: v,
+                                                    })
+                                                }
+                                            />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                            <Select
+                                label="Position"
+                                value={a.position}
+                                options={
+                                    horizontal
+                                        ? AXIS_POSITIONS_HORIZONTAL
+                                        : AXIS_POSITIONS_VERTICAL
+                                }
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, {
+                                        position: v as AxisPosition,
+                                    })
+                                }
+                            />
+                            <ColorInput
+                                label="Couleur"
+                                value={a.color || 'default'}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, {
+                                        color: v === 'default' ? '' : v,
+                                    })
+                                }
+                            />
+                            {stackedFamily && (
+                                <ColorInput
+                                    label="Espace vide des barres"
+                                    value={a.emptyColor ?? STACKED_EMPTY_FILL}
+                                    onChange={(v) =>
+                                        patchAxisDef(a.id, {
+                                            emptyColor:
+                                                v === 'default'
+                                                    ? undefined
+                                                    : v,
+                                        })
+                                    }
+                                />
+                            )}
+                            <div className="grid grid-cols-2 gap-2">
+                                <Select
+                                    label="Format"
+                                    value={a.numberFormat}
+                                    options={NUMBER_FORMATS}
+                                    onChange={(v) =>
+                                        patchAxisDef(a.id, {
+                                            numberFormat: v as NumberFormat,
+                                        })
+                                    }
+                                />
+                                <Select
+                                    label="Unités"
+                                    value={a.displayUnits}
+                                    options={DISPLAY_UNITS.map((u) => ({
+                                        value: u,
+                                        label: DISPLAY_UNIT_LABELS[u],
+                                    }))}
+                                    onChange={(v) =>
+                                        patchAxisDef(a.id, {
+                                            displayUnits: v as DisplayUnit,
+                                        })
+                                    }
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <TextInput
+                                    label="Suffixe"
+                                    placeholder="ex. kW"
+                                    value={a.suffix ?? ''}
+                                    onChange={(v) =>
+                                        patchAxisDef(a.id, {
+                                            suffix: v.trim() || undefined,
+                                        })
+                                    }
+                                />
+                                <NumberInput
+                                    label="Décimales"
+                                    min={0}
+                                    max={10}
+                                    value={a.decimals ?? 1}
+                                    onChange={(v) =>
+                                        patchAxisDef(a.id, { decimals: v })
+                                    }
+                                />
+                            </div>
+                            {a.lockRange && (
+                                <p className="text-[10px] text-muted-foreground">
+                                    Échelle verrouillée (0–100 %) pour cet axe.
+                                </p>
+                            )}
+                        </div>
+                    ))}
+                    <button
+                        onClick={() => addValueAxis(visual.id)}
+                        className="mt-2 rounded border border-dashed border-border px-2 py-1 text-[10px] text-muted-foreground hover:border-brand hover:text-brand"
+                    >
+                        + Ajouter un axe
+                    </button>
+                </Section>
+            ) : (
+                <AxisSection
+                    title="Axe Y"
+                    axis={yAxis}
+                    isValue={!horizontal}
+                    showEmptyFill={stackedFamily && !horizontal}
+                    onPatch={(p) => patchAxis('yAxis', p)}
+                />
+            )}
 
             <Section title="Repères">
                 <Toggle

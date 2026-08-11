@@ -11,11 +11,11 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Helper: run the command only when the DB-configured interval has elapsed
-// since the last run. Falls back to 60s when unset; never below 60s.
+// since the last run. Falls back to $fallback when unset; never below 60s.
 if (! function_exists('isSyncDue')) {
-    function isSyncDue(string $settingKey): bool
+    function isSyncDue(string $settingKey, int $fallback = 60): bool
     {
-        $intervalSeconds = max(60, (int) Setting::get($settingKey, 60));
+        $intervalSeconds = max(60, (int) Setting::get($settingKey, $fallback));
         $lastRunKey = "sync_last_run:{$settingKey}";
         $lastRun = Cache::get($lastRunKey, 0);
 
@@ -29,13 +29,20 @@ if (! function_exists('isSyncDue')) {
     }
 }
 
-// Endpoint registry refresh + dataset snapshots for the builder - keep
-// columns/rows fresh. Interval is configurable from the admin UI
-// (settings.sync_interval_seconds). The registry-refresh phase is gated
-// internally (once per day at/after 08:00, plus hourly retries while a run
-// ended with 0 successes), the dataset phase always runs when due.
-Schedule::command('sync:endpoint-data')
+// One dispatcher process runs every minute while the DB interval is due. It
+// discovers every distinct root in data.json and spawns a separate
+// sync:endpoint-data worker per root, so each root always gets its own
+// parallel process - no schedule edits needed when roots/endpoints are added.
+Schedule::command('sync:endpoint-data:dispatch')
     ->everyMinute()
     ->when(fn () => isSyncDue('sync_interval_seconds'))
     ->name('endpoint-data')
+    ->withoutOverlapping();
+
+// Daily safety-net: full registry refresh (status/response metadata) once per
+// day, gated by a 24h interval (settings.sync_refresh_daily, defaults to 86400s).
+Schedule::command('sync:endpoint-data --phase=refresh --force')
+    ->everyMinute()
+    ->when(fn () => isSyncDue('sync_refresh_daily', 86400))
+    ->name('endpoint-data-daily')
     ->withoutOverlapping();

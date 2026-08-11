@@ -7,6 +7,7 @@ use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
 use App\Support\EndpointSchemaAnalyzer;
+use App\Support\RootCredentials;
 use App\Support\SyncStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -199,6 +200,39 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
+     * Run the registry refresh phase of sync:endpoint-data for every endpoint
+     * sharing a root and return the refreshed summary.
+     */
+    public function refreshGroup(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'root' => 'required|string|url|max:1000',
+        ]);
+
+        $root = rtrim($validated['root'], '/');
+
+        $exitCode = Artisan::call('sync:endpoint-data', [
+            '--phase' => 'refresh',
+            '--force' => true,
+            '--timeout' => (int) config('novacity.web_timeout', 20),
+            '--root' => $root,
+        ]);
+
+        self::flushCache();
+
+        $retryState = $this->loadRefreshRetry();
+
+        return response()->json([
+            'success' => $exitCode === 0,
+            'exit_code' => $exitCode,
+            'output' => Artisan::output(),
+            'meta' => $this->loadRefreshMeta(),
+            'retry_pending_count' => count($retryState),
+            'retry_ids' => array_values(array_slice($retryState, 0, 200)),
+        ]);
+    }
+
+    /**
      * Re-fetch only the endpoints currently flagged as retryable (5xx /
      * connection errors) via the sync command's retry phase, then return the
      * refreshed summary.
@@ -280,12 +314,18 @@ class NovacityEndpointsController extends Controller
             $changed++;
         }
 
-        if ($changed === 0) {
-            return response()->json(['success' => true, 'changed' => 0]);
+        if ($changed > 0 && ! $this->persistItems($items)) {
+            return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
         }
 
-        if (! $this->persistItems($items)) {
-            return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
+        // Migrate any stored per-root API key so the rename keeps credentials.
+        $credentials = RootCredentials::load();
+
+        if (isset($credentials[$oldRoot])) {
+            $entry = $credentials[$oldRoot];
+            unset($credentials[$oldRoot]);
+            $credentials[$newRoot] = $entry;
+            RootCredentials::saveAll($credentials);
         }
 
         $this->invalidateDatasetCaches();
@@ -344,8 +384,9 @@ class NovacityEndpointsController extends Controller
         $status = $request->query('status');
         $statusGroup = strtolower(trim((string) $request->query('status_group', '')));
         $source = strtolower(trim((string) $request->query('source', '')));
+        $root = rtrim(trim((string) $request->query('root', '')), '/');
 
-        $filtered = array_values(array_filter($items, function ($item) use ($search, $method, $status, $statusGroup, $source) {
+        $filtered = array_values(array_filter($items, function ($item) use ($search, $method, $status, $statusGroup, $source, $root) {
             if ($search !== '') {
                 $haystack = strtolower(
                     ($item['name'] ?? '').' '.($item['endpoint'] ?? '').' '.$this->detectSource($item)
@@ -355,6 +396,9 @@ class NovacityEndpointsController extends Controller
                 }
             }
             if ($method !== '' && strtoupper($item['method'] ?? 'GET') !== $method) {
+                return false;
+            }
+            if ($root !== '' && strtolower($this->rootOf($item['endpoint'] ?? '')) !== strtolower($root)) {
                 return false;
             }
             $itemStatus = (int) ($item['status'] ?? -1);
@@ -703,6 +747,90 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
+     * List every known root (from data.json) merged with any configured
+     * per-root credentials. Each entry exposes only the masked api key.
+     */
+    public function roots(): JsonResponse
+    {
+        $items = $this->loadItems() ?? [];
+        $credentials = RootCredentials::load();
+
+        $byRoot = [];
+
+        foreach ($items as $item) {
+            $root = $this->rootOf($item['endpoint'] ?? '');
+            if ($root !== '') {
+                $byRoot[$root] = ($byRoot[$root] ?? 0) + 1;
+            }
+        }
+
+        foreach ($credentials as $root => $config) {
+            $byRoot[$root] ??= 0;
+        }
+
+        $roots = [];
+
+        foreach ($byRoot as $root => $count) {
+            $stored = $credentials[$root] ?? [];
+            $apiKey = is_string($stored['api_key'] ?? null) ? $stored['api_key'] : '';
+            $roots[] = [
+                'root' => $root,
+                'count' => $count,
+                'has_api_key' => $apiKey !== '',
+                'masked_api_key' => RootCredentials::mask($apiKey),
+            ];
+        }
+
+        usort($roots, static fn (array $a, array $b): int => strcmp($a['root'], $b['root']));
+
+        return response()->json(['roots' => $roots]);
+    }
+
+    /**
+     * Upsert the x-api-key for a root.
+     */
+    public function storeRoot(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'root' => 'required|string|url|max:1000',
+            'api_key' => 'present|string|max:1000',
+        ]);
+
+        $root = rtrim(trim($validated['root']), '/');
+        $apiKey = trim((string) $validated['api_key']);
+
+        if ($root === '') {
+            return response()->json(['success' => false, 'error' => 'Le root est obligatoire'], 422);
+        }
+
+        $all = RootCredentials::load();
+        $all[$root] = array_merge($all[$root] ?? [], ['api_key' => $apiKey]);
+
+        if (! RootCredentials::saveAll($all)) {
+            return response()->json(['success' => false, 'error' => 'Échec de l’écriture du fichier de racines'], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'root' => $root,
+            'has_api_key' => $apiKey !== '',
+            'masked_api_key' => RootCredentials::mask($apiKey),
+        ]);
+    }
+
+    /**
+     * Remove per-root credentials (fallback to the global config key).
+     */
+    public function destroyRoot(string $root): JsonResponse
+    {
+        $root = rtrim(trim($root), '/');
+
+        RootCredentials::forget($root);
+
+        return response()->json(['success' => true, 'root' => $root]);
+    }
+
+    /**
      * Fetch a live endpoint and return its body without persisting anything.
      * The base URL comes from the submitted root API, falling back to the
      * .env configured NOVACITY_BASE_URL. Success requires HTTP 200 and a
@@ -729,7 +857,7 @@ class NovacityEndpointsController extends Controller
         $url = $baseUrl.'/'.ltrim($validated['path'], '/');
 
         $headers = [
-            'x-api-key' => (string) config('novacity.api_key'),
+            'x-api-key' => RootCredentials::apiKeyFor($this->rootOf($baseUrl)),
             'Accept' => 'application/json',
         ];
 
@@ -798,7 +926,7 @@ class NovacityEndpointsController extends Controller
         $url = $baseUrl.'/'.ltrim($validated['path'], '/');
 
         $headers = [
-            'x-api-key' => (string) config('novacity.api_key'),
+            'x-api-key' => RootCredentials::apiKeyFor($this->rootOf($baseUrl)),
             'Accept' => 'application/json',
         ];
 
@@ -1095,6 +1223,7 @@ class NovacityEndpointsController extends Controller
             'method' => strtoupper($item['method'] ?? 'GET'),
             'endpoint' => $item['endpoint'] ?? '',
             'slug' => $this->extractSlug($item['endpoint'] ?? ''),
+            'root' => $this->rootOf($item['endpoint'] ?? ''),
             'status' => $status,
             'source' => $this->detectSource($item),
             'object_type' => $item['response']['object_type'] ?? null,
@@ -1126,15 +1255,18 @@ class NovacityEndpointsController extends Controller
         $byMethod = [];
         $bySource = [];
         $byStatus = [];
+        $byRoot = [];
 
         foreach ($items as $item) {
             $method = strtoupper($item['method'] ?? 'GET');
             $source = $this->detectSource($item);
             $status = (int) ($item['status'] ?? 0);
+            $root = $this->rootOf((string) ($item['endpoint'] ?? ''));
 
             $byMethod[$method] = ($byMethod[$method] ?? 0) + 1;
             $bySource[$source] = ($bySource[$source] ?? 0) + 1;
             $byStatus[$status] = ($byStatus[$status] ?? 0) + 1;
+            $byRoot[$root] = ($byRoot[$root] ?? 0) + 1;
         }
 
         return [
@@ -1142,6 +1274,7 @@ class NovacityEndpointsController extends Controller
             'by_method' => $byMethod,
             'by_source' => $bySource,
             'by_status' => $byStatus,
+            'by_root' => $byRoot,
         ];
     }
 
@@ -1261,6 +1394,26 @@ class NovacityEndpointsController extends Controller
         }
 
         return 'OTHER';
+    }
+
+    /**
+     * Extract the root (scheme://host[:port]) of a URL, '' when unparsable.
+     */
+    private function rootOf(string $url): string
+    {
+        $parsed = parse_url($url);
+
+        if (! $parsed || ! isset($parsed['scheme'], $parsed['host'])) {
+            return '';
+        }
+
+        $root = $parsed['scheme'].'://'.$parsed['host'];
+
+        if (isset($parsed['port'])) {
+            $root .= ':'.$parsed['port'];
+        }
+
+        return $root;
     }
 
     /**

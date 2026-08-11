@@ -6,6 +6,8 @@ export type {
     Agg,
     AnalyticsKind,
     AnalyticsLine,
+    AxisDef,
+    AxisPosition,
     AxisStyle,
     BarStyle,
     BarsApplyMode,
@@ -53,6 +55,7 @@ export type {
     PlotAreaStyle,
     Row,
     ScatterPoint,
+    SeriesMeta,
     TableDef,
     TitleStyle,
     ValueAggregationMode,
@@ -100,6 +103,9 @@ export {
 
 export {
     applyFx,
+    axisPositionDefault,
+    defaultAxes,
+    DEFAULT_AXES,
     defaultConditionalFormat,
     defaultGaugeStyle,
     DEFAULT_AXIS_STYLE,
@@ -118,6 +124,7 @@ export {
     fieldIssue,
     fieldLabel,
     fieldNumericIssue,
+    formatAxisDefTick,
     formatCallout,
     formatDisplayUnitValue,
     formatNumber,
@@ -128,6 +135,7 @@ export {
     inferFieldType,
     measureLabel,
     normalizeAxisStyle,
+    normalizeAxes,
     normalizeBarStyle,
     normalizeCalloutStyle,
     normalizeCategoryLabelStyle,
@@ -147,6 +155,7 @@ export {
     visualTitleStyle,
     wellForReference,
     conditionalFormatFromFx,
+    STACKED_EMPTY_FILL,
 } from './format';
 
 export {

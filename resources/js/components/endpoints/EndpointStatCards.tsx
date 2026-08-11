@@ -8,6 +8,7 @@ export function EndpointStatCards({ stats }: { stats: EndpointsStats | null }) {
         by_method: {},
         by_source: {},
         by_status: {},
+        by_root: {},
     };
     const errorCount = Object.entries(s.by_status).reduce(
         (acc, [code, count]) => acc + (Number(code) >= 400 ? count : 0),

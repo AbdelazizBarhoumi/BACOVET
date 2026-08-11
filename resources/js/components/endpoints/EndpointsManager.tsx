@@ -1,3 +1,4 @@
+import { KeyRound } from 'lucide-react';
 import {
     lazy,
     Suspense,
@@ -10,22 +11,30 @@ import {
 import { toast } from 'sonner';
 import { EndpointDetailDialog } from '@/components/endpoints/EndpointDetailDialog';
 import { EndpointFormDialog } from '@/components/endpoints/EndpointFormDialog';
-import { EndpointsTable } from '@/components/endpoints/EndpointsTable';
+import {
+    EndpointsDisplayToggle,
+    EndpointsGroupTabs,
+} from '@/components/endpoints/EndpointsGroupTabs';
+import {
+    EndpointsTable,
+    GroupedEndpointsTable,
+} from '@/components/endpoints/EndpointsTable';
 import { EndpointStatCards } from '@/components/endpoints/EndpointStatCards';
 import {
     EndpointsToolbar,
     type ToolbarValue,
 } from '@/components/endpoints/EndpointsToolbar';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { RootKeysManager } from '@/components/endpoints/RootKeysManager';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Panel } from '@/components/widgets';
 import { useEndpoints } from '@/hooks/use-endpoints';
 import { inferEntryKeys } from '@/lib/relationship-utils';
 import {
     fetchEndpoint,
-    rewriteEndpointRoot,
+    fetchRootCredentials,
     triggerEndpointRefresh,
+    triggerGroupRefresh,
     triggerRefresh,
     type EndpointEntry,
     type EndpointFilters,
@@ -64,7 +73,10 @@ const INITIAL_TOOLBAR: ToolbarValue = {
 
 const SEARCH_DEBOUNCE_MS = 350;
 
-function toFilters(toolbar: ToolbarValue): EndpointFilters {
+function toFilters(
+    toolbar: ToolbarValue,
+    root?: string | null,
+): EndpointFilters {
     return {
         search: toolbar.search.trim(),
         method: toolbar.method === 'all' ? undefined : toolbar.method,
@@ -73,6 +85,7 @@ function toFilters(toolbar: ToolbarValue): EndpointFilters {
             toolbar.status === 'all'
                 ? undefined
                 : (toolbar.status as 'ok' | 'warn' | 'error'),
+        root: root || undefined,
     };
 }
 
@@ -92,6 +105,7 @@ export function EndpointsManager() {
         update,
         remove,
         duplicate,
+        refresh,
     } = useEndpoints();
 
     const [toolbar, setToolbar] = useState<ToolbarValue>(INITIAL_TOOLBAR);
@@ -103,17 +117,43 @@ export function EndpointsManager() {
     );
     const [saving, setSaving] = useState(false);
     const [refreshingId, setRefreshingId] = useState<string | null>(null);
+    const [refreshingRoot, setRefreshingRoot] = useState<string | null>(null);
+    const [activeRoot, setActiveRoot] = useState<string | null>(null);
+    const [display, setDisplay] = useState<'flat' | 'grouped'>('grouped');
     const [refreshAll, setRefreshAll] = useState(false);
+    const [keysOpen, setKeysOpen] = useState(false);
+    const [keysSelectedRoot, setKeysSelectedRoot] = useState<string | null>(
+        null,
+    );
+    const [keyedRoots, setKeyedRoots] = useState<string[]>([]);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const rootTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const editAbortRef = useRef<AbortController | null>(null);
     const detailAbortRef = useRef<AbortController | null>(null);
 
     const [globalRoot, setGlobalRoot] = useState('');
-    const [rootSaved, setRootSaved] = useState(false);
-    const rootRef = useRef('');
 
-    // Load the global endpoint root: saved setting first, then .env config.
+    const loadKeyedRoots = useCallback(async () => {
+        try {
+            const data = await fetchRootCredentials();
+            setKeyedRoots(
+                data.roots
+                    .filter((root) => root.has_api_key)
+                    .map((root) => root.root),
+            );
+        } catch {
+            setKeyedRoots([]);
+        }
+    }, []);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            void loadKeyedRoots();
+        }, 0);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Load the default root for new endpoints: saved setting first, then .env config.
     useEffect(() => {
         let cancelled = false;
         fetch('/api/settings/novacity_base_url', {
@@ -123,9 +163,7 @@ export function EndpointsManager() {
             .then((data) => {
                 if (cancelled) return;
                 if (data?.value) {
-                    const value = String(data.value);
-                    setGlobalRoot(value);
-                    rootRef.current = value;
+                    setGlobalRoot(String(data.value));
                     return;
                 }
                 fetch('/novacity-config', {
@@ -134,9 +172,7 @@ export function EndpointsManager() {
                     .then((r) => (r.ok ? r.json() : null))
                     .then((config) => {
                         if (cancelled || !config?.base_url) return;
-                        const value = String(config.base_url);
-                        setGlobalRoot(value);
-                        rootRef.current = value;
+                        setGlobalRoot(String(config.base_url));
                     })
                     .catch(() => {});
             })
@@ -146,81 +182,13 @@ export function EndpointsManager() {
         };
     }, []);
 
-    const handleRootChange = useCallback(
-        (value: string) => {
-            setGlobalRoot(value);
-            setRootSaved(false);
-            if (rootTimerRef.current) {
-                clearTimeout(rootTimerRef.current);
-            }
-            rootTimerRef.current = setTimeout(() => {
-                const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-                fetch('/api/settings', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        ...(xsrf
-                            ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrf[1]) }
-                            : {}),
-                    },
-                    body: JSON.stringify({
-                        key: 'novacity_base_url',
-                        value: value.trim(),
-                    }),
-                })
-                    .then((r) => r.ok)
-                    .then(async (ok) => {
-                        setRootSaved(ok);
-                        if (!ok) return;
-                        const newRoot = value.trim();
-                        const oldRoot = rootRef.current;
-                        rootRef.current = newRoot;
-                        if (!oldRoot || !newRoot || oldRoot === newRoot) {
-                            return;
-                        }
-                        try {
-                            const result = await rewriteEndpointRoot(
-                                oldRoot,
-                                newRoot,
-                            );
-                            if (result.changed > 0) {
-                                toast.success(
-                                    `${result.changed} endpoint(s) mis à jour vers la nouvelle racine`,
-                                );
-                            }
-                        } catch (err) {
-                            toast.error(
-                                err instanceof Error
-                                    ? err.message
-                                    : 'Échec de la mise à jour des endpoints',
-                            );
-                        }
-                        applyFilters(toFilters(toolbar));
-                    })
-                    .catch(() => setRootSaved(false));
-            }, 600);
-        },
-        [applyFilters, toolbar],
-    );
-
-    useEffect(
-        () => () => {
-            if (rootTimerRef.current) {
-                clearTimeout(rootTimerRef.current);
-            }
-        },
-        [],
-    );
-
     // Debounced search: typing applies filters after a short pause.
     useEffect(() => {
         if (searchTimerRef.current) {
             clearTimeout(searchTimerRef.current);
         }
         searchTimerRef.current = setTimeout(() => {
-            applyFilters(toFilters(toolbar));
+            applyFilters(toFilters(toolbar, activeRoot));
         }, SEARCH_DEBOUNCE_MS);
         return () => {
             if (searchTimerRef.current) {
@@ -228,15 +196,15 @@ export function EndpointsManager() {
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [toolbar]);
+    }, [toolbar, activeRoot]);
 
     const handleToolbarChange = useCallback((next: ToolbarValue) => {
         setToolbar(next);
     }, []);
 
     const handleRefresh = useCallback(() => {
-        applyFilters(toFilters(toolbar));
-    }, [applyFilters, toolbar]);
+        applyFilters(toFilters(toolbar, activeRoot));
+    }, [applyFilters, toolbar, activeRoot]);
 
     const handleRefreshAll = useCallback(async () => {
         if (refreshAll) return;
@@ -252,7 +220,7 @@ export function EndpointsManager() {
                     `Échec de la commande de rafraîchissement (code de sortie ${result.exit_code})`,
                 );
             }
-            applyFilters(toFilters(toolbar));
+            applyFilters(toFilters(toolbar, activeRoot));
         } catch (err) {
             toast.error(
                 err instanceof Error
@@ -262,7 +230,50 @@ export function EndpointsManager() {
         } finally {
             setRefreshAll(false);
         }
-    }, [refreshAll, applyFilters, toolbar]);
+    }, [refreshAll, applyFilters, toolbar, activeRoot]);
+
+    const handleRootSelect = useCallback((root: string | null) => {
+        setActiveRoot(root);
+    }, []);
+
+    const handleOpenKeys = useCallback((root: string | null) => {
+        setKeysSelectedRoot(root);
+        setKeysOpen(true);
+    }, []);
+
+    const handleRootsChanged = useCallback(() => {
+        void loadKeyedRoots();
+        void refresh(undefined, { quiet: true });
+    }, [loadKeyedRoots, refresh]);
+
+    const handleRefreshGroup = useCallback(
+        async (root: string) => {
+            if (refreshingRoot) return;
+            setRefreshingRoot(root);
+            try {
+                const result = await triggerGroupRefresh(root);
+                if (result.success) {
+                    toast.success(
+                        `Rafraîchissement du groupe terminé — ${result.meta?.ok ?? 0} ok, ${result.meta?.failed ?? 0} en échec`,
+                    );
+                } else {
+                    toast.error(
+                        `Échec du rafraîchissement du groupe (code de sortie ${result.exit_code})`,
+                    );
+                }
+                applyFilters(toFilters(toolbar, activeRoot));
+            } catch (err) {
+                toast.error(
+                    err instanceof Error
+                        ? err.message
+                        : 'Échec du rafraîchissement du groupe',
+                );
+            } finally {
+                setRefreshingRoot(null);
+            }
+        },
+        [refreshingRoot, applyFilters, toolbar, activeRoot],
+    );
 
     const handleNew = useCallback(() => {
         setEditingEntry(null);
@@ -415,7 +426,7 @@ export function EndpointsManager() {
                         `Échec du rafraîchissement de « ${summary.name} » (code de sortie ${result.exit_code})`,
                     );
                 }
-                applyFilters(toFilters(toolbar));
+                applyFilters(toFilters(toolbar, activeRoot));
             } catch (err) {
                 toast.error(
                     err instanceof Error
@@ -426,10 +437,19 @@ export function EndpointsManager() {
                 setRefreshingId(null);
             }
         },
-        [applyFilters, toolbar],
+        [applyFilters, toolbar, activeRoot],
     );
 
     const sources = Object.keys(stats?.by_source ?? {});
+
+    const rootGroups = useMemo(
+        () =>
+            Object.entries(stats?.by_root ?? {}).map(([root, count]) => ({
+                root,
+                count,
+            })),
+        [stats],
+    );
 
     const detailKeys = useMemo(
         () => (detailEntry ? inferEntryKeys(detailEntry) : null),
@@ -438,30 +458,6 @@ export function EndpointsManager() {
 
     return (
         <>
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                    <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                        Racine d'endpoints
-                    </Label>
-                    <Input
-                        value={globalRoot}
-                        onChange={(e) => handleRootChange(e.target.value)}
-                        placeholder="https://api.example.com"
-                        className="w-72 font-mono text-sm"
-                    />
-                </div>
-                <span className="text-[10px] text-muted-foreground">
-                    {rootSaved
-                        ? 'Enregistré'
-                        : globalRoot
-                          ? 'Enregistrement…'
-                          : 'Chargement…'}
-                    {
-                        ' — racine par défaut pour les nouveaux endpoints ; chaque endpoint peut '
-                    }
-                    la remplacer.
-                </span>
-            </div>
             <Tabs defaultValue="endpoints">
                 <TabsList>
                     <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
@@ -485,32 +481,76 @@ export function EndpointsManager() {
                     <Panel
                         title="Endpoints"
                         right={
-                            <EndpointsToolbar
-                                value={toolbar}
-                                onChange={handleToolbarChange}
-                                onRefresh={handleRefreshAll}
-                                onNew={handleNew}
-                                loading={loading}
-                                refreshing={refreshAll || refreshing}
-                                sources={sources}
-                            />
+                            <div className="flex flex-wrap items-center gap-2">
+                                <EndpointsGroupTabs
+                                    groups={rootGroups}
+                                    active={activeRoot}
+                                    onSelect={handleRootSelect}
+                                    onRefreshGroup={handleRefreshGroup}
+                                    refreshingRoot={refreshingRoot}
+                                    keyedRoots={keyedRoots}
+                                />
+                                <EndpointsDisplayToggle
+                                    value={display}
+                                    onChange={setDisplay}
+                                />
+                                <EndpointsToolbar
+                                    value={toolbar}
+                                    onChange={handleToolbarChange}
+                                    onRefresh={handleRefreshAll}
+                                    onNew={handleNew}
+                                    loading={loading}
+                                    refreshing={refreshAll || refreshing}
+                                    sources={sources}
+                                />
+                                <div className="h-5 w-px bg-border" />
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 font-mono text-[10px] tracking-wider uppercase"
+                                    onClick={() => handleOpenKeys(null)}
+                                    title="Gérer les clés API par racine"
+                                >
+                                    <KeyRound className="mr-1.5 h-3.5 w-3.5 text-warning" />
+                                    Clés
+                                </Button>
+                            </div>
                         }
                     >
-                        <EndpointsTable
-                            items={items}
-                            loading={loading}
-                            onView={handleView}
-                            onEdit={handleEdit}
-                            onDuplicate={handleDuplicate}
-                            onDelete={handleDelete}
-                            onRefreshOne={handleRefreshOne}
-                            refreshingId={refreshingId}
-                            page={page}
-                            perPage={perPage}
-                            total={total}
-                            onPageChange={goToPage}
-                            defaultRoot={globalRoot}
-                        />
+                        {display === 'grouped' ? (
+                            <GroupedEndpointsTable
+                                items={items}
+                                loading={loading}
+                                onView={handleView}
+                                onEdit={handleEdit}
+                                onDuplicate={handleDuplicate}
+                                onDelete={handleDelete}
+                                onRefreshOne={handleRefreshOne}
+                                refreshingId={refreshingId}
+                                page={page}
+                                perPage={perPage}
+                                total={total}
+                                onPageChange={goToPage}
+                                defaultRoot={activeRoot ?? globalRoot}
+                                onOpenKeys={handleOpenKeys}
+                            />
+                        ) : (
+                            <EndpointsTable
+                                items={items}
+                                loading={loading}
+                                onView={handleView}
+                                onEdit={handleEdit}
+                                onDuplicate={handleDuplicate}
+                                onDelete={handleDelete}
+                                onRefreshOne={handleRefreshOne}
+                                refreshingId={refreshingId}
+                                page={page}
+                                perPage={perPage}
+                                total={total}
+                                onPageChange={goToPage}
+                                defaultRoot={activeRoot ?? globalRoot}
+                            />
+                        )}
                     </Panel>
                 </TabsContent>
 
@@ -536,7 +576,7 @@ export function EndpointsManager() {
                 open={formOpen}
                 onOpenChange={handleFormOpenChange}
                 entry={editingEntry}
-                defaultRoot={globalRoot}
+                defaultRoot={activeRoot ?? globalRoot}
                 busy={saving}
                 onSubmit={handleSubmit}
             />
@@ -547,6 +587,13 @@ export function EndpointsManager() {
                 entry={detailEntry}
                 loading={detailLoading}
                 keys={detailKeys ?? undefined}
+            />
+
+            <RootKeysManager
+                open={keysOpen}
+                onOpenChange={setKeysOpen}
+                selectedRoot={keysSelectedRoot}
+                onChanged={handleRootsChanged}
             />
         </>
     );

@@ -33,6 +33,7 @@ import type {
     Visual,
     WellField,
     ScatterPoint,
+    SeriesMeta,
 } from './types';
 
 /* ------------------------------------------------------------------ */
@@ -2284,6 +2285,7 @@ export function buildChartData(
         return {
             data: [withTooltips(single, rows, undefined)],
             series: values.map(measureLabel),
+            seriesMeta: values.map((v, index) => seriesMetaForField(v, index)),
         };
     }
 
@@ -2405,7 +2407,42 @@ export function buildChartData(
     // legend bucket ("Autre" would corrupt a running total).
     if (!legendCol && !capped) applyRankRunning(data, values, measureLabel);
 
-    return { data, series: [...seriesSet] };
+    return {
+        data,
+        series: [...seriesSet],
+        seriesMeta: legendCol
+            ? buildLegendSeriesMeta([...seriesSet], values[0])
+            : values.map((v, index) => seriesMetaForField(v, index)),
+    };
+}
+
+/** `SeriesMeta` for the no-legend path: one entry per value field. */
+function seriesMetaForField(v: WellField, index: number): SeriesMeta {
+    const key = measureLabel(v);
+    return {
+        key,
+        label: key,
+        axisId: v.axisId ?? 'y0',
+        type: v.seriesType ?? (v.running ? 'line' : 'bar'),
+        index,
+        ...(v.running ? { running: true as const } : {}),
+    };
+}
+
+/** `SeriesMeta` for the legend-bucket path: one entry per legend value. */
+function buildLegendSeriesMeta(
+    legendLabels: string[],
+    source: WellField | undefined,
+): SeriesMeta[] {
+    return legendLabels.map((label, index) => ({
+        key: label,
+        label,
+        axisId: source?.axisId ?? 'y0',
+        type: source?.seriesType ?? (source?.running ? 'line' : 'bar'),
+        index,
+        legendLabel: label,
+        ...(source?.running ? { running: true as const } : {}),
+    }));
 }
 
 /**

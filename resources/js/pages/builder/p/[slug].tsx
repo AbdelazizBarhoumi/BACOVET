@@ -126,7 +126,7 @@ export default function PageView() {
                 const built = buildTables(datasets);
                 setTables(built);
                 try {
-                    const schema = await fetchBuilderSchema();
+                    const schema = await fetchBuilderSchema(true);
                     if (!stop) {
                         const registry = buildJoinRegistry(schema, built);
                         setJoins(registry);
@@ -167,9 +167,12 @@ export default function PageView() {
             }
         };
         load();
+        const onFocus = () => load();
+        window.addEventListener('focus', onFocus);
         const timer = setInterval(load, 50_000);
         return () => {
             stop = true;
+            window.removeEventListener('focus', onFocus);
             clearInterval(timer);
         };
     }, [retryKey]);

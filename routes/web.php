@@ -157,6 +157,10 @@ Route::middleware(['auth', 'role:it'])->prefix('novacity-endpoints')->group(func
     Route::post('/refresh', [NovacityEndpointsController::class, 'refresh']);
     Route::post('/retry-failed', [NovacityEndpointsController::class, 'retryFailed']);
     Route::post('/rewrite-root', [NovacityEndpointsController::class, 'rewriteRoot']);
+    Route::post('/refresh-group', [NovacityEndpointsController::class, 'refreshGroup']);
+    Route::get('/roots', [NovacityEndpointsController::class, 'roots']);
+    Route::post('/roots', [NovacityEndpointsController::class, 'storeRoot']);
+    Route::delete('/roots/{root}', [NovacityEndpointsController::class, 'destroyRoot']);
     Route::post('/{id}/refresh', [NovacityEndpointsController::class, 'refreshOne']);
     Route::post('/test', [NovacityEndpointsController::class, 'test']);
     Route::post('/', [NovacityEndpointsController::class, 'store']);

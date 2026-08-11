@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class SyncEndpointDataRetryTest extends TestCase
 {
+    use RefreshDatabase;
     private string $dataFile;
 
     private string $metaFile;

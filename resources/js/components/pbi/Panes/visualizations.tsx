@@ -1,5 +1,5 @@
 import { ChevronDown, TriangleAlert, X } from 'lucide-react';
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -23,12 +23,15 @@ import {
     listAggIgnoredCount,
     listMeasureValue,
     measureLabel,
+    normalizeAxes,
     type Agg,
+    type AxisDef,
     type ValueAggregationMode,
     type VisualType,
     type WellField,
 } from '@/lib/pbi/model';
 import { usePbi, type WellName } from '@/lib/pbi/store';
+import { CARTESIAN_TYPES } from '@/lib/pbi/store/consts';
 import { visualConfig } from '@/lib/pbi/visualConfig';
 import { cn } from '@/lib/utils';
 import { CartesianFormat } from '../CartesianFormat';
@@ -331,6 +334,90 @@ function InlineIntInput({
     );
 }
 
+/** Dropdowns for one cartesian value field: the draw style (bar/line/area)
+ * and the value axis it plots on. The axis list offers the visual's current
+ * axes plus a "+ nouvel axe" entry that lazily creates an extra axis. */
+function ValueFieldControls({
+    visualId,
+    axes,
+    field,
+    index,
+    addValueAxis,
+    patchWellField,
+}: {
+    visualId: string;
+    axes: AxisDef[];
+    field: WellField;
+    index: number;
+    addValueAxis: (id: string) => string | undefined;
+    patchWellField: (
+        visualId: string,
+        well: WellName,
+        index: number,
+        patch: Partial<WellField>,
+    ) => void;
+}) {
+    const normalized = useMemo(() => normalizeAxes(axes), [axes]);
+    const current = field.axisId ?? normalized[0]?.id ?? 'y0';
+    return (
+        <>
+            <select
+                title="Style de la série"
+                value={field.seriesType ?? 'auto'}
+                onChange={(e) =>
+                    patchWellField(visualId, 'values', index, {
+                        seriesType:
+                            e.target.value === 'auto'
+                                ? undefined
+                                : (e.target.value as WellField['seriesType']),
+                    })
+                }
+                data-testid={`series-type-select-${index}`}
+                className="rounded border border-border bg-background text-[10px]"
+            >
+                {(['auto', 'bar', 'line', 'area'] as const).map((t) => (
+                    <option key={t} value={t}>
+                        {t === 'auto'
+                            ? 'Barres'
+                            : t === 'bar'
+                              ? 'Barres'
+                              : t === 'line'
+                                ? 'Courbe'
+                                : 'Aires'}
+                    </option>
+                ))}
+            </select>
+            <select
+                title="Axe des valeurs"
+                value={current}
+                onChange={(e) => {
+                    if (e.target.value === '__new__') {
+                        const id = addValueAxis(visualId);
+                        if (id)
+                            patchWellField(visualId, 'values', index, {
+                                axisId: id,
+                            });
+                        return;
+                    }
+                    patchWellField(visualId, 'values', index, {
+                        axisId: e.target.value,
+                    });
+                }}
+                data-testid={`axis-select-${index}`}
+                className="rounded border border-border bg-background text-[10px]"
+            >
+                {normalized.map((a) => (
+                    <option key={a.id} value={a.id}>
+                        Axe {a.order + 1}{' '}
+                        {a.title ? `— ${a.title}` : ''}
+                    </option>
+                ))}
+                <option value="__new__">+ Nouvel axe</option>
+            </select>
+        </>
+    );
+}
+
 export function VisualizationsPane({
     onCollapse,
 }: {
@@ -346,6 +433,7 @@ export function VisualizationsPane({
         setWellAgg,
         setWellValueAgg,
         patchWellField,
+        addValueAxis,
         toggleAnalytics,
         setAnalyticsValue,
         page,
@@ -577,6 +665,23 @@ export function VisualizationsPane({
                                                     ))}
                                                 </select>
                                             )}
+                                            {name === 'values' &&
+                                                CARTESIAN_TYPES.includes(
+                                                    selected.type,
+                                                ) && (
+                                                    <ValueFieldControls
+                                                        visualId={selected.id}
+                                                        axes={selected.axes ?? []}
+                                                        field={f}
+                                                        index={i}
+                                                        addValueAxis={
+                                                            addValueAxis
+                                                        }
+                                                        patchWellField={
+                                                            patchWellField
+                                                        }
+                                                    />
+                                                )}
                                             {SINGLE_VALUE_WELLS.has(name) &&
                                                 !numericField &&
                                                 !isMeasure(f.name) &&

@@ -29,6 +29,8 @@ import {
 import type {
     Agg,
     AxisStyle,
+    AxisDef,
+    AxisPosition,
     BarStyle,
     CalloutStyle,
     CategoryLabelStyle,
@@ -150,6 +152,13 @@ export function normalizeWellField(
     const rank = value.rank === true ? true : undefined;
     const running = value.running === true ? true : undefined;
     const detail = value.detail === true ? true : undefined;
+    const axisId = typeof value.axisId === 'string' ? value.axisId : undefined;
+    const seriesType =
+        value.seriesType === 'bar' ||
+        value.seriesType === 'line' ||
+        value.seriesType === 'area'
+            ? value.seriesType
+            : undefined;
     return {
         table: reference.table ?? '',
         name: reference.name,
@@ -164,6 +173,8 @@ export function normalizeWellField(
         ...(rank ? { rank } : {}),
         ...(running ? { running } : {}),
         ...(detail ? { detail } : {}),
+        ...(axisId ? { axisId } : {}),
+        ...(seriesType ? { seriesType } : {}),
     };
 }
 
@@ -626,6 +637,10 @@ export const DEFAULT_AXIS_STYLE: AxisStyle = {
     displayUnits: 'auto',
 };
 
+/** Default fill for the empty space behind stacked bars when the value axis
+ * has no `emptyColor` set. A light gray track by default. */
+export const STACKED_EMPTY_FILL = '#d1d5db';
+
 export const DEFAULT_GRIDLINES: GridlinesStyle = {
     horizontal: true,
     vertical: false,
@@ -710,6 +725,37 @@ export function formatDisplayUnitValue(
     if (!isFinite(n)) return '—';
     const unit = isDisplayUnit(displayUnits) ? displayUnits : 'auto';
     return formatUnitValue(n, unit, decimals, suffix);
+}
+
+/** Resolves an axis tick's effective unit + decimal places from its explicit
+ * display-unit selection, custom suffix and the loose "Format" presets, then
+ * formats the tick. `decimals` wins; otherwise the Format's digit presets
+ * (int/1dec/2dec) apply. Percent/currency Formats are honored only when the
+ * display unit is left on `auto`, so Unités + suffix always compose. */
+export function formatAxisDefTick(
+    n: number,
+    opts: {
+        displayUnits?: DisplayUnit;
+        numberFormat?: NumberFormat;
+        decimals?: number;
+        suffix?: string;
+    },
+): string {
+    const decimals =
+        opts.decimals ??
+        (opts.numberFormat === 'int' ? 0
+            : opts.numberFormat === '1dec' ? 1
+            : opts.numberFormat === '2dec' ? 2
+            : undefined);
+    const unit =
+        opts.displayUnits && opts.displayUnits !== 'auto'
+            ? opts.displayUnits
+            : opts.numberFormat === 'percent'
+              ? 'percent'
+              : opts.numberFormat === 'currency'
+                ? 'currency'
+                : 'auto';
+    return formatDisplayUnitValue(n, unit, decimals, opts.suffix);
 }
 
 /**
@@ -926,9 +972,18 @@ export function normalizeAxisStyle(input: unknown): AxisStyle {
             ? value.displayUnits
             : DEFAULT_AXIS_STYLE.displayUnits,
     };
+    if (typeof value.showTitle === 'boolean') style.showTitle = value.showTitle;
+    if (typeof value.showLine === 'boolean') style.showLine = value.showLine;
+    if (typeof value.showLabels === 'boolean') style.showLabels = value.showLabels;
+    if (typeof value.color === 'string' && value.color.trim())
+        style.color = value.color.trim();
     if (typeof value.suffix === 'string' && value.suffix.trim())
         style.suffix = value.suffix.trim();
     if (typeof value.title === 'string') style.title = value.title;
+    if (typeof value.titleOffset === 'number' && isFinite(value.titleOffset))
+        style.titleOffset = value.titleOffset;
+    if (typeof value.gap === 'number' && isFinite(value.gap))
+        style.gap = value.gap;
     const titleFont = normalizeFontStyle(value.titleFont);
     if (titleFont) style.titleFont = titleFont;
     const labelsFont = normalizeFontStyle(value.labelsFont);
@@ -939,7 +994,131 @@ export function normalizeAxisStyle(input: unknown): AxisStyle {
         style.min = value.min;
     if (typeof value.max === 'number' && isFinite(value.max))
         style.max = value.max;
+    if (typeof value.emptyColor === 'string' && value.emptyColor.trim())
+        style.emptyColor = value.emptyColor.trim();
     return style;
+}
+
+const AXIS_POSITIONS: AxisPosition[] = ['left', 'right', 'bottom', 'top'];
+
+/** Default value axes for a new cartesian visual: one auto-ranged left axis. */
+export const DEFAULT_AXES: AxisDef[] = [
+    {
+        id: 'y0',
+        position: 'left',
+        order: 0,
+        auto: true,
+        title: '',
+        showTitle: true,
+        showLine: true,
+        showLabels: true,
+        showGridlines: true,
+        color: '',
+        numberFormat: 'auto',
+        displayUnits: 'auto',
+    },
+];
+
+export function defaultAxes(): AxisDef[] {
+    return DEFAULT_AXES.map((a) => ({ ...a }));
+}
+
+/** Position for the horizontal (bar) family where the value axis runs X. */
+export function axisPositionDefault(horizontal: boolean): AxisPosition {
+    return horizontal ? 'bottom' : 'left';
+}
+
+/**
+ * Normalizes a persisted `Visual.axes` array into a valid multi-axis list:
+ * ids are stringified, positions coerced, orders re-derived after sorting,
+ * and Pareto-style locked axes are snapped to a 0–100% range. Empty or
+ * malformed input yields a single default left axis so every visual always
+ * has a plot scale.
+ */
+export function normalizeAxes(input: unknown): AxisDef[] {
+    if (!Array.isArray(input)) return defaultAxes();
+    const primaries = input.filter(
+        (a): a is Record<string, unknown> =>
+            !!a && typeof a === 'object' && typeof a['id'] === 'string',
+    );
+    if (!primaries.length) return defaultAxes();
+
+    const seen = new Set<string>();
+    const parsed: { a: AxisDef; order: number }[] = [];
+    for (const raw of primaries) {
+        const id = String(raw.id);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const position = AXIS_POSITIONS.includes(raw.position as AxisPosition)
+            ? (raw.position as AxisPosition)
+            : 'left';
+        const lockRange = raw.lockRange === true;
+        const min =
+            typeof raw.min === 'number' && isFinite(raw.min)
+                ? raw.min
+                : undefined;
+        const max =
+            typeof raw.max === 'number' && isFinite(raw.max)
+                ? raw.max
+                : undefined;
+        const axis: AxisDef = {
+            id,
+            position,
+            order: 0,
+            auto: lockRange ? false : raw.auto !== false,
+            min: lockRange ? 0 : min,
+            max: lockRange ? 1 : max,
+            title: typeof raw.title === 'string' ? raw.title : '',
+            showTitle: raw.showTitle !== false,
+            titleOffset:
+                typeof raw.titleOffset === 'number' && isFinite(raw.titleOffset)
+                    ? raw.titleOffset
+                    : undefined,
+            gap:
+                typeof raw.gap === 'number' && isFinite(raw.gap)
+                    ? raw.gap
+                    : undefined,
+            showLine: raw.showLine !== false,
+            showLabels: raw.showLabels !== false,
+            showGridlines: raw.showGridlines === true,
+            color:
+                typeof raw.color === 'string' && raw.color.trim()
+                    ? raw.color.trim()
+                    : '',
+            numberFormat: isNumberFormat(raw.numberFormat)
+                ? raw.numberFormat
+                : 'auto',
+            displayUnits: isDisplayUnit(raw.displayUnits)
+                ? raw.displayUnits
+                : 'auto',
+            lockRange,
+        };
+        if (typeof raw.suffix === 'string' && raw.suffix.trim())
+            axis.suffix = raw.suffix.trim();
+        if (typeof raw.decimals === 'number' && isFinite(raw.decimals))
+            axis.decimals = raw.decimals;
+        if (typeof raw.emptyColor === 'string' && raw.emptyColor.trim())
+            axis.emptyColor = raw.emptyColor.trim();
+        const titleFont = normalizeFontStyle(raw.titleFont);
+        if (titleFont) axis.titleFont = titleFont;
+        const labelsFont = normalizeFontStyle(raw.labelsFont);
+        if (labelsFont) axis.labelsFont = labelsFont;
+        parsed.push({
+            a: axis,
+            order: typeof raw.order === 'number' ? raw.order : parsed.length,
+        });
+    }
+    const axes = parsed
+        .sort((x, y) => x.order - y.order)
+        .map(({ a }, i) => ({ ...a, order: i }));
+    if (!axes.length) return defaultAxes();
+
+    // Make sure exactly one axis drives gridlines (only the first requested).
+    const firstGridAxes = axes.filter((a) => a.showGridlines);
+    if (firstGridAxes.length > 1)
+        for (const a of axes) a.showGridlines = a === firstGridAxes[0];
+
+    return axes;
 }
 
 export function normalizeGridlinesStyle(input: unknown): GridlinesStyle {

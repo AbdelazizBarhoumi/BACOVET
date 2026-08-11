@@ -167,6 +167,14 @@ return [
 
         // ── Synchronisation des données ──────────────────────────────────────
         [
+            'id' => 'sync:endpoint-data:dispatch',
+            'label' => 'Sync endpoints : workers par racine',
+            'signature' => 'sync:endpoint-data:dispatch',
+            'category' => 'sync',
+            'description' => 'Lance un worker parallèle par racine (host) trouvée dans data.json.',
+            'confirm' => false,
+        ],
+        [
             'id' => 'sync:endpoint-data',
             'label' => 'Sync endpoints builder',
             'signature' => 'sync:endpoint-data',

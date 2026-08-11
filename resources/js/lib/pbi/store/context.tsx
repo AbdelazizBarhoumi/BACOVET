@@ -32,6 +32,8 @@ import {
 import { EMPTY_GRAPH, type RelationGraph } from '../graph';
 import type { JoinRegistry } from '../joins';
 import {
+    axisPositionDefault,
+    defaultAxes,
     fieldType,
     hasColumn,
     normalizeConditionalFormat,
@@ -41,6 +43,7 @@ import {
     unregisterMeasure,
     type Agg,
     type AnalyticsLine,
+    type AxisDef,
     type ConditionalFormat,
     type CrossFilter,
     type Field,
@@ -56,7 +59,7 @@ import {
 } from '../model';
 import { DEFAULT_SHAPE_FILL, SHAPES, type ShapeKind } from '../shapes';
 import type { ReportTheme } from '../themes';
-import { isSlicerType, type PaneName, type SlicerDateRange, type WellName } from './consts';
+import { CARTESIAN_TYPES, isSlicerType, type PaneName, type SlicerDateRange, type WellName } from './consts';
 import { mkPage, mkVisual, takeZTop, uid, wf } from './helpers';
 import {
     GESTURE_WINDOW_MS,
@@ -117,6 +120,12 @@ type Ctx = State & {
     addVisual: (type: VisualType) => string;
     addShape: (kind: ShapeKind) => void;
     updateVisual: (id: string, patch: Partial<Visual>) => void;
+    /** Adds a new independent value axis to a cartesian visual. Returns its id. */
+    addValueAxis: (id: string) => string | undefined;
+    /** Removes a value axis, re-binding its value fields to the primary axis. */
+    removeValueAxis: (id: string, axisId: string) => void;
+    /** Moves a value axis up/down in the Y-axis order (affects color order). */
+    moveValueAxis: (id: string, axisId: string, dir: -1 | 1) => void;
     removeVisual: (id: string) => void;
     duplicateVisual: (id: string) => void;
     bringForward: (id: string) => void;
@@ -615,6 +624,84 @@ export function PbiProvider({
         [mapVisuals],
     );
 
+    const addValueAxis = useCallback(
+        (visualId: string): string | undefined => {
+            let created: string | undefined;
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId || !CARTESIAN_TYPES.includes(v.type)) {
+                        return v;
+                    }
+                    const axes = v.axes ?? defaultAxes();
+                    const id = uid('y');
+                    const next: AxisDef = {
+                        id,
+                        position: axisPositionDefault(v.type === 'bar' || v.type === 'stackedBar'),
+                        order: axes.length,
+                        auto: true,
+                        title: '',
+                        showTitle: true,
+                        showLine: true,
+                        showLabels: true,
+                        showGridlines: false,
+                        color: '',
+                        numberFormat: 'auto',
+                        displayUnits: 'auto',
+                    };
+                    created = id;
+                    return { ...v, axes: [...axes, next] };
+                }),
+            );
+            return created;
+        },
+        [mapVisuals],
+    );
+
+    const removeValueAxis = useCallback(
+        (visualId: string, axisId: string) => {
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const axes = v.axes ?? [];
+                    const primary = axes[0];
+                    if (axes.length <= 1 || !primary) return v;
+                    return {
+                        ...v,
+                        axes: axes.filter((a) => a.id !== axisId),
+                        values: v.values.map((field) =>
+                            field.axisId === axisId
+                                ? { ...field, axisId: primary.id }
+                                : field,
+                        ),
+                    };
+                }),
+            );
+        },
+        [mapVisuals],
+    );
+
+    const moveValueAxis = useCallback(
+        (visualId: string, axisId: string, dir: -1 | 1) => {
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const axes = v.axes ?? [];
+                    const i = axes.findIndex((a) => a.id === axisId);
+                    const j = i + dir;
+                    if (i < 0 || j < 0 || j >= axes.length) return v;
+                    const reordered = [...axes];
+                    const [axis] = reordered.splice(i, 1);
+                    reordered.splice(j, 0, axis!);
+                    return {
+                        ...v,
+                        axes: reordered.map((a, index) => ({ ...a, order: index })),
+                    };
+                }),
+            );
+        },
+        [mapVisuals],
+    );
+
     const addVisual = useCallback(
         (type: VisualType): string => {
             const big = type === 'card' || type === 'text' || type === 'button';
@@ -947,6 +1034,9 @@ export function PbiProvider({
         addVisual,
         addShape,
         updateVisual,
+        addValueAxis,
+        removeValueAxis,
+        moveValueAxis,
         removeVisual: (id) =>
             setState((s) => {
                 const removed = s.pages

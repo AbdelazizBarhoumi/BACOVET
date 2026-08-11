@@ -9,6 +9,7 @@ import {
     compileMeasure,
     evaluateMeasure,
     fieldLabel,
+    formatAxisDefTick,
     formatCallout,
     formatDisplayUnitValue,
     formatNumberPattern,
@@ -743,6 +744,86 @@ describe('formatDisplayUnitValue — axis ticks / data labels', () => {
         expect(formatDisplayUnitValue(Number.POSITIVE_INFINITY, 'auto')).toBe(
             '—',
         );
+    });
+});
+
+describe('formatAxisDefTick — multi-axis unit/suffix composition', () => {
+    it('applies Unités even when a digit Format is set', () => {
+        expect(
+            formatAxisDefTick(12_345, {
+                displayUnits: 'thousands',
+                numberFormat: '1dec',
+            }),
+        ).toBe('12.3K');
+    });
+
+    it('falls back to the Format digit presets when Unités is auto', () => {
+        expect(
+            formatAxisDefTick(12_345.678, {
+                displayUnits: 'auto',
+                numberFormat: '2dec',
+            }),
+        ).toBe('12.35K');
+        expect(
+            formatAxisDefTick(12_345.678, {
+                displayUnits: 'none',
+                numberFormat: '2dec',
+            }),
+        ).toBe('12,345.68');
+        expect(
+            formatAxisDefTick(12_345.678, {
+                displayUnits: 'none',
+                numberFormat: 'int',
+            }),
+        ).toBe('12,346');
+    });
+
+    it('uses explicit decimals over the Format preset', () => {
+        expect(
+            formatAxisDefTick(12_345.678, {
+                displayUnits: 'none',
+                numberFormat: 'int',
+                decimals: 2,
+            }),
+        ).toBe('12,345.68');
+    });
+
+    it('honors percent/currency Formats only when Unités is auto', () => {
+        expect(
+            formatAxisDefTick(0.5, {
+                displayUnits: 'auto',
+                numberFormat: 'percent',
+            }),
+        ).toBe('50.0%');
+        expect(
+            formatAxisDefTick(2500, {
+                displayUnits: 'auto',
+                numberFormat: 'currency',
+            }),
+        ).toBe('$2,500');
+        expect(
+            formatAxisDefTick(0.5, {
+                displayUnits: 'percent',
+                numberFormat: 'currency',
+            }),
+        ).toBe('50.0%');
+    });
+
+    it('appends a custom suffix to the scaled tick', () => {
+        expect(
+            formatAxisDefTick(12_345, {
+                displayUnits: 'thousands',
+                decimals: 1,
+                suffix: 'kW',
+            }),
+        ).toBe('12.3kW');
+        expect(
+            formatAxisDefTick(0.5, {
+                displayUnits: 'percent',
+                numberFormat: '2dec',
+                suffix: 'pts',
+            }),
+        ).toBe('50.00pts');
     });
 });
 

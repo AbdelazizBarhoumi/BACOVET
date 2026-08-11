@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Minimize2, Pause, Play } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePbi } from '@/lib/pbi/store';
+import { themeById, themeCssVars } from '@/lib/pbi/themes';
 import { cn } from '@/lib/utils';
 import { Canvas } from './Canvas';
 
@@ -21,8 +22,21 @@ type Phase = 'idle' | 'slide-out' | 'slide-in';
  * or the arrow keys. Exiting (button or Escape) returns to the editor.
  */
 export function FullscreenView() {
-    const { pages, activePageId, setActivePage, setFullscreen, mobileView } =
-        usePbi();
+    const {
+        pages,
+        activePageId,
+        setActivePage,
+        setFullscreen,
+        mobileView,
+        theme,
+        customThemes,
+    } = usePbi();
+    const activeTheme =
+        customThemes.find((t) => t.id === theme) ?? themeById(theme);
+    const themeStyle = useMemo(
+        () => themeCssVars(activeTheme) as React.CSSProperties,
+        [activeTheme],
+    );
     const containerRef = useRef<HTMLDivElement>(null);
     const gestureRef = useRef<{
         pointerId: number;
@@ -217,6 +231,7 @@ export function FullscreenView() {
             data-testid="fullscreen-view"
             onPointerMove={poke}
             className="fixed inset-0 z-50 flex flex-col bg-muted text-foreground"
+            style={themeStyle}
         >
             <div
                 ref={containerRef}

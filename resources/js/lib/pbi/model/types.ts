@@ -104,6 +104,16 @@ export type WellField = {
      * "Détail des lignes" toggle in the values well.
      */
     detail?: boolean;
+    /**
+     * Cartesian multi-axis binding: id of the value axis this field plots on.
+     * Fallback is the visual's first value axis when omitted.
+     */
+    axisId?: string;
+    /**
+     * Series-styling choice for combo/pareto charts: how this value is drawn
+     * ('bar' | 'line' | 'area'). Ignored by single-type charts.
+     */
+    seriesType?: 'bar' | 'line' | 'area';
 };
 
 export type FieldReference = {
@@ -122,6 +132,7 @@ export type VisualType =
     | 'area'
     | 'stackedArea'
     | 'combo'
+    | 'pareto'
     | 'ribbon'
     | 'waterfall'
     | 'pie'
@@ -311,6 +322,9 @@ export type Visual = {
     drillLevel: number;
     /** max categories rendered before the remainder rolls into an "Other" bucket */
     maxCategories: number;
+    /** cartesian default series draw style for value fields without an
+     * explicit `WellField.seriesType` override ('auto' → bar). */
+    seriesType?: 'bar' | 'line' | 'area' | 'auto';
     /** per-page tooltip */
     tooltipPageId?: string | undefined;
     /** drillthrough target page */
@@ -325,6 +339,9 @@ export type Visual = {
     xAxis?: AxisStyle;
     /** cartesian (bar/column) Y-axis styling */
     yAxis?: AxisStyle;
+    /** cartesian multi-axis system: independent value axes, each bound by
+     * `WellField.axisId`. Absent for legacy visuals → migrated in normalize. */
+    axes?: AxisDef[];
     /** cartesian gridlines */
     gridlines?: GridlinesStyle;
     /** cartesian bars/columns styling */
@@ -377,6 +394,7 @@ export type Interaction = 'filter' | 'highlight' | 'none';
 /** A dataset table: a named set of fields backed by captured endpoint rows. */
 export type TableDef = {
     name: string;
+    displayName?: string;
     fields: Field[];
     rows: Row[];
     slug?: string;
@@ -511,6 +529,20 @@ export type AxisStyle = {
     show: boolean;
     /** Axis title text; '' hides the title. */
     title?: string;
+    /** Show the title text (default: true when `title` is set). */
+    showTitle?: boolean;
+    /** Draw the axis rule (default: true). */
+    showLine?: boolean;
+    /** Draw the tick values (default: true). */
+    showLabels?: boolean;
+    /** axis/label color; '' inherits the report foreground. */
+    color?: string;
+    /** Extra distance (px) pushing the title away from its axis; negative
+     * pulls it toward the plot. 0 = the default tight gap. */
+    titleOffset?: number;
+    /** Extra pixels added to the axis lane, nudging the axis (line + ticks)
+     * further from the plot; negative pulls it closer. */
+    gap?: number;
     titleFont?: FontStyle;
     labelsFont?: FontStyle;
     /** Numeric axis only: display-unit scaling for tick labels. */
@@ -521,6 +553,82 @@ export type AxisStyle = {
     /** Numeric axis only: hard min/max range. */
     min?: number;
     max?: number;
+    /** Stacked bar/column charts: fill the empty space above/beside each
+     * stacked bar with this color (a full-height track behind the bars). */
+    emptyColor?: string;
+};
+
+/** Which side a value axis sits on. For vertical charts this is left/right;
+ * for the horizontal (bar) family the value axis runs along the bottom/top. */
+export type AxisPosition = 'left' | 'right' | 'bottom' | 'top';
+
+/** One independent value axis in the multi-axis system. A series binds to an
+ * axis via `id` (mirrors Recharts' `yAxisId`/`xAxisId`). Each axis keeps its
+ * own scale, format and visual affordances, so several measures with wildly
+ * different ranges can share one plot. */
+export type AxisDef = {
+    /** stable id used to bind series (`yAxisId`/`xAxisId`). */
+    id: string;
+    /** which side of the plot area this axis sits on. */
+    position: AxisPosition;
+    /** stacking order on its side: lower = inner (flush to the plot). */
+    order: number;
+    /** hard domain; undefined means "auto" for that bound. */
+    min?: number;
+    max?: number;
+    /** when true, min/max are ignored and the axis auto-ranges. */
+    auto: boolean;
+    /** axis title text; '' hides it. */
+    title: string;
+    showTitle: boolean;
+    /** Extra distance (px) pushing the title away from its axis; negative
+     * pulls it toward the plot. 0 = the default tight gap. */
+    titleOffset?: number;
+    /** Extra pixels added to the axis lane, nudging the axis (line + ticks)
+     * further from the plot; negative pulls it closer. */
+    gap?: number;
+    /** the vertical/horizontal rule itself. */
+    showLine: boolean;
+    /** the tick numbers (14000, 12000, …). */
+    showLabels: boolean;
+    /** this axis drives the shared gridlines. Only one axis should show
+     * gridlines at a time, since every scale is different. */
+    showGridlines: boolean;
+    /** axis/label color; '' inherits the bound series color. */
+    color?: string;
+    /** number presentation format applied to ticks + bound series. */
+    numberFormat: NumberFormat;
+    displayUnits: DisplayUnit;
+    suffix?: string;
+    decimals?: number;
+    titleFont?: FontStyle;
+    labelsFont?: FontStyle;
+    /** Pareto-style percentage axes: range is locked (0–100%) and min/max
+     * inputs are hidden — the percentage is fixed by definition. */
+    lockRange?: boolean;
+    /** Stacked bar/column charts: fill the empty space above/beside each
+     * stacked bar with this color (a full-height track behind the bars). */
+    emptyColor?: string;
+};
+
+/** One rendered series of a cartesian chart, along with its data binding.
+ * Returned by `buildChartData` alongside the row data so the chart can bind
+ * each `Line`/`Bar`/`Area` to its own value axis and format. */
+export type SeriesMeta = {
+    /** key used as the row property (matches `data[i][key]`). */
+    key: string;
+    /** display label (measure label or legend bucket). */
+    label: string;
+    /** id of the value axis this series plots on. */
+    axisId: string;
+    /** how to draw the series ('bar' | 'line' | 'area'). */
+    type: 'bar' | 'line' | 'area';
+    /** palette slot so colors rotate deterministically. */
+    index: number;
+    /** after legend columns: the "legend bucket" name, else the measure label. */
+    legendLabel?: string;
+    /** running/cumulative total flag (pareto cumulative line). */
+    running?: boolean;
 };
 
 export type GridlineStyle = 'solid' | 'dashed' | 'dotted';

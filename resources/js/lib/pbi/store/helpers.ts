@@ -1,5 +1,6 @@
 import {
     PAGE_PRESETS,
+    defaultAxes,
     defaultGaugeStyle,
     fieldType,
     findTableForField,
@@ -167,6 +168,8 @@ function cartesianStyleDefaults(): Partial<Visual> {
             title: '',
             displayUnits: 'auto',
         },
+        axes: defaultAxes(),
+        seriesType: 'auto',
         gridlines: {
             horizontal: true,
             vertical: false,

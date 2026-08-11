@@ -1,13 +1,23 @@
 import {
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
+    ChevronRight as ChevronRightIcon,
     Copy,
     Eye,
+    KeyRound,
     Pencil,
     RefreshCw,
+    Server,
     Trash2,
 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+    extractRoot,
+    isDefaultRoot,
+    UNKNOWN_ROOT,
+} from '@/lib/endpoint-roots';
 import { cn } from '@/lib/utils';
 import type { EndpointSummary } from '@/services/endpointManagerApi';
 import { RetryBadge } from './RetryBadge';
@@ -19,22 +29,6 @@ const SOURCE_STYLES: Record<string, string> = {
     DIVATEX: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/40',
     OTHER: 'bg-muted text-muted-foreground border-border',
 };
-
-function extractRoot(url: string): string {
-    try {
-        const parsed = new URL(url);
-        return `${parsed.protocol}//${parsed.host}`;
-    } catch {
-        return '';
-    }
-}
-
-function isDefaultRoot(root: string, defaultRoot: string): boolean {
-    if (!root || !defaultRoot) return false;
-    const normalize = (value: string) =>
-        value.replace(/\/+$/, '').toLowerCase();
-    return normalize(root) === normalize(defaultRoot);
-}
 
 function MethodBadge({ method }: { method: string }) {
     const isGet = method.toUpperCase() === 'GET';
@@ -63,6 +57,160 @@ function SourceBadge({ source }: { source: string }) {
         >
             {source}
         </span>
+    );
+}
+
+export function EndpointRow({
+    item,
+    refreshingId,
+    showRoot,
+    defaultRoot,
+    onView,
+    onEdit,
+    onDuplicate,
+    onDelete,
+    onRefreshOne,
+}: {
+    item: EndpointSummary;
+    refreshingId: string | null;
+    showRoot: boolean;
+    defaultRoot: string;
+    onView: (item: EndpointSummary) => void;
+    onEdit: (item: EndpointSummary) => void;
+    onDuplicate: (item: EndpointSummary) => void;
+    onDelete: (item: EndpointSummary) => void;
+    onRefreshOne: (item: EndpointSummary) => void;
+}) {
+    const root = extractRoot(item.endpoint);
+
+    return (
+        <tr className="border-b border-border/50 hover:bg-muted/30">
+            <td className="max-w-[240px] px-3 py-2 text-xs font-semibold">
+                <span className="block truncate" title={item.name}>
+                    {item.name}
+                </span>
+            </td>
+            <td className="px-3">
+                <MethodBadge method={item.method} />
+            </td>
+            <td className="max-w-[260px] px-3">
+                <span
+                    className="block truncate text-xs text-muted-foreground"
+                    title={item.endpoint}
+                >
+                    {item.slug || item.endpoint}
+                </span>
+            </td>
+            {showRoot && (
+                <td className="max-w-[180px] px-3">
+                    {(() => {
+                        if (isDefaultRoot(root, defaultRoot)) {
+                            return (
+                                <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground">
+                                    Par défaut
+                                </span>
+                            );
+                        }
+                        return root ? (
+                            <span
+                                className="block truncate text-xs text-muted-foreground"
+                                title={root}
+                            >
+                                {root}
+                            </span>
+                        ) : (
+                            <span className="text-xs text-muted-foreground/50">
+                                —
+                            </span>
+                        );
+                    })()}
+                </td>
+            )}
+            <td className="px-3">
+                <SourceBadge source={item.source} />
+            </td>
+            <td className="px-3">
+                <div className="flex items-center gap-1.5">
+                    <StatusBadge status={item.status} />
+                    {item.retry_pending && (
+                        <RetryBadge attempts={item.consecutive_failures ?? 1} />
+                    )}
+                </div>
+            </td>
+            <td className="px-3 text-right text-xs tabular-nums">
+                {item.row_count}
+            </td>
+            <td className="px-3 text-right">
+                <div className="flex items-center justify-end gap-1">
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        title="Rafraîchir cet endpoint maintenant"
+                        disabled={refreshingId === item.id}
+                        onClick={() => onRefreshOne(item)}
+                    >
+                        <RefreshCw
+                            className={cn(
+                                'h-3 w-3',
+                                refreshingId === item.id && 'animate-spin',
+                            )}
+                        />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        title="Voir les détails"
+                        onClick={() => onView(item)}
+                    >
+                        <Eye className="h-3 w-3" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        title="Modifier"
+                        onClick={() => onEdit(item)}
+                    >
+                        <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        title="Dupliquer"
+                        onClick={() => onDuplicate(item)}
+                    >
+                        <Copy className="h-3 w-3" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 hover:text-destructive"
+                        title="Supprimer"
+                        onClick={() => onDelete(item)}
+                    >
+                        <Trash2 className="h-3 w-3" />
+                    </Button>
+                </div>
+            </td>
+        </tr>
+    );
+}
+
+function TableHead({ showRoot }: { showRoot: boolean }) {
+    return (
+        <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+            <th className="px-3 py-2 text-left">Nom</th>
+            <th className="px-3 py-2 text-left">Méthode</th>
+            <th className="px-3 py-2 text-left">Endpoint</th>
+            {showRoot && <th className="px-3 py-2 text-left">Racine</th>}
+            <th className="px-3 py-2 text-left">Source</th>
+            <th className="px-3 py-2 text-left">Statut</th>
+            <th className="px-3 py-2 text-right">Lignes</th>
+            <th className="px-3 py-2 text-right">Actions</th>
+        </tr>
     );
 }
 
@@ -167,162 +315,188 @@ export function EndpointsTable({
                 <div className="max-h-[560px] overflow-auto">
                     <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-background">
-                            <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                                <th className="px-3 py-2 text-left">Nom</th>
-                                <th className="px-3 py-2 text-left">Méthode</th>
-                                <th className="px-3 py-2 text-left">
-                                    Endpoint
-                                </th>
-                                <th className="px-3 py-2 text-left">Racine</th>
-                                <th className="px-3 py-2 text-left">Source</th>
-                                <th className="px-3 py-2 text-left">Statut</th>
-                                <th className="px-3 py-2 text-right">Lignes</th>
-                                <th className="px-3 py-2 text-right">
-                                    Actions
-                                </th>
-                            </tr>
+                            <TableHead showRoot />
                         </thead>
                         <tbody className="font-mono">
                             {items.map((item) => (
-                                <tr
+                                <EndpointRow
                                     key={item.id}
-                                    className="border-b border-border/50 hover:bg-muted/30"
-                                >
-                                    <td className="max-w-[240px] px-3 py-2 text-xs font-semibold">
-                                        <span
-                                            className="block truncate"
-                                            title={item.name}
-                                        >
-                                            {item.name}
-                                        </span>
-                                    </td>
-                                    <td className="px-3">
-                                        <MethodBadge method={item.method} />
-                                    </td>
-                                    <td className="max-w-[260px] px-3">
-                                        <span
-                                            className="block truncate text-xs text-muted-foreground"
-                                            title={item.endpoint}
-                                        >
-                                            {item.slug || item.endpoint}
-                                        </span>
-                                    </td>
-                                    <td className="max-w-[180px] px-3">
-                                        {(() => {
-                                            const root = extractRoot(
-                                                item.endpoint,
-                                            );
-                                            if (
-                                                isDefaultRoot(root, defaultRoot)
-                                            ) {
-                                                return (
-                                                    <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground">
-                                                        Par défaut
-                                                    </span>
-                                                );
-                                            }
-                                            return root ? (
-                                                <span
-                                                    className="block truncate text-xs text-muted-foreground"
-                                                    title={root}
-                                                >
-                                                    {root}
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground/50">
-                                                    —
-                                                </span>
-                                            );
-                                        })()}
-                                    </td>
-                                    <td className="px-3">
-                                        <SourceBadge source={item.source} />
-                                    </td>
-                                    <td className="px-3">
-                                        <div className="flex items-center gap-1.5">
-                                            <StatusBadge
-                                                status={item.status}
-                                            />
-                                            {item.retry_pending && (
-                                                <RetryBadge
-                                                    attempts={
-                                                        item.consecutive_failures ??
-                                                        1
-                                                    }
-                                                />
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-3 text-right text-xs tabular-nums">
-                                        {item.row_count}
-                                    </td>
-                                    <td className="px-3 text-right">
-                                        <div className="flex items-center justify-end gap-1">
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 w-7 p-0"
-                                                title="Rafraîchir cet endpoint maintenant"
-                                                disabled={
-                                                    refreshingId === item.id
-                                                }
-                                                onClick={() =>
-                                                    onRefreshOne(item)
-                                                }
-                                            >
-                                                <RefreshCw
-                                                    className={cn(
-                                                        'h-3 w-3',
-                                                        refreshingId ===
-                                                            item.id &&
-                                                            'animate-spin',
-                                                    )}
-                                                />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 w-7 p-0"
-                                                title="Voir les détails"
-                                                onClick={() => onView(item)}
-                                            >
-                                                <Eye className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 w-7 p-0"
-                                                title="Modifier"
-                                                onClick={() => onEdit(item)}
-                                            >
-                                                <Pencil className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 w-7 p-0"
-                                                title="Dupliquer"
-                                                onClick={() =>
-                                                    onDuplicate(item)
-                                                }
-                                            >
-                                                <Copy className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 w-7 p-0 hover:text-destructive"
-                                                title="Supprimer"
-                                                onClick={() => onDelete(item)}
-                                            >
-                                                <Trash2 className="h-3 w-3" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                    item={item}
+                                    refreshingId={refreshingId}
+                                    showRoot
+                                    defaultRoot={defaultRoot}
+                                    onView={onView}
+                                    onEdit={onEdit}
+                                    onDuplicate={onDuplicate}
+                                    onDelete={onDelete}
+                                    onRefreshOne={onRefreshOne}
+                                />
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            <Pagination
+                page={page}
+                perPage={perPage}
+                total={total}
+                onPageChange={onPageChange}
+            />
+        </div>
+    );
+}
+
+/**
+ * Folder-style grouped display keyed by the endpoint root.
+ */
+export function GroupedEndpointsTable({
+    items,
+    loading,
+    onView,
+    onEdit,
+    onDuplicate,
+    onDelete,
+    onRefreshOne,
+    refreshingId,
+    page,
+    perPage,
+    total,
+    onPageChange,
+    defaultRoot,
+    onOpenKeys,
+}: {
+    items: EndpointSummary[];
+    loading: boolean;
+    onView: (item: EndpointSummary) => void;
+    onEdit: (item: EndpointSummary) => void;
+    onDuplicate: (item: EndpointSummary) => void;
+    onDelete: (item: EndpointSummary) => void;
+    onRefreshOne: (item: EndpointSummary) => void;
+    refreshingId: string | null;
+    page: number;
+    perPage: number;
+    total: number;
+    onPageChange: (page: number) => void;
+    defaultRoot: string;
+    onOpenKeys?: (root: string) => void;
+}) {
+    const groups = useMemo(() => {
+        const folders = new Map<string, EndpointSummary[]>();
+        for (const item of items) {
+            const key = extractRoot(item.endpoint) || UNKNOWN_ROOT;
+            const list = folders.get(key) ?? [];
+            list.push(item);
+            folders.set(key, list);
+        }
+        return [...folders.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    }, [items]);
+
+    const [open, setOpen] = useState<Record<string, boolean>>({});
+
+    const toggle = (key: string) => {
+        setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    return (
+        <div>
+            {loading ? (
+                <div className="space-y-2 py-2">
+                    {[1, 2, 3].map((i) => (
+                        <div
+                            key={i}
+                            className="h-10 animate-pulse rounded border bg-muted/40"
+                        />
+                    ))}
+                </div>
+            ) : groups.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
+                    Aucun endpoint ne correspond aux filtres actuels.
+                </div>
+            ) : (
+                <div className="max-h-[560px] overflow-auto">
+                    {groups.map(([key, list]) => {
+                        const isOpen = open[key] ?? true;
+                        return (
+                            <div
+                                key={key}
+                                className="border-b border-border/40"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => toggle(key)}
+                                    className="flex w-full items-center gap-2 border-b border-border/40 bg-muted/30 px-3 py-2 text-left hover:bg-muted/50"
+                                >
+                                    {isOpen ? (
+                                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                    ) : (
+                                        <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                    )}
+                                    <Server className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                    <span className="truncate font-mono text-[11px] font-semibold">
+                                        {key}
+                                    </span>
+                                    {key !== UNKNOWN_ROOT && (
+                                        <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
+                                            {isDefaultRoot(key, defaultRoot)
+                                                ? 'Par défaut'
+                                                : key}
+                                        </span>
+                                    )}
+                                    <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                                        {list.length}
+                                    </span>
+                                    {key !== UNKNOWN_ROOT && onOpenKeys && (
+                                        <span
+                                            role="button"
+                                            tabIndex={0}
+                                            title="Gérer la clé API de cette racine"
+                                            className="ml-1.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground ring-1 ring-border/60 hover:bg-foreground/10 hover:text-warning"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onOpenKeys(key);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (
+                                                    e.key === 'Enter' ||
+                                                    e.key === ' '
+                                                ) {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    onOpenKeys(key);
+                                                }
+                                            }}
+                                        >
+                                            <KeyRound className="h-3 w-3" />
+                                        </span>
+                                    )}
+                                </button>
+                                {isOpen && (
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-background">
+                                            <TableHead showRoot={false} />
+                                        </thead>
+                                        <tbody className="font-mono">
+                                            {list.map((item) => (
+                                                <EndpointRow
+                                                    key={item.id}
+                                                    item={item}
+                                                    refreshingId={refreshingId}
+                                                    showRoot={false}
+                                                    defaultRoot={defaultRoot}
+                                                    onView={onView}
+                                                    onEdit={onEdit}
+                                                    onDuplicate={onDuplicate}
+                                                    onDelete={onDelete}
+                                                    onRefreshOne={onRefreshOne}
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 

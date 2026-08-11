@@ -3,8 +3,10 @@ import {
     aggregate,
     buildChartData,
     buildScatterData,
+    defaultAxes,
     fieldIssue,
     fieldNumericIssue,
+    normalizeAxes,
     setTables,
     type TableDef,
 } from './model';
@@ -124,6 +126,119 @@ describe('buildChartData — maxCategories cap rolls into Autre', () => {
         const { data } = buildChartData(sales.rows, [field('Region')], [], [field('Amount')], [], 100);
         expect(data.some((d) => d['category'] === 'Autre')).toBe(false);
         expect(data).toHaveLength(2);
+    });
+});
+
+describe('buildChartData — seriesMeta binding', () => {
+    it('maps each value field to an axis id and draw type', () => {
+        const { seriesMeta } = buildChartData(
+            sales.rows,
+            [field('Region')],
+            [],
+            [
+                { ...field('Amount'), axisId: 'y0', seriesType: 'bar' },
+                { ...field('Cost'), axisId: 'y1', seriesType: 'line' },
+            ],
+        );
+        expect(seriesMeta).toHaveLength(2);
+        expect(seriesMeta[0]).toMatchObject({
+            key: 'Somme de Amount',
+            axisId: 'y0',
+            type: 'bar',
+            index: 0,
+        });
+        expect(seriesMeta[1]).toMatchObject({
+            key: 'Somme de Cost',
+            axisId: 'y1',
+            type: 'line',
+            index: 1,
+        });
+    });
+
+    it('defaults missing axisId to y0', () => {
+        const { seriesMeta } = buildChartData(
+            sales.rows,
+            [field('Region')],
+            [],
+            [field('Amount')],
+        );
+        expect(seriesMeta[0]?.axisId).toBe('y0');
+        expect(seriesMeta[0]?.type).toBe('bar');
+    });
+
+    it('flags a running (Pareto cumulative) series as a line', () => {
+        const { seriesMeta } = buildChartData(
+            sales.rows,
+            [field('Region')],
+            [],
+            [{ ...field('Amount'), running: true }],
+        );
+        expect(seriesMeta[0]).toMatchObject({
+            type: 'line',
+            running: true,
+        });
+    });
+
+    it('binds legend buckets to the first value field axis', () => {
+        const { seriesMeta } = buildChartData(
+            sales.rows,
+            [field('Region')],
+            [field('Product')],
+            [{ ...field('Amount'), axisId: 'y2' }],
+        );
+        expect(seriesMeta.every((m) => m.axisId === 'y2')).toBe(true);
+        expect(seriesMeta.map((m) => m.legendLabel)).toEqual(['A', 'B']);
+        expect(seriesMeta.map((m) => m.key).sort()).toEqual(['A', 'B']);
+    });
+});
+
+describe('normalizeAxes — persisted multi-axis shape', () => {
+    it('returns a single default left axis for empty input', () => {
+        const axes = normalizeAxes(undefined);
+        expect(axes).toHaveLength(1);
+        expect(axes[0]).toMatchObject({
+            id: 'y0',
+            position: 'left',
+            auto: true,
+            order: 0,
+        });
+    });
+
+    it('re-derives order from the explicit order field', () => {
+        const axes = normalizeAxes([
+            { id: 'b', position: 'right', order: 1, auto: true, title: '' },
+            { id: 'a', position: 'left', order: 0, auto: true, title: '' },
+        ]);
+        expect(axes.map((a) => a.id)).toEqual(['a', 'b']);
+        expect(axes.map((a) => a.order)).toEqual([0, 1]);
+    });
+
+    it('snaps locked (Pareto) axes to a fixed 0–100 % range', () => {
+        const axes = normalizeAxes([
+            {
+                id: 'pct',
+                position: 'right',
+                order: 1,
+                auto: true,
+                lockRange: true,
+            },
+        ]);
+        expect(axes[0]).toMatchObject({ min: 0, max: 1, auto: false });
+    });
+
+    it('keeps only one gridline-driving axis', () => {
+        const axes = normalizeAxes([
+            { id: 'a', position: 'left', order: 0, showGridlines: true },
+            { id: 'b', position: 'right', order: 1, showGridlines: true },
+        ]);
+        expect(axes.filter((a) => a.showGridlines)).toHaveLength(1);
+    });
+
+    it('defaultAxes returns fresh copies', () => {
+        const a = defaultAxes();
+        const b = defaultAxes();
+        expect(a[0]).not.toBe(b[0]);
+        expect(a).toEqual(b);
     });
 });
 
