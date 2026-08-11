@@ -80,6 +80,31 @@ test.describe('per-row list rendering (W1-12/13/14/15)', () => {
         await expect(rows.nth(0).locator('td').nth(1)).not.toHaveText(/^\d+$/);
     });
 
+    test('table shows the value column contents instead of repeating the chain label', async ({
+        page,
+    }) => {
+        const table = await openDashboard(page);
+        const rows = table.locator('tbody tr');
+        await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+
+        const firstAxis = (await rows.nth(0).locator('td').nth(0).textContent())
+            ?.trim();
+        const firstValue = (await rows.nth(0).locator('td').nth(1).textContent())
+            ?.trim();
+
+        expect(firstAxis).toBeTruthy();
+        expect(firstValue).toBeTruthy();
+        expect(firstValue).not.toEqual(firstAxis);
+
+        // Ensure at least one row has a value cell not starting with the chain
+        // prefix, so we are not just mirroring the left column.
+        const valueCells = table
+            .locator('tbody tr td:nth-child(2)')
+            .allTextContents();
+        const values = (await valueCells).map((text) => text.trim());
+        expect(values.some((text) => text && !/^CH\d/.test(text))).toBe(true);
+    });
+
     test('different chains show different chip sets and empty renders — (W1-14, W1-15)', async ({
         page,
     }) => {

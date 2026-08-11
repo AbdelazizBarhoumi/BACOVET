@@ -12,7 +12,7 @@ import {
     SLICER_TYPES,
     TABLE_FUNCS,
 } from './consts';
-import { measureLabel } from './format';
+import { fieldLabel, measureLabel } from './format';
 import {
     fieldType,
     findTableByName,
@@ -2414,7 +2414,9 @@ function tableCellFor(
     ctx: EvalCtx | undefined,
 ): TableCellValue {
     if (v.name in LIST_MEASURE_IMPL) return listMeasureValue(rows, v.name, ctx);
-    return aggregate(rows, v, ctx);
+    if (isMeasure(v.name) || fieldType(v.name, v.table) === 'number')
+        return aggregate(rows, v, ctx);
+    return singleValue(rows, v);
 }
 
 /**
@@ -2493,6 +2495,32 @@ export function buildTableCells(
             single[label] = tableCellFor(rows, v, undefined);
         }
         return { data: [single], series };
+    }
+
+    const isRowDetailMode =
+        !legendCol &&
+        values.length > 0 &&
+        values.every(
+            (v) => !isMeasure(v.name) && fieldType(v.name, v.table) !== 'number',
+        );
+    if (isRowDetailMode) {
+        const seriesSet = new Set<string>();
+        const data = rows.map((r) => {
+            const item: Record<string, unknown> = {
+                category: String(r[axisCol] ?? ''),
+            };
+            const ctx = ctxFor(String(r[axisCol] ?? ''));
+            for (const v of values) {
+                const label = fieldLabel(v);
+                seriesSet.add(label);
+                item[label] =
+                    r[v.name] !== undefined && r[v.name] !== null
+                        ? r[v.name]
+                        : tableCellFor([r], v, ctx);
+            }
+            return item;
+        });
+        return { data, series: [...seriesSet] };
     }
 
     const groups = new Map<string, Row[]>();

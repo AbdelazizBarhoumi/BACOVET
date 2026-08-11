@@ -1949,6 +1949,35 @@ describe('buildTableCells — per-row list (W1-12/14)', () => {
         unregisterMeasure('Order Count');
     });
 
+    it('a string field value shows the raw text rather than a numeric count', () => {
+        const people: TableDef = {
+            name: 'employees',
+            fields: [
+                { table: 'employees', name: 'Id', type: 'text' },
+                { table: 'employees', name: 'Name', type: 'text' },
+            ],
+            rows: [
+                { Id: 'E1', Name: 'Ada' },
+                { Id: 'E1', Name: 'Ada B' },
+                { Id: 'E2', Name: 'Eve' },
+            ],
+        };
+        setTables([structuredClone(people)]);
+        const axis: WellField = { table: 'employees', name: 'Id', agg: 'sum' };
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'sum',
+        };
+        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        expect(series).toEqual(['Name']);
+        expect(data).toEqual([
+            { category: 'E1', Name: 'Ada' },
+            { category: 'E1', Name: 'Ada B' },
+            { category: 'E2', Name: 'Eve' },
+        ]);
+    });
+
     it('a list measure with no axis yields the global list (W1-13)', () => {
         setTables([structuredClone(employees), structuredClone(orders)]);
         registerMeasure('My Orders', 'My Orders = VALUES(employee_data[OrderId])');

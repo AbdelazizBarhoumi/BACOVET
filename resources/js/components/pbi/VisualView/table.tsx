@@ -60,14 +60,20 @@ function CellValue({
     visual,
     well,
 }: {
-    value: string[] | number | string | null;
+    value: string[] | number | string | boolean | null;
     visual: Visual;
     well: WellField;
 }) {
     if (Array.isArray(value)) return <ListCell codes={value} well={well} />;
+    if (value === null || value === undefined) {
+        return <span className="text-muted-foreground">—</span>;
+    }
+    if (typeof value === 'string' || typeof value === 'boolean') {
+        return <span>{String(value)}</span>;
+    }
     if (isListMeasure(well.name))
         return <span className="text-muted-foreground">—</span>;
-    const n = Number(value ?? '');
+    const n = Number(value);
     return visualFmt(Number.isFinite(n) ? n : 0, visual, well);
 }
 
@@ -147,9 +153,14 @@ export function TableVisual({
     const wellForSeries = (s: string): WellField | null =>
         matrix
             ? (visual.values[0] ?? null)
-            : (visual.values.find((v) => measureLabel(v) === s) ?? null);
+            :
+              visual.values.find(
+                  (v) => measureLabel(v) === s || fieldLabel(v) === s,
+              ) ?? null;
 
-    const numericSeries = series.filter((s) => !isListSeries(s));
+    const numericSeries = series.filter((s) =>
+        !isListSeries(s) && data.some((d) => typeof d[s] === 'number'),
+    );
     const cfValues = data.map((d) => Number(d['_cf']) || 0);
     const cellColor = (d: Record<string, unknown>) =>
         conditionalColor(cf, (d['_cf'] as number | null) ?? null, cfValues, d['_cfx']);
@@ -267,21 +278,31 @@ export function TableVisual({
                     {visual.subtotals && (
                         <tr className="bg-muted font-semibold">
                             {groupCol && <td className="px-2 py-1">Total</td>}
-                            {series.map((s, i) => (
-                                <td
-                                    key={s}
-                                    className="px-2 py-1 text-right tabular-nums"
-                                >
-                                    {isListSeries(s)
-                                        ? '—'
-                                        : visualFmt(
-                                              totals[i],
-                                              visual,
-                                              wellForSeries(s) ??
-                                                  visual.values[0],
-                                          )}
-                                </td>
-                            ))}
+                            {series.map((s) => {
+                                if (isListSeries(s) || !numericSeries.includes(s)) {
+                                    return (
+                                        <td
+                                            key={s}
+                                            className="px-2 py-1 text-right tabular-nums"
+                                        >
+                                            —
+                                        </td>
+                                    );
+                                }
+                                return (
+                                    <td
+                                        key={s}
+                                        className="px-2 py-1 text-right tabular-nums"
+                                    >
+                                        {visualFmt(
+                                            totals[numericSeries.indexOf(s)],
+                                            visual,
+                                            wellForSeries(s) ??
+                                                visual.values[0],
+                                        )}
+                                    </td>
+                                );
+                            })}
                         </tr>
                     )}
                 </tbody>
