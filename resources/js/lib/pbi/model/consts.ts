@@ -79,6 +79,23 @@ export const ANALYTICS_KINDS: AnalyticsKind[] = [
     'forecast',
 ];
 
+/** Default stroke/fill of each analytics visual when the line carries no
+ * explicit `color`. Matches the palette roles chart.tsx hardcoded before
+ * per-line colors existed, so existing visuals keep their look. */
+export const ANALYTICS_DEFAULT_COLOR: Record<AnalyticsKind, string> = {
+    constant: 'var(--chart-5)',
+    average: 'var(--chart-4)',
+    min: 'var(--chart-6)',
+    max: 'var(--chart-6)',
+    median: 'var(--chart-6)',
+    category: 'var(--ring)',
+    band: 'var(--muted-foreground)',
+    intersections: '#f59e0b',
+    crosshair: 'var(--ring)',
+    trend: 'var(--chart-6)',
+    forecast: 'var(--chart-6)',
+};
+
 export const CF_STYLES: CfStyle[] = [
     'none',
     'gradient',

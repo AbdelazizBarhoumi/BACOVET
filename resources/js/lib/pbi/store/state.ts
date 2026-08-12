@@ -3,6 +3,7 @@ import type { ReportFilter } from '../filters';
 import { isCustomFilter, type CustomFilterColumn } from '../filters';
 import {
     conditionalFormatFromFx,
+    lockedPctAxis,
     normalizeAxes,
     normalizeConditionalFormat,
     normalizeWellField,
@@ -272,6 +273,9 @@ export function normalizeState(state: State): State {
                             ? normalizeAxes(undefined)
                             : normalizeAxes(next.axes);
                     const axes: AxisDef[] = next.axes;
+                    if (next.type === 'pareto' && !axes.some((a) => a.lockRange)) {
+                        next.axes = [...axes, lockedPctAxis()];
+                    }
                     const primaryId = axes[0]?.id ?? 'y0';
                     const knownIds = new Set(axes.map((a) => a.id));
                     next.values = next.values.map((value) =>

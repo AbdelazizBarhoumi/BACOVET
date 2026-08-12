@@ -32,8 +32,10 @@ import {
     parseColorCell,
 } from '@/lib/pbi/conditionalFormat';
 import {
+    ANALYTICS_DEFAULT_COLOR,
     aggregate,
     buildChartData,
+    buildParetoData,
     buildScatterData,
     fieldLabel,
     fieldType,
@@ -56,6 +58,7 @@ import {
     singleValueLabel,
     STACKED_EMPTY_FILL,
     wellForReference,
+    type AnalyticsLine,
     type AxisDef,
     type AxisStyle,
     type Row,
@@ -202,6 +205,11 @@ function analyticsLines(
             {...(token ? { [horizontal ? 'xAxisId' : 'yAxisId']: token } : {})}
         />
     );
+    /** Effective stroke/fill for an analytics line on one axis group: the
+     * per-axis override wins, then the line's own color, then the kind
+     * default. */
+    const lineColor = (a: AnalyticsLine, g: { id: string }) =>
+        a.axisColors?.[g.id] ?? a.color ?? ANALYTICS_DEFAULT_COLOR[a.kind];
     return visual.analytics.map((a) => {
         if (
             a.kind === 'average' ||
@@ -217,13 +225,13 @@ function analyticsLines(
                     a.kind === 'average'
                         ? s.avg
                         : a.kind === 'min'
-                          ? (a.value ?? s.min)
+                          ? (a.axisValues?.[g.id] ?? a.value ?? s.min)
                           : a.kind === 'max'
-                            ? (a.value ?? s.max)
+                            ? (a.axisValues?.[g.id] ?? a.value ?? s.max)
                             : s.median;
                 return statLine(
                     v,
-                    a.kind === 'average' ? 'var(--chart-4)' : 'var(--chart-6)',
+                    lineColor(a, g),
                     `${A_STAT_LABEL[a.kind]!} ${fmt(v)}`,
                     g.token,
                 );
@@ -235,8 +243,8 @@ function analyticsLines(
             return target.map((g) => {
                 const max = statsFor(g.keys).max;
                 return statLine(
-                    a.value ?? max * 0.8,
-                    'var(--chart-5)',
+                    a.axisValues?.[g.id] ?? a.value ?? max * 0.8,
+                    lineColor(a, g),
                     'Objectif',
                     g.token,
                 );
@@ -248,7 +256,7 @@ function analyticsLines(
                 <ReferenceLine
                     key={`category:${a.category}`}
                     {...(horizontal ? { y: a.category } : { x: a.category })}
-                    stroke="var(--ring)"
+                    stroke={a.color ?? ANALYTICS_DEFAULT_COLOR.category}
                     strokeDasharray="6 3"
                     label={{
                         value: a.category,
@@ -268,7 +276,7 @@ function analyticsLines(
                 <ReferenceArea
                     key={`band:${lo}:${hi}`}
                     {...(horizontal ? { x1: lo, x2: hi } : { y1: lo, y2: hi })}
-                    fill="var(--muted-foreground)"
+                    fill={a.color ?? ANALYTICS_DEFAULT_COLOR.band}
                     fillOpacity={0.08}
                     stroke="none"
                     {...axisRef}
@@ -281,7 +289,7 @@ function analyticsLines(
                     key={`trend:${a.kind}`}
                     type="linear"
                     dataKey="__trend"
-                    stroke="var(--chart-6)"
+                    stroke={a.color ?? ANALYTICS_DEFAULT_COLOR[a.kind]}
                     strokeDasharray={a.kind === 'forecast' ? '6 3' : '3 3'}
                     strokeWidth={1.5}
                     dot={false}
@@ -566,20 +574,8 @@ export function ChartBody({
     const extraColor =
         cf.style === 'fieldValue' && cf.fieldValue ? cf.fieldValue : undefined;
 
-    const { data, series, seriesMeta } = useMemo(
-        () =>
-            buildChartData(
-                rows,
-                visual.axis,
-                visual.legend,
-                visual.values,
-                visual.tooltips,
-                visual.maxCategories,
-                extra,
-                extraColor,
-                graph,
-            ),
-        [
+    const { data, series, seriesMeta } = useMemo(() => {
+        const built = buildChartData(
             rows,
             visual.axis,
             visual.legend,
@@ -589,8 +585,25 @@ export function ChartBody({
             extra,
             extraColor,
             graph,
-        ],
-    );
+        );
+        if (visual.type !== 'pareto') return built;
+        return buildParetoData(
+            built,
+            visual.axes?.find((a) => a.lockRange)?.id ?? 'pct',
+        );
+    }, [
+        rows,
+        visual.axis,
+        visual.legend,
+        visual.values,
+        visual.tooltips,
+        visual.maxCategories,
+        extra,
+        extraColor,
+        graph,
+        visual.type,
+        visual.axes,
+    ]);
 
     /** Per-series grand totals across all rows, for "percent of total" labels. */
     const seriesTotals = useMemo(() => {
@@ -1018,6 +1031,7 @@ export function ChartBody({
          * edge to edge, `i/(n-1)`). */
         const hasBar = series.some((s, i) => typeOfSeries(s, i) === 'bar');
         /** Amber dots and full-height guide lines where two line/area series
+         * — or a line/area series and an enabled `constant` (Objectif) line —
          * actually cross. Only series that *draw* as lines/areas qualify, and
          * stacked visuals are skipped (their geometry has no meaningful
          * crossings). Every pair of eligible series is compared regardless of
@@ -1029,7 +1043,10 @@ export function ChartBody({
          * marker sits exactly where the two rendered curves intersect on
          * screen, even across axes with wildly different scales. The dot
          * (whose y is only comparable on a shared scale) is drawn only when
-         * both series share a value axis.
+         * both series share a value axis. The same bisection runs each
+         * eligible series against the straight constant line, projected to a
+         * fraction on the constant's own axis the same way — the dot lands on
+         * the constant line at the category where the curve crosses it.
          *
          * The hidden `xsec`/`ysec` numeric axis maps category fractions back
          * onto the categorical axis (edge-to-edge on a point scale, band
@@ -1084,6 +1101,11 @@ export function ChartBody({
         const intersectionDots = (): React.ReactElement[] => {
             const n = plotData.length;
             if (n < 2) return [];
+            /** Color of the series×series markers — the intersections line's
+             * own color when set, else the amber default. */
+            const ixColor =
+                visual.analytics.find((a) => a.kind === 'intersections')
+                    ?.color ?? ANALYTICS_DEFAULT_COLOR.intersections;
             /** Category index → plot fraction along the category axis. */
             const catFrac = (i: number) =>
                 hasBar ? (i + 0.5) / n : i / (n - 1);
@@ -1193,7 +1215,7 @@ export function ChartBody({
                                                 <ReferenceDot
                                                     key={`xsec:${A.s}:${B.s}:${i}:${j}`}
                                                     r={3}
-                                                    fill="#f59e0b"
+                                                    fill={ixColor}
                                                     stroke="var(--card)"
                                                     strokeWidth={1}
                                                     {...span}
@@ -1208,7 +1230,7 @@ export function ChartBody({
                                             <ReferenceLine
                                                 key={`xsec-line:${A.s}:${B.s}:${i}:${j}`}
                                                 {...span}
-                                                stroke="#f59e0b"
+                                                stroke={ixColor}
                                                 strokeOpacity={0.35}
                                                 strokeDasharray="3 3"
                                                 strokeWidth={1}
@@ -1219,6 +1241,119 @@ export function ChartBody({
                                 }
                         }
                 }
+            /** Crossings between eligible line/area series and the enabled
+             * `constant` (Objectif) lines. Same math as the pair loop, but one
+             * side is the straight constant line projected onto the plot box
+             * from the constant's own value axis — so each marker lands exactly
+             * where the curve meets the rendered constant line. The dot is
+             * bound to the constant's axis (its value is the constant itself),
+             * so it reads correctly even when the crossing series sits on a
+             * different axis. */
+            for (const cA of visual.analytics) {
+                if (cA.kind !== 'constant' || !cA.enabled) continue;
+                /** Axis ids this constant applies to (undefined axes = every
+                 * value axis / the legacy single axis). */
+                const constTargets = cA.axes
+                    ? new Set(cA.axes)
+                    : new Set(series.map((s) => resolveSeries(s).axisId));
+                for (const axisId of constTargets) {
+                    const keys = axisId
+                        ? series.filter(
+                              (s) => resolveSeries(s).axisId === axisId,
+                          )
+                        : series;
+                    if (!keys.length) continue;
+                    const d = domains.get(axisId) ?? [0, 1];
+                    let max = 0;
+                    for (const k of keys)
+                        for (const row of plotData) {
+                            const v = Number(row[k]);
+                            if (isFinite(v) && v > max) max = v;
+                        }
+                    const constVal =
+                        cA.axisValues?.[axisId] ?? cA.value ?? max * 0.8;
+                    if (!isFinite(constVal)) continue;
+                    const spanD = d[1] - d[0] || 1;
+                    const frac = horizontal
+                        ? (constVal - d[0]) / spanD
+                        : (d[1] - constVal) / spanD;
+                    if (frac < 0 || frac > 1) continue;
+                    const constCubics = monotoneCubics(
+                        horizontal
+                            ? [
+                                  { x: frac, y: 0 },
+                                  { x: frac, y: 1 },
+                              ]
+                            : [
+                                  { x: 0, y: frac },
+                                  { x: 1, y: frac },
+                              ],
+                        horizontal,
+                    );
+                    if (!constCubics.length) continue;
+                    const constSeen = new Set<string>();
+                    for (const s of eligible) {
+                        const sd = domains.get(s.id) ?? [0, 1];
+                        const raw = plotData.map((_, i) => fracOf(s.s, sd, i));
+                        for (const run of runsOf(raw)) {
+                            const cubics = monotoneCubics(run, horizontal);
+                            for (const cubic of cubics) {
+                                const crosses = cubicCrossings(
+                                    cubic,
+                                    constCubics[0]!,
+                                    horizontal,
+                                );
+                                for (const c of crosses) {
+                                    const cat = horizontal ? c.y : c.x;
+                                    if (constSeen.has(cat.toFixed(4))) continue;
+                                    constSeen.add(cat.toFixed(4));
+                                    const coord = markerCoord(cat);
+                                    const span = horizontal
+                                        ? ({
+                                              y: coord,
+                                              yAxisId: 'xsec',
+                                          } as const)
+                                        : ({
+                                              x: coord,
+                                              xAxisId: 'xsec',
+                                          } as const);
+                                    const axisBind = multi
+                                        ? ({
+                                              [horizontal
+                                                  ? 'xAxisId'
+                                                  : 'yAxisId']:
+                                                  rtAxisId(axisId),
+                                          } as const)
+                                        : {};
+                                    dots.push(
+                                        <ReferenceDot
+                                            key={`xsec:const:${constVal}:${axisId}:${s.s}:${cat.toFixed(4)}`}
+                                            r={3}
+                                            fill={ixColor}
+                                            stroke="var(--card)"
+                                            strokeWidth={1}
+                                            {...span}
+                                            {...(horizontal
+                                                ? { x: constVal }
+                                                : { y: constVal })}
+                                            {...axisBind}
+                                        />,
+                                        <ReferenceLine
+                                            key={`xsec-line:const:${constVal}:${axisId}:${s.s}:${cat.toFixed(4)}`}
+                                            {...span}
+                                            stroke={ixColor}
+                                            strokeOpacity={0.35}
+                                            strokeDasharray="3 3"
+                                            strokeWidth={1}
+                                            {...axisBind}
+                                        />,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             return dots;
         };
         const gridH = horizontal ? gridlines.vertical : gridlines.horizontal;
@@ -1516,7 +1651,11 @@ export function ChartBody({
                     cursor={
                         crosshair
                             ? {
-                                  stroke: 'var(--ring)',
+                                  stroke:
+                                      visual.analytics.find(
+                                          (a) => a.kind === 'crosshair',
+                                      )?.color ??
+                                      ANALYTICS_DEFAULT_COLOR.crosshair,
                                   strokeWidth: 1,
                                   strokeDasharray: '3 3',
                               }
@@ -1550,7 +1689,7 @@ export function ChartBody({
                     />
                 )}
                 {series.map((s, i) => {
-                    const { axisId } = resolveSeries(s);
+                    const { axisId, axis } = resolveSeries(s);
                     const ref = multi
                         ? ({
                               [horizontal ? 'xAxisId' : 'yAxisId']:
@@ -1580,15 +1719,17 @@ export function ChartBody({
                                       : 'line'
                                   : 'bar');
                     const color = seriesBaseFill(i);
+                    const lineColor = axis?.lineColor || color;
                     if (type === 'line')
                         return (
                             <Line
                                 key={s}
                                 type="monotone"
                                 dataKey={s}
-                                stroke={color}
+                                name={metaByKey.get(s)?.label ?? s}
+                                stroke={lineColor}
                                 strokeWidth={2}
-                                dot={pointDot(color)}
+                                dot={pointDot(lineColor)}
                                 isAnimationActive={animate}
                                 {...ref}
                             />
@@ -1599,6 +1740,7 @@ export function ChartBody({
                                 key={s}
                                 type="monotone"
                                 dataKey={s}
+                                name={metaByKey.get(s)?.label ?? s}
                                 stroke={color}
                                 fill={color}
                                 fillOpacity={0.25}
@@ -1611,6 +1753,7 @@ export function ChartBody({
                         <Bar
                             key={s}
                             dataKey={s}
+                            name={metaByKey.get(s)?.label ?? s}
                             {...(stacked ? { stackId: 'a' } : {})}
                             fill={color}
                             radius={barRadius}
@@ -2208,6 +2351,12 @@ export function ChartBody({
         case 'table':
         case 'matrix':
             return <TableVisual visual={visual} rows={rows} match={match} />;
+        case 'pareto':
+            return plotWrap(
+                <ResponsiveContainer width="100%" height="100%">
+                    {renderCartesian(data, false)}
+                </ResponsiveContainer>,
+            );
         default: {
             // column, stackedColumn, stacked100Column, ribbon, line, area,
             // stackedArea, combo (all vertical cartesian layouts)

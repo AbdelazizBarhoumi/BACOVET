@@ -326,4 +326,184 @@ test.describe('intersection markers on the monotone spline', () => {
                 .catch(() => {});
         }
     });
+
+    test('cross-axis guides land on the rendered crossings (multi-axis scales)', async ({
+        page,
+    }) => {
+        await login(page);
+        const probePage = await ensureProbe(page, probeLayoutMultiAxis);
+        try {
+            await page.goto(`/p/${probePage.slug}`);
+            const vis = page.getByTestId(`visual-${VISUAL_ID}`);
+            await vis.waitFor({ state: 'visible', timeout: 60_000 });
+            await vis
+                .locator('svg.recharts-surface')
+                .first()
+                .waitFor({ state: 'visible', timeout: 60_000 });
+            await expect
+                .poll(() => vis.locator('g.recharts-reference-line').count(), {
+                    timeout: 15_000,
+                })
+                .toBeGreaterThan(0);
+
+            // Compute every pixel-space crossing of the sampled rendered
+            // curves, then confirm each dashed guide's abscissa matches one.
+            // Curves animate in on mount while guides snap, so poll until the
+            // SVG settles (mirrors the single-axis placement test).
+            await expect
+                .poll(
+                    async () => {
+                        const alignment = await vis.evaluate((el) => {
+                            const q = (sel: string) => [
+                                ...el.querySelectorAll(sel),
+                            ];
+                            const toPoints = (
+                                d: string,
+                            ): [number, number][] => {
+                                const toks: (string | number)[] = (
+                                    d.match(/[MLCSZ]|[-+]?\d*\.?\d+/g) ?? []
+                                ).map((t) =>
+                                    /[MLCSZ]/.test(t) ? t : parseFloat(t),
+                                );
+                                const pts: [number, number][] = [];
+                                let px = 0;
+                                let py = 0;
+                                let i = 0;
+                                while (i < toks.length) {
+                                    const t = toks[i++];
+                                    if (t === 'M') {
+                                        px = toks[i++] as number;
+                                        py = toks[i++] as number;
+                                        pts.push([px, py]);
+                                    } else if (t === 'C') {
+                                        const x1 = toks[i++] as number;
+                                        const y1 = toks[i++] as number;
+                                        const x2 = toks[i++] as number;
+                                        const y2 = toks[i++] as number;
+                                        const x3 = toks[i++] as number;
+                                        const y3 = toks[i++] as number;
+                                        for (let s = 1; s <= 200; s++) {
+                                            const u = s / 200;
+                                            const uu = 1 - u;
+                                            pts.push([
+                                                uu * uu * uu * px +
+                                                    3 * uu * uu * u * x1 +
+                                                    3 * uu * u * u * x2 +
+                                                    u * u * u * x3,
+                                                uu * uu * uu * py +
+                                                    3 * uu * uu * u * y1 +
+                                                    3 * uu * u * u * y2 +
+                                                    u * u * u * y3,
+                                            ]);
+                                        }
+                                        px = x3;
+                                        py = y3;
+                                    } else if (t === 'L') {
+                                        px = toks[i++] as number;
+                                        py = toks[i++] as number;
+                                        pts.push([px, py]);
+                                    }
+                                }
+                                return pts;
+                            };
+                            const segCrossX = (
+                                a: [number, number],
+                                b: [number, number],
+                                c: [number, number],
+                                d: [number, number],
+                            ): number | null => {
+                                const r1x = b[0] - a[0];
+                                const r1y = b[1] - a[1];
+                                const r2x = d[0] - c[0];
+                                const r2y = d[1] - c[1];
+                                const denom = r1x * r2y - r1y * r2x;
+                                if (Math.abs(denom) < 1e-9) return null;
+                                const t =
+                                    ((c[0] - a[0]) * r2y -
+                                        (c[1] - a[1]) * r2x) /
+                                    denom;
+                                const u =
+                                    ((c[0] - a[0]) * r1y -
+                                        (c[1] - a[1]) * r1x) /
+                                    denom;
+                                if (
+                                    t < -1e-6 ||
+                                    t > 1 + 1e-6 ||
+                                    u < -1e-6 ||
+                                    u > 1 + 1e-6
+                                )
+                                    return null;
+                                return a[0] + t * r1x;
+                            };
+
+                            const polylines = q('path.recharts-line-curve')
+                                .map((p) => p.getAttribute('d')!)
+                                .filter(Boolean)
+                                .map(toPoints);
+                            const crossings: number[] = [];
+                            for (let i = 0; i < polylines.length; i++)
+                                for (let j = i + 1; j < polylines.length; j++) {
+                                    const A = polylines[i]!;
+                                    const B = polylines[j]!;
+                                    for (
+                                        let s = 0;
+                                        s + 1 < A.length && s + 1 < B.length;
+                                        s++
+                                    ) {
+                                        const x = segCrossX(
+                                            A[s]!,
+                                            A[s + 1]!,
+                                            B[s]!,
+                                            B[s + 1]!,
+                                        );
+                                        if (x !== null) crossings.push(x);
+                                    }
+                                }
+                            crossings.sort((a, b) => a - b);
+
+                            const guideXs: number[] = [];
+                            for (const g of q('g.recharts-reference-line')) {
+                                const line = g.querySelector('line');
+                                if (!line) continue;
+                                const x1 = parseFloat(line.getAttribute('x1')!);
+                                const x2 = parseFloat(line.getAttribute('x2')!);
+                                if (Math.abs(x1 - x2) < 0.5) guideXs.push(x1);
+                            }
+                            guideXs.sort((a, b) => a - b);
+                            const nearestOf = (gx: number) =>
+                                crossings.reduce((best, cx) =>
+                                    Math.abs(cx - gx) < Math.abs(best - gx)
+                                        ? cx
+                                        : best,
+                                );
+                            return {
+                                n: crossings.length,
+                                g: guideXs.length,
+                                maxOff: guideXs.reduce(
+                                    (m, gx) =>
+                                        Math.max(
+                                            m,
+                                            Math.abs(nearestOf(gx) - gx),
+                                        ),
+                                    0,
+                                ),
+                            };
+                        });
+                        return (
+                            alignment.n > 0 &&
+                            alignment.g === alignment.n &&
+                            alignment.maxOff < 2
+                        );
+                    },
+                    { timeout: 15_000 },
+                )
+                .toBe(true);
+        } finally {
+            await page.request
+                .delete(`/api/builder-pages/${probePage.id}`, {
+                    headers: await apiHeaders(page),
+                })
+                .catch(() => {});
+        }
+    });
 });

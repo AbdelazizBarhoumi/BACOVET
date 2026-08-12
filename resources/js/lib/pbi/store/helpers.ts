@@ -5,6 +5,7 @@ import {
     fieldType,
     findTableForField,
     isMeasure,
+    lockedPctAxis,
     measureColumnRefs,
     normalizeWellField,
     visualTable,
@@ -150,6 +151,7 @@ export function mkVisual(
         maxCategories: 200,
         rotation: 0,
         ...(CARTESIAN_TYPES.includes(type) ? cartesianStyleDefaults() : {}),
+        ...(type === 'pareto' ? paretoStyleDefaults() : {}),
         ...(type === 'gauge' ? gaugeStyleDefaults() : {}),
         ...init,
     };
@@ -198,6 +200,14 @@ function cartesianStyleDefaults(): Partial<Visual> {
             border: false,
             borderWidth: 1,
         },
+    };
+}
+
+/** Default pareto style block: a primary left axis for the bars + a locked
+ * right-side 0–100 % axis for the cumulative line. */
+function paretoStyleDefaults(): Partial<Visual> {
+    return {
+        axes: [defaultAxes()[0], lockedPctAxis()],
     };
 }
 

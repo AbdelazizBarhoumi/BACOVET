@@ -11,6 +11,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+    ANALYTICS_DEFAULT_COLOR,
     LIST_AGG_NUMERIC_MODES,
     PAGE_PRESETS,
     VALUE_AGGREGATION_MODES,
@@ -59,6 +60,7 @@ import {
     IconLinePreview,
     IconMapPreview,
     IconMatrixPreview,
+    IconParetoPreview,
     IconPiePreview,
     IconRibbonPreview,
     IconScatterPreview,
@@ -131,6 +133,11 @@ const VISUAL_GROUPS: {
                 type: 'combo',
                 label: 'Courbe et histogramme empilé',
                 Icon: IconComboPreview,
+            },
+            {
+                type: 'pareto',
+                label: 'Pareto',
+                Icon: IconParetoPreview,
             },
         ],
     },
@@ -439,6 +446,9 @@ export function VisualizationsPane({
         setAnalyticsValue2,
         setAnalyticsCategory,
         setAnalyticsAxes,
+        setAnalyticsColor,
+        setAnalyticsAxisColor,
+        setAnalyticsAxisValue,
         page,
         pages,
         setPageFormat,
@@ -1242,7 +1252,44 @@ export function VisualizationsPane({
                                                     className="accent-[var(--brand)]"
                                                 />
                                             </label>
-                                            {enabled && valueEditable && (
+                                            {enabled && (
+                                                <div className="mt-1 flex items-center gap-2">
+                                                    <ColorInput
+                                                        value={
+                                                            line.color ??
+                                                            ANALYTICS_DEFAULT_COLOR[k]
+                                                        }
+                                                        onChange={(v) =>
+                                                            setAnalyticsColor(
+                                                                selected.id,
+                                                                k,
+                                                                v,
+                                                            )
+                                                        }
+                                                        ariaLabel={`Couleur ${k}`}
+                                                        className="h-5 w-8"
+                                                    />
+                                                    <span className="flex-1 text-muted-foreground">
+                                                        Couleur
+                                                    </span>
+                                                    {line.color && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setAnalyticsColor(
+                                                                    selected.id,
+                                                                    k,
+                                                                    undefined,
+                                                                )
+                                                            }
+                                                            className="text-enabled hover:text-destructive"
+                                                        >
+                                                            Défaut
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {enabled && valueEditable && paneAxes.length <= 1 && (
                                                 <input
                                                     type="number"
                                                     value={line.value ?? ''}
@@ -1356,50 +1403,126 @@ export function VisualizationsPane({
                                                                     a.id,
                                                                 );
                                                             return (
-                                                                <label
+                                                                <div
                                                                     key={a.id}
                                                                     className="flex items-center gap-1"
                                                                 >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={
-                                                                            checked
-                                                                        }
-                                                                        onChange={() => {
-                                                                            const all =
-                                                                                paneAxes.map(
-                                                                                    (x) =>
-                                                                                        x.id,
-                                                                                );
-                                                                            const next =
+                                                                    <label className="flex items-center gap-1">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={
                                                                                 checked
-                                                                                    ? current.filter(
-                                                                                          (i) =>
-                                                                                              i !==
+                                                                            }
+                                                                            onChange={() => {
+                                                                                const all =
+                                                                                    paneAxes.map(
+                                                                                        (
+                                                                                            x,
+                                                                                        ) =>
+                                                                                            x.id,
+                                                                                    );
+                                                                                const next =
+                                                                                    checked
+                                                                                        ? current.filter(
+                                                                                              (
+                                                                                                  i,
+                                                                                              ) =>
+                                                                                                  i !==
+                                                                                                  a.id,
+                                                                                          )
+                                                                                        : [
+                                                                                              ...current,
                                                                                               a.id,
-                                                                                      )
-                                                                                    : [
-                                                                                          ...current,
-                                                                                          a.id,
-                                                                                      ];
-                                                                            setAnalyticsAxes(
+                                                                                          ];
+                                                                                setAnalyticsAxes(
+                                                                                    selected.id,
+                                                                                    k,
+                                                                                    next.length ===
+                                                                                        all.length
+                                                                                        ? undefined
+                                                                                        : next,
+                                                                                );
+                                                                            }}
+                                                                            className="accent-[var(--brand)]"
+                                                                        />
+                                                                        Axe{' '}
+                                                                        {a.order +
+                                                                            1}
+                                                                        {a.title
+                                                                            ? ` — ${a.title}`
+                                                                            : ''}
+                                                                    </label>
+                                                                    <ColorInput
+                                                                        value={
+                                                                            line
+                                                                                .axisColors?.[
+                                                                                a
+                                                                                    .id
+                                                                            ] ??
+                                                                            line.color ??
+                                                                            ANALYTICS_DEFAULT_COLOR[k]
+                                                                        }
+                                                                        onChange={(
+                                                                            v,
+                                                                        ) =>
+                                                                            setAnalyticsAxisColor(
                                                                                 selected.id,
                                                                                 k,
-                                                                                next.length ===
-                                                                                    all.length
+                                                                                a.id,
+                                                                                v ===
+                                                                                    (line.color ??
+                                                                                    ANALYTICS_DEFAULT_COLOR[k])
                                                                                     ? undefined
-                                                                                    : next,
-                                                                            );
-                                                                        }}
-                                                                        className="accent-[var(--brand)]"
+                                                                                    : v,
+                                                                            )
+                                                                        }
+                                                                        ariaLabel={`Couleur axe ${a.order + 1} ${k}`}
+                                                                        className="h-4 w-6"
                                                                     />
-                                                                    Axe{' '}
-                                                                    {a.order +
-                                                                        1}
-                                                                    {a.title
-                                                                        ? ` — ${a.title}`
-                                                                        : ''}
-                                                                </label>
+                                                                    {valueEditable && (
+                                                                        <input
+                                                                            type="number"
+                                                                            value={
+                                                                                line
+                                                                                    .axisValues?.[
+                                                                                    a
+                                                                                        .id
+                                                                                ] ??
+                                                                                line.value ??
+                                                                                ''
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                setAnalyticsAxisValue(
+                                                                                    selected.id,
+                                                                                    k,
+                                                                                    a.id,
+                                                                                    e
+                                                                                        .target
+                                                                                        .value ===
+                                                                                        ''
+                                                                                        ? undefined
+                                                                                        : Number(
+                                                                                              e
+                                                                                                  .target
+                                                                                                  .value,
+                                                                                          ),
+                                                                                )
+                                                                            }
+                                                                            placeholder={
+                                                                                line.value !==
+                                                                                undefined
+                                                                                    ? String(
+                                                                                          line.value,
+                                                                                      )
+                                                                                    : '—'
+                                                                            }
+                                                                            aria-label={`Valeur axe ${a.order + 1} ${k}`}
+                                                                            className="h-4 w-14 rounded border border-border bg-background px-1 text-[10px]"
+                                                                        />
+                                                                    )}
+                                                                </div>
                                                             );
                                                         })}
                                                     </div>

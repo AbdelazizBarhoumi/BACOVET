@@ -260,13 +260,13 @@ function AxisSection({
                             {showEmptyFill && (
                                 <ColorInput
                                     label="Espace vide des barres"
-                                    value={axis.emptyColor ?? STACKED_EMPTY_FILL}
+                                    value={
+                                        axis.emptyColor ?? STACKED_EMPTY_FILL
+                                    }
                                     onChange={(v) =>
                                         onPatch({
                                             emptyColor:
-                                                v === 'default'
-                                                    ? undefined
-                                                    : v,
+                                                v === 'default' ? undefined : v,
                                         })
                                     }
                                 />
@@ -305,13 +305,8 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
     );
     const setAxes = (next: AxisDef[]) =>
         updateVisual(visual.id, { axes: next });
-    const patchAxisDef = (
-        axisId: string,
-        patch: Partial<AxisDef>,
-    ) =>
-        setAxes(
-            axes.map((a) => (a.id === axisId ? { ...a, ...patch } : a)),
-        );
+    const patchAxisDef = (axisId: string, patch: Partial<AxisDef>) =>
+        setAxes(axes.map((a) => (a.id === axisId ? { ...a, ...patch } : a)));
 
     const patchAxis = (key: 'xAxis' | 'yAxis', patch: Partial<AxisStyle>) =>
         updateVisual(visual.id, {
@@ -373,6 +368,27 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 showEmptyFill={stackedFamily && horizontal}
                 onPatch={(p) => patchAxis('xAxis', p)}
             />
+            {visual.type === 'pareto' && (
+                <Section title="Courbe cumulée">
+                    <ColorInput
+                        label="Couleur"
+                        value={
+                            axes.find((a) => a.lockRange)?.lineColor ??
+                            'default'
+                        }
+                        onChange={(v) => {
+                            const locked = axes.find((a) => a.lockRange);
+                            if (!locked) return;
+                            patchAxisDef(locked.id, {
+                                lineColor: v === 'default' ? undefined : v,
+                            });
+                        }}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                        Couleur de la courbe du pourcentage cumulé.
+                    </p>
+                </Section>
+            )}
             {axes.length > 0 ? (
                 <Section title="Axe Y" defaultOpen={axes.length > 1}>
                     {axes.map((a, i) => (
@@ -381,7 +397,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                             className="space-y-1.5 rounded border border-dashed border-border/60 p-2"
                         >
                             <div className="flex items-center gap-1">
-                                <span className="flex-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                <span className="flex-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
                                     Axe {i + 1}
                                 </span>
                                 {axes.length > 1 && (
@@ -416,10 +432,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                         </button>
                                         <button
                                             onClick={() =>
-                                                removeValueAxis(
-                                                    visual.id,
-                                                    a.id,
-                                                )
+                                                removeValueAxis(visual.id, a.id)
                                             }
                                             className="text-muted-foreground hover:text-destructive"
                                             title="Supprimer l'axe"
@@ -468,9 +481,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                 value={a.gap ?? 0}
                                 min={-30}
                                 max={80}
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, { gap: v })
-                                }
+                                onChange={(v) => patchAxisDef(a.id, { gap: v })}
                             />
                             <Toggle
                                 label="Afficher la ligne"
@@ -495,7 +506,10 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                             patchAxisDef(a.id, {
                                                 auto: v,
                                                 ...(v
-                                                    ? { min: undefined, max: undefined }
+                                                    ? {
+                                                          min: undefined,
+                                                          max: undefined,
+                                                      }
                                                     : {}),
                                             })
                                         }
@@ -554,9 +568,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                                     onChange={(v) =>
                                         patchAxisDef(a.id, {
                                             emptyColor:
-                                                v === 'default'
-                                                    ? undefined
-                                                    : v,
+                                                v === 'default' ? undefined : v,
                                         })
                                     }
                                 />
@@ -768,13 +780,13 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                         {dataLabels.applyTo === 'perSeries' && (
                             <div className="space-y-2">
                                 <div className="text-muted-foreground">
-                                    Remplacements de série — vide garde le
-                                    style d'étiquette partagé ci-dessous.
+                                    Remplacements de série — vide garde le style
+                                    d'étiquette partagé ci-dessous.
                                 </div>
                                 {seriesNames.length === 0 && (
                                     <p className="text-[10px] text-muted-foreground">
-                                        Ajoutez un champ Légende ou Valeurs
-                                        pour voir les séries.
+                                        Ajoutez un champ Légende ou Valeurs pour
+                                        voir les séries.
                                     </p>
                                 )}
                                 {seriesNames.map((name) => {

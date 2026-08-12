@@ -185,6 +185,17 @@ export type AnalyticsLine = {
     enabled: boolean;
     /** Value axis ids this line applies to; undefined means all value axes. */
     axes?: string[];
+    /** Stroke/fill color for this analytics visual. Undefined = the per-kind
+     * default (see `ANALYTICS_DEFAULT_COLOR`). */
+    color?: string;
+    /** Per-value-axis color overrides keyed by axis id, used when an analytics
+     * line renders once per axis (constant / average / min / max / median /
+     * band). An axis without an entry falls back to `color`, then the default. */
+    axisColors?: Record<string, string>;
+    /** Per-value-axis value overrides keyed by axis id, used when an analytics
+     * line renders once per axis with an editable value (constant / min / max).
+     * An axis without an entry falls back to `value`. */
+    axisValues?: Record<string, number>;
 };
 
 /** Format style for a visual's conditional formatting (Power BI-style). */
@@ -604,6 +615,8 @@ export type AxisDef = {
     showGridlines: boolean;
     /** axis/label color; '' inherits the bound series color. */
     color?: string;
+    /** Pareto cumulative-% line color; ''/absent inherits the palette. */
+    lineColor?: string;
     /** number presentation format applied to ticks + bound series. */
     numberFormat: NumberFormat;
     displayUnits: DisplayUnit;

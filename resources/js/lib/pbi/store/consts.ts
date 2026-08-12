@@ -64,6 +64,7 @@ export const VISUAL_TYPE_LABELS: Record<string, string> = {
     area: 'Aire',
     stackedArea: 'Aire empilée',
     combo: 'Courbe et histogramme empilé',
+    pareto: 'Pareto',
     ribbon: 'Ruban',
     waterfall: 'Cascade',
     pie: 'Secteurs',
@@ -129,4 +130,5 @@ export const CARTESIAN_TYPES: VisualType[] = [
     'area',
     'stackedArea',
     'combo',
+    'pareto',
 ];

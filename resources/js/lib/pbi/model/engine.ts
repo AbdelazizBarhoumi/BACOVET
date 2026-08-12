@@ -2416,6 +2416,51 @@ export function buildChartData(
     };
 }
 
+/**
+ * Pareto transform over `buildChartData` output: every value series keeps its
+ * bars (re-sorted descending by the first series, the classic Pareto order)
+ * and gains a synthetic cumulative-% line (`__paretoPct:<key>`, 0–1) bound to
+ * the locked `pctAxisId` secondary axis. The synthetic metas are `running`
+ * lines so the shared cartesian renderer draws them on the right-side scale.
+ */
+export function buildParetoData(
+    built: ReturnType<typeof buildChartData>,
+    pctAxisId: string,
+): ReturnType<typeof buildChartData> {
+    const { data, series, seriesMeta } = built;
+    if (!series.length) return built;
+    const pctKey = (s: string) => `__paretoPct:${s}`;
+    const orderKey = series[0]!;
+    const total: Record<string, number> = {};
+    for (const s of series)
+        total[s] = data.reduce((t, d) => t + (Number(d[s]) || 0), 0) || 1;
+    const sorted = [...data].sort(
+        (a, b) => (Number(b[orderKey]) || 0) - (Number(a[orderKey]) || 0),
+    );
+    const acc: Record<string, number> = {};
+    const out = sorted.map((d) => {
+        const row = { ...d };
+        for (const s of series) {
+            acc[s] = (acc[s] ?? 0) + (Number(d[s]) || 0);
+            row[pctKey(s)] = acc[s]! / total[s]!;
+        }
+        return row;
+    });
+    const pctMeta = series.map((s, i) => ({
+        key: pctKey(s),
+        label: `${seriesMeta[i]?.label ?? s} — cumulé`,
+        axisId: pctAxisId,
+        type: 'line' as const,
+        index: series.length + i,
+        running: true as const,
+    }));
+    return {
+        data: out,
+        series: [...series, ...series.map(pctKey)],
+        seriesMeta: [...seriesMeta, ...pctMeta],
+    };
+}
+
 /** `SeriesMeta` for the no-legend path: one entry per value field. */
 function seriesMetaForField(v: WellField, index: number): SeriesMeta {
     const key = measureLabel(v);

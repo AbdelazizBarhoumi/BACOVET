@@ -1023,6 +1023,29 @@ export function defaultAxes(): AxisDef[] {
     return DEFAULT_AXES.map((a) => ({ ...a }));
 }
 
+/** Right-side Pareto secondary axis: locked to 0–100 % by definition (the
+ * cumulative % line plots here). `lockRange` hides the Min/Max inputs in the
+ * format pane; `normalizeAxes` snaps it back to a fixed 0–1 domain. */
+export function lockedPctAxis(): AxisDef {
+    return {
+        id: 'pct',
+        position: 'right',
+        order: 1,
+        auto: false,
+        min: 0,
+        max: 1,
+        title: '',
+        showTitle: true,
+        showLine: true,
+        showLabels: true,
+        showGridlines: false,
+        color: '',
+        numberFormat: 'percent',
+        displayUnits: 'auto',
+        lockRange: true,
+    };
+}
+
 /** Position for the horizontal (bar) family where the value axis runs X. */
 export function axisPositionDefault(horizontal: boolean): AxisPosition {
     return horizontal ? 'bottom' : 'left';
@@ -1095,6 +1118,8 @@ export function normalizeAxes(input: unknown): AxisDef[] {
         };
         if (typeof raw.suffix === 'string' && raw.suffix.trim())
             axis.suffix = raw.suffix.trim();
+        if (typeof raw.lineColor === 'string' && raw.lineColor.trim())
+            axis.lineColor = raw.lineColor.trim();
         if (typeof raw.decimals === 'number' && isFinite(raw.decimals))
             axis.decimals = raw.decimals;
         if (typeof raw.emptyColor === 'string' && raw.emptyColor.trim())

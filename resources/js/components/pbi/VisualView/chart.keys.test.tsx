@@ -1075,6 +1075,376 @@ describe('new analytics kinds', () => {
         for (const row of data!)
             expect(typeof row['__trend'], `trend row`).toBe('number');
     });
+
+    it('marks where a line series crosses the constant (Objectif) line', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    { kind: 'constant' as const, enabled: true, value: 50 },
+                    { kind: 'intersections' as const, enabled: true },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots.length, 'one dot where Objectif crosses 50').toBeGreaterThan(
+            0,
+        );
+        const dot = dots[0]!;
+        expect(dot.x as number).toBeCloseTo(0.5, 5);
+        expect(dot.y as number).toBeCloseTo(50, 5);
+        expect(dot).toHaveProperty('xAxisId', 'xsec');
+        expect(dot.fill).toBe('#f59e0b');
+        const guides = (all.__rechartsCalls?.ReferenceLine ?? []).filter(
+            (l) => l.xAxisId === 'xsec',
+        );
+        expect(guides, 'full-height guide at the crossing').toHaveLength(1);
+        expect(guides[0]!.x as number).toBeCloseTo(0.5, 5);
+    });
+
+    it('draws no constant-crossing dots without the intersections kind', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    { kind: 'constant' as const, enabled: true, value: 50 },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots, 'constant alone adds no markers').toHaveLength(0);
+    });
+
+    it('binds constant-crossing dots to the constant value axis on multi-axis charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y1'),
+                    well('Volume', 'sum', 'y0'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    {
+                        kind: 'constant' as const,
+                        enabled: true,
+                        value: 50,
+                        axes: ['y0'],
+                    },
+                    { kind: 'intersections' as const, enabled: true },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots.length).toBeGreaterThan(0);
+        for (const dot of dots)
+            expect(
+                dot,
+                `constant-crossing dot at (${String(dot.x)}, ${String(dot.y)})`,
+            ).toHaveProperty('yAxisId', 'axis-y0');
+    });
+
+    it('positions constant crossings on horizontal charts via the hidden y-axis', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'bar',
+                axis: [well('Chaine')],
+                values: [well('Objectif')].map((w) => ({
+                    ...w,
+                    seriesType: 'line' as const,
+                })),
+                analytics: [
+                    { kind: 'constant' as const, enabled: true, value: 50 },
+                    { kind: 'intersections' as const, enabled: true },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots.length).toBeGreaterThan(0);
+        const dot = dots[0]!;
+        expect(dot.y as number).toBeCloseTo(0.5, 5);
+        expect(dot.x as number).toBeCloseTo(50, 5);
+        expect(dot).toHaveProperty('yAxisId', 'xsec');
+    });
+
+    it('uses the constant line color on its stat lines', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    {
+                        kind: 'constant' as const,
+                        enabled: true,
+                        value: 50,
+                        color: '#ff0000',
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const stat = (all.__rechartsCalls?.ReferenceLine ?? []).find(
+            (l) => l.stroke === '#ff0000',
+        );
+        expect(stat, 'constant ReferenceLine in its color').toBeDefined();
+        expect(stat!.y as number).toBe(50);
+    });
+
+    it('falls back to the kind default color without an explicit color', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    { kind: 'average' as const, enabled: true },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const stat = (all.__rechartsCalls?.ReferenceLine ?? []).find((l) =>
+            String(
+                (l.label as { value?: string } | undefined)?.value ?? '',
+            ).startsWith('Moyenne '),
+        );
+        expect(stat, 'average ReferenceLine').toBeDefined();
+        expect(stat!.stroke).toBe('var(--chart-4)');
+    });
+
+    it('uses the per-axis color override on multi-axis stat lines', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y1'),
+                    well('Volume', 'sum', 'y0'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    {
+                        kind: 'constant' as const,
+                        enabled: true,
+                        value: 50,
+                        axisColors: { y0: '#00ff00', y1: '#0000ff' },
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const y0 = lines.find((l) => l.yAxisId === 'axis-y0');
+        const y1 = lines.find((l) => l.yAxisId === 'axis-y1');
+        expect(y0, 'y0 constant line').toBeDefined();
+        expect(y1, 'y1 constant line').toBeDefined();
+        expect(y0!.stroke).toBe('#00ff00');
+        expect(y1!.stroke).toBe('#0000ff');
+    });
+
+    it('uses the per-axis value override on multi-axis constant lines', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y1'),
+                    well('Volume', 'sum', 'y0'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    {
+                        kind: 'constant' as const,
+                        enabled: true,
+                        value: 50,
+                        axisValues: { y0: 20, y1: 90 },
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const y0 = lines.find((l) => l.yAxisId === 'axis-y0');
+        const y1 = lines.find((l) => l.yAxisId === 'axis-y1');
+        expect(y0, 'y0 constant line').toBeDefined();
+        expect(y1, 'y1 constant line').toBeDefined();
+        expect(y0!.y as number).toBe(20);
+        expect(y1!.y as number).toBe(90);
+    });
+
+    it('falls back to the shared value when an axis lacks a per-axis override', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y1'),
+                    well('Volume', 'sum', 'y0'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    {
+                        kind: 'min' as const,
+                        enabled: true,
+                        value: 7,
+                        axisValues: { y0: 3 },
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const y0 = lines.find((l) => l.yAxisId === 'axis-y0');
+        const y1 = lines.find((l) => l.yAxisId === 'axis-y1');
+        expect(y0, 'y0 min line').toBeDefined();
+        expect(y1, 'y1 min line').toBeDefined();
+        expect(y0!.y as number).toBe(3);
+        expect(y1!.y as number).toBe(7);
+    });
+
+    it('uses the per-axis value override when positioning constant-crossing dots', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y1'),
+                    well('Volume', 'sum', 'y0'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    {
+                        kind: 'constant' as const,
+                        enabled: true,
+                        value: 50,
+                        axes: ['y0'],
+                        axisValues: { y0: 90 },
+                    },
+                    { kind: 'intersections' as const, enabled: true },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        const constDots = dots.filter((d) => d.fill === '#f59e0b');
+        expect(constDots.length, 'constant-crossing dots').toBeGreaterThan(0);
+        for (const dot of constDots) {
+            expect(dot.yAxisId).toBe('axis-y0');
+            expect(dot.y as number).toBe(90);
+        }
+    });
+
+    it('colors constant-crossing dots from the intersections line color', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    { kind: 'constant' as const, enabled: true, value: 50 },
+                    {
+                        kind: 'intersections' as const,
+                        enabled: true,
+                        color: '#00ff00',
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        const constDots = dots.filter((d) => d.fill === '#00ff00');
+        expect(constDots.length, 'constant-crossing dots').toBeGreaterThan(0);
+    });
+
+    it('colors the trend/forecast and band visuals from the line color', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                analytics: [
+                    {
+                        kind: 'trend' as const,
+                        enabled: true,
+                        color: '#123456',
+                    },
+                    {
+                        kind: 'band' as const,
+                        enabled: true,
+                        value: 10,
+                        value2: 30,
+                        color: '#abcdef',
+                    },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const trend = (all.__rechartsCalls?.Line ?? []).find(
+            (l) => l.dataKey === '__trend',
+        );
+        expect(trend, 'trend line').toBeDefined();
+        expect(trend!.stroke).toBe('#123456');
+        const band = (all.__rechartsCalls?.ReferenceArea ?? []).find(
+            (b) => b.fill === '#abcdef',
+        );
+        expect(band, 'band ReferenceArea in its color').toBeDefined();
+    });
+
+    it('colors the crosshair cursor from the crosshair line', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    {
+                        kind: 'crosshair' as const,
+                        enabled: true,
+                        color: '#0f0f0f',
+                    },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const tooltip = (all.__rechartsCalls?.Tooltip ?? [])[0];
+        expect(tooltip.cursor).toEqual({
+            stroke: '#0f0f0f',
+            strokeWidth: 1,
+            strokeDasharray: '3 3',
+        });
+    });
 });
 
 describe('value-axis domains come from a single resolved source', () => {

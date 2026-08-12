@@ -66,6 +66,7 @@ export type {
 } from './types';
 
 export {
+    ANALYTICS_DEFAULT_COLOR,
     ANALYTICS_KINDS,
     CF_AGGS,
     CF_BOUND_TYPES,
@@ -105,6 +106,7 @@ export {
     applyFx,
     axisPositionDefault,
     defaultAxes,
+    lockedPctAxis,
     DEFAULT_AXES,
     defaultConditionalFormat,
     defaultGaugeStyle,
@@ -161,6 +163,7 @@ export {
 export {
     aggregate,
     buildChartData,
+    buildParetoData,
     buildScatterData,
     buildTableCells,
     compileListMeasure,

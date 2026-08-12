@@ -52,6 +52,7 @@ export const CARTESIAN_TYPES: VisualType[] = [
     'area',
     'stackedArea',
     'combo',
+    'pareto',
 ];
 
 export const SINGLE_VALUE_CONFIG: VisualConfig = {

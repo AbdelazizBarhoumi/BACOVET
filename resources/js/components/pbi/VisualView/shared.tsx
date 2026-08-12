@@ -459,6 +459,7 @@ export function CustomTooltip({
     active?: boolean;
     payload?: {
         name?: string | number;
+        dataKey?: string | number;
         value?: unknown;
         payload?: TooltipDatum;
     }[];
@@ -501,21 +502,25 @@ export function CustomTooltip({
 
     for (const p of payload) {
         if (p.value === undefined || p.value === null) continue;
-        const key = String(p.name ?? '');
-        const name = key.startsWith('tt:') ? key.slice(3) : key;
+        const itemKey = String(p.dataKey ?? p.name ?? '');
+        const name = itemKey.startsWith('tt:') ? itemKey.slice(3) : itemKey;
         const ttField = visual.tooltips.find((t) => t.name === name);
         const type =
-            key.startsWith('tt:') && ttField
+            itemKey.startsWith('tt:') && ttField
                 ? fieldType(ttField.name, ttField.table)
-                : key.startsWith('tt:') && name
+                : itemKey.startsWith('tt:') && name
                   ? fieldType(name)
                   : typeof p.value === 'number'
                     ? 'number'
                     : 'text';
+        const formatRaw =
+            typeof p.value === 'number' && itemKey.startsWith('__paretoPct:');
         rows.push({
-            label: name,
-            value: formatValue(p.value, type as FieldType),
-            strong: !key.startsWith('tt:'),
+            label: String(p.name ?? name),
+            value: formatRaw
+                ? formatDisplayUnitValue(Number(p.value), 'percent')
+                : formatValue(p.value, type as FieldType),
+            strong: !itemKey.startsWith('tt:'),
         });
     }
 

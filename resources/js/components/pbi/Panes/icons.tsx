@@ -254,6 +254,40 @@ export const IconComboPreview = chartPreviewIcon(
     </>,
 );
 
+export const IconParetoPreview = chartPreviewIcon(
+    <>
+        <rect x="2.5" y="11" width="2.4" height="6" fill={CHART_COLORS.blue} />
+        <rect x="5.6" y="7" width="2.4" height="10" fill={CHART_COLORS.blue} />
+        <rect
+            x="8.7"
+            y="4.5"
+            width="2.4"
+            height="12.5"
+            fill={CHART_COLORS.blue}
+        />
+        <rect
+            x="11.8"
+            y="2.5"
+            width="2.4"
+            height="14.5"
+            fill={CHART_COLORS.orange}
+        />
+        <rect x="14.9" y="6" width="2.4" height="11" fill={CHART_COLORS.gray} />
+        <polyline
+            points="2.5,15.8 6.8,12.5 11,12.9 15.1,9.6"
+            fill="none"
+            stroke={CHART_COLORS.gold}
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+        <circle cx="2.5" cy="15.8" r="1" fill={CHART_COLORS.gold} />
+        <circle cx="6.8" cy="12.5" r="1" fill={CHART_COLORS.gold} />
+        <circle cx="11" cy="12.9" r="1" fill={CHART_COLORS.gold} />
+        <circle cx="15.1" cy="9.6" r="1" fill={CHART_COLORS.gold} />
+    </>,
+);
+
 export const IconTreemapPreview = chartPreviewIcon(
     <>
         <rect x="2" y="2" width="9" height="8" fill={CHART_COLORS.blue} />

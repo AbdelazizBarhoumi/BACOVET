@@ -192,6 +192,28 @@ type Ctx = State & {
         kind: AnalyticsLine['kind'],
         axes: string[] | undefined,
     ) => void;
+    /** Sets the stroke/fill color of an analytics line (undefined = default). */
+    setAnalyticsColor: (
+        visualId: string,
+        kind: AnalyticsLine['kind'],
+        color: string | undefined,
+    ) => void;
+    /** Sets the per-axis color override of an analytics line (undefined = fall
+     * back to the line color / default). */
+    setAnalyticsAxisColor: (
+        visualId: string,
+        kind: AnalyticsLine['kind'],
+        axisId: string,
+        color: string | undefined,
+    ) => void;
+    /** Sets a per-axis value override of an analytics line (undefined = fall
+     * back to the line's own `value`). */
+    setAnalyticsAxisValue: (
+        visualId: string,
+        kind: AnalyticsLine['kind'],
+        axisId: string,
+        value: number | undefined,
+    ) => void;
     drill: (visualId: string, dir: -1 | 1) => void;
     addPage: () => void;
     removePage: (id: string) => void;
@@ -1281,6 +1303,82 @@ export function PbiProvider({
                                   a.kind === kind ? { ...a, axes } : a,
                               )
                             : [...v.analytics, { kind, enabled: true, axes }],
+                    };
+                }),
+            ),
+        setAnalyticsColor: (visualId, kind, color) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const exists = v.analytics.find((a) => a.kind === kind);
+                    return {
+                        ...v,
+                        analytics: exists
+                            ? v.analytics.map((a) =>
+                                  a.kind === kind ? { ...a, color } : a,
+                              )
+                            : [
+                                  ...v.analytics,
+                                  { kind, enabled: true, color },
+                              ],
+                    };
+                }),
+            ),
+        setAnalyticsAxisColor: (visualId, kind, axisId, color) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const exists = v.analytics.find((a) => a.kind === kind);
+                    return {
+                        ...v,
+                        analytics: exists
+                            ? v.analytics.map((a) => {
+                                  if (a.kind !== kind) return a;
+                                  const axisColors = { ...(a.axisColors ?? {}) };
+                                  if (color === undefined)
+                                      delete axisColors[axisId];
+                                  else axisColors[axisId] = color;
+                                  return { ...a, axisColors };
+                              })
+                            : [
+                                  ...v.analytics,
+                                  {
+                                      kind,
+                                      enabled: true,
+                                      ...(color === undefined
+                                          ? {}
+                                          : { axisColors: { [axisId]: color } }),
+                                  },
+                              ],
+                    };
+                }),
+            ),
+        setAnalyticsAxisValue: (visualId, kind, axisId, value) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const exists = v.analytics.find((a) => a.kind === kind);
+                    return {
+                        ...v,
+                        analytics: exists
+                            ? v.analytics.map((a) => {
+                                  if (a.kind !== kind) return a;
+                                  const axisValues = { ...(a.axisValues ?? {}) };
+                                  if (value === undefined)
+                                      delete axisValues[axisId];
+                                  else axisValues[axisId] = value;
+                                  return { ...a, axisValues };
+                              })
+                            : [
+                                  ...v.analytics,
+                                  {
+                                      kind,
+                                      enabled: true,
+                                      ...(value === undefined
+                                          ? {}
+                                          : { axisValues: { [axisId]: value } }),
+                                  },
+                              ],
                     };
                 }),
             ),

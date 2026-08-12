@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     aggregate,
     buildChartData,
+    buildParetoData,
     buildScatterData,
     defaultAxes,
     fieldIssue,
@@ -192,6 +193,47 @@ describe('buildChartData — seriesMeta binding', () => {
     });
 });
 
+describe('buildParetoData — cumulative % line', () => {
+    it('sorts descending and appends a 0–1 cumulative line bound to the pct axis', () => {
+        const built = buildChartData(
+            sales.rows,
+            [field('Region')],
+            [],
+            [field('Amount')],
+        );
+        const key = built.series[0]!;
+        const pctKey = `__paretoPct:${key}`;
+        const out = buildParetoData(built, 'pct');
+        expect(out.series).toEqual([key, pctKey]);
+        expect(out.data.map((d) => d['category'])).toEqual(['North', 'South']);
+        expect(out.data[0]![pctKey]).toBeCloseTo(150 / 250, 10);
+        expect(out.data[1]![pctKey]).toBeCloseTo(1, 10);
+        expect(out.seriesMeta[0]).toMatchObject({ axisId: 'y0', type: 'bar' });
+        expect(out.seriesMeta[1]).toMatchObject({
+            key: pctKey,
+            axisId: 'pct',
+            type: 'line',
+            running: true,
+        });
+    });
+
+    it('builds one cumulative line per value field', () => {
+        const built = buildChartData(
+            sales.rows,
+            [field('Region')],
+            [],
+            [field('Amount'), field('Cost')],
+        );
+        const out = buildParetoData(built, 'pct');
+        expect(out.seriesMeta.filter((m) => m.type === 'line')).toHaveLength(2);
+    });
+
+    it('returns the input unchanged when there are no series', () => {
+        const built = buildChartData(sales.rows, [field('Region')], [], []);
+        expect(buildParetoData(built, 'pct')).toBe(built);
+    });
+});
+
 describe('normalizeAxes — persisted multi-axis shape', () => {
     it('returns a single default left axis for empty input', () => {
         const axes = normalizeAxes(undefined);
@@ -239,6 +281,32 @@ describe('normalizeAxes — persisted multi-axis shape', () => {
         const b = defaultAxes();
         expect(a[0]).not.toBe(b[0]);
         expect(a).toEqual(b);
+    });
+
+    it('keeps a Pareto lineColor set on a locked axis', () => {
+        const axes = normalizeAxes([
+            {
+                id: 'pct',
+                position: 'right',
+                order: 1,
+                lockRange: true,
+                lineColor: '#ffc000',
+            },
+        ]);
+        expect(axes[0]?.lineColor).toBe('#ffc000');
+    });
+
+    it('drops an empty Pareto lineColor', () => {
+        const axes = normalizeAxes([
+            {
+                id: 'pct',
+                position: 'right',
+                order: 1,
+                lockRange: true,
+                lineColor: '   ',
+            },
+        ]);
+        expect(axes[0]?.lineColor).toBeUndefined();
     });
 });
 
