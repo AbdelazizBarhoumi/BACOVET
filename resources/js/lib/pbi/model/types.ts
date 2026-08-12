@@ -170,13 +170,21 @@ export type AnalyticsKind =
     | 'min'
     | 'max'
     | 'median'
+    | 'category'
+    | 'band'
+    | 'intersections'
+    | 'crosshair'
     | 'trend'
     | 'forecast';
 
 export type AnalyticsLine = {
     kind: AnalyticsKind;
     value?: number;
+    value2?: number;
+    category?: string;
     enabled: boolean;
+    /** Value axis ids this line applies to; undefined means all value axes. */
+    axes?: string[];
 };
 
 /** Format style for a visual's conditional formatting (Power BI-style). */

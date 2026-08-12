@@ -55,6 +55,7 @@ const STACKED_TYPES = [
     'stacked100Column',
     'stackedBar',
     'stacked100Bar',
+    'stackedArea',
     'ribbon',
 ];
 

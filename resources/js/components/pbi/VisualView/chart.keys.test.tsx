@@ -8,7 +8,7 @@ import {
     setTables,
     STACKED_EMPTY_FILL,
 } from '@/lib/pbi/model';
-import type { TableDef, Visual, WellField } from '@/lib/pbi/model';
+import type { Row, TableDef, Visual, WellField } from '@/lib/pbi/model';
 import { ChartBody } from './chart';
 
 vi.mock('recharts', async () => {
@@ -34,6 +34,8 @@ vi.mock('recharts', async () => {
         'LineChart',
         'Pie',
         'PieChart',
+        'ReferenceArea',
+        'ReferenceDot',
         'ReferenceLine',
         'ResponsiveContainer',
         'Scatter',
@@ -83,8 +85,24 @@ const sales: TableDef = {
     ],
 };
 
-function well(name: string, agg: 'sum' | 'avg' | 'count' = 'sum'): WellField {
-    return { table: 'Sales', name, label: name, agg };
+/** Rows where Objectif and Volume cross between A and B (mid ~50). */
+const crossingRows: Record<string, string | number>[] = [
+    { Chaine: 'A', Objectif: 10, Volume: 90 },
+    { Chaine: 'B', Objectif: 90, Volume: 10 },
+];
+
+function well(
+    name: string,
+    agg: 'sum' | 'avg' | 'count' = 'sum',
+    axisId?: string,
+): WellField {
+    return {
+        table: 'Sales',
+        name,
+        label: name,
+        agg,
+        ...(axisId ? { axisId } : {}),
+    };
 }
 
 function visual(partial: Partial<Visual>): Visual {
@@ -125,15 +143,19 @@ function visual(partial: Partial<Visual>): Visual {
     };
 }
 
-function renderAndCapture(partial: Visual) {
-    setTables([sales]);
+function renderAndCapture(
+    partial: Visual,
+    rows: Row[] = sales.rows,
+    tables: TableDef[] = [sales],
+) {
+    setTables(tables);
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('div');
     const root = createRoot(host);
     try {
         act(() =>
             root.render(
-                <ChartBody visual={partial} rows={sales.rows} match={null} />,
+                <ChartBody visual={partial} rows={rows} match={null} />,
             ),
         );
     } finally {
@@ -209,6 +231,76 @@ describe('chart child keys', () => {
                 ).not.toHaveProperty('datakey');
             }
         }
+    });
+});
+
+describe('line family renders through the shared cartesian renderer', () => {
+    const all = globalThis as {
+        __rechartsCalls?: Record<string, Record<string, unknown>[]>;
+    };
+
+    function clearCalls() {
+        const calls = (all.__rechartsCalls ??= {});
+        for (const name of Object.keys(calls)) calls[name] = [];
+    }
+
+    it('line draws a Line series on a ComposedChart, not a Bar', () => {
+        clearCalls();
+        renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+            }),
+        );
+        expect(all.__rechartsCalls?.ComposedChart?.length).toBeGreaterThan(0);
+        expect(all.__rechartsCalls?.Bar?.length ?? 0).toBe(0);
+        expect(all.__rechartsCalls?.Line?.length).toBeGreaterThan(0);
+    });
+
+    it('area draws Area series', () => {
+        clearCalls();
+        renderAndCapture(
+            visual({
+                type: 'area',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+            }),
+        );
+        expect(all.__rechartsCalls?.Line?.length ?? 0).toBe(0);
+        const areas = all.__rechartsCalls?.Area ?? [];
+        expect(areas.length).toBeGreaterThan(0);
+        for (const a of areas)
+            expect(a.stackId, `Area ${a.dataKey}`).toBeUndefined();
+    });
+
+    it('stackedArea stacks its Area series', () => {
+        clearCalls();
+        renderAndCapture(
+            visual({
+                type: 'stackedArea',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+            }),
+        );
+        const areas = all.__rechartsCalls?.Area ?? [];
+        expect(areas.length).toBe(2);
+        for (const a of areas) expect(a.stackId).toBe('s');
+    });
+
+    it('combo draws a bar then lines by default', () => {
+        clearCalls();
+        renderAndCapture(
+            visual({
+                type: 'combo',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+            }),
+        );
+        expect(all.__rechartsCalls?.Bar?.length).toBe(1);
+        expect((all.__rechartsCalls?.Line ?? []).length).toBeGreaterThanOrEqual(
+            1,
+        );
     });
 });
 
@@ -333,9 +425,7 @@ describe('stacked empty-space fill', () => {
 
     it('defaults the empty fill to light gray when no color is set', () => {
         clearCalls();
-        renderAndCapture(
-            visual({ type: 'stackedColumn', ...base() }),
-        );
+        renderAndCapture(visual({ type: 'stackedColumn', ...base() }));
         const found = bars();
         expect(found.length).toBeGreaterThan(0);
         for (const b of found)
@@ -347,12 +437,12 @@ describe('stacked empty-space fill', () => {
         const axes = defaultAxes().map((a, i) =>
             i === 0 ? { ...a, emptyColor: '#93c5fd' } : a,
         );
-        renderAndCapture(
-            visual({ type: 'stackedColumn', axes, ...base() }),
-        );
+        renderAndCapture(visual({ type: 'stackedColumn', axes, ...base() }));
         // First value axis carries the fill; the second defaults to none.
         const fills = new Set(
-            bars().map((b) => (b.background as { fill?: string } | undefined)?.fill),
+            bars().map(
+                (b) => (b.background as { fill?: string } | undefined)?.fill,
+            ),
         );
         expect(fills).toContain('#93c5fd');
     });
@@ -371,5 +461,752 @@ describe('stacked empty-space fill', () => {
         );
         for (const b of bars())
             expect(b.background, `Bar ${b.dataKey}`).toBeUndefined();
+    });
+});
+
+describe('stacked area empty-space fill', () => {
+    const all = globalThis as {
+        __rechartsCalls?: Record<string, Record<string, unknown>[]>;
+    };
+
+    function clearCalls() {
+        const calls = (all.__rechartsCalls ??= {});
+        for (const name of Object.keys(calls)) calls[name] = [];
+    }
+
+    const base = () => ({
+        axis: [well('Chaine')],
+        values: [well('Objectif'), well('Volume')],
+    });
+
+    function refAreas(): Record<string, unknown>[] {
+        return [...(all.__rechartsCalls?.ReferenceArea ?? [])];
+    }
+
+    it('paints a full-plot track behind stacked areas from the legacy yAxis', () => {
+        clearCalls();
+        renderAndCapture(
+            visual({
+                type: 'stackedArea',
+                yAxis: normalizeAxisStyle({
+                    show: true,
+                    emptyColor: '#fca5a5',
+                }),
+                ...base(),
+            }),
+        );
+        const band = refAreas()[0];
+        expect(band).toBeDefined();
+        // Objectif 100 + Volume 50 → 150 is the tallest stack, so the band
+        // spans the whole 0..top plot.
+        expect(band.fill).toBe('#fca5a5');
+        expect(band.y1).toBe(0);
+        expect(band.y2).toBe(150);
+        expect(band.x1).toBe('A');
+        expect(band.x2).toBe('B');
+    });
+
+    it('defaults the stacked-area track to light gray', () => {
+        clearCalls();
+        renderAndCapture(visual({ type: 'stackedArea', ...base() }));
+        const band = refAreas()[0];
+        expect(band).toBeDefined();
+        expect(band.fill).toBe(STACKED_EMPTY_FILL);
+    });
+
+    it('honors an explicit axis max so the track fills the plot', () => {
+        clearCalls();
+        const axes = defaultAxes().map((a, i) =>
+            i === 0
+                ? {
+                      ...a,
+                      auto: false,
+                      max: 200,
+                      emptyColor: '#e2e8f0',
+                  }
+                : a,
+        );
+        renderAndCapture(visual({ type: 'stackedArea', axes, ...base() }));
+        const band = refAreas()[0];
+        expect(band).toBeDefined();
+        expect(band.y2).toBe(200);
+    });
+});
+
+describe('multi-axis analytics binding', () => {
+    const all = globalThis as {
+        __rechartsCalls?: Record<string, Record<string, unknown>[]>;
+    };
+
+    function clearCalls() {
+        const calls = (all.__rechartsCalls ??= {});
+        for (const name of Object.keys(calls)) calls[name] = [];
+    }
+
+    const twoAxes = () => [
+        { ...defaultAxes()[0] },
+        {
+            ...defaultAxes()[0],
+            id: 'y1',
+            position: 'right' as const,
+            order: 1,
+        },
+    ];
+
+    it('binds analytics stat lines to the value axis on multi-axis charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'column',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                axes: twoAxes(),
+                analytics: [
+                    { kind: 'constant' as const, enabled: true, value: 95 },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        expect(lines.length).toBeGreaterThan(0);
+        for (const line of lines)
+            expect(line, `ReferenceLine ${line.dataKey}`).toHaveProperty(
+                'yAxisId',
+                'axis-y0',
+            );
+    });
+
+    it('shows min/max on every value axis that has series', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y0'),
+                    well('Volume', 'sum', 'y1'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    { kind: 'min' as const, enabled: true },
+                    { kind: 'max' as const, enabled: true },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const yFor = (id: string) =>
+            lines
+                .filter((l) => l.yAxisId === id)
+                .map((l) => l.y as number)
+                .sort((a, b) => a - b);
+        expect(yFor('axis-y0')).toEqual([90, 100]);
+        expect(yFor('axis-y1')).toEqual([30, 50]);
+    });
+
+    it('restricts a stat line to the chosen value axes only', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y0'),
+                    well('Volume', 'sum', 'y1'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    { kind: 'max' as const, enabled: true, axes: ['y0'] },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        expect(lines.map((l) => l.yAxisId)).toContain('axis-y0');
+        expect(lines.map((l) => l.yAxisId)).not.toContain('axis-y1');
+        expect(
+            lines.filter((l) => l.yAxisId === 'axis-y0').map((l) => l.y),
+        ).toEqual([100]);
+    });
+
+    it('restricts min and max to different axes', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y0'),
+                    well('Volume', 'sum', 'y1'),
+                ],
+                axes: twoAxes(),
+                analytics: [
+                    { kind: 'min' as const, enabled: true, axes: ['y0'] },
+                    { kind: 'max' as const, enabled: true, axes: ['y1'] },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        expect(
+            lines.filter((l) => l.yAxisId === 'axis-y0').map((l) => l.y),
+        ).toEqual([90]);
+        expect(
+            lines.filter((l) => l.yAxisId === 'axis-y1').map((l) => l.y),
+        ).toEqual([50]);
+    });
+
+    it('renders no stat line when all axes are excluded', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y0'),
+                    well('Volume', 'sum', 'y1'),
+                ],
+                axes: twoAxes(),
+                analytics: [{ kind: 'min' as const, enabled: true, axes: [] }],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        expect(lines).toHaveLength(0);
+    });
+
+    it('binds analytics trend/forecast lines to the value axis on multi-axis charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'column',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                axes: twoAxes(),
+                analytics: [{ kind: 'trend' as const, enabled: true }],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const trend = (all.__rechartsCalls?.Line ?? []).filter(
+            (l) => l.legendType === 'none',
+        );
+        expect(trend.length).toBeGreaterThan(0);
+        for (const line of trend)
+            expect(line, `analytics line ${line.dataKey}`).toHaveProperty(
+                'yAxisId',
+                'axis-y0',
+            );
+    });
+
+    it('leaves analytics lines unbound (default axis) on single-axis charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'column',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    { kind: 'constant' as const, enabled: true, value: 95 },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        expect(lines.length).toBeGreaterThan(0);
+        for (const line of lines)
+            expect(line, `ReferenceLine ${line.dataKey}`).not.toHaveProperty(
+                'yAxisId',
+            );
+    });
+});
+
+describe('new analytics kinds', () => {
+    const all = globalThis as {
+        __rechartsCalls?: Record<string, Record<string, unknown>[]>;
+    };
+
+    function clearCalls() {
+        const calls = (all.__rechartsCalls ??= {});
+        for (const name of Object.keys(calls)) calls[name] = [];
+    }
+
+    const twoAxes = () => [
+        { ...defaultAxes()[0] },
+        {
+            ...defaultAxes()[0],
+            id: 'y1',
+            position: 'right' as const,
+            order: 1,
+        },
+    ];
+
+    it('draws a vertical category line at the chosen category', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    { kind: 'category' as const, enabled: true, category: 'B' },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const cat = lines.find((l) => l.x === 'B' || l.y === 'B');
+        expect(cat, 'category ReferenceLine').toBeDefined();
+        expect(cat).not.toHaveProperty('yAxisId');
+    });
+
+    it('binds a vertical category line to the value axis on multi-axis charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                axes: twoAxes(),
+                analytics: [
+                    { kind: 'category' as const, enabled: true, category: 'B' },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const cat = lines.find((l) => l.x === 'B' || l.y === 'B');
+        expect(cat).toHaveProperty('yAxisId', 'axis-y0');
+    });
+
+    it('renders a value-axis band between two bounds', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    {
+                        kind: 'band' as const,
+                        enabled: true,
+                        value: 10,
+                        value2: 90,
+                    },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const bands = all.__rechartsCalls?.ReferenceArea ?? [];
+        const band = bands.find((b) => b.y1 === 10 && b.y2 === 90);
+        expect(band, 'band ReferenceArea').toBeDefined();
+        expect(band).not.toHaveProperty('yAxisId');
+    });
+
+    it('renders the band across the category lane on horizontal charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'bar',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    {
+                        kind: 'band' as const,
+                        enabled: true,
+                        value: 30,
+                        value2: 10,
+                    },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const bands = all.__rechartsCalls?.ReferenceArea ?? [];
+        const band = bands.find((b) => b.x1 === 10 && b.x2 === 30);
+        expect(band, 'horizontal band ReferenceArea').toBeDefined();
+    });
+
+    it('adds a hidden numeric axis that positions intersection markers', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const axis = (all.__rechartsCalls?.XAxis ?? []).find(
+            (a) => a.xAxisId === 'xsec',
+        );
+        expect(axis, 'hidden xsec XAxis').toBeDefined();
+        expect(axis).toHaveProperty('type', 'number');
+        expect(axis).toHaveProperty('hide', true);
+        expect(axis?.domain).toEqual([0, 1]);
+    });
+
+    it('marks the crossing of two line series via ReferenceDot', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots.length).toBeGreaterThan(0);
+        const dot = dots[0]!;
+        expect(dot.x as number).toBeCloseTo(0.5, 5);
+        expect(dot.y as number).toBeCloseTo(50, 5);
+        expect(dot).toHaveProperty('xAxisId', 'xsec');
+    });
+
+    it('places spline dots on the curved (monotone) crossing, not the straight one', () => {
+        clearCalls();
+        // 6 rows whose monotone splines cross mid-curve; the straight-segment
+        // polylines would cross at different category fractions. Values mirror
+        // the live probe chart's rendered geometry.
+        const splineRows: Record<string, string | number>[] = [
+            { Chaine: 'A', Objectif: 243.182, Volume: 387.994 },
+            { Chaine: 'B', Objectif: 313.56, Volume: 444.538 },
+            { Chaine: 'C', Objectif: 502.576, Volume: 438.913 },
+            { Chaine: 'D', Objectif: 455.52, Volume: 456.167 },
+            { Chaine: 'E', Objectif: 487.556, Volume: 491.834 },
+            { Chaine: 'F', Objectif: 517.66, Volume: 522.102 },
+        ];
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine', 'count')],
+                values: [well('Objectif'), well('Volume')],
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            splineRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        // Four crossings of the two monotone splines on the shared value axis.
+        // Category fractions are what they are (buildChartData sorts the
+        // categories by value), so pinning exact marker coordinates guards the
+        // "spline not straight" detection without re-deriving the layout.
+        const xs = dots.map((d) => d.x as number);
+        expect(xs.length).toBe(4);
+        expect(xs[0]).toBeCloseTo(0.04052356908641742, 4);
+        expect(xs[1]).toBeCloseTo(1.8879633175824895, 4);
+        expect(xs[2]).toBeCloseTo(2.5141031929865676, 4);
+        expect(xs[3]).toBeCloseTo(2.983369243119796, 4);
+        for (const d of dots) expect(d).toHaveProperty('xAxisId', 'xsec');
+    });
+
+    it('binds intersection dots to the shared value axis on multi-axis charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                axes: twoAxes(),
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots.length).toBeGreaterThan(0);
+        for (const dot of dots)
+            expect(
+                dot,
+                `intersection dot (${String(dot.x)}, ${String(dot.y)})`,
+            ).toHaveProperty('yAxisId', 'axis-y0');
+    });
+
+    it('drops a vertical guide line at the crossing', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const guides = (all.__rechartsCalls?.ReferenceLine ?? []).filter(
+            (l) => l.xAxisId === 'xsec',
+        );
+        expect(guides.length).toBeGreaterThan(0);
+        const guide = guides[0]!;
+        expect(guide.x as number).toBeCloseTo(0.5, 5);
+        expect(guide).toHaveProperty('xAxisId', 'xsec');
+        expect(guide).not.toHaveProperty('yAxisId');
+        expect(guide.strokeDasharray).toBe('3 3');
+    });
+
+    it('binds intersection guide lines to the value axis on multi-axis charts', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                axes: twoAxes(),
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const guides = (all.__rechartsCalls?.ReferenceLine ?? []).filter(
+            (l) => l.xAxisId === 'xsec',
+        );
+        expect(guides.length).toBeGreaterThan(0);
+        for (const guide of guides)
+            expect(
+                guide,
+                `intersection guide at ${String(guide.x)}`,
+            ).toHaveProperty('yAxisId', 'axis-y0');
+    });
+
+    it('keeps a pixel-exact guide for cross-axis pairs without a dot', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y1'),
+                    well('Volume', 'sum', 'y0'),
+                ],
+                axes: twoAxes(),
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots, 'no dot across different axes').toHaveLength(0);
+        const guides = (all.__rechartsCalls?.ReferenceLine ?? []).filter(
+            (l) => l.xAxisId === 'xsec',
+        );
+        expect(guides.length).toBeGreaterThan(0);
+        for (const guide of guides) {
+            expect(guide.x as number).toBeCloseTo(0.5, 5);
+            expect(
+                guide,
+                `cross-axis intersection guide at ${String(guide.x)}`,
+            ).toHaveProperty('yAxisId', 'axis-y1');
+        }
+    });
+
+    it('positions intersection markers on horizontal charts via a hidden y-axis', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'bar',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', undefined),
+                    well('Volume', 'sum', undefined),
+                ].map((w) => ({ ...w, seriesType: 'line' as const })),
+                analytics: [{ kind: 'intersections' as const, enabled: true }],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const axis = (all.__rechartsCalls?.YAxis ?? []).find(
+            (a) => a.yAxisId === 'xsec',
+        );
+        expect(axis, 'hidden xsec YAxis').toBeDefined();
+        expect(axis).toHaveProperty('type', 'number');
+        expect(axis).toHaveProperty('hide', true);
+        expect(axis?.domain).toEqual([0, 1]);
+        const dots = all.__rechartsCalls?.ReferenceDot ?? [];
+        expect(dots.length).toBeGreaterThan(0);
+        const dot = dots[0]!;
+        expect(dot.y as number).toBeCloseTo(0.5, 5);
+        expect(dot.x as number).toBeCloseTo(50, 5);
+        expect(dot).toHaveProperty('yAxisId', 'xsec');
+    });
+
+    it('renders a dashed cursor when the crosshair kind is enabled', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [{ kind: 'crosshair' as const, enabled: true }],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const tooltip = (all.__rechartsCalls?.Tooltip ?? [])[0];
+        expect(tooltip.cursor).toEqual({
+            stroke: 'var(--ring)',
+            strokeWidth: 1,
+            strokeDasharray: '3 3',
+        });
+    });
+
+    it('draws the trend as a least-squares fit line', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [{ kind: 'trend' as const, enabled: true }],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const trend = (all.__rechartsCalls?.Line ?? []).find(
+            (l) => l.dataKey === '__trend',
+        );
+        expect(trend, 'regression trend Line').toBeDefined();
+        expect(trend).toHaveProperty('legendType', 'none');
+        const composed = all.__rechartsCalls?.ComposedChart ?? [];
+        const data = composed[composed.length - 1]?.data as
+            Record<string, string | number>[] | undefined;
+        expect(data).toBeDefined();
+        for (const row of data!)
+            expect(typeof row['__trend'], `trend row`).toBe('number');
+    });
+});
+
+describe('value-axis domains come from a single resolved source', () => {
+    const all = globalThis as {
+        __rechartsCalls?: Record<string, Record<string, unknown>[]>;
+    };
+
+    function clearCalls() {
+        const calls = (all.__rechartsCalls ??= {});
+        for (const name of Object.keys(calls)) calls[name] = [];
+    }
+
+    const valueAxis = (yAxisId?: string) => {
+        const candidates = all.__rechartsCalls?.YAxis ?? [];
+        return yAxisId
+            ? candidates.find((p) => p.yAxisId === yAxisId)
+            : candidates.find((p) => !p.dataKey);
+    };
+
+    it('pins the auto legacy axis to the nice domain of its series', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        // crossingRows spans 10..90 → 1/2/5-niced [0,100].
+        expect(valueAxis()).toHaveProperty('domain', [0, 100]);
+    });
+
+    it('respects the explicit min/max on a multi-axis def', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                axes: [
+                    {
+                        ...defaultAxes()[0],
+                        auto: false,
+                        min: 0,
+                        max: 50,
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        expect(valueAxis()).toHaveProperty('domain', [0, 50]);
+    });
+
+    it('gives every auto axis its own nice domain on a multi-axis chart', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y0'),
+                    well('Volume', 'sum', 'y1'),
+                ],
+                axes: [
+                    { ...defaultAxes()[0] },
+                    {
+                        ...defaultAxes()[0],
+                        id: 'y1',
+                        position: 'right' as const,
+                        order: 1,
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        // crossingRows: Objectif 10/90 → [0,100]; Volume 90/10 → [0,100].
+        expect(valueAxis('axis-y0')).toHaveProperty('domain', [0, 100]);
+        expect(valueAxis('axis-y1')).toHaveProperty('domain', [0, 100]);
+    });
+
+    it('puts each series scale in its own rendered axis (no cross-contamination)', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [
+                    well('Objectif', 'sum', 'y0'),
+                    well('Volume', 'sum', 'y1'),
+                ],
+                axes: [
+                    { ...defaultAxes()[0] },
+                    {
+                        ...defaultAxes()[0],
+                        id: 'y1',
+                        position: 'right' as const,
+                        order: 1,
+                    },
+                ],
+            }),
+            // Objectif stays small, Volume runs large.
+            [
+                { Chaine: 'A', Objectif: 2, Volume: 900 },
+                { Chaine: 'B', Objectif: 8, Volume: 1100 },
+            ],
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const y0 = valueAxis('axis-y0');
+        const y1 = valueAxis('axis-y1');
+        expect(y0?.domain).toEqual([2, 8]);
+        expect(y1?.domain).toEqual([900, 1100]);
+        expect(y0?.domain).not.toEqual(y1?.domain);
+    });
+
+    it('has the horizontal bar chart honor the legacy AxisStyle min/max', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'bar',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                xAxis: normalizeAxisStyle({ min: 0, max: 60 }),
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const xValueAxis = (all.__rechartsCalls?.XAxis ?? []).find(
+            (p) => p.type === 'number',
+        );
+        expect(xValueAxis).toHaveProperty('domain', [0, 60]);
     });
 });

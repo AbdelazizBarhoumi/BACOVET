@@ -125,4 +125,8 @@ export const CARTESIAN_TYPES: VisualType[] = [
     'bar',
     'stackedBar',
     'stacked100Bar',
+    'line',
+    'area',
+    'stackedArea',
+    'combo',
 ];

@@ -2161,7 +2161,6 @@ describe('first-pass day KPI — « pièces OK premier coup / produites» par ch
                 },
                 op: '/',
                 scale: true,
-                divZero: 'zero',
             },
         };
     }

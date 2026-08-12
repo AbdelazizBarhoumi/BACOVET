@@ -71,6 +71,10 @@ export const ANALYTICS_KINDS: AnalyticsKind[] = [
     'min',
     'max',
     'median',
+    'category',
+    'band',
+    'intersections',
+    'crosshair',
     'trend',
     'forecast',
 ];

@@ -224,7 +224,7 @@ export function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             tickFormatter={tickFmt(visual)}
                             {...axisPropsFor(visual)}
                         />
-                        <Tooltip content={chartTooltip(visual)} />
+                        <Tooltip content={chartTooltip(visual)} isAnimationActive={false} />
                         <Bar
                             dataKey={series[0] ?? 'value'}
                             fill="var(--chart-1)"

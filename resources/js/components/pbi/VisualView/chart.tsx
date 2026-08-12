@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import {
     Area,
-    AreaChart,
     Bar,
     BarChart,
     CartesianGrid,
@@ -12,9 +11,10 @@ import {
     LabelList,
     Legend,
     Line,
-    LineChart,
     Pie,
     PieChart,
+    ReferenceArea,
+    ReferenceDot,
     ReferenceLine,
     ResponsiveContainer,
     Scatter,
@@ -84,8 +84,8 @@ import {
     axisDefProps,
     axisPropsFor,
     categoryAxisProps,
-    estimateCategoryAxisLane,
     chartTooltip,
+    estimateCategoryAxisLane,
     fontStyleProps,
     labelBlockAnchor,
     labelPosition,
@@ -138,29 +138,59 @@ function estimateValueAxisWidth(
     return Math.min(VALUE_AXIS_WIDTH, Math.max(30, est));
 }
 
+const A_STAT_LABEL: Record<string, string> = {
+    average: 'Moyenne',
+    min: 'Minimum',
+    max: 'Maximum',
+    median: 'Médiane',
+};
+
 function analyticsLines(
     visual: Visual,
     data: Record<string, string | number>[],
     series: string[],
     horizontal = false,
     animate = true,
+    axisRef: { xAxisId?: string; yAxisId?: string } = {},
+    statGroups: { id: string; token?: string; keys: string[] }[] = [],
 ) {
     if (!visual.analytics.length || !series.length) return null;
-    const key = series[0]!;
-    const vals = data.map((d) => Number(d[key]) || 0);
-    const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    const max = Math.max(...vals, 0);
-    const min = vals.length ? Math.min(...vals) : 0;
-    const sorted = [...vals].sort((a, b) => a - b);
-    const median = sorted.length
-        ? sorted.length % 2
-            ? sorted[Math.floor(sorted.length / 2)]!
-            : (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2
-        : 0;
-    /** Stat line (average/constant/min/max/median) positioned on the value axis. */
-    const statLine = (value: number, color: string, label: string) => (
+    const groups = statGroups.length
+        ? statGroups
+        : [{ id: 'y0', token: undefined, keys: series }];
+    const fmt = (v: number) => visualFmt(v, visual, visual.values[0]);
+    /** Stats over every numeric value the given series plot (this is what the
+     * value axis itself scales, so min/max/avg/median match the axis scale). */
+    const statsFor = (keys: string[]) => {
+        const vals = keys.flatMap((k) => data.map((d) => Number(d[k]) || 0));
+        const n = vals.length;
+        const avg = n ? vals.reduce((a, b) => a + b, 0) / n : 0;
+        const max = Math.max(...vals, 0);
+        const min = n ? Math.min(...vals) : 0;
+        const sorted = [...vals].sort((a, b) => a - b);
+        const median = sorted.length
+            ? sorted.length % 2
+                ? sorted[Math.floor(sorted.length / 2)]!
+                : (sorted[sorted.length / 2 - 1]! +
+                      sorted[sorted.length / 2]!) /
+                  2
+            : 0;
+        return { avg, max, min, median };
+    };
+    /** The value-axis groups this line applies to. `a.axes` restricts a line to
+     * a subset of the visual's value axes (undefined = every axis). */
+    const axisGroups = (a: { axes?: string[] }) =>
+        groups.filter((g) => !a.axes || a.axes.includes(g.id));
+    /** Stat line (average/constant/min/max/median) positioned on the value axis
+     * of the group it belongs to (bound only when the axis carries an id). */
+    const statLine = (
+        value: number,
+        color: string,
+        label: string,
+        token: string | undefined,
+    ) => (
         <ReferenceLine
-            key={`stat:${label}`}
+            key={`stat:${label}:${token ?? 'legacy'}`}
             {...(horizontal ? { x: value } : { y: value })}
             stroke={color}
             strokeDasharray="4 4"
@@ -169,51 +199,325 @@ function analyticsLines(
                 fontSize: 9,
                 fill: 'var(--muted-foreground)',
             }}
+            {...(token ? { [horizontal ? 'xAxisId' : 'yAxisId']: token } : {})}
         />
     );
     return visual.analytics.map((a) => {
-        if (a.kind === 'average')
-            return statLine(
-                avg,
-                'var(--chart-4)',
-                `Moyenne ${visualFmt(avg, visual, visual.values[0])}`,
+        if (
+            a.kind === 'average' ||
+            a.kind === 'min' ||
+            a.kind === 'max' ||
+            a.kind === 'median'
+        ) {
+            const target = axisGroups(a);
+            if (!target.length) return null;
+            return target.map((g) => {
+                const s = statsFor(g.keys);
+                const v =
+                    a.kind === 'average'
+                        ? s.avg
+                        : a.kind === 'min'
+                          ? (a.value ?? s.min)
+                          : a.kind === 'max'
+                            ? (a.value ?? s.max)
+                            : s.median;
+                return statLine(
+                    v,
+                    a.kind === 'average' ? 'var(--chart-4)' : 'var(--chart-6)',
+                    `${A_STAT_LABEL[a.kind]!} ${fmt(v)}`,
+                    g.token,
+                );
+            });
+        }
+        if (a.kind === 'constant') {
+            const target = axisGroups(a);
+            if (!target.length) return null;
+            return target.map((g) => {
+                const max = statsFor(g.keys).max;
+                return statLine(
+                    a.value ?? max * 0.8,
+                    'var(--chart-5)',
+                    'Objectif',
+                    g.token,
+                );
+            });
+        }
+        if (a.kind === 'category') {
+            if (!a.category) return null;
+            return (
+                <ReferenceLine
+                    key={`category:${a.category}`}
+                    {...(horizontal ? { y: a.category } : { x: a.category })}
+                    stroke="var(--ring)"
+                    strokeDasharray="6 3"
+                    label={{
+                        value: a.category,
+                        fontSize: 9,
+                        fill: 'var(--muted-foreground)',
+                    }}
+                    {...axisRef}
+                />
             );
-        if (a.kind === 'constant')
-            return statLine(a.value ?? max * 0.8, 'var(--chart-5)', 'Objectif');
-        if (a.kind === 'min')
-            return statLine(
-                a.value ?? min,
-                'var(--chart-6)',
-                `Minimum ${visualFmt(a.value ?? min, visual, visual.values[0])}`,
+        }
+        if (a.kind === 'band') {
+            if (a.value === undefined || a.value2 === undefined) return null;
+            if (!axisGroups(a).length) return null;
+            const lo = Math.min(a.value, a.value2);
+            const hi = Math.max(a.value, a.value2);
+            return (
+                <ReferenceArea
+                    key={`band:${lo}:${hi}`}
+                    {...(horizontal ? { x1: lo, x2: hi } : { y1: lo, y2: hi })}
+                    fill="var(--muted-foreground)"
+                    fillOpacity={0.08}
+                    stroke="none"
+                    {...axisRef}
+                />
             );
-        if (a.kind === 'max')
-            return statLine(
-                a.value ?? max,
-                'var(--chart-6)',
-                `Maximum ${visualFmt(a.value ?? max, visual, visual.values[0])}`,
-            );
-        if (a.kind === 'median')
-            return statLine(
-                median,
-                'var(--chart-6)',
-                `Médiane ${visualFmt(median, visual, visual.values[0])}`,
-            );
+        }
         if (a.kind === 'trend' || a.kind === 'forecast')
             return (
                 <Line
                     key={`trend:${a.kind}`}
                     type="linear"
-                    dataKey={key}
+                    dataKey="__trend"
                     stroke="var(--chart-6)"
                     strokeDasharray={a.kind === 'forecast' ? '6 3' : '3 3'}
                     strokeWidth={1.5}
                     dot={false}
                     isAnimationActive={animate}
                     legendType="none"
+                    {...axisRef}
                 />
             );
         return null;
     });
+}
+
+/** Least-squares slope/intercept fit of `key` across the row order, returned
+ * as one fitted value per row (the x positions are the row indices). */
+function leastSquaresFit(
+    data: Record<string, string | number>[],
+    key: string,
+): number[] {
+    const ys = data.map((d) => Number(d[key]) || 0);
+    const n = ys.length;
+    if (n < 2) return ys;
+    let sx = 0,
+        sy = 0,
+        sxy = 0,
+        sxx = 0;
+    for (let i = 0; i < n; i++) {
+        const y = ys[i]!;
+        if (!isFinite(y)) return ys.slice();
+        sx += i;
+        sy += y;
+        sxy += i * y;
+        sxx += i * i;
+    }
+    const denom = n * sxx - sx * sx;
+    const slope = denom === 0 ? 0 : (n * sxy - sx * sy) / denom;
+    const intercept = (sy - slope * sx) / n;
+    return ys.map((_, i) => intercept + slope * i);
+}
+
+/** A point in plot-fraction space (0..1 across each axis of the plot box). */
+type Pt = { x: number; y: number };
+
+/** A "nice" step (1/2/5 × 10^k) of at least `x`, mirroring how recharts picks
+ * value-axis tick steps. */
+function niceStep(x: number): number {
+    if (!(x > 0)) return 1;
+    const pow = 10 ** Math.floor(Math.log10(x));
+    const f = x / pow;
+    if (f <= 1) return pow;
+    if (f <= 2) return 2 * pow;
+    if (f <= 5) return 5 * pow;
+    return 10 * pow;
+}
+
+/** A 1/2/5-style domain covering `[lo, hi]`, matching the numeric value axis'
+ * auto "nice" range so plot-fraction coordinates line up with the drawn axis. */
+function niceDomain(lo: number, hi: number): [number, number] {
+    if (!isFinite(lo) || !isFinite(hi)) return [0, 1];
+    if (lo === hi) {
+        const pad = Math.abs(lo * 0.1) || 1;
+        return [lo - pad, hi + pad];
+    }
+    const step = niceStep((hi - lo) / 4);
+    let dlo = Math.floor(lo / step) * step;
+    let dhi = Math.ceil(hi / step) * step;
+    while (dlo > lo) dlo -= step;
+    while (dhi < hi) dhi += step;
+    return dlo === dhi ? [dlo - step, dhi + step] : [dlo, dhi];
+}
+
+/** One sample point of a cubic Bézier (control points `c1`/`c2`) evaluated at
+ * `u ∈ [0,1]` between `p0` and `p1`. */
+function cubicPoint(p0: Pt, c1: Pt, c2: Pt, p1: Pt, u: number): Pt {
+    const mt = 1 - u;
+    return {
+        x:
+            mt * mt * mt * p0.x +
+            3 * mt * mt * u * c1.x +
+            3 * mt * u * u * c2.x +
+            u * u * u * p1.x,
+        y:
+            mt * mt * mt * p0.y +
+            3 * mt * mt * u * c1.y +
+            3 * mt * u * u * c2.y +
+            u * u * u * p1.y,
+    };
+}
+
+/** One segment of a monotone cubic spline: two knots plus the two control
+ * points d3's `curveMonotoneX/Y` emits (see `monotoneCubics`). */
+interface Cubic {
+    p0: Pt;
+    c1: Pt;
+    c2: Pt;
+    p1: Pt;
+}
+
+/** Control points of the Steffen monotone cubic recharts renders for
+ * `type="monotone"`, one per input segment. The curve interpolates along the
+ * *abscissa* — the category axis for vertical charts (`splineAlongY = false`,
+ * X is monotone), or along Y for horizontal charts. For a run of fewer than
+ * 3 points recharts falls back to straight lines, so the input is returned
+ * as degenerate (linear) segments. */
+function monotoneCubics(pts: Pt[], splineAlongY: boolean): Cubic[] {
+    const n = pts.length;
+    if (n < 3) {
+        const out: Cubic[] = [];
+        for (let i = 0; i < n - 1; i++) {
+            const p0 = pts[i]!;
+            const p1 = pts[i + 1]!;
+            out.push({
+                p0,
+                c1: {
+                    x: (2 * p0.x + p1.x) / 3,
+                    y: (2 * p0.y + p1.y) / 3,
+                },
+                c2: {
+                    x: (p0.x + 2 * p1.x) / 3,
+                    y: (p0.y + 2 * p1.y) / 3,
+                },
+                p1,
+            });
+        }
+        return out;
+    }
+    /** Monotone abscissa is x when interpolating along X, else y. */
+    const uOf = (p: Pt) => (splineAlongY ? p.y : p.x);
+    const vOf = (p: Pt) => (splineAlongY ? p.x : p.y);
+    const mk = (u: number, v: number): Pt =>
+        splineAlongY ? { x: v, y: u } : { x: u, y: v };
+    const U = pts.map(uOf);
+    const V = pts.map(vOf);
+    const sign = (z: number) => (z < 0 ? -1 : 1);
+    /** Tangents: Steffen `slope3` for interior points (a harmonic blend of the
+     * two secant slopes clamped to the smaller), one-sided `slope2` at each
+     * end — matching d3's per-segment behavior exactly. */
+    const slope3 = (i: number) => {
+        const h0 = U[i]! - U[i - 1]!;
+        const h1 = U[i + 1]! - U[i]!;
+        const s0 = (V[i]! - V[i - 1]!) / (h0 !== 0 ? h0 : h1 < 0 ? -0 : 0);
+        const s1 = (V[i + 1]! - V[i]!) / (h1 !== 0 ? h1 : h0 < 0 ? -0 : 0);
+        const p = (s0 * h1 + s1 * h0) / (h0 + h1);
+        const m =
+            (sign(s0) + sign(s1)) *
+            Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p));
+        return Number.isFinite(m) ? m : 0;
+    };
+    const slope2 = (i: number, t: number) => {
+        const h = U[i]! - U[i - 1]!;
+        return h ? ((3 * (V[i]! - V[i - 1]!)) / h - t) / 2 : t;
+    };
+    const tangents: number[] = new Array(n).fill(0);
+    for (let i = 1; i < n - 1; i++) tangents[i] = slope3(i);
+    if (n >= 3) {
+        tangents[0] = slope2(1, tangents[1]!);
+        tangents[n - 1] = slope2(n - 1, tangents[n - 2]!);
+    }
+    const out: Cubic[] = [];
+    for (let i = 0; i < n - 1; i++) {
+        const x0 = U[i]!;
+        const y0 = V[i]!;
+        const x1 = U[i + 1]!;
+        const y1 = V[i + 1]!;
+        const dx = (x1 - x0) / 3;
+        out.push({
+            p0: mk(x0, y0),
+            c1: mk(x0 + dx, y0 + dx * tangents[i]!),
+            c2: mk(x1 - dx, y1 - dx * tangents[i + 1]!),
+            p1: mk(x1, y1),
+        });
+    }
+    return out;
+}
+
+/** Exact crossings of two monotone cubic segments, located by scanning sub-
+ * windows of their shared abscissa range and bisecting each sign change.
+ * Returns `[]` when the segments do not cross. Both curves are monotone in
+ * their abscissa, so a crossing abscissa is a zero of the ordinate gap; the
+ * returned points carry the fraction of the plot box in *both* coordinates
+ * (`cat` is the abscissa fraction used to place markers, `ord` the ordinate
+ * fraction used to recover the value on a shared axis). */
+function cubicCrossings(a: Cubic, b: Cubic, splineAlongY: boolean): Pt[] {
+    const absc = (p: Pt) => (splineAlongY ? p.y : p.x);
+    const ord = (p: Pt) => (splineAlongY ? p.x : p.y);
+    const aLo = absc(a.p0);
+    const aHi = absc(a.p1);
+    const bLo = absc(b.p0);
+    const bHi = absc(b.p1);
+    const lo = Math.max(aLo, bLo);
+    const hi = Math.min(aHi, bHi);
+    if (lo > hi) return [];
+    /** Abscissa-monotone cubic: bisect the parameter whose abscissa is `t`. */
+    const uAt = (seg: Cubic, t: number) => {
+        let u0 = 0;
+        let u1 = 1;
+        for (let i = 0; i < 40; i++) {
+            const m = (u0 + u1) / 2;
+            const a = absc(cubicPoint(seg.p0, seg.c1, seg.c2, seg.p1, m));
+            if (a < t) u0 = m;
+            else u1 = m;
+        }
+        return (u0 + u1) / 2;
+    };
+    const at = (seg: Cubic, t: number): Pt => {
+        const u = uAt(seg, t);
+        return cubicPoint(seg.p0, seg.c1, seg.c2, seg.p1, u);
+    };
+    const gap = (t: number) => ord(at(a, t)) - ord(at(b, t));
+    const out: Pt[] = [];
+    const SEGS = 8;
+    let l = lo;
+    let gL = gap(l);
+    for (let s = 1; s <= SEGS; s++) {
+        const h = lo + ((hi - lo) * s) / SEGS;
+        const gH = gap(h);
+        if (Math.abs(gL) < 1e-9) {
+            out.push(at(a, l));
+        } else if (gL * gH < 0) {
+            let lo2 = l;
+            let hi2 = h;
+            let gl2 = gL;
+            for (let i = 0; i < 60; i++) {
+                const m = (lo2 + hi2) / 2;
+                const gm = gap(m);
+                if (gl2 * gm <= 0) hi2 = m;
+                else {
+                    lo2 = m;
+                    gl2 = gm;
+                }
+            }
+            out.push(at(a, (lo2 + hi2) / 2));
+        }
+        l = h;
+        gL = gH;
+    }
+    return out;
 }
 
 export function ChartBody({
@@ -652,17 +956,40 @@ export function ChartBody({
         chartData: Record<string, string | number>[],
         horizontal: boolean,
     ) => {
-        const type =
+        /** The line family (line / area / stacked area / combo) draws its
+         * series as lines and areas by default and never stacks when a legend
+         * field is present (only the bar/column family does). */
+        const lineFamily = ['line', 'area', 'stackedArea', 'combo'].includes(
+            visual.type,
+        );
+        const stackedKind =
             visual.type === 'stackedColumn' ||
             visual.type === 'stacked100Column' ||
             visual.type === 'stackedBar' ||
             visual.type === 'stacked100Bar' ||
-            visual.type === 'ribbon';
-        const stacked = type || visual.legend.length > 0 ? true : undefined;
-        const gridH = horizontal ? gridlines.vertical : gridlines.horizontal;
-        const gridV = horizontal ? gridlines.horizontal : gridlines.vertical;
-        const multi = valueAxes.length > 1;
-        const primary = valueAxes[0];
+            visual.type === 'ribbon' ||
+            visual.type === 'stackedArea';
+        const stacked =
+            stackedKind || (!lineFamily && visual.legend.length > 0)
+                ? true
+                : undefined;
+        /** A `trend`/`forecast` analytics line draws a least-squares fit of the
+         * primary series, injected here as a synthetic `__trend` column so the
+         * series renderers and shared data pipeline don't have to know about it. */
+        const fitActive = visual.analytics.some(
+            (a) => (a.kind === 'trend' || a.kind === 'forecast') && series[0],
+        );
+        const fit = fitActive ? leastSquaresFit(chartData, series[0]!) : [];
+        const plotData = fitActive
+            ? (chartData.map((d, i) => ({
+                  ...d,
+                  __trend: fit[i]!,
+              })) as Record<string, string | number>[])
+            : chartData;
+        const showIntersections = visual.analytics.some(
+            (a) => a.kind === 'intersections',
+        );
+        const crosshair = visual.analytics.some((a) => a.kind === 'crosshair');
         /** 100 % stacked charts plot each category as a share of its own row
          * total, so their value axis is a fixed 0–100 scale — a wider range
          * (custom min/max or auto-scaling) would leave empty space above the
@@ -670,6 +997,234 @@ export function ChartBody({
         const is100 =
             visual.type === 'stacked100Column' ||
             visual.type === 'stacked100Bar';
+        /** Draw style of one series. */
+        const typeOfSeries = (s: string, i: number) =>
+            (visual.legend.length ? visual.values[0] : visual.values[i])
+                ?.seriesType ??
+            (metaByKey.get(s)?.running
+                ? 'line'
+                : visual.type === 'line'
+                  ? 'line'
+                  : visual.type === 'area' || visual.type === 'stackedArea'
+                    ? 'area'
+                    : visual.type === 'combo'
+                      ? i === 0
+                          ? 'bar'
+                          : 'line'
+                      : 'bar');
+        /** Whether any series draws as a bar. A bar switches the category axis
+         * to a band scale (line points at band centers, `(i+0.5)/n`) instead
+         * of the point scale used by pure line/area charts (points evenly from
+         * edge to edge, `i/(n-1)`). */
+        const hasBar = series.some((s, i) => typeOfSeries(s, i) === 'bar');
+        /** Amber dots and full-height guide lines where two line/area series
+         * actually cross. Only series that *draw* as lines/areas qualify, and
+         * stacked visuals are skipped (their geometry has no meaningful
+         * crossings). Every pair of eligible series is compared regardless of
+         * which value axis they sit on: each series is projected onto the plot
+         * box in *fraction* coordinates using its own value axis' "nice"
+         * domain, then rebuilt as the exact Steffen monotone cubics recharts
+         * draws for `type="monotone"`. Each pair of overlapping segments is
+         * bisected on their shared abscissa window to the true crossing — so a
+         * marker sits exactly where the two rendered curves intersect on
+         * screen, even across axes with wildly different scales. The dot
+         * (whose y is only comparable on a shared scale) is drawn only when
+         * both series share a value axis.
+         *
+         * The hidden `xsec`/`ysec` numeric axis maps category fractions back
+         * onto the categorical axis (edge-to-edge on a point scale, band
+         * centers once a bar is present), so each marker's coordinate is the
+         * inverse of the fraction the crossing was found at. */
+        /** Single source of truth for a value axis' effective range: the same
+         * numbers the intersection math assumes. 100 % charts pin `[0,100]`; an
+         * explicit min/max (on an `AxisDef` or the legacy `AxisStyle`) pins that
+         * side (the other falls back to the data extent); otherwise auto axes
+         * use the "nice" extent so plot-fraction coordinates line up with what
+         * recharts actually draws. Stacked visuals extend across per-category
+         * sums of the bound series, matching how stacked bars/areas stack. */
+        const resolvedDomain = (
+            keys: string[],
+            axis: AxisDef | undefined,
+            legacy: AxisStyle | undefined,
+        ): [number, number] => {
+            if (is100) return [0, 100];
+            let lo = Infinity;
+            let hi = -Infinity;
+            if (stacked) {
+                lo = 0;
+                hi = 0;
+                for (const d of plotData) {
+                    let sum = 0;
+                    for (const k of keys) {
+                        const v = Number(d[k]);
+                        if (isFinite(v)) sum += v;
+                    }
+                    if (sum < lo) lo = sum;
+                    if (sum > hi) hi = sum;
+                }
+            } else {
+                for (const k of keys) {
+                    for (const d of plotData) {
+                        const v = Number(d[k]);
+                        if (!isFinite(v)) continue;
+                        if (v < lo) lo = v;
+                        if (v > hi) hi = v;
+                    }
+                }
+            }
+            const min = axis ? axis.min : legacy?.min;
+            const max = axis ? axis.max : legacy?.max;
+            const auto = axis
+                ? axis.auto
+                : min === undefined && max === undefined;
+            if (!auto && (min !== undefined || max !== undefined))
+                return [min ?? lo, max ?? hi];
+            return niceDomain(lo, hi);
+        };
+        const intersectionDots = (): React.ReactElement[] => {
+            const n = plotData.length;
+            if (n < 2) return [];
+            /** Category index → plot fraction along the category axis. */
+            const catFrac = (i: number) =>
+                hasBar ? (i + 0.5) / n : i / (n - 1);
+            /** Effective domain of each value axis — the single source defined
+             * once above and passed to the rendered axes themselves. */
+            const domains = new Map<string, [number, number]>();
+            for (const s of series) {
+                const id = resolveSeries(s).axisId;
+                if (domains.has(id)) continue;
+                const keys = series.filter(
+                    (k) => resolveSeries(k).axisId === id,
+                );
+                domains.set(
+                    id,
+                    resolvedDomain(
+                        keys,
+                        id ? axesById.get(id) : undefined,
+                        id ? undefined : horizontal ? xAxis : yAxis,
+                    ),
+                );
+            }
+            const fracOf = (
+                s: string,
+                d: [number, number],
+                i: number,
+            ): Pt | null => {
+                const v = Number(plotData[i]![s]);
+                if (!isFinite(v)) return null;
+                const span = d[1] - d[0] || 1;
+                return horizontal
+                    ? { x: (v - d[0]) / span, y: catFrac(i) }
+                    : { x: catFrac(i), y: (d[1] - v) / span };
+            };
+            /** Marker coordinate on the hidden category-fraction axis. */
+            const markerCoord = (cat: number) =>
+                hasBar ? cat * n : cat * (n - 1);
+            const eligible: { s: string; i: number; id: string }[] = [];
+            series.forEach((s, i) => {
+                const t = typeOfSeries(s, i);
+                if (t !== 'line' && t !== 'area') return;
+                eligible.push({ s, i, id: resolveSeries(s).axisId });
+            });
+            /** Contiguous runs of non-null points: recharts leaves a gap where
+             * a series has no value, so each run is its own spline. */
+            const runsOf = (pts: (Pt | null)[]): Pt[][] => {
+                const runs: Pt[][] = [];
+                let cur: Pt[] = [];
+                for (const p of pts) {
+                    if (p) cur.push(p);
+                    else if (cur.length) {
+                        runs.push(cur);
+                        cur = [];
+                    }
+                }
+                if (cur.length) runs.push(cur);
+                return runs;
+            };
+            const dots: React.ReactElement[] = [];
+            for (let p = 0; p < eligible.length; p++)
+                for (let q = p + 1; q < eligible.length; q++) {
+                    const A = eligible[p]!;
+                    const B = eligible[q]!;
+                    const dA = domains.get(A.id) ?? [0, 1];
+                    const dB = domains.get(B.id) ?? [0, 1];
+                    const rawA = plotData.map((_, i) => fracOf(A.s, dA, i));
+                    const rawB = plotData.map((_, i) => fracOf(B.s, dB, i));
+                    const seen = new Set<string>();
+                    for (const runA of runsOf(rawA))
+                        for (const runB of runsOf(rawB)) {
+                            const cubicsA = monotoneCubics(runA, horizontal);
+                            const cubicsB = monotoneCubics(runB, horizontal);
+                            for (let i = 0; i < cubicsA.length; i++)
+                                for (let j = 0; j < cubicsB.length; j++) {
+                                    const crosses = cubicCrossings(
+                                        cubicsA[i]!,
+                                        cubicsB[j]!,
+                                        horizontal,
+                                    );
+                                    for (const c of crosses) {
+                                        const cat = horizontal ? c.y : c.x;
+                                        if (seen.has(cat.toFixed(4))) continue;
+                                        seen.add(cat.toFixed(4));
+                                        const coord = markerCoord(cat);
+                                        const span = horizontal
+                                            ? ({
+                                                  y: coord,
+                                                  yAxisId: 'xsec',
+                                              } as const)
+                                            : ({
+                                                  x: coord,
+                                                  xAxisId: 'xsec',
+                                              } as const);
+                                        const axisBind = multi
+                                            ? ({
+                                                  [horizontal
+                                                      ? 'xAxisId'
+                                                      : 'yAxisId']: rtAxisId(
+                                                      A.id,
+                                                  ),
+                                              } as const)
+                                            : {};
+                                        if (A.id === B.id) {
+                                            const val = horizontal
+                                                ? dA[0] + c.x * (dA[1] - dA[0])
+                                                : dA[1] - c.y * (dA[1] - dA[0]);
+                                            dots.push(
+                                                <ReferenceDot
+                                                    key={`xsec:${A.s}:${B.s}:${i}:${j}`}
+                                                    r={3}
+                                                    fill="#f59e0b"
+                                                    stroke="var(--card)"
+                                                    strokeWidth={1}
+                                                    {...span}
+                                                    {...(horizontal
+                                                        ? { x: val }
+                                                        : { y: val })}
+                                                    {...axisBind}
+                                                />,
+                                            );
+                                        }
+                                        dots.push(
+                                            <ReferenceLine
+                                                key={`xsec-line:${A.s}:${B.s}:${i}:${j}`}
+                                                {...span}
+                                                stroke="#f59e0b"
+                                                strokeOpacity={0.35}
+                                                strokeDasharray="3 3"
+                                                strokeWidth={1}
+                                                {...axisBind}
+                                            />,
+                                        );
+                                    }
+                                }
+                        }
+                }
+            return dots;
+        };
+        const gridH = horizontal ? gridlines.vertical : gridlines.horizontal;
+        const gridV = horizontal ? gridlines.horizontal : gridlines.vertical;
+        const multi = valueAxes.length > 1;
+        const primary = valueAxes[0];
         const pctTick = (v: number) =>
             `${Number.isInteger(v) ? v : v.toFixed(1)} %`;
         const valueAxisOverrides = is100
@@ -683,14 +1238,15 @@ export function ChartBody({
          * line/title axis adds no dead band. */
         const axisLane = (axis: AxisDef) => {
             if (!axis.showLabels)
-                return (axis.showLine || axis.showTitle ? 8 : 0) +
-                    (axis.gap ?? 0);
+                return (
+                    (axis.showLine || axis.showTitle ? 8 : 0) + (axis.gap ?? 0)
+                );
             const keys = series.filter(
                 (s) => resolveSeries(s).axisId === axis.id,
             );
             return (
                 estimateValueAxisWidth(
-                    chartData,
+                    plotData,
                     keys,
                     (v) =>
                         formatAxisDefTick(v, {
@@ -707,7 +1263,7 @@ export function ChartBody({
          * tick label across all series. */
         const fallbackLane = (style: AxisStyle) =>
             estimateValueAxisWidth(
-                chartData,
+                plotData,
                 series,
                 (v) =>
                     formatDisplayUnitValue(
@@ -724,10 +1280,74 @@ export function ChartBody({
          * Y for vertical columns). */
         const emptyFill = (s: string): string | undefined =>
             stacked
-                ? resolveSeries(s).axis?.emptyColor ??
+                ? (resolveSeries(s).axis?.emptyColor ??
                   (horizontal ? xAxis : yAxis).emptyColor ??
-                  STACKED_EMPTY_FILL
+                  STACKED_EMPTY_FILL)
                 : undefined;
+        /** Series keys plotted on a given value axis. */
+        const boundKeys = (axis: AxisDef) =>
+            series.filter((s) => resolveSeries(s).axisId === axis.id);
+        /** Full-plot track behind stacked AREAS. Recharts `Area` has no
+         * per-series `background` like `Bar`, so we paint a `ReferenceArea`
+         * band (not a series → absent from legend & tooltip) that spans the
+         * whole category axis and the value axis' domain 0→top. */
+        const emptyBands = (): React.ReactElement[] | null => {
+            if (visual.type !== 'stackedArea' || !stacked) return null;
+            const cats = plotData.map((d) => String(d['category'] ?? ''));
+            if (!cats.length) return null;
+            const legacyStyle = horizontal ? xAxis : yAxis;
+            /** Top of the plotted domain, so the band exactly matches the
+             * rendered value axis' range. */
+            const topFor = (axis: AxisDef | undefined, keys: string[]) =>
+                resolvedDomain(keys, axis, legacyStyle)[1];
+            const bottomFor = (axis: AxisDef | undefined) => {
+                if (axis && !axis.auto && axis.min !== undefined)
+                    return axis.min;
+                if (!axis && legacyStyle.min !== undefined)
+                    return legacyStyle.min;
+                return 0;
+            };
+            const colorOf = (axis: AxisDef | undefined) =>
+                axis?.emptyColor ??
+                legacyStyle.emptyColor ??
+                STACKED_EMPTY_FILL;
+            const bands: React.ReactElement[] = [];
+            const push = (
+                axis: AxisDef | undefined,
+                idToken: boolean,
+                keys: string[],
+            ) => {
+                if (!keys.length) return;
+                bands.push(
+                    <ReferenceArea
+                        key={`empty-fill:${axis?.id ?? 'legacy'}`}
+                        x1={cats[0]}
+                        x2={cats[cats.length - 1]}
+                        y1={bottomFor(axis)}
+                        y2={topFor(axis, keys)}
+                        fill={colorOf(axis)}
+                        stroke="none"
+                        ifOverflow="extendDomain"
+                        {...(horizontal
+                            ? {
+                                  xAxisId: idToken
+                                      ? rtAxisId(axis!.id)
+                                      : undefined,
+                              }
+                            : {
+                                  yAxisId: idToken
+                                      ? rtAxisId(axis!.id)
+                                      : undefined,
+                              })}
+                    />,
+                );
+            };
+            if (valueAxes.length > 1)
+                for (const axis of valueAxes) push(axis, true, boundKeys(axis));
+            else if (valueAxes.length === 1) push(valueAxes[0], false, series);
+            else push(undefined, false, series);
+            return bands;
+        };
         const valueElement = (axis: AxisDef): React.ReactElement =>
             horizontal ? (
                 <XAxis
@@ -737,6 +1357,7 @@ export function ChartBody({
                     height={axisLane(axis)}
                     {...axisDefProps(axis, visual, false)}
                     {...valueAxisOverrides}
+                    domain={resolvedDomain(boundKeys(axis), axis, undefined)}
                 />
             ) : (
                 <YAxis
@@ -745,6 +1366,7 @@ export function ChartBody({
                     width={axisLane(axis)}
                     {...axisDefProps(axis, visual, true, axisLane(axis))}
                     {...valueAxisOverrides}
+                    domain={resolvedDomain(boundKeys(axis), axis, undefined)}
                 />
             );
         const hasTitleAt = (pos: string) =>
@@ -772,8 +1394,7 @@ export function ChartBody({
                 (horizontal && yAxis.title ? AXIS_TITLE_RESERVE : 0) +
                 titlePadY +
                 (multiTitleLeft ? AXIS_TITLE_RESERVE : 0),
-            bottom:
-                titlePadX + (multiTitleBottom ? titleLine(undefined) : 0),
+            bottom: titlePadX + (multiTitleBottom ? titleLine(undefined) : 0),
         };
         const gridRef = multi
             ? {
@@ -785,7 +1406,7 @@ export function ChartBody({
             : {};
         return (
             <ComposedChart
-                data={chartData}
+                data={plotData}
                 margin={margin}
                 {...(horizontal ? { layout: 'vertical' as const } : {})}
             >
@@ -796,6 +1417,7 @@ export function ChartBody({
                     strokeDasharray={GRIDLINE_DASH[gridlines.style]}
                     {...gridRef}
                 />
+                {emptyBands()}
                 {horizontal ? (
                     <YAxis
                         type="category"
@@ -812,13 +1434,38 @@ export function ChartBody({
                     <XAxis
                         dataKey="category"
                         height={
-                            estimateCategoryAxisLane(
-                                visual.fontSize ?? 10,
-                            ) + (xAxis.gap ?? 0)
+                            estimateCategoryAxisLane(visual.fontSize ?? 10) +
+                            (xAxis.gap ?? 0)
                         }
                         {...categoryAxisProps(xAxis, visual, false)}
                     />
                 )}
+                {showIntersections &&
+                    !stacked &&
+                    plotData.length > 0 &&
+                    (horizontal ? (
+                        <YAxis
+                            yAxisId="xsec"
+                            type="number"
+                            domain={[
+                                0,
+                                hasBar ? plotData.length : plotData.length - 1,
+                            ]}
+                            hide
+                            width={0}
+                        />
+                    ) : (
+                        <XAxis
+                            xAxisId="xsec"
+                            type="number"
+                            domain={[
+                                0,
+                                hasBar ? plotData.length : plotData.length - 1,
+                            ]}
+                            hide
+                            height={0}
+                        />
+                    ))}
                 {multi ? (
                     valueAxes.map(valueElement)
                 ) : horizontal ? (
@@ -836,6 +1483,11 @@ export function ChartBody({
                               )
                             : valueAxisProps(xAxis, visual, false))}
                         {...valueAxisOverrides}
+                        domain={resolvedDomain(
+                            primary ? boundKeys(primary) : series,
+                            primary,
+                            primary ? undefined : xAxis,
+                        )}
                     />
                 ) : (
                     <YAxis
@@ -851,9 +1503,26 @@ export function ChartBody({
                               )
                             : valueAxisProps(yAxis, visual, true))}
                         {...valueAxisOverrides}
+                        domain={resolvedDomain(
+                            primary ? boundKeys(primary) : series,
+                            primary,
+                            primary ? undefined : yAxis,
+                        )}
                     />
                 )}
-                <Tooltip content={chartTooltip(visual)} />
+                <Tooltip
+                    content={chartTooltip(visual)}
+                    isAnimationActive={false}
+                    cursor={
+                        crosshair
+                            ? {
+                                  stroke: 'var(--ring)',
+                                  strokeWidth: 1,
+                                  strokeDasharray: '3 3',
+                              }
+                            : undefined
+                    }
+                />
                 {legendShown && series.length > 1 && (
                     <Legend
                         layout={
@@ -881,13 +1550,35 @@ export function ChartBody({
                     />
                 )}
                 {series.map((s, i) => {
-                    const { axisId, type } = resolveSeries(s);
+                    const { axisId } = resolveSeries(s);
                     const ref = multi
                         ? ({
                               [horizontal ? 'xAxisId' : 'yAxisId']:
                                   rtAxisId(axisId),
                           } as const)
                         : {};
+                    /** Effective draw style for this slot: an explicit per-
+                     * value-field choice (series picker) wins, then a running/
+                     * Pareto cumulative series draws as a line, then the visual
+                     * type's own default (line charts draw lines, areas draw
+                     * areas, combo draws a bar then lines). */
+                    const field = visual.legend.length
+                        ? visual.values[0]
+                        : visual.values[i];
+                    const type =
+                        field?.seriesType ??
+                        (metaByKey.get(s)?.running
+                            ? 'line'
+                            : visual.type === 'line'
+                              ? 'line'
+                              : visual.type === 'area' ||
+                                  visual.type === 'stackedArea'
+                                ? 'area'
+                                : visual.type === 'combo'
+                                  ? i === 0
+                                      ? 'bar'
+                                      : 'line'
+                                  : 'bar');
                     const color = seriesBaseFill(i);
                     if (type === 'line')
                         return (
@@ -930,7 +1621,7 @@ export function ChartBody({
                                 : {})}
                             {...ref}
                         >
-                            {chartData.map((d, idx) => (
+                            {plotData.map((d, idx) => (
                                 <Cell
                                     key={idx}
                                     fill={barFill(d, i)}
@@ -943,14 +1634,39 @@ export function ChartBody({
                                         dataLabels.position,
                                         horizontal,
                                     )}
-                                    content={renderLabelContent(chartData, s)}
+                                    content={renderLabelContent(plotData, s)}
                                     style={labelStyleFor(s)}
                                 />
                             )}
                         </Bar>
                     );
                 })}
-                {analyticsLines(visual, chartData, series, horizontal, animate)}
+                {analyticsLines(
+                    visual,
+                    plotData,
+                    series,
+                    horizontal,
+                    animate,
+                    multi
+                        ? {
+                              [horizontal ? 'xAxisId' : 'yAxisId']: rtAxisId(
+                                  series[0]
+                                      ? resolveSeries(series[0]).axisId
+                                      : 'y0',
+                              ),
+                          }
+                        : {},
+                    multi
+                        ? valueAxes
+                              .map((axis) => ({
+                                  id: axis.id,
+                                  token: rtAxisId(axis.id),
+                                  keys: boundKeys(axis),
+                              }))
+                              .filter((g) => g.keys.length)
+                        : [{ id: 'y0', token: undefined, keys: series }],
+                )}
+                {showIntersections && !stacked && intersectionDots()}
             </ComposedChart>
         );
     };
@@ -1223,7 +1939,10 @@ export function ChartBody({
                                 />
                             )}
                         </Pie>
-                        <Tooltip content={chartTooltip(visual)} />
+                        <Tooltip
+                            content={chartTooltip(visual)}
+                            isAnimationActive={false}
+                        />
                         {visual.showLegend && (
                             <Legend
                                 wrapperStyle={{
@@ -1264,7 +1983,10 @@ export function ChartBody({
                             })
                         }
                     >
-                        <Tooltip content={chartTooltip(visual)} />
+                        <Tooltip
+                            content={chartTooltip(visual)}
+                            isAnimationActive={false}
+                        />
                     </Treemap>
                 </ResponsiveContainer>,
             );
@@ -1273,7 +1995,10 @@ export function ChartBody({
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <FunnelChart>
-                        <Tooltip content={chartTooltip(visual)} />
+                        <Tooltip
+                            content={chartTooltip(visual)}
+                            isAnimationActive={false}
+                        />
                         <Funnel
                             dataKey={series[0] ?? 'value'}
                             data={data}
@@ -1343,7 +2068,10 @@ export function ChartBody({
                             tickFormatter={tickFmt(visual)}
                             {...axisPropsFor(visual)}
                         />
-                        <Tooltip content={chartTooltip(visual)} />
+                        <Tooltip
+                            content={chartTooltip(visual)}
+                            isAnimationActive={false}
+                        />
                         <Bar dataKey="base" stackId="w" fill="transparent" />
                         <Bar
                             dataKey="delta"
@@ -1369,154 +2097,6 @@ export function ChartBody({
                 </ResponsiveContainer>,
             );
         }
-        case 'line':
-            return wrap(
-                <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                        data={data}
-                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                    >
-                        <CartesianGrid
-                            stroke="var(--border)"
-                            vertical={false}
-                        />
-                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
-                        <YAxis
-                            tickFormatter={tickFmt(visual)}
-                            {...axisPropsFor(visual)}
-                        />
-                        <Tooltip content={chartTooltip(visual)} />
-                        {visual.showLegend && (
-                            <Legend
-                                wrapperStyle={{
-                                    fontSize: visual.fontSize ?? 10,
-                                }}
-                            />
-                        )}
-                        {series.map((s, i) => {
-                            const color =
-                                seriesColor ?? PALETTE[i % PALETTE.length];
-                            return (
-                                <Line
-                                    key={s}
-                                    type="monotone"
-                                    dataKey={s}
-                                    stroke={color}
-                                    strokeWidth={2}
-                                    dot={pointDot(color)}
-                                    isAnimationActive={animate}
-                                />
-                            );
-                        })}
-                        {analyticsLines(visual, data, series, false, animate)}
-                    </LineChart>
-                </ResponsiveContainer>,
-            );
-        case 'area':
-        case 'stackedArea':
-            return wrap(
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                        data={data}
-                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                    >
-                        <CartesianGrid
-                            stroke="var(--border)"
-                            vertical={false}
-                        />
-                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
-                        <YAxis
-                            tickFormatter={tickFmt(visual)}
-                            {...axisPropsFor(visual)}
-                        />
-                        <Tooltip content={chartTooltip(visual)} />
-                        {visual.showLegend && (
-                            <Legend
-                                wrapperStyle={{
-                                    fontSize: visual.fontSize ?? 10,
-                                }}
-                            />
-                        )}
-                        {series.map((s, i) => {
-                            const color =
-                                seriesColor ?? PALETTE[i % PALETTE.length];
-                            return (
-                                <Area
-                                    key={s}
-                                    type="monotone"
-                                    dataKey={s}
-                                    {...(visual.type === 'stackedArea'
-                                        ? { stackId: '1' }
-                                        : {})}
-                                    stroke={color}
-                                    fill={color}
-                                    fillOpacity={0.35}
-                                    dot={pointDot(color)}
-                                    isAnimationActive={animate}
-                                />
-                            );
-                        })}
-                    </AreaChart>
-                </ResponsiveContainer>,
-            );
-        case 'combo':
-            return wrap(
-                <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart
-                        data={data}
-                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                    >
-                        <CartesianGrid
-                            stroke="var(--border)"
-                            vertical={false}
-                        />
-                        <XAxis dataKey="category" {...axisPropsFor(visual)} />
-                        <YAxis
-                            tickFormatter={tickFmt(visual)}
-                            {...axisPropsFor(visual)}
-                        />
-                        <Tooltip content={chartTooltip(visual)} />
-                        {visual.showLegend && (
-                            <Legend
-                                wrapperStyle={{
-                                    fontSize: visual.fontSize ?? 10,
-                                }}
-                            />
-                        )}
-                        {series.map((s, i) =>
-                            i === 0 ? (
-                                <Bar
-                                    key={s}
-                                    dataKey={s}
-                                    fill={PALETTE[0]}
-                                    radius={[2, 2, 0, 0]}
-                                    isAnimationActive={animate}
-                                    onClick={onPointClick}
-                                >
-                                    {data.map((d, idx) => (
-                                        <Cell
-                                            key={idx}
-                                            fill={pointFill(d, PALETTE[0])}
-                                            fillOpacity={itemOpacity(d)}
-                                        />
-                                    ))}
-                                </Bar>
-                            ) : (
-                                <Line
-                                    key={s}
-                                    type="monotone"
-                                    dataKey={s}
-                                    stroke={seriesColor ?? PALETTE[i]}
-                                    strokeWidth={2}
-                                    dot={pointDot(seriesColor ?? PALETTE[i])}
-                                    isAnimationActive={animate}
-                                />
-                            ),
-                        )}
-                        {analyticsLines(visual, data, series, false, animate)}
-                    </ComposedChart>
-                </ResponsiveContainer>,
-            );
         case 'scatter':
         case 'bubble': {
             const xKey = series[0] ?? 'x';
@@ -1564,7 +2144,10 @@ export function ChartBody({
                         {visual.type === 'bubble' && (
                             <ZAxis dataKey={scZKey} range={[40, 500]} />
                         )}
-                        <Tooltip content={chartTooltip(visual)} />
+                        <Tooltip
+                            content={chartTooltip(visual)}
+                            isAnimationActive={false}
+                        />
                         <Scatter
                             data={scData}
                             fill={seriesColor ?? 'var(--chart-1)'}
@@ -1626,7 +2209,8 @@ export function ChartBody({
         case 'matrix':
             return <TableVisual visual={visual} rows={rows} match={match} />;
         default: {
-            // column, stackedColumn, stacked100Column, ribbon
+            // column, stackedColumn, stacked100Column, ribbon, line, area,
+            // stackedArea, combo (all vertical cartesian layouts)
             const cdata =
                 visual.type === 'stacked100Column'
                     ? normalize(data, series)

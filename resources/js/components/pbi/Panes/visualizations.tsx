@@ -436,6 +436,9 @@ export function VisualizationsPane({
         addValueAxis,
         toggleAnalytics,
         setAnalyticsValue,
+        setAnalyticsValue2,
+        setAnalyticsCategory,
+        setAnalyticsAxes,
         page,
         pages,
         setPageFormat,
@@ -483,6 +486,25 @@ export function VisualizationsPane({
     };
 
     const config = selected ? visualConfig(selected.type) : null;
+    /** Distinct category labels of the primary axis field, for the analytics
+     * "category" line input (datalist suggestions). */
+    const categoryOptions = (() => {
+        const field = selected?.axis[0];
+        if (!field) return [] as string[];
+        const table = filteredTables.find((t) => t.name === field.table);
+        if (!table) return [] as string[];
+        const seen = new Set<string>();
+        for (const row of table.rows) {
+            const v = String(row[field.name] ?? '');
+            if (v) seen.add(v);
+        }
+        return [...seen];
+    })();
+    /** The visual's value axes, for per-axis analytics toggles. */
+    const paneAxes = useMemo(
+        () => (selected ? normalizeAxes(selected.axes ?? []) : []),
+        [selected],
+    );
     // Text/image elements are format-only: no field wells, no analytics.
     const tabs: ('fields' | 'format' | 'analytics')[] = config
         ? [
@@ -1241,9 +1263,159 @@ export function VisualizationsPane({
                                                     className="mt-1 w-full rounded border border-border bg-background px-2 py-1"
                                                 />
                                             )}
+                                            {enabled && k === 'band' && (
+                                                <div className="mt-1 flex gap-1">
+                                                    <input
+                                                        type="number"
+                                                        value={
+                                                            line.value ?? ''
+                                                        }
+                                                        onChange={(e) =>
+                                                            setAnalyticsValue(
+                                                                selected.id,
+                                                                k,
+                                                                e.target
+                                                                    .value ===
+                                                                    ''
+                                                                    ? undefined
+                                                                    : Number(
+                                                                          e.target
+                                                                              .value,
+                                                                      ),
+                                                            )
+                                                        }
+                                                        placeholder="Min"
+                                                        className="w-full rounded border border-border bg-background px-2 py-1"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        value={
+                                                            line.value2 ?? ''
+                                                        }
+                                                        onChange={(e) =>
+                                                            setAnalyticsValue2(
+                                                                selected.id,
+                                                                k,
+                                                                e.target
+                                                                    .value ===
+                                                                    ''
+                                                                    ? undefined
+                                                                    : Number(
+                                                                          e.target
+                                                                              .value,
+                                                                      ),
+                                                            )
+                                                        }
+                                                        placeholder="Max"
+                                                        className="w-full rounded border border-border bg-background px-2 py-1"
+                                                    />
+                                                </div>
+                                            )}
+                                            {enabled && k === 'category' && (
+                                                <input
+                                                    type="text"
+                                                    list={`analytics-cat-${selected.id}`}
+                                                    value={
+                                                        line.category ?? ''
+                                                    }
+                                                    onChange={(e) =>
+                                                        setAnalyticsCategory(
+                                                            selected.id,
+                                                            k,
+                                                            e.target.value ||
+                                                                undefined,
+                                                        )
+                                                    }
+                                                    placeholder="Catégorie"
+                                                    className="mt-1 w-full rounded border border-border bg-background px-2 py-1"
+                                                />
+                                            )}
+                                            {enabled &&
+                                                paneAxes.length > 1 &&
+                                                [
+                                                    'constant',
+                                                    'average',
+                                                    'min',
+                                                    'max',
+                                                    'median',
+                                                    'band',
+                                                ].includes(k) && (
+                                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                        <span className="text-muted-foreground">
+                                                            Axes&nbsp;:
+                                                        </span>
+                                                        {paneAxes.map((a) => {
+                                                            const current =
+                                                                line.axes ??
+                                                                paneAxes.map(
+                                                                    (x) =>
+                                                                        x.id,
+                                                                );
+                                                            const checked =
+                                                                current.includes(
+                                                                    a.id,
+                                                                );
+                                                            return (
+                                                                <label
+                                                                    key={a.id}
+                                                                    className="flex items-center gap-1"
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={
+                                                                            checked
+                                                                        }
+                                                                        onChange={() => {
+                                                                            const all =
+                                                                                paneAxes.map(
+                                                                                    (x) =>
+                                                                                        x.id,
+                                                                                );
+                                                                            const next =
+                                                                                checked
+                                                                                    ? current.filter(
+                                                                                          (i) =>
+                                                                                              i !==
+                                                                                              a.id,
+                                                                                      )
+                                                                                    : [
+                                                                                          ...current,
+                                                                                          a.id,
+                                                                                      ];
+                                                                            setAnalyticsAxes(
+                                                                                selected.id,
+                                                                                k,
+                                                                                next.length ===
+                                                                                    all.length
+                                                                                    ? undefined
+                                                                                    : next,
+                                                                            );
+                                                                        }}
+                                                                        className="accent-[var(--brand)]"
+                                                                    />
+                                                                    Axe{' '}
+                                                                    {a.order +
+                                                                        1}
+                                                                    {a.title
+                                                                        ? ` — ${a.title}`
+                                                                        : ''}
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                         </div>
                                     );
                                 })}
+                                {categoryOptions.length > 0 && (
+                                    <datalist
+                                        id={`analytics-cat-${selected.id}`}
+                                    >
+                                        {categoryOptions.map((c) => (
+                                            <option key={c} value={c} />
+                                        ))}
+                                    </datalist>
+                                )}
                             </div>
                         )}
                     </div>

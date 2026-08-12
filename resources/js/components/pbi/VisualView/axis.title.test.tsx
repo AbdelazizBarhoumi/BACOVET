@@ -2,11 +2,11 @@
 // Regression: axis titles sit just OUTSIDE their own tick lane on the correct
 // side (left title → left of the lane, right → right, bottom → below,
 // top → above), with a small fixed gap — not a huge offset into the margin.
-import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ComposedChart, Line, XAxis, YAxis } from 'recharts';
-import { AXIS_TITLE_GAP, axisDefProps, axisTitle, estimateCategoryAxisLane } from './shared';
+import { describe, expect, it } from 'vitest';
 import type { AxisDef, AxisStyle, Visual } from '@/lib/pbi/model';
+import { AXIS_TITLE_GAP, axisDefProps, axisTitle, estimateCategoryAxisLane } from './shared';
 
 const data = [
     { category: 'A', a: 10, b: 40 },
@@ -71,19 +71,6 @@ function labelOf(html: string, text: string): Label {
     }
     if (!found) throw new Error(`label "${text}" not found in SVG`);
     return found;
-}
-
-function axisLine(html: string, orientation: string): { x?: string; y?: string } {
-    const re = new RegExp(
-        `<line[^>]*orientation="${orientation}"[^>]*class="recharts-cartesian-axis-line"[^>]*>`,
-    );
-    const m = re.exec(html);
-    if (!m) throw new Error(`axis line ${orientation} not found`);
-    const open = m[0];
-    return {
-        x: / x1="(-?[\d.]+)"/.exec(open)?.[1],
-        y: / y1="(-?[\d.]+)"/.exec(open)?.[1],
-    };
 }
 
 describe('axis title placement', () => {

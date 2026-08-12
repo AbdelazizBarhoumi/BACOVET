@@ -40,7 +40,7 @@ describe('visualConfig', () => {
     });
 
     it('keeps the full chart layout for cartesian and tabular visuals', () => {
-        for (const type of ['line', 'pie', 'table', 'slicer'] as const) {
+        for (const type of ['pie', 'table', 'slicer'] as const) {
             const config = visualConfig(type);
             expect(config.build.map((w) => w.well)).toEqual([
                 'axis',
@@ -76,7 +76,7 @@ describe('visualConfig', () => {
         }
     });
 
-    it('gives bar/column visuals cartesian sections and restricted analytics', () => {
+    it('gives bar/column and line-family visuals cartesian sections and restricted analytics', () => {
         for (const type of [
             'column',
             'stackedColumn',
@@ -84,6 +84,10 @@ describe('visualConfig', () => {
             'bar',
             'stackedBar',
             'stacked100Bar',
+            'line',
+            'area',
+            'stackedArea',
+            'combo',
         ] as const) {
             const config = visualConfig(type);
             expect(config.build.map((w) => w.well)).toEqual([
@@ -102,6 +106,10 @@ describe('visualConfig', () => {
                 'min',
                 'max',
                 'median',
+                'category',
+                'band',
+                'intersections',
+                'crosshair',
             ]);
             expect(config.sections).toEqual([
                 'title',

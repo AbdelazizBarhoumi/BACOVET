@@ -176,6 +176,22 @@ type Ctx = State & {
         kind: AnalyticsLine['kind'],
         value: number | undefined,
     ) => void;
+    setAnalyticsValue2: (
+        visualId: string,
+        kind: AnalyticsLine['kind'],
+        value: number | undefined,
+    ) => void;
+    setAnalyticsCategory: (
+        visualId: string,
+        kind: AnalyticsLine['kind'],
+        category: string | undefined,
+    ) => void;
+    /** Restricts an analytics line to the given value axis ids (undefined = all). */
+    setAnalyticsAxes: (
+        visualId: string,
+        kind: AnalyticsLine['kind'],
+        axes: string[] | undefined,
+    ) => void;
     drill: (visualId: string, dir: -1 | 1) => void;
     addPage: () => void;
     removePage: (id: string) => void;
@@ -1217,6 +1233,54 @@ export function PbiProvider({
                                   a.kind === kind ? { ...a, value } : a,
                               )
                             : [...v.analytics, { kind, enabled: true, value }],
+                    };
+                }),
+            ),
+        setAnalyticsValue2: (visualId, kind, value) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const exists = v.analytics.find((a) => a.kind === kind);
+                    return {
+                        ...v,
+                        analytics: exists
+                            ? v.analytics.map((a) =>
+                                  a.kind === kind ? { ...a, value2: value } : a,
+                              )
+                            : [...v.analytics, { kind, enabled: true, value2: value }],
+                    };
+                }),
+            ),
+        setAnalyticsCategory: (visualId, kind, category) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const exists = v.analytics.find((a) => a.kind === kind);
+                    return {
+                        ...v,
+                        analytics: exists
+                            ? v.analytics.map((a) =>
+                                  a.kind === kind ? { ...a, category } : a,
+                              )
+                            : [
+                                  ...v.analytics,
+                                  { kind, enabled: true, category },
+                              ],
+                    };
+                }),
+            ),
+        setAnalyticsAxes: (visualId, kind, axes) =>
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (v.id !== visualId) return v;
+                    const exists = v.analytics.find((a) => a.kind === kind);
+                    return {
+                        ...v,
+                        analytics: exists
+                            ? v.analytics.map((a) =>
+                                  a.kind === kind ? { ...a, axes } : a,
+                              )
+                            : [...v.analytics, { kind, enabled: true, axes }],
                     };
                 }),
             ),

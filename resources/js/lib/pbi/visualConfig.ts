@@ -38,7 +38,9 @@ export type VisualConfig = {
 
 export const SINGLE_VALUE_TYPES: VisualType[] = ['card', 'gauge'];
 
-/** Column + bar families (vertical & horizontal bars). */
+/** Column + bar families (vertical & horizontal bars) plus the line-family
+ * charts (line / area / stacked area / combo) — all of which share the
+ * cartesian axes, gridlines, data-label, legend and plot-area systems. */
 export const CARTESIAN_TYPES: VisualType[] = [
     'column',
     'stackedColumn',
@@ -46,6 +48,10 @@ export const CARTESIAN_TYPES: VisualType[] = [
     'bar',
     'stackedBar',
     'stacked100Bar',
+    'line',
+    'area',
+    'stackedArea',
+    'combo',
 ];
 
 export const SINGLE_VALUE_CONFIG: VisualConfig = {
@@ -80,9 +86,10 @@ export const GAUGE_CONFIG: VisualConfig = {
     ],
 };
 
-/** Bar/column charts: axes, gridlines, bars, data labels, legend, plot area.
- * Analytics: constant / average / min / max / median — no trend or forecast,
- * which only make sense on line charts. */
+/** Bar/column charts and the line family (line / area / stacked area / combo):
+ * axes, gridlines, bars, data labels, legend, plot area.
+ * Analytics: constant / average / min / max / median.
+ */
 export const CARTESIAN_CONFIG: VisualConfig = {
     build: [
         { well: 'axis', label: 'Axe X / Lignes' },
@@ -93,7 +100,17 @@ export const CARTESIAN_CONFIG: VisualConfig = {
         { well: 'drillFields', label: 'Extraction / champs d’exploration' },
     ],
     showAnalytics: true,
-    analyticsKinds: ['constant', 'average', 'min', 'max', 'median'],
+    analyticsKinds: [
+        'constant',
+        'average',
+        'min',
+        'max',
+        'median',
+        'category',
+        'band',
+        'intersections',
+        'crosshair',
+    ],
     format: 'cartesian',
     sections: [
         'title',

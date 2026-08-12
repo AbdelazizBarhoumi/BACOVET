@@ -4,8 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import { setTables } from '@/lib/pbi/model';
 import type { TableDef, Visual, WellField } from '@/lib/pbi/model';
-import { VALUE_AXIS_WIDTH } from './shared';
 import { ChartBody } from './chart';
+import { VALUE_AXIS_WIDTH } from './shared';
 
 vi.mock('recharts', async () => {
     const { createElement } = await import('react');
@@ -28,6 +28,7 @@ vi.mock('recharts', async () => {
         'LineChart',
         'Pie',
         'PieChart',
+        'ReferenceDot',
         'ReferenceLine',
         'ResponsiveContainer',
         'Scatter',
@@ -157,10 +158,15 @@ describe('single value axis honors its position', () => {
                     {
                         id: 'a1',
                         position: 'right',
+                        order: 1,
+                        auto: true,
                         title: 'Droite',
                         showTitle: true,
                         showLine: true,
                         showLabels: true,
+                        showGridlines: false,
+                        numberFormat: 'auto',
+                        displayUnits: 'auto',
                     },
                 ],
             }),
@@ -188,10 +194,15 @@ describe('single value axis honors its position', () => {
                     {
                         id: 'a1',
                         position: 'left',
+                        order: 1,
+                        auto: true,
                         title: 'Gauche',
                         showTitle: true,
                         showLine: true,
                         showLabels: true,
+                        showGridlines: false,
+                        numberFormat: 'auto',
+                        displayUnits: 'auto',
                     },
                 ],
             }),
@@ -216,14 +227,28 @@ describe('single value axis honors its position', () => {
                     {
                         id: 'a1',
                         position: 'left',
+                        order: 1,
+                        auto: true,
                         title: 'Gauche',
                         showTitle: true,
+                        showLine: true,
+                        showLabels: true,
+                        showGridlines: false,
+                        numberFormat: 'auto',
+                        displayUnits: 'auto',
                     },
                     {
                         id: 'a2',
                         position: 'right',
+                        order: 1,
+                        auto: true,
                         title: 'Droite',
                         showTitle: true,
+                        showLine: true,
+                        showLabels: true,
+                        showGridlines: false,
+                        numberFormat: 'auto',
+                        displayUnits: 'auto',
                     },
                 ],
             }),

@@ -304,7 +304,7 @@ export function categoryAxisProps(
     axis: AxisStyle,
     visual: Visual,
     vertical?: boolean,
-    gutterWidth = 90,
+    _gutterWidth = 90,
 ) {
     const color = axis.color || visual.fontColor || 'var(--muted-foreground)';
     const props: Record<string, unknown> = {
