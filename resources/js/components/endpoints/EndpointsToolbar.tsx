@@ -31,6 +31,7 @@ export function EndpointsToolbar({
     onNew,
     loading,
     refreshing = false,
+    refreshingElapsed = 0,
     sources,
 }: {
     value: ToolbarValue;
@@ -39,6 +40,7 @@ export function EndpointsToolbar({
     onNew: () => void;
     loading: boolean;
     refreshing?: boolean;
+    refreshingElapsed?: number;
     sources: string[];
 }) {
     const set = (patch: Partial<ToolbarValue>) =>
@@ -120,7 +122,11 @@ export function EndpointsToolbar({
                             : 'mr-1 h-3 w-3'
                     }
                 />
-                {loading || refreshing ? 'Chargement…' : 'Rafraîchir'}
+                {refreshing
+                    ? `Rafraîchissement… ${refreshingElapsed}s`
+                    : loading
+                      ? 'Chargement…'
+                      : 'Rafraîchir'}
             </Button>
 
             <Button

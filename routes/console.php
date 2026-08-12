@@ -29,20 +29,16 @@ if (! function_exists('isSyncDue')) {
     }
 }
 
-// One dispatcher process runs every minute while the DB interval is due. It
-// discovers every distinct root in data.json and spawns a separate
-// sync:endpoint-data worker per root, so each root always gets its own
-// parallel process - no schedule edits needed when roots/endpoints are added.
-Schedule::command('sync:endpoint-data:dispatch')
-    ->everyMinute()
-    ->when(fn () => isSyncDue('sync_interval_seconds'))
-    ->name('endpoint-data')
-    ->withoutOverlapping();
-
-// Daily safety-net: full registry refresh (status/response metadata) once per
-// day, gated by a 24h interval (settings.sync_refresh_daily, defaults to 86400s).
+// Everything runs on a single every-minute schedule: registry refresh + dataset
+// sync in one pass. Each invocation fires every endpoint request concurrently
+// (one Http::pool for the whole set, no sequential batches) inside its own
+// process, then waits, saves and exits. Invocations are allowed to overlap: a
+// run still in flight does NOT block the next minute's run, so a slow origin
+// never skips a tick. The window guard is bypassed with --force so data stays
+// fresh 24/7. The gate below keeps the cadence at the configured interval
+// (settings.sync_interval_seconds, min 60s); the lock that used to skip
+// overlapping refreshes has been removed.
 Schedule::command('sync:endpoint-data --phase=refresh --force')
     ->everyMinute()
-    ->when(fn () => isSyncDue('sync_refresh_daily', 86400))
-    ->name('endpoint-data-daily')
-    ->withoutOverlapping();
+    ->when(fn () => isSyncDue('sync_interval_seconds'))
+    ->name('endpoint-data');

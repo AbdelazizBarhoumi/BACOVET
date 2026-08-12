@@ -617,6 +617,10 @@ export type AxisDef = {
     color?: string;
     /** Pareto cumulative-% line color; ''/absent inherits the palette. */
     lineColor?: string;
+    /** Data labels for the cumulative-% line (Pareto). Only the series bound
+     * to a `lockRange` axis — the synthetic `__paretoPct:*` line — reads these;
+     * they never apply to the bars. Absent = labels off. */
+    lineLabels?: DataLabelStyle;
     /** number presentation format applied to ticks + bound series. */
     numberFormat: NumberFormat;
     displayUnits: DisplayUnit;

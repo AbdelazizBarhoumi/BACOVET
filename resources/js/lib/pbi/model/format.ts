@@ -1120,6 +1120,8 @@ export function normalizeAxes(input: unknown): AxisDef[] {
             axis.suffix = raw.suffix.trim();
         if (typeof raw.lineColor === 'string' && raw.lineColor.trim())
             axis.lineColor = raw.lineColor.trim();
+        if (raw.lineLabels !== undefined)
+            axis.lineLabels = normalizeDataLabelStyle(raw.lineLabels);
         if (typeof raw.decimals === 'number' && isFinite(raw.decimals))
             axis.decimals = raw.decimals;
         if (typeof raw.emptyColor === 'string' && raw.emptyColor.trim())

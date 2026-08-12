@@ -3,9 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Services\EndpointDatasetRegistry;
+use App\Support\DetachedProcess;
 use Illuminate\Console\Command;
-use Symfony\Component\Process\Process;
-use Throwable;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class SyncEndpointDataDispatch extends Command
 {
@@ -16,7 +17,17 @@ class SyncEndpointDataDispatch extends Command
         {--batch= : Max concurrent requests per child worker (defaults to config)}
         {--force : Pass --force to child workers}';
 
-    protected $description = 'Discover every root in data.json and spawn one sync:endpoint-data worker per root so each root gets its own process';
+    protected $description = 'Discover every root in data.json and launch one detached sync:endpoint-data worker per root so each root gets its own process';
+
+    /**
+     * Atomic counter of detached workers currently running. Each spawned
+     * worker decrements it (when given --wave) on completion. The dispatcher
+     * refuses to launch a new wave while it is > 0, which is what replaces
+     * `withoutOverlapping()` around the (now instantaneous) spawn decision.
+     */
+    public const INFLIGHT_KEY = 'endpoints:dispatch:inflight';
+
+    private const STARTED_AT_KEY = 'endpoints:dispatch:started_at';
 
     public function handle(EndpointDatasetRegistry $registry): int
     {
@@ -36,28 +47,38 @@ class SyncEndpointDataDispatch extends Command
             return self::FAILURE;
         }
 
+        // A previous wave is still running its detached workers: skipping is the
+        // correct behaviour here — the children own the actual long sweep.
+        if ($this->inflight() > 0) {
+            $this->info('A dataset sync wave is already in flight — skipping.');
+
+            return self::SUCCESS;
+        }
+
         $timeout = (string) (int) ($this->option('timeout') ?: config('novacity.timeout', 60));
         $retry = (string) max(0, (int) ($this->option('retry') ?? config('novacity.retry', 2)));
         $batch = (string) max(1, (int) ($this->option('batch') ?? config('novacity.batch', 25)));
-        $maxWorkers = max(1, (int) config('novacity.sync_workers', 3));
 
-        $this->info('Dispatching '.count($roots).' worker(s): '.implode(', ', $roots));
-
-        $queue = $roots;
+        $this->info('Dispatching '.count($roots).' detached worker(s): '.implode(', ', $roots));
         $exit = self::SUCCESS;
+        $wave = (string) Str::uuid();
 
-        while ($queue !== []) {
-            $wave = array_splice($queue, 0, $maxWorkers);
-            $processes = [];
+        Cache::put(self::STARTED_AT_KEY, time());
 
-            foreach ($wave as $root) {
-                $processes[] = $this->spawnChild($phase, $root, $timeout, $retry, $batch);
-            }
-
-            foreach ($processes as $process) {
-                $exit = max($exit, $this->awaitChild($process));
+        foreach ($roots as $root) {
+            try {
+                $this->spawnChild($phase, $root, $timeout, $retry, $batch, $wave);
+            } catch (\Throwable $e) {
+                $this->warn($e->getMessage());
+                $exit = self::FAILURE;
             }
         }
+
+        if ($exit !== self::SUCCESS) {
+            Cache::set(self::INFLIGHT_KEY, 0);
+        }
+
+        $this->info('Workers launched in the background — schedule no longer blocks on the sweep.');
 
         return $exit;
     }
@@ -110,52 +131,59 @@ class SyncEndpointDataDispatch extends Command
         return $roots;
     }
 
-    private function spawnChild(string $phase, string $root, string $timeout, string $retry, string $batch): Process
+    /**
+     * Launch one fully detached `sync:endpoint-data` worker per root. The
+     * child is reparented away from this process so it keeps running even
+     * after dispatch (and its scheduler) exits.
+     */
+    private function spawnChild(string $phase, string $root, string $timeout, string $retry, string $batch, string $wave): void
     {
-        $command = [
-            PHP_BINARY,
-            base_path('artisan'),
+        // Track this child in the in-flight counter; the child itself
+        // decrements it when it finishes (see SyncEndpointData --wave).
+        Cache::increment(self::INFLIGHT_KEY);
+
+        $parts = [
             'sync:endpoint-data',
             '--phase='.$phase,
             '--root='.$root,
             '--timeout='.$timeout,
             '--retry='.$retry,
             '--batch='.$batch,
+            '--wave='.$wave,
         ];
 
         if ($this->option('force')) {
-            $command[] = '--force';
+            $parts[] = '--force';
         }
 
-        $process = new Process($command, base_path());
-        $process->setTimeout(null);
-        $process->start();
+        $log = storage_path('logs/endpoint-sync-'.md5($root).'.log');
 
-        return $process;
+        DetachedProcess::spawn($log, $parts);
     }
 
-    private function awaitChild(Process $process): int
+    /**
+     * Number of workers currently reported in flight. If the wave has been
+     * running longer than {interval} without decrementing, the counter is
+     * treated as stale (a worker was killed without its finally) and reset.
+     */
+    private function inflight(): int
     {
-        try {
-            $process->wait();
+        $count = (int) Cache::get(self::INFLIGHT_KEY, 0);
 
-            if (! $process->isSuccessful()) {
-                $this->warn(trim((string) $process->getErrorOutput()).PHP_EOL.trim((string) $process->getOutput()));
-
-                return self::FAILURE;
-            }
-
-            foreach (explode(PHP_EOL, (string) $process->getOutput()) as $line) {
-                if (trim((string) $line) !== '') {
-                    $this->info(trim((string) $line));
-                }
-            }
-
-            return self::SUCCESS;
-        } catch (Throwable $exception) {
-            $this->warn($exception->getMessage());
-
-            return self::FAILURE;
+        if ($count <= 0) {
+            return 0;
         }
+
+        $started = (int) Cache::get(self::STARTED_AT_KEY, 0);
+        $maxAge = 12 * 3600;
+
+        if ($started > 0 && (time() - $started) > $maxAge) {
+            Cache::set(self::INFLIGHT_KEY, 0);
+            Cache::forget(self::STARTED_AT_KEY);
+
+            return 0;
+        }
+
+        return $count;
     }
 }

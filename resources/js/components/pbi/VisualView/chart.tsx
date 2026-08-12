@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Area,
     Bar,
@@ -94,6 +94,7 @@ import {
     labelPosition,
     legendLabelFormatter,
     tickFmt,
+    tooltipStyle,
     valueAxisProps,
     visualFmt,
 } from './shared';
@@ -156,6 +157,20 @@ function analyticsLines(
     animate = true,
     axisRef: { xAxisId?: string; yAxisId?: string } = {},
     statGroups: { id: string; token?: string; keys: string[] }[] = [],
+    tip?: (
+        title: string,
+        value: string,
+    ) =>
+        | {
+              onMouseEnter: (
+                  e: React.MouseEvent<SVGElement, MouseEvent>,
+              ) => void;
+              onMouseMove: (
+                  e: React.MouseEvent<SVGElement, MouseEvent>,
+              ) => void;
+              onMouseLeave: () => void;
+          }
+        | undefined,
 ) {
     if (!visual.analytics.length || !series.length) return null;
     const groups = statGroups.length
@@ -191,6 +206,8 @@ function analyticsLines(
         color: string,
         label: string,
         token: string | undefined,
+        title: string,
+        tipValue: string,
     ) => (
         <ReferenceLine
             key={`stat:${label}:${token ?? 'legacy'}`}
@@ -203,6 +220,7 @@ function analyticsLines(
                 fill: 'var(--muted-foreground)',
             }}
             {...(token ? { [horizontal ? 'xAxisId' : 'yAxisId']: token } : {})}
+            {...(tip ? tip(title, tipValue) : {})}
         />
     );
     /** Effective stroke/fill for an analytics line on one axis group: the
@@ -234,6 +252,8 @@ function analyticsLines(
                     lineColor(a, g),
                     `${A_STAT_LABEL[a.kind]!} ${fmt(v)}`,
                     g.token,
+                    A_STAT_LABEL[a.kind]!,
+                    fmt(v),
                 );
             });
         }
@@ -242,11 +262,14 @@ function analyticsLines(
             if (!target.length) return null;
             return target.map((g) => {
                 const max = statsFor(g.keys).max;
+                const v = a.axisValues?.[g.id] ?? a.value ?? max * 0.8;
                 return statLine(
-                    a.axisValues?.[g.id] ?? a.value ?? max * 0.8,
+                    v,
                     lineColor(a, g),
                     'Objectif',
                     g.token,
+                    'Objectif',
+                    fmt(v),
                 );
             });
         }
@@ -263,6 +286,7 @@ function analyticsLines(
                         fontSize: 9,
                         fill: 'var(--muted-foreground)',
                     }}
+                    {...(tip ? tip('Catégorie', a.category) : {})}
                     {...axisRef}
                 />
             );
@@ -279,6 +303,7 @@ function analyticsLines(
                     fill={a.color ?? ANALYTICS_DEFAULT_COLOR.band}
                     fillOpacity={0.08}
                     stroke="none"
+                    {...(tip ? tip('Bande', `${fmt(lo)} – ${fmt(hi)}`) : {})}
                     {...axisRef}
                 />
             );
@@ -785,6 +810,149 @@ export function ChartBody({
         );
     };
 
+    /** Data labels for the Pareto cumulative-% line, read from the locked pct
+     * axis (`AxisDef.lineLabels`). Only the synthetic running `__paretoPct:*`
+     * series bind to that axis, so `lineLabels` never styles the bars. */
+    const lockedAxis = valueAxes.find((a) => a.lockRange);
+    const lineLabels = normalizeDataLabelStyle(lockedAxis?.lineLabels);
+
+    /** Default cumulative-line label style (percent display, since the locked
+     * axis plots 0–1 fractions). */
+    const lineLabelBaseStyle = fontStyleProps(lineLabels.font, {
+        fontSize: visual.fontSize ?? 9,
+        color: 'var(--muted-foreground)',
+        fontFamily: visual.fontFamily,
+    });
+
+    /** Cumulative-line values are 0–1 fractions: `auto` display units mean
+     * "show percent", matching the locked axis' own percent ticks. */
+    const lineLabelFormatter = (v: number) =>
+        formatDisplayUnitValue(
+            v,
+            lineLabels.displayUnits === 'auto'
+                ? 'percent'
+                : lineLabels.displayUnits,
+            lineLabels.decimals,
+            lineLabels.suffix,
+        );
+
+    /** Per-series cumulative-line label style, merging the base with any
+     * override. Overrides are keyed by the base series name (measure label /
+     * legend bucket), matching `buildParetoData`'s `__paretoPct:<key>` keys. */
+    const lineLabelStyleFor = (s: string) => {
+        const key = s.startsWith('__paretoPct:')
+            ? s.slice('__paretoPct:'.length)
+            : s;
+        const o =
+            lineLabels.applyTo === 'perSeries'
+                ? lineLabels.seriesStyles?.[key]
+                : undefined;
+        if (!o) return lineLabelBaseStyle;
+        return fontStyleProps(
+            {
+                ...(lineLabels.font ?? {}),
+                ...(o.font ?? {}),
+                color: o.color ?? o.font?.color,
+            },
+            {
+                fontSize: o.font?.fontSize ?? visual.fontSize ?? 9,
+                color:
+                    o.color ||
+                    lineLabels.font?.color ||
+                    'var(--muted-foreground)',
+                fontFamily: o.font?.fontFamily || visual.fontFamily,
+            },
+        );
+    };
+
+    /** Label lines for one cumulative-line point, honoring the content
+     * dropdown. The line's value is already a fraction of the total, so
+     * `percentOfTotal` shows it as-is. */
+    const lineLabelContentLines = (
+        row: Record<string, string | number>,
+        s: string,
+    ): string[] => {
+        const v = Number(row[s] ?? 0);
+        const val = lineLabelFormatter(v);
+        const cat = String(row['category'] ?? '');
+        switch (lineLabels.content) {
+            case 'category':
+                return [cat];
+            case 'value':
+                return [val];
+            case 'percentOfTotal':
+                return [val];
+            case 'categoryValue':
+                return [cat, val];
+            case 'categoryPercent':
+                return [cat, val];
+            case 'valuePercent':
+                return [val, val];
+            case 'all':
+                return [cat, val];
+            default:
+                return [val];
+        }
+    };
+
+    /** Shared multi-line <text> block for a data-label content renderer. */
+    const labelLinesNode = (
+        props: {
+            viewBox?: {
+                x?: number;
+                y?: number;
+                width?: number;
+                height?: number;
+                cx?: number;
+                cy?: number;
+            };
+            position?: string | { x?: number; y?: number };
+            offset?: number;
+        },
+        lines: string[],
+        style: ReturnType<typeof fontStyleProps>,
+    ) => {
+        if (!lines.length) return null;
+        const vb = props.viewBox;
+        const anchor = labelBlockAnchor(
+            vb
+                ? {
+                      x: vb.x,
+                      y: vb.y,
+                      width: vb.width,
+                      height: vb.height,
+                  }
+                : {},
+            props.position,
+            props.offset ?? 5,
+        );
+        const lineHeight = (style.fontSize ?? 9) * 1.2;
+        const firstDy =
+            anchor.block === 'end'
+                ? -(lines.length - 1) * lineHeight
+                : anchor.block === 'middle'
+                  ? -((lines.length - 1) * lineHeight) / 2
+                  : 0;
+        return (
+            <text
+                {...style}
+                x={anchor.x}
+                y={anchor.y}
+                textAnchor={anchor.textAnchor}
+            >
+                {lines.map((ln, i) => (
+                    <tspan
+                        key={i}
+                        x={anchor.x}
+                        dy={i === 0 ? firstDy : lineHeight}
+                    >
+                        {ln}
+                    </tspan>
+                ))}
+            </text>
+        );
+    };
+
     /** Label lines for one bar/column, honoring the content dropdown. */
     const labelContentLines = (
         row: Record<string, string | number>,
@@ -841,45 +1009,33 @@ export function ChartBody({
             if (!row) return null;
             const lines = labelContentLines(row, s, seriesTotals[s] ?? 0);
             if (!lines.length) return null;
-            const style = labelStyleFor(s);
-            const vb = props.viewBox;
-            const anchor = labelBlockAnchor(
-                vb
-                    ? {
-                          x: vb.x,
-                          y: vb.y,
-                          width: vb.width,
-                          height: vb.height,
-                      }
-                    : {},
-                props.position,
-                props.offset ?? 5,
-            );
-            const lineHeight = (style.fontSize ?? 9) * 1.2;
-            const firstDy =
-                anchor.block === 'end'
-                    ? -(lines.length - 1) * lineHeight
-                    : anchor.block === 'middle'
-                      ? -((lines.length - 1) * lineHeight) / 2
-                      : 0;
-            return (
-                <text
-                    {...style}
-                    x={anchor.x}
-                    y={anchor.y}
-                    textAnchor={anchor.textAnchor}
-                >
-                    {lines.map((ln, i) => (
-                        <tspan
-                            key={i}
-                            x={anchor.x}
-                            dy={i === 0 ? firstDy : lineHeight}
-                        >
-                            {ln}
-                        </tspan>
-                    ))}
-                </text>
-            );
+            return labelLinesNode(props, lines, labelStyleFor(s));
+        };
+
+    /** Recharts LabelList `content` renderer for the Pareto cumulative-% line
+     * (`__paretoPct:*` running series), sharing the same multi-line geometry but
+     * formatting its 0–1 fraction values as percentages. */
+    const renderLineLabelContent =
+        (raw: Record<string, string | number>[], s: string) =>
+        (props: {
+            index?: number;
+            viewBox?: {
+                x?: number;
+                y?: number;
+                width?: number;
+                height?: number;
+                cx?: number;
+                cy?: number;
+            };
+            position?: string | { x?: number; y?: number };
+            offset?: number;
+        }) => {
+            if (props.index == null) return null;
+            const row = raw[props.index];
+            if (!row) return null;
+            const lines = lineLabelContentLines(row, s);
+            if (!lines.length) return null;
+            return labelLinesNode(props, lines, lineLabelStyleFor(s));
         };
 
     /** Legacy-safe: the `showLegend` field too. */
@@ -904,10 +1060,41 @@ export function ChartBody({
     } as const;
 
     /** Wraps a chart in the plot-area surface (background/border). */
+    const chartBoxRef = useRef<HTMLDivElement>(null);
+    const [tip, setTip] = useState<{
+        x: number;
+        y: number;
+        title: string;
+        value: string;
+    } | null>(null);
+
     const plotWrap = (chart: React.ReactElement) =>
         wrap(
-            <div className="h-full w-full" style={plotStyle}>
+            <div
+                ref={chartBoxRef}
+                className="relative h-full w-full"
+                style={plotStyle}
+            >
                 {chart}
+                {tip && (
+                    <div
+                        className="pointer-events-none absolute z-10 max-w-48 rounded px-2 py-1 text-[11px] shadow-lg"
+                        style={{
+                            ...tooltipStyle,
+                            left: tip.x + 12,
+                            top: tip.y + 12,
+                        }}
+                    >
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="truncate text-muted-foreground">
+                                {tip.title}
+                            </span>
+                            <span className="font-semibold tabular-nums">
+                                {tip.value}
+                            </span>
+                        </div>
+                    </div>
+                )}
             </div>,
         );
 
@@ -946,6 +1133,50 @@ export function ChartBody({
     };
 
     const hasValues = visual.values.length > 0;
+    /** Mouse handlers that float the analytics tooltip under the cursor.
+     * Disabled for static renders (exports) and visuals without value fields. */
+    const tipProps = (title: string, value: string) => {
+        if (staticRender || !hasValues) return undefined;
+        const move = (e: React.MouseEvent<SVGElement, MouseEvent>) => {
+            const r = chartBoxRef.current?.getBoundingClientRect();
+            if (!r) return;
+            setTip({
+                x: e.clientX - r.left,
+                y: e.clientY - r.top,
+                title,
+                value,
+            });
+        };
+        return {
+            onMouseEnter: move,
+            onMouseMove: move,
+            onMouseLeave: () => setTip(null),
+        };
+    };
+    /** Same as `tipProps` but for ReferenceDot, whose recharts Dot shape
+     * forwards its own render props as the first handler argument and the
+     * real DOM event second (`adaptEventHandlers`). */
+    const dotTipProps = (title: string, value: string) => {
+        if (staticRender || !hasValues) return undefined;
+        const move = (
+            _props: unknown,
+            e: React.MouseEvent<SVGCircleElement>,
+        ) => {
+            const r = chartBoxRef.current?.getBoundingClientRect();
+            if (!r) return;
+            setTip({
+                x: e.clientX - r.left,
+                y: e.clientY - r.top,
+                title,
+                value,
+            });
+        };
+        return {
+            onMouseEnter: move,
+            onMouseMove: move,
+            onMouseLeave: () => setTip(null),
+        };
+    };
     const wrap = (node: React.ReactNode) => (
         <div
             className="h-full w-full"
@@ -1101,6 +1332,7 @@ export function ChartBody({
         const intersectionDots = (): React.ReactElement[] => {
             const n = plotData.length;
             if (n < 2) return [];
+            const fmt = (v: number) => visualFmt(v, visual, visual.values[0]);
             /** Color of the series×series markers — the intersections line's
              * own color when set, else the amber default. */
             const ixColor =
@@ -1207,10 +1439,22 @@ export function ChartBody({
                                                   ),
                                               } as const)
                                             : {};
+                                        /** Actual value of each series at the
+                                         * crossing. They can differ when the
+                                         * series sit on different value axes:
+                                         * the crossing is a shared pixel
+                                         * position, not a shared value. */
+                                        const vA = horizontal
+                                            ? dA[0] + c.x * (dA[1] - dA[0])
+                                            : dA[1] - c.y * (dA[1] - dA[0]);
+                                        const vB = horizontal
+                                            ? dB[0] + c.x * (dB[1] - dB[0])
+                                            : dB[1] - c.y * (dB[1] - dB[0]);
+                                        const tipValue =
+                                            A.id === B.id
+                                                ? fmt(vA)
+                                                : `${metaByKey.get(A.s)?.label ?? A.s}: ${fmt(vA)} • ${metaByKey.get(B.s)?.label ?? B.s}: ${fmt(vB)}`;
                                         if (A.id === B.id) {
-                                            const val = horizontal
-                                                ? dA[0] + c.x * (dA[1] - dA[0])
-                                                : dA[1] - c.y * (dA[1] - dA[0]);
                                             dots.push(
                                                 <ReferenceDot
                                                     key={`xsec:${A.s}:${B.s}:${i}:${j}`}
@@ -1220,9 +1464,13 @@ export function ChartBody({
                                                     strokeWidth={1}
                                                     {...span}
                                                     {...(horizontal
-                                                        ? { x: val }
-                                                        : { y: val })}
+                                                        ? { x: vA }
+                                                        : { y: vA })}
                                                     {...axisBind}
+                                                    {...dotTipProps(
+                                                        'Intersection',
+                                                        tipValue,
+                                                    )}
                                                 />,
                                             );
                                         }
@@ -1235,6 +1483,10 @@ export function ChartBody({
                                                 strokeDasharray="3 3"
                                                 strokeWidth={1}
                                                 {...axisBind}
+                                                {...tipProps(
+                                                    'Intersection',
+                                                    tipValue,
+                                                )}
                                             />,
                                         );
                                     }
@@ -1337,6 +1589,10 @@ export function ChartBody({
                                                 ? { x: constVal }
                                                 : { y: constVal })}
                                             {...axisBind}
+                                            {...dotTipProps(
+                                                'Intersection',
+                                                fmt(constVal),
+                                            )}
                                         />,
                                         <ReferenceLine
                                             key={`xsec-line:const:${constVal}:${axisId}:${s.s}:${cat.toFixed(4)}`}
@@ -1346,6 +1602,10 @@ export function ChartBody({
                                             strokeDasharray="3 3"
                                             strokeWidth={1}
                                             {...axisBind}
+                                            {...tipProps(
+                                                'Intersection',
+                                                fmt(constVal),
+                                            )}
                                         />,
                                     );
                                 }
@@ -1732,7 +1992,22 @@ export function ChartBody({
                                 dot={pointDot(lineColor)}
                                 isAnimationActive={animate}
                                 {...ref}
-                            />
+                            >
+                                {metaByKey.get(s)?.running &&
+                                    lineLabels.show && (
+                                        <LabelList
+                                            position={labelPosition(
+                                                lineLabels.position,
+                                                horizontal,
+                                            )}
+                                            content={renderLineLabelContent(
+                                                plotData,
+                                                s,
+                                            )}
+                                            style={lineLabelStyleFor(s)}
+                                        />
+                                    )}
+                            </Line>
                         );
                     if (type === 'area')
                         return (
@@ -1808,6 +2083,7 @@ export function ChartBody({
                               }))
                               .filter((g) => g.keys.length)
                         : [{ id: 'y0', token: undefined, keys: series }],
+                    tipProps,
                 )}
                 {showIntersections && !stacked && intersectionDots()}
             </ComposedChart>

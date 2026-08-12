@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Support\DetachedProcess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 
 class ScheduleController extends Controller
 {
@@ -24,8 +24,9 @@ class ScheduleController extends Controller
         }
 
         try {
-            $exitCode = Artisan::call('schedule:run', []);
-            $output = trim((string) Artisan::output());
+            $log = storage_path('logs/schedule-run.log');
+
+            DetachedProcess::spawn($log, ['schedule:run']);
         } catch (\Throwable $e) {
             AuditLog::create([
                 'user_id' => null,
@@ -36,9 +37,8 @@ class ScheduleController extends Controller
 
             return response()->json([
                 'success' => false,
+                'queued' => false,
                 'command' => 'schedule:run',
-                'exit_code' => 1,
-                'output' => null,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -46,16 +46,15 @@ class ScheduleController extends Controller
         AuditLog::create([
             'user_id' => null,
             'action_type' => 'SYSTEM',
-            'message' => "Planificateur exécuté via webhook: schedule:run — code {$exitCode}",
+            'message' => 'Planificateur déclenché via webhook (détaché): schedule:run',
             'ip_address' => $request->ip(),
         ]);
 
         return response()->json([
-            'success' => $exitCode === 0,
+            'success' => true,
+            'queued' => true,
             'command' => 'schedule:run',
-            'exit_code' => $exitCode,
-            'output' => $output,
-            'error' => $exitCode === 0 ? null : ($output ?: "Le planificateur a échoué avec le code {$exitCode}."),
+            'message' => 'schedule:run lancé en arrière-plan — la requête ne bloque plus.',
         ]);
     }
 

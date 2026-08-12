@@ -9,6 +9,7 @@ import {
     fetchHealth,
     triggerEndpointRefresh,
     triggerRefresh,
+    waitForRefreshCompletion,
     type EndpointHealth,
     type EndpointSummary,
 } from '@/services/endpointManagerApi';
@@ -57,6 +58,7 @@ export function RefreshHealthPanel({
     const [error, setError] = useState<string | null>(null);
     const [running, setRunning] = useState(false);
     const [refreshingId, setRefreshingId] = useState<string | null>(null);
+    const [elapsedSec, setElapsedSec] = useState(0);
 
     const load = useCallback(async (quiet = false) => {
         if (!quiet) {
@@ -92,19 +94,34 @@ export function RefreshHealthPanel({
     }, [load]);
 
     const handleRefreshNow = useCallback(async () => {
+        const startedAt = Date.now();
         setRunning(true);
+        setElapsedSec(0);
+        const timer = window.setInterval(() => {
+            setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+        }, 1000);
         try {
-            const result = await triggerRefresh();
-            if (result.success) {
-                toast.success(
-                    `Rafraîchissement terminé — ${result.meta?.ok ?? 0} ok, ${result.meta?.failed ?? 0} en échec`,
+            const launched = await triggerRefresh();
+            if (!launched.queued) {
+                toast.info(
+                    'Un rafraîchissement est déjà en cours, attente de la fin…',
                 );
+            }
+
+            const result = await waitForRefreshCompletion();
+            if (result) {
+                if (result.never_started) {
+                    toast.error(
+                        result.output ||
+                            'Le rafraîchissement n’a pas démarré — réessayez.',
+                    );
+                } else {
+                    toast.success(
+                        `Rafraîchissement terminé — ${result.meta?.ok ?? 0} ok, ${result.meta?.failed ?? 0} en échec`,
+                    );
+                }
             } else {
-                toast.error(
-                    'Échec de la commande de rafraîchissement (code de sortie ' +
-                        result.exit_code +
-                        ')',
-                );
+                toast.warning('Le rafraîchissement est toujours en cours.');
             }
             await load(true);
             onRefreshed();
@@ -115,7 +132,9 @@ export function RefreshHealthPanel({
                     : 'Échec du rafraîchissement',
             );
         } finally {
+            window.clearInterval(timer);
             setRunning(false);
+            setElapsedSec(0);
         }
     }, [load, onRefreshed]);
 
@@ -294,7 +313,7 @@ export function RefreshHealthPanel({
                                 )}
                             />
                             {running
-                                ? 'Rafraîchissement…'
+                                ? `Rafraîchissement… ${elapsedSec}s`
                                 : 'Rafraîchir maintenant'}
                         </Button>
                     </div>

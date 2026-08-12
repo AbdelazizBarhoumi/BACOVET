@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Console\Commands\RunEndpointSync;
 use App\Http\Controllers\Controller;
 use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
+use App\Support\DetachedProcess;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 
 class EndpointDatasetController extends Controller
 {
@@ -21,25 +23,41 @@ class EndpointDatasetController extends Controller
     }
 
     /**
-     * Trigger both worker phases (registry refresh + dataset sync) of
-     * sync:endpoint-data synchronously and return its summary. Backed by the
-     * same command the scheduler runs.
+     * Trigger the full registry + dataset sync in a detached background
+     * process and return immediately — identical to the Rafraîchir buttons
+     * (endpoint-sync:run). The web request never blocks on the sweep; the
+     * UI reflects progress by polling /status. A duplicate click while a
+     * sweep is already active is acked (queued=false) instead of stacking.
      */
     public function sync(): JsonResponse
     {
-        $exitCode = Artisan::call('sync:endpoint-data', [
-            '--phase' => 'all',
-            '--force' => true,
-            '--timeout' => (int) config('novacity.web_timeout', 20),
-        ]);
+        if (RunEndpointSync::isActuallyRunning()) {
+            return response()->json([
+                'success' => true,
+                'queued' => false,
+                'running' => true,
+                'reason' => 'already_running',
+            ]);
+        }
 
-        $registry = app(EndpointDatasetRegistry::class);
-        $registry->forgetCache();
+        $log = storage_path('logs/endpoint-sync-manual.log');
+
+        // Clear any stale flag BEFORE spawning (see NovacityEndpointsController::refresh).
+        RunEndpointSync::clearStale();
+
+        DetachedProcess::spawn($log, ['endpoint-sync:run']);
+
+        Cache::put(
+            RunEndpointSync::RUNNING_KEY,
+            now()->toIso8601String(),
+            now()->addHours(2),
+        );
 
         return response()->json([
-            'success' => $exitCode === 0,
-            'exit_code' => $exitCode,
-            'output' => Artisan::output(),
+            'success' => true,
+            'queued' => true,
+            'running' => true,
+            'message' => 'Synchronisation lancée en arrière-plan — chaque endpoint est mis à jour en tâche de fond.',
         ]);
     }
 

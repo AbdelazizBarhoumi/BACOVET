@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\RunEndpointSync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,7 @@ use Tests\TestCase;
 class SyncEndpointDataRootTest extends TestCase
 {
     use RefreshDatabase;
+
     private string $dataFile;
 
     private string $metaFile;
@@ -182,6 +184,29 @@ class SyncEndpointDataRootTest extends TestCase
         $data = collect($this->readData())->keyBy('id');
 
         $this->assertSame(200, $data['ep-2']['status']);
+    }
+
+    public function test_endpoint_sync_run_publishes_and_clears_running_flag(): void
+    {
+        $this->writeData([
+            ['id' => 'ep-1', 'name' => 'v_primary', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/api/data/v_primary', 'status' => 200, 'response' => ['data' => [['a' => 1]], 'label' => 'V', 'object' => 'O', 'object_type' => 'T']],
+        ]);
+
+        Http::fake([
+            'https://api.primary.test/api/data/v_primary*' => Http::response(['success' => true, 'data' => [['a' => 2]]], 200),
+        ]);
+
+        $this->assertFalse(Cache::has(RunEndpointSync::RUNNING_KEY));
+
+        $this->artisan('endpoint-sync:run', ['--timeout' => 5])
+            ->assertSuccessful();
+
+        $this->assertFalse(Cache::has(RunEndpointSync::RUNNING_KEY));
+
+        $this->assertDatabaseHas('endpoint_datasets', [
+            'slug' => 'api/data/v_primary',
+            'last_status' => 'ok',
+        ]);
     }
 
     public function test_datasets_root_option_only_syncs_matching_root(): void

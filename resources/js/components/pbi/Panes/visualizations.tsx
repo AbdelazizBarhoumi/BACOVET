@@ -346,6 +346,52 @@ function InlineIntInput({
  * axes plus a "+ nouvel axe" entry that lazily creates an extra axis. */
 function ValueFieldControls({
     visualId,
+    field,
+    index,
+    patchWellField,
+}: {
+    visualId: string;
+    field: WellField;
+    index: number;
+    patchWellField: (
+        visualId: string,
+        well: WellName,
+        index: number,
+        patch: Partial<WellField>,
+    ) => void;
+}) {
+    return (
+        <select
+            title="Style de la série"
+            value={field.seriesType ?? 'auto'}
+            onChange={(e) =>
+                patchWellField(visualId, 'values', index, {
+                    seriesType:
+                        e.target.value === 'auto'
+                            ? undefined
+                            : (e.target.value as WellField['seriesType']),
+                })
+            }
+            data-testid={`series-type-select-${index}`}
+            className="rounded border border-border bg-background text-[10px]"
+        >
+            {(['auto', 'bar', 'line', 'area'] as const).map((t) => (
+                <option key={t} value={t}>
+                    {t === 'auto'
+                        ? 'Barres'
+                        : t === 'bar'
+                          ? 'Barres'
+                          : t === 'line'
+                            ? 'Courbe'
+                            : 'Aires'}
+                </option>
+            ))}
+        </select>
+    );
+}
+
+function ValueAxisSelect({
+    visualId,
     axes,
     field,
     index,
@@ -367,61 +413,33 @@ function ValueFieldControls({
     const normalized = useMemo(() => normalizeAxes(axes), [axes]);
     const current = field.axisId ?? normalized[0]?.id ?? 'y0';
     return (
-        <>
-            <select
-                title="Style de la série"
-                value={field.seriesType ?? 'auto'}
-                onChange={(e) =>
-                    patchWellField(visualId, 'values', index, {
-                        seriesType:
-                            e.target.value === 'auto'
-                                ? undefined
-                                : (e.target.value as WellField['seriesType']),
-                    })
+        <select
+            title="Axe des valeurs"
+            value={current}
+            onChange={(e) => {
+                if (e.target.value === '__new__') {
+                    const id = addValueAxis(visualId);
+                    if (id)
+                        patchWellField(visualId, 'values', index, {
+                            axisId: id,
+                        });
+                    return;
                 }
-                data-testid={`series-type-select-${index}`}
-                className="rounded border border-border bg-background text-[10px]"
-            >
-                {(['auto', 'bar', 'line', 'area'] as const).map((t) => (
-                    <option key={t} value={t}>
-                        {t === 'auto'
-                            ? 'Barres'
-                            : t === 'bar'
-                              ? 'Barres'
-                              : t === 'line'
-                                ? 'Courbe'
-                                : 'Aires'}
-                    </option>
-                ))}
-            </select>
-            <select
-                title="Axe des valeurs"
-                value={current}
-                onChange={(e) => {
-                    if (e.target.value === '__new__') {
-                        const id = addValueAxis(visualId);
-                        if (id)
-                            patchWellField(visualId, 'values', index, {
-                                axisId: id,
-                            });
-                        return;
-                    }
-                    patchWellField(visualId, 'values', index, {
-                        axisId: e.target.value,
-                    });
-                }}
-                data-testid={`axis-select-${index}`}
-                className="rounded border border-border bg-background text-[10px]"
-            >
-                {normalized.map((a) => (
-                    <option key={a.id} value={a.id}>
-                        Axe {a.order + 1}{' '}
-                        {a.title ? `— ${a.title}` : ''}
-                    </option>
-                ))}
-                <option value="__new__">+ Nouvel axe</option>
-            </select>
-        </>
+                patchWellField(visualId, 'values', index, {
+                    axisId: e.target.value,
+                });
+            }}
+            data-testid={`axis-select-${index}`}
+            className="w-36 rounded border border-border bg-background text-[10px]"
+        >
+            {normalized.map((a) => (
+                <option key={a.id} value={a.id}>
+                    Axe {a.order + 1}{' '}
+                    {a.title ? `— ${a.title}` : ''}
+                </option>
+            ))}
+            <option value="__new__">+ Nouvel axe</option>
+        </select>
     );
 }
 
@@ -639,6 +657,34 @@ export function VisualizationsPane({
                                     (f.detail === true ||
                                         (!numericField &&
                                             f.valueAggregation === undefined));
+                                const valueRow =
+                                    name === 'values' &&
+                                    CARTESIAN_TYPES.includes(selected.type);
+                                const aggSelect =
+                                    numericField && !detailOn ? (
+                                        <select
+                                            value={f.agg}
+                                            onChange={(e) =>
+                                                setWellAgg(
+                                                    selected.id,
+                                                    name,
+                                                    i,
+                                                    e.target.value as Agg,
+                                                )
+                                            }
+                                            data-testid={`agg-select-${name}-${i}`}
+                                            className="w-16 rounded border border-border bg-background text-[10px]"
+                                        >
+                                            {AGGS.map((a) => (
+                                                <option
+                                                    key={a}
+                                                    value={a}
+                                                >
+                                                    {AGG_LABELS[a]}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : null;
                                 return (
                                     <Fragment key={`${f.name}-${i}`}>
                                         <div
@@ -659,8 +705,9 @@ export function VisualizationsPane({
                                                 e.dataTransfer.effectAllowed =
                                                     'move';
                                             }}
-                                            className="mb-0.5 flex cursor-grab items-center gap-1 rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
+                                            className="mb-0.5 cursor-grab rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
                                         >
+                                        <div className="flex flex-wrap items-center gap-1">
                                             {issue && (
                                                 <TriangleAlert
                                                     className="size-3 shrink-0 text-warning"
@@ -672,48 +719,7 @@ export function VisualizationsPane({
                                                     ? measureLabel(f)
                                                     : fieldLabel(f)}
                                             </span>
-                                            {numericField && !detailOn && (
-                                                <select
-                                                    value={f.agg}
-                                                    onChange={(e) =>
-                                                        setWellAgg(
-                                                            selected.id,
-                                                            name,
-                                                            i,
-                                                            e.target
-                                                                .value as Agg,
-                                                        )
-                                                    }
-                                                    data-testid={`agg-select-${name}-${i}`}
-                                                    className="rounded border border-border bg-background text-[10px]"
-                                                >
-                                                    {AGGS.map((a) => (
-                                                        <option
-                                                            key={a}
-                                                            value={a}
-                                                        >
-                                                            {AGG_LABELS[a]}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            )}
-                                            {name === 'values' &&
-                                                CARTESIAN_TYPES.includes(
-                                                    selected.type,
-                                                ) && (
-                                                    <ValueFieldControls
-                                                        visualId={selected.id}
-                                                        axes={selected.axes ?? []}
-                                                        field={f}
-                                                        index={i}
-                                                        addValueAxis={
-                                                            addValueAxis
-                                                        }
-                                                        patchWellField={
-                                                            patchWellField
-                                                        }
-                                                    />
-                                                )}
+                                            {!valueRow && aggSelect}
                                             {SINGLE_VALUE_WELLS.has(name) &&
                                                 !numericField &&
                                                 !isMeasure(f.name) &&
@@ -812,17 +818,58 @@ export function VisualizationsPane({
                                                     {issue}
                                                 </span>
                                             )}
-                                            <button
-                                                onClick={() =>
-                                                    removeWellField(
-                                                        selected.id,
-                                                        name,
-                                                        i,
-                                                    )
-                                                }
-                                            >
-                                                <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                            </button>
+                                            {!valueRow && (
+                                                <button
+                                                    onClick={() =>
+                                                        removeWellField(
+                                                            selected.id,
+                                                            name,
+                                                            i,
+                                                        )
+                                                    }
+                                                >
+                                                    <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        {valueRow && aggSelect && (
+                                            <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
+                                                {aggSelect}
+                                            </div>
+                                        )}
+                                        {valueRow && (
+                                            <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
+                                                <ValueFieldControls
+                                                    visualId={selected.id}
+                                                    field={f}
+                                                    index={i}
+                                                    patchWellField={
+                                                        patchWellField
+                                                    }
+                                                />
+                                                <ValueAxisSelect
+                                                    visualId={selected.id}
+                                                    axes={selected.axes ?? []}
+                                                    field={f}
+                                                    index={i}
+                                                    addValueAxis={addValueAxis}
+                                                    patchWellField={
+                                                        patchWellField
+                                                    }
+                                                />
+                                                <button
+                                                    onClick={() =>
+                                                        removeWellField(
+                                                            selected.id,
+                                                            name,
+                                                            i,
+                                                        )
+                                                    }
+                                                >
+                                                    <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                                </button>
+                                            </div>
+                                        )}
                                         </div>
                                         {SINGLE_VALUE_WELLS.has(name) &&
                                             !isMeasure(f.name) && (

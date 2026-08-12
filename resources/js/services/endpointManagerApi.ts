@@ -335,6 +335,19 @@ export type RefreshResult = {
     meta: RefreshMeta | null;
     retry_pending_count?: number;
     retry_ids?: RetryRecord[];
+    never_started?: boolean;
+};
+
+/**
+ * Response of the async refresh launch: the web request returns immediately
+ * and the actual sweep runs in a detached process. `meta` is only meaningful
+ * once the `running` flag clears (see waitForRefreshCompletion).
+ */
+export type RefreshLaunchResult = {
+    success: boolean;
+    queued: boolean;
+    running: boolean;
+    reason?: string;
 };
 
 export type EndpointHealth = {
@@ -343,6 +356,8 @@ export type EndpointHealth = {
     retry_pending: boolean;
     retry_pending_count?: number;
     retry_ids?: RetryRecord[];
+    running?: boolean;
+    running_since?: string | null;
     sync?: {
         last_success_at?: string | null;
         last_run_at?: string | null;
@@ -350,6 +365,9 @@ export type EndpointHealth = {
         datasets_last_run_at?: string | null;
         ok_count?: number;
         error_count?: number;
+        retry_pending?: boolean;
+        running?: boolean;
+        running_since?: string | null;
         server_now?: string | null;
     } | null;
 };
@@ -364,14 +382,64 @@ export const fetchHealth = async (force = false): Promise<EndpointHealth> => {
     return healthCache;
 };
 
-export const triggerRefresh = async (): Promise<RefreshResult> => {
+export const triggerRefresh = async (): Promise<RefreshLaunchResult> => {
     clearEndpointCaches();
-    return fetchWithToken<RefreshResult>(
+    return fetchWithToken<RefreshLaunchResult>(
         `${BASE_URL}/novacity-endpoints/refresh`,
         {
             method: 'POST',
         },
     );
+};
+
+const sleep = (ms: number): Promise<void> =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Poll /health until the background sync finishes (running flag clears).
+ * Returns a RefreshResult populated with the final meta, or null when the
+ * polling budget is exhausted (the sweep is still running). Budget defaults to
+ * 600 x 4s = 40 min so slow environments (long per-request timeouts) are
+ * tracked to completion instead of being abandoned after 2 minutes.
+ */
+export const waitForRefreshCompletion = async (
+    intervalMs = 4000,
+    maxTries = 600,
+): Promise<RefreshResult | null> => {
+    let observedRunning = false;
+    let baselineLastRun: string | null | undefined;
+
+    for (let i = 0; i < maxTries; i++) {
+        const health = await fetchHealth(true);
+
+        if (baselineLastRun === undefined) {
+            baselineLastRun = health.meta?.last_run_at ?? null;
+        }
+
+        if (health.running) {
+            observedRunning = true;
+        } else if (health.running === false) {
+            // "Started" = we saw it running, or the meta was refreshed since we
+            // began waiting (a fast sweep may finish before the first poll).
+            const started =
+                observedRunning ||
+                (health.meta?.last_run_at ?? null) !== baselineLastRun;
+
+            return {
+                success: true,
+                exit_code: 0,
+                output: started ? '' : 'Le rafraîchissement n’a pas démarré — réessayez.',
+                meta: health.meta,
+                retry_pending_count: health.retry_pending_count,
+                retry_ids: health.retry_ids,
+                never_started: !started,
+            };
+        }
+
+        await sleep(intervalMs);
+    }
+
+    return null;
 };
 
 export const triggerEndpointRefresh = async (

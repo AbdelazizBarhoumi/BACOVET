@@ -21,11 +21,12 @@ class SyncEndpointData extends Command
         {--timeout=60 : Per-request timeout in seconds}
         {--phase=auto : auto|refresh|datasets|all|retry}
         {--retry=3 : Number of retries per endpoint request (0 = no retry; extra attempts only for 5xx / connection errors)}
-        {--batch=15 : Max concurrent endpoint requests per batch}
+        {--batch=15 : Legacy option (kept for compatibility) — all requests are now fired concurrently in a single pool}
         {--dry-run : Fetch live data but do not write data.json}
         {--force : Run even outside the 08:00-21:59 window}
         {--id= : Only refresh the endpoint with this id}
-        {--root= : Only refresh endpoints whose stored URL uses this root (scheme://host[:port])}';
+        {--root= : Only refresh endpoints whose stored URL uses this root (scheme://host[:port])}
+        {--wave= : Internal wave id from sync:endpoint-data:dispatch (decrements the in-flight counter on exit)}';
 
     protected $description = 'Refresh the endpoint registry (data.json) and/or sync live rows into endpoint_datasets from NOVACITY_BASE_URL';
 
@@ -45,6 +46,22 @@ class SyncEndpointData extends Command
     {
         set_time_limit(0);
 
+        try {
+            return $this->executeSync();
+        } finally {
+            $wave = trim((string) $this->option('wave'));
+
+            if ($wave !== '') {
+                $remaining = (int) Cache::decrement(SyncEndpointDataDispatch::INFLIGHT_KEY);
+                if ($remaining < 0) {
+                    Cache::set(SyncEndpointDataDispatch::INFLIGHT_KEY, 0);
+                }
+            }
+        }
+    }
+
+    private function executeSync(): int
+    {
         $phase = strtolower((string) $this->option('phase'));
 
         if (! in_array($phase, ['auto', 'refresh', 'datasets', 'all', 'retry'], true)) {
@@ -185,21 +202,7 @@ class SyncEndpointData extends Command
             return self::SUCCESS;
         }
 
-        $lock = Cache::lock(self::LOCK_KEY, 120);
-
-        if (! $lock->get()) {
-            $this->warn('Another registry refresh run is already in progress — skipping.');
-
-            return self::SUCCESS;
-        }
-
-        try {
-            $exit = $this->runRefresh($path, $items, $indexes);
-        } finally {
-            $lock->release();
-        }
-
-        return $exit;
+        return $this->runRefresh($path, $items, $indexes);
     }
 
     private function runRefresh(string $path, array $items, array $indexes): int
@@ -209,7 +212,6 @@ class SyncEndpointData extends Command
         $timeout = max(1, (int) $this->option('timeout'));
         $connectTimeout = max(1, (int) config('novacity.connect_timeout', 15));
         $retries = max(0, (int) $this->option('retry'));
-        $batchSize = max(1, (int) $this->option('batch'));
         $dryRun = (bool) $this->option('dry-run');
 
         $urlByIndex = [];
@@ -256,45 +258,38 @@ class SyncEndpointData extends Command
                 && $exception->response->status() >= 500;
         };
 
-        // Fire the pool in small batches (concurrency cap) so the origin's
-        // proxy/WAF is not overwhelmed — the main source of transient 5xx.
-        $responses = [];
+        // One pool, every endpoint in parallel. cron ticks can overlap freely:
+        // there is no mutex, so a run still launching its requests never blocks
+        // the next minute's run from doing the same.
+        $responses = Http::pool(function (Pool $pool) use ($items, $indexes, $urlByIndex, $rootByIndex, $jwtByRoot, $apiKeyByRoot, $staticToken, $timeout, $connectTimeout, $retries, $retryWhen) {
+            foreach ($indexes as $index) {
+                $isAdmin = str_contains(strtolower((string) ($items[$index]['endpoint'] ?? '')), '/api/admin/');
+                $jwt = $jwtByRoot[$rootByIndex[$index]] ?? null;
+                $auth = $isAdmin && $jwt !== null ? $jwt : ($isAdmin ? $staticToken : null);
+                $apiKey = $apiKeyByRoot[$rootByIndex[$index]] ?? (string) config('novacity.api_key');
 
-        foreach (array_chunk($indexes, $batchSize) as $batch) {
-            $batchResponses = Http::pool(function (Pool $pool) use ($items, $batch, $urlByIndex, $rootByIndex, $jwtByRoot, $apiKeyByRoot, $staticToken, $timeout, $connectTimeout, $retries, $retryWhen) {
-                foreach ($batch as $index) {
-                    $isAdmin = str_contains(strtolower((string) ($items[$index]['endpoint'] ?? '')), '/api/admin/');
-                    $jwt = $jwtByRoot[$rootByIndex[$index]] ?? null;
-                    $auth = $isAdmin && $jwt !== null ? $jwt : ($isAdmin ? $staticToken : null);
-                    $apiKey = $apiKeyByRoot[$rootByIndex[$index]] ?? (string) config('novacity.api_key');
+                $headers = [
+                    'x-api-key' => $apiKey,
+                    'Accept' => 'application/json',
+                ];
 
-                    $headers = [
-                        'x-api-key' => $apiKey,
-                        'Accept' => 'application/json',
-                    ];
-
-                    if ($auth !== null && $auth !== '') {
-                        $headers['Authorization'] = 'Bearer '.$auth;
-                    }
-
-                    $request = $pool->as((string) $index)
-                        ->withHeaders($headers)
-                        ->timeout($timeout)
-                        ->connectTimeout($connectTimeout)
-                        ->retry($retries + 1, 500, $retryWhen);
-
-                    if (strtoupper((string) ($items[$index]['method'] ?? 'GET')) === 'POST') {
-                        $request->post($urlByIndex[$index]);
-                    } else {
-                        $request->get($urlByIndex[$index]);
-                    }
+                if ($auth !== null && $auth !== '') {
+                    $headers['Authorization'] = 'Bearer '.$auth;
                 }
-            });
 
-            foreach ($batchResponses as $key => $response) {
-                $responses[$key] = $response;
+                $request = $pool->as((string) $index)
+                    ->withHeaders($headers)
+                    ->timeout($timeout)
+                    ->connectTimeout($connectTimeout)
+                    ->retry($retries + 1, 500, $retryWhen);
+
+                if (strtoupper((string) ($items[$index]['method'] ?? 'GET')) === 'POST') {
+                    $request->post($urlByIndex[$index]);
+                } else {
+                    $request->get($urlByIndex[$index]);
+                }
             }
-        }
+        });
 
         $ok = 0;
         $failed = [];
@@ -359,6 +354,10 @@ class SyncEndpointData extends Command
 
             foreach ($okIndexes as $index) {
                 $this->syncDatasetEntry($items[$index]);
+            }
+
+            foreach ($failed as $failure) {
+                $this->markDatasetError($items[$failure['index']], (string) $failure['error']);
             }
 
             app(EndpointDatasetRegistry::class)->forgetCache();
@@ -441,7 +440,6 @@ class SyncEndpointData extends Command
         $timeout = max(1, (int) $this->option('timeout'));
         $connectTimeout = max(1, (int) config('novacity.connect_timeout', 15));
         $retries = max(0, (int) $this->option('retry'));
-        $batchSize = max(1, (int) $this->option('batch'));
 
         $urls = [];
         $apiKeys = [];
@@ -464,27 +462,20 @@ class SyncEndpointData extends Command
                 && $exception->response->status() >= 500;
         };
 
-        $responses = [];
-
-        foreach (array_chunk(range(0, count($endpoints) - 1), $batchSize) as $batch) {
-            $batchResponses = Http::pool(function (Pool $pool) use ($batch, $urls, $apiKeys, $timeout, $connectTimeout, $retries, $retryWhen) {
-                foreach ($batch as $i) {
-                    $pool->as((string) $i)
-                        ->withHeaders([
-                            'x-api-key' => $apiKeys[$i],
-                            'Accept' => 'application/json',
-                        ])
-                        ->timeout($timeout)
-                        ->connectTimeout($connectTimeout)
-                        ->retry($retries + 1, 500, $retryWhen)
-                        ->get($urls[$i]);
-                }
-            });
-
-            foreach ($batchResponses as $key => $response) {
-                $responses[$key] = $response;
+        // One pool, every eligible endpoint in parallel.
+        $responses = Http::pool(function (Pool $pool) use ($endpoints, $urls, $apiKeys, $timeout, $connectTimeout, $retries, $retryWhen) {
+            foreach (array_keys($endpoints) as $i) {
+                $pool->as((string) $i)
+                    ->withHeaders([
+                        'x-api-key' => $apiKeys[$i],
+                        'Accept' => 'application/json',
+                    ])
+                    ->timeout($timeout)
+                    ->connectTimeout($connectTimeout)
+                    ->retry($retries + 1, 500, $retryWhen)
+                    ->get($urls[$i]);
             }
-        }
+        });
 
         $syncedAt = now();
         $ok = 0;
@@ -797,6 +788,29 @@ class SyncEndpointData extends Command
                 'last_synced_at' => now(),
             ],
         );
+    }
+
+    /**
+     * Mark a failed endpoint's dataset row as errored so the builder sees a
+     * fresh failure state on the next sync, while keeping the last-known-good
+     * columns/sample_data intact (only the status, error and sync timestamp
+     * are rewritten). Rows for endpoints that never became datasets (POST,
+     * auth/admin, or columnless) are left untouched.
+     */
+    private function markDatasetError(array $item, string $error): void
+    {
+        $registry = app(EndpointDatasetRegistry::class);
+        $slug = $registry->slugOf((string) ($item['endpoint'] ?? ''));
+
+        if ($slug === '' || ! $registry->eligible($item)) {
+            return;
+        }
+
+        EndpointDataset::where('slug', $slug)->update([
+            'last_status' => 'error',
+            'last_error' => mb_substr($error, 0, 2000),
+            'last_synced_at' => now(),
+        ]);
     }
 
     private function dataPath(): string

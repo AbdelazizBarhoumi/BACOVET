@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Console\Commands\RunEndpointSync;
 use App\Http\Controllers\Controller;
 use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
+use App\Support\DetachedProcess;
 use App\Support\EndpointSchemaAnalyzer;
 use App\Support\RootCredentials;
 use App\Support\SyncStatus;
@@ -138,33 +140,48 @@ class NovacityEndpointsController extends Controller
             'retry_pending' => (bool) Cache::get('endpoints:refresh:retry_pending', false),
             'retry_pending_count' => count($retryState),
             'retry_ids' => array_values(array_slice($retryState, 0, 200)),
+            'running' => RunEndpointSync::isActuallyRunning(),
+            'running_since' => Cache::get(RunEndpointSync::RUNNING_KEY),
             'sync' => SyncStatus::payload(),
         ]);
     }
 
     /**
-     * Run the registry refresh phase of sync:endpoint-data synchronously and
-     * return its summary.
+     * Launch the full registry + dataset sync in a detached background
+     * process and return immediately. The web request never blocks on the
+     * 200-endpoint sweep (which exceeds the 60s browser/client timeout), so
+     * the UI polls /health via the `endpoints:refresh:running` flag. A stale
+     * flag (dead worker PID) is self-healed instead of blocking the button.
      */
     public function refresh(): JsonResponse
     {
-        $exitCode = Artisan::call('sync:endpoint-data', [
-            '--phase' => 'all',
-            '--force' => true,
-            '--timeout' => (int) config('novacity.web_timeout', 20),
-        ]);
+        if (RunEndpointSync::isActuallyRunning()) {
+            return response()->json([
+                'success' => true,
+                'queued' => false,
+                'running' => true,
+                'reason' => 'already_running',
+            ]);
+        }
 
-        self::flushCache();
+        $log = storage_path('logs/endpoint-sync-manual.log');
 
-        $retryState = $this->loadRefreshRetry();
+        // Clear any stale flag BEFORE spawning: doing it after would race with
+        // the worker publishing its own PID and wipe it, wedging isActuallyRunning().
+        RunEndpointSync::clearStale();
+
+        DetachedProcess::spawn($log, ['endpoint-sync:run']);
+
+        Cache::put(
+            RunEndpointSync::RUNNING_KEY,
+            now()->toIso8601String(),
+            now()->addHours(2),
+        );
 
         return response()->json([
-            'success' => $exitCode === 0,
-            'exit_code' => $exitCode,
-            'output' => Artisan::output(),
-            'meta' => $this->loadRefreshMeta(),
-            'retry_pending_count' => count($retryState),
-            'retry_ids' => array_values(array_slice($retryState, 0, 200)),
+            'success' => true,
+            'queued' => true,
+            'running' => true,
         ]);
     }
 

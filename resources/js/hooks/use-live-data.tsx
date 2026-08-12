@@ -32,7 +32,9 @@ type Ctx = {
     errorCount: number;
     refreshIntervalSec: number;
     setRefreshIntervalSec: (n: number) => void;
-    forceSync: () => void;
+    running: boolean;
+    runningSince: number;
+    forceSync: () => Promise<{ queued: boolean }>;
 };
 
 const LiveCtx = createContext<Ctx>({
@@ -45,7 +47,9 @@ const LiveCtx = createContext<Ctx>({
     errorCount: 0,
     refreshIntervalSec: 60,
     setRefreshIntervalSec: () => {},
-    forceSync: () => {},
+    running: false,
+    runningSince: 0,
+    forceSync: async () => ({ queued: true }),
 });
 
 async function fetchStatus(): Promise<{
@@ -55,6 +59,8 @@ async function fetchStatus(): Promise<{
     ok_count: number;
     error_count: number;
     retry_pending: boolean;
+    running?: boolean;
+    running_since?: string | null;
 }> {
     const response = await fetch(STATUS_URL, {
         headers: {
@@ -70,7 +76,7 @@ async function fetchStatus(): Promise<{
     return response.json();
 }
 
-async function triggerWorkerSync(): Promise<void> {
+async function triggerWorkerSync(): Promise<{ queued: boolean }> {
     const response = await fetch(SYNC_URL, {
         method: 'POST',
         headers: {
@@ -84,6 +90,9 @@ async function triggerWorkerSync(): Promise<void> {
     if (!response.ok) {
         throw new Error(`Sync trigger error: ${response.status}`);
     }
+
+    const data = (await response.json()) as { queued?: boolean };
+    return { queued: data.queued !== false };
 }
 
 export function LiveDataProvider({ children }: { children: ReactNode }) {
@@ -99,6 +108,8 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
     const [hasError, setHasError] = useState(false);
     const [errorCount, setErrorCount] = useState(0);
     const [refreshIntervalSec, setRefreshIntervalSecState] = useState(60);
+    const [running, setRunning] = useState(false);
+    const [runningSince, setRunningSince] = useState(0);
 
     const syncInFlight = useRef(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,6 +135,15 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
             }
             setErrorCount(Number.isFinite(data.error_count) ? data.error_count : 0);
             setHasError(false);
+            setRunning(Boolean(data.running));
+            if (data.running_since) {
+                const started = Date.parse(data.running_since);
+                if (!Number.isNaN(started)) {
+                    setRunningSince(started);
+                }
+            } else if (!data.running) {
+                setRunningSince(0);
+            }
         } catch {
             setHasError(true);
         }
@@ -210,13 +230,18 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
         [],
     );
 
-    const forceSync = useCallback(async () => {
-        if (syncInFlight.current) return;
+    const forceSync = useCallback(async (): Promise<{ queued: boolean }> => {
+        if (syncInFlight.current) return { queued: true };
         syncInFlight.current = true;
         try {
-            await triggerWorkerSync();
+            const { queued } = await triggerWorkerSync();
+            if (!queued) {
+                setHasError(false);
+            }
+            return { queued };
         } catch {
             setHasError(true);
+            throw new Error('Synchronisation impossible à lancer');
         } finally {
             syncInFlight.current = false;
             await poll();
@@ -241,6 +266,8 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
             errorCount,
             refreshIntervalSec,
             setRefreshIntervalSec,
+            running,
+            runningSince,
             forceSync,
         }),
         [
@@ -252,6 +279,8 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
             errorCount,
             refreshIntervalSec,
             setRefreshIntervalSec,
+            running,
+            runningSince,
             forceSync,
         ],
     );

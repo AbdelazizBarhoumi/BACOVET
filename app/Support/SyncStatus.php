@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Console\Commands\RunEndpointSync;
 use App\Models\EndpointDataset;
 use Illuminate\Support\Facades\Cache;
 
@@ -33,8 +34,21 @@ class SyncStatus
             'ok_count' => self::countBy('ok'),
             'error_count' => self::countBy('error'),
             'retry_pending' => (bool) Cache::get('endpoints:refresh:retry_pending', false),
+            'running' => RunEndpointSync::isActuallyRunning(),
+            'running_since' => self::runningSince(),
             'server_now' => now()->toIso8601String(),
         ];
+    }
+
+    /**
+     * ISO timestamp of when the currently-running sweep started (the value of
+     * the running flag), or null when nothing is running.
+     */
+    private static function runningSince(): ?string
+    {
+        $started = Cache::get(RunEndpointSync::RUNNING_KEY);
+
+        return is_string($started) && $started !== '' ? $started : null;
     }
 
     /**

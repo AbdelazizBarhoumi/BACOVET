@@ -1,0 +1,118 @@
+<mxfile host="app.diagrams.net" agent="opencode" version="24.7.6" type="device">
+  <diagram id="baco_class_diagram" name="Class Diagram">
+    <mxGraphModel dx="900" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="c-user" value="User&#10;----&#10;+ id: bigint&#10;+ name: string&#10;+ matricule: string&#10;+ email: string&#10;+ password: string (hashed)&#10;+ role_id: bigint&#10;+ is_active: bool&#10;+ must_change_password: bool&#10;+ last_login_ip: string&#10;+ last_login_at: datetime&#10;----&#10;+ role(): BelongsTo&#10;+ hasRole(slugs): bool&#10;+ canAccess(page): bool" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="60" width="210" height="320" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-role" value="Role&#10;----&#10;+ id: bigint&#10;+ name: string&#10;+ slug: string&#10;----&#10;+ users(): HasMany" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="60" width="190" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-audit" value="AuditLog&#10;----&#10;+ id: bigint&#10;+ user_id: bigint&#10;+ action_type: string&#10;+ message: string&#10;+ ip_address: string&#10;+ user_agent: string&#10;----&#10;+ user(): BelongsTo&#10;+ log(type, message, request): void&#10;+ info(message): void&#10;+ error(message): void" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="720" y="60" width="210" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-setting" value="Setting&#10;----&#10;+ key: string&#10;+ value: string&#10;+ updated_by: int&#10;----&#10;+ get(key, default): mixed&#10;+ set(key, value, updatedBy): void" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="60" width="210" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-endpoint" value="EndpointDataset&#10;----&#10;+ id: bigint&#10;+ slug: string&#10;+ name: string&#10;+ label: string&#10;+ object: string&#10;+ object_type: string&#10;+ source: string&#10;+ method: string&#10;+ columns: array&#10;+ sample_data: array&#10;+ row_count: int&#10;+ last_status: string&#10;+ last_error: string&#10;+ last_synced_at: datetime" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="280" width="210" height="250" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-measure" value="Measure&#10;----&#10;+ id: bigint&#10;+ name: string&#10;+ expression: string&#10;+ description: string&#10;+ category: string&#10;+ config: array&#10;+ user_id: bigint&#10;----&#10;+ user(): BelongsTo" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="420" width="200" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-measurejoin" value="MeasureJoin&#10;----&#10;+ id: bigint&#10;+ table_a: string&#10;+ column_a: string&#10;+ table_b: string&#10;+ column_b: string&#10;+ trim_compare: bool&#10;+ user_id: bigint&#10;----&#10;+ user(): BelongsTo" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="620" width="210" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-group" value="BuilderPageGroup&#10;----&#10;+ id: bigint&#10;+ name: string&#10;+ slug: string&#10;+ sort_order: int&#10;+ owner_user_id: bigint&#10;----&#10;+ pages(): HasMany&#10;+ owner(): BelongsTo" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="430" width="200" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-page" value="BuilderPage&#10;----&#10;+ id: bigint&#10;+ slug: string&#10;+ name: string&#10;+ layout: array&#10;+ layout_draft: array&#10;+ group_id: bigint&#10;+ sort_order: int&#10;+ owner_user_id: bigint&#10;----&#10;+ group(): BelongsTo&#10;+ owner(): BelongsTo&#10;+ accessRows(): HasMany" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="430" width="210" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-placement" value="BuilderPagePlacement&#10;----&#10;+ id: bigint&#10;+ user_id: bigint&#10;+ page_id: bigint&#10;+ group_id: bigint&#10;+ sort_order: int&#10;----&#10;+ user(): BelongsTo&#10;+ page(): BelongsTo&#10;+ group(): BelongsTo" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="640" width="210" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-access" value="BuilderPageAccess&#10;----&#10;+ id: bigint&#10;+ page_id: bigint&#10;+ user_id: bigint&#10;+ mode: string&#10;----&#10;+ page(): BelongsTo&#10;+ user(): BelongsTo" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="670" width="200" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c-log" value="BuilderActivityLog&#10;----&#10;+ id: bigint&#10;+ user_id: bigint&#10;+ page_id: bigint&#10;+ page_slug: string&#10;+ page_name: string&#10;+ group_id: bigint&#10;+ widget_id: bigint&#10;+ widget_type: string&#10;+ kpi_code: string&#10;+ action: string&#10;+ detail: array&#10;+ ip_address: string&#10;+ user_agent: string&#10;+ created_at: datetime&#10;----&#10;+ user(): BelongsTo&#10;+ page(): BelongsTo&#10;+ group(): BelongsTo" style="shape=umlClass;whiteSpace=wrap;html=1;rounded=0;verticalAlign=middle;align=center;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="930" y="650" width="220" height="270" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-role" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-role" sourceLabel="*" targetLabel="0..1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-measure" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-measure" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-measurejoin" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-measurejoin" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-group" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-group" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-page" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-page" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-access" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-access" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-placement" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-placement" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-log" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-log" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-user-audit" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-user" target="c-audit" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-group-page" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-group" target="c-page" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-page-access" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-page" target="c-access" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-page-placement" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-page" target="c-placement" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-group-placement" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-group" target="c-placement" sourceLabel="1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-log-page" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-page" target="c-log" sourceLabel="0..1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-log-group" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" parent="1" source="c-group" target="c-log" sourceLabel="0..1" targetLabel="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -36,6 +36,7 @@ import {
     triggerEndpointRefresh,
     triggerGroupRefresh,
     triggerRefresh,
+    waitForRefreshCompletion,
     type EndpointEntry,
     type EndpointFilters,
     type EndpointPayload,
@@ -121,6 +122,7 @@ export function EndpointsManager() {
     const [activeRoot, setActiveRoot] = useState<string | null>(null);
     const [display, setDisplay] = useState<'flat' | 'grouped'>('grouped');
     const [refreshAll, setRefreshAll] = useState(false);
+    const [refreshAllElapsed, setRefreshAllElapsed] = useState(0);
     const [keysOpen, setKeysOpen] = useState(false);
     const [keysSelectedRoot, setKeysSelectedRoot] = useState<string | null>(
         null,
@@ -208,17 +210,32 @@ export function EndpointsManager() {
 
     const handleRefreshAll = useCallback(async () => {
         if (refreshAll) return;
+        const startedAt = Date.now();
         setRefreshAll(true);
+        setRefreshAllElapsed(0);
+        const timer = window.setInterval(() => {
+            setRefreshAllElapsed(Math.floor((Date.now() - startedAt) / 1000));
+        }, 1000);
         try {
-            const result = await triggerRefresh();
-            if (result.success) {
-                toast.success(
-                    `Rafraîchissement terminé — ${result.meta?.ok ?? 0} ok, ${result.meta?.failed ?? 0} en échec`,
-                );
+            const launched = await triggerRefresh();
+            if (!launched.queued) {
+                toast.info('Un rafraîchissement est déjà en cours…');
+            }
+
+            const result = await waitForRefreshCompletion();
+            if (result) {
+                if (result.never_started) {
+                    toast.error(
+                        result.output ||
+                            'Le rafraîchissement n’a pas démarré — réessayez.',
+                    );
+                } else {
+                    toast.success(
+                        `Rafraîchissement terminé — ${result.meta?.ok ?? 0} ok, ${result.meta?.failed ?? 0} en échec`,
+                    );
+                }
             } else {
-                toast.error(
-                    `Échec de la commande de rafraîchissement (code de sortie ${result.exit_code})`,
-                );
+                toast.warning('Le rafraîchissement est toujours en cours.');
             }
             applyFilters(toFilters(toolbar, activeRoot));
         } catch (err) {
@@ -228,7 +245,9 @@ export function EndpointsManager() {
                     : 'Échec du rafraîchissement',
             );
         } finally {
+            window.clearInterval(timer);
             setRefreshAll(false);
+            setRefreshAllElapsed(0);
         }
     }, [refreshAll, applyFilters, toolbar, activeRoot]);
 
@@ -501,6 +520,7 @@ export function EndpointsManager() {
                                     onNew={handleNew}
                                     loading={loading}
                                     refreshing={refreshAll || refreshing}
+                                    refreshingElapsed={refreshAllElapsed}
                                     sources={sources}
                                 />
                                 <div className="h-5 w-px bg-border" />

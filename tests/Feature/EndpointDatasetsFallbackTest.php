@@ -6,6 +6,9 @@ use App\Models\EndpointDataset;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Process;
 use Tests\TestCase;
 
 class EndpointDatasetsFallbackTest extends TestCase
@@ -83,5 +86,41 @@ class EndpointDatasetsFallbackTest extends TestCase
 
         $this->assertSame([['ProdGroup' => 'LIVE', 'WIP_Chaine' => 5]], $dataset['sample_data']);
         $this->assertSame(1, $dataset['row_count']);
+    }
+
+    public function test_sync_endpoint_is_fire_and_forget_detached(): void
+    {
+        $user = $this->userWithRole();
+
+        Process::fake();
+
+        $this->actingAs($user)
+            ->postJson('/api/endpoint-datasets/sync')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('queued', true)
+            ->assertJsonPath('running', true);
+
+        Process::assertRan(fn (PendingProcess $process) => str_contains((string) $process->command ?? '', 'endpoint-sync:run'));
+    }
+
+    public function test_sync_endpoint_acks_when_a_sweep_is_already_running(): void
+    {
+        $user = $this->userWithRole();
+
+        Cache::put(
+            \App\Console\Commands\RunEndpointSync::RUNNING_KEY,
+            now()->toIso8601String(),
+            now()->addHours(2),
+        );
+
+        $this->actingAs($user)
+            ->postJson('/api/endpoint-datasets/sync')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('queued', false)
+            ->assertJsonPath('reason', 'already_running');
+
+        Process::assertNothingRan();
     }
 }

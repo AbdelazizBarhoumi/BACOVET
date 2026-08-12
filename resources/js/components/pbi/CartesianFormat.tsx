@@ -279,6 +279,205 @@ function AxisSection({
     );
 }
 
+/** Shared control block under a label "Afficher les étiquettes" toggle —
+ * reused for bar/column data labels and the Pareto cumulative-% line. */
+function DataLabelsForm({
+    labels,
+    onPatch,
+    seriesNames,
+}: {
+    labels: DataLabelStyle;
+    onPatch: (patch: Partial<DataLabelStyle>) => void;
+    seriesNames: string[];
+}) {
+    return (
+        <>
+            <Select
+                label="Appliquer les réglages à"
+                value={labels.applyTo}
+                options={[
+                    { value: 'all', label: 'Toutes les séries' },
+                    { value: 'perSeries', label: 'Par série' },
+                ]}
+                onChange={(v) =>
+                    onPatch({ applyTo: v as DataLabelStyle['applyTo'] })
+                }
+            />
+            {labels.applyTo === 'perSeries' && (
+                <div className="space-y-2">
+                    <div className="text-muted-foreground">
+                        Remplacements de série — vide garde le style partagé
+                        (position, contenu et unités ci-dessous).
+                    </div>
+                    {seriesNames.length === 0 && (
+                        <p className="text-[10px] text-muted-foreground">
+                            Ajoutez un champ Légende ou Valeurs pour voir les
+                            séries.
+                        </p>
+                    )}
+                    {seriesNames.map((name) => {
+                        const ov = labels.seriesStyles?.[name] ?? {};
+                        const patch = (p: Partial<DataLabelSeriesOverride>) => {
+                            const next = { ...(labels.seriesStyles ?? {}) };
+                            next[name] = {
+                                ...labels.seriesStyles?.[name],
+                                ...p,
+                            };
+                            onPatch({ seriesStyles: next });
+                        };
+                        return (
+                            <div
+                                key={name}
+                                className="rounded border border-border p-2"
+                            >
+                                <div className="mb-1 flex items-center justify-between gap-2">
+                                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                                        {name}
+                                    </span>
+                                    <ColorInput
+                                        value={ov.color ?? labels.font?.color}
+                                        onChange={(v) => patch({ color: v })}
+                                        className="h-5 w-8"
+                                    />
+                                </div>
+                                <div className="flex items-end gap-2">
+                                    <div className="flex-1">
+                                        <Biu
+                                            label="Style de police"
+                                            bold={ov.font?.bold}
+                                            italic={ov.font?.italic}
+                                            underline={ov.font?.underline}
+                                            onChange={(p) =>
+                                                patch({
+                                                    font: {
+                                                        ...(ov.font ?? {}),
+                                                        ...p,
+                                                    },
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                    <div className="w-20">
+                                        <NumberInput
+                                            label="Taille"
+                                            min={8}
+                                            max={48}
+                                            value={ov.font?.fontSize ?? 9}
+                                            onChange={(v) =>
+                                                patch({
+                                                    font: {
+                                                        ...(ov.font ?? {}),
+                                                        fontSize: v,
+                                                    },
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+            <Select
+                label="Position"
+                value={labels.position}
+                options={LABEL_POSITIONS}
+                onChange={(v) => onPatch({ position: v as DataLabelPosition })}
+            />
+            <Select
+                label="Contenu"
+                value={labels.content ?? 'value'}
+                options={DATA_LABEL_CONTENTS}
+                onChange={(v) => onPatch({ content: v as DataLabelContent })}
+            />
+            <div className="grid grid-cols-2 gap-2">
+                <Select
+                    label="Unités d'affichage"
+                    value={labels.displayUnits}
+                    options={DISPLAY_UNITS.map((u) => ({
+                        value: u,
+                        label: DISPLAY_UNIT_LABELS[u],
+                    }))}
+                    onChange={(v) =>
+                        onPatch({ displayUnits: v as DisplayUnit })
+                    }
+                />
+                <TextInput
+                    label="Suffixe"
+                    placeholder="ex. kW"
+                    value={labels.suffix ?? ''}
+                    onChange={(v) => onPatch({ suffix: v.trim() || undefined })}
+                />
+            </div>
+            <NumberInput
+                label="Décimales des valeurs"
+                min={0}
+                max={10}
+                value={labels.decimals ?? 1}
+                onChange={(v) => onPatch({ decimals: v })}
+            />
+            {labels.applyTo === 'all' && (
+                <FontStyleControls
+                    label="Police des étiquettes"
+                    font={labels.font}
+                    onChange={(p) => onPatch({ font: { ...labels.font, ...p } })}
+                />
+            )}
+        </>
+    );
+}
+
+/** Pareto cumulative-% line: color + optional data labels persisted on the
+ * locked 0–100 % axis (`lineColor` / `lineLabels`). */
+function ParetoLineSection({
+    axes,
+    patchAxisDef,
+    seriesNames,
+}: {
+    axes: AxisDef[];
+    patchAxisDef: (axisId: string, patch: Partial<AxisDef>) => void;
+    seriesNames: string[];
+}) {
+    const locked = axes.find((a) => a.lockRange);
+    const lineLabels = normalizeDataLabelStyle(locked?.lineLabels);
+    const patchLineLabels = (patch: Partial<DataLabelStyle>) => {
+        if (!locked) return;
+        patchAxisDef(locked.id, {
+            lineLabels: { ...lineLabels, ...patch },
+        });
+    };
+    return (
+        <Section title="Courbe cumulée">
+            <ColorInput
+                label="Couleur"
+                value={locked?.lineColor ?? 'default'}
+                onChange={(v) => {
+                    if (!locked) return;
+                    patchAxisDef(locked.id, {
+                        lineColor: v === 'default' ? undefined : v,
+                    });
+                }}
+            />
+            <Toggle
+                label="Afficher les étiquettes"
+                checked={lineLabels.show}
+                onChange={(v) => patchLineLabels({ show: v })}
+            />
+            {lineLabels.show && (
+                <DataLabelsForm
+                    labels={lineLabels}
+                    onPatch={patchLineLabels}
+                    seriesNames={seriesNames}
+                />
+            )}
+            <p className="text-[10px] text-muted-foreground">
+                Couleur et étiquettes de la courbe du pourcentage cumulé.
+            </p>
+        </Section>
+    );
+}
+
 /** Format tab for the bar/column family: axes, gridlines, bars, data labels,
  * legend, plot area and general. Each section is collapsible. */
 export function CartesianFormat({ visual }: { visual: Visual }) {
@@ -369,25 +568,11 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 onPatch={(p) => patchAxis('xAxis', p)}
             />
             {visual.type === 'pareto' && (
-                <Section title="Courbe cumulée">
-                    <ColorInput
-                        label="Couleur"
-                        value={
-                            axes.find((a) => a.lockRange)?.lineColor ??
-                            'default'
-                        }
-                        onChange={(v) => {
-                            const locked = axes.find((a) => a.lockRange);
-                            if (!locked) return;
-                            patchAxisDef(locked.id, {
-                                lineColor: v === 'default' ? undefined : v,
-                            });
-                        }}
-                    />
-                    <p className="text-[10px] text-muted-foreground">
-                        Couleur de la courbe du pourcentage cumulé.
-                    </p>
-                </Section>
+                <ParetoLineSection
+                    axes={axes}
+                    patchAxisDef={patchAxisDef}
+                    seriesNames={seriesNames}
+                />
             )}
             {axes.length > 0 ? (
                 <Section title="Axe Y" defaultOpen={axes.length > 1}>
@@ -763,177 +948,11 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                     }
                 />
                 {dataLabels.show && (
-                    <>
-                        <Select
-                            label="Appliquer les réglages à"
-                            value={dataLabels.applyTo}
-                            options={[
-                                { value: 'all', label: 'Toutes les séries' },
-                                { value: 'perSeries', label: 'Par série' },
-                            ]}
-                            onChange={(v) =>
-                                patchDataLabels({
-                                    applyTo: v as DataLabelStyle['applyTo'],
-                                })
-                            }
-                        />
-                        {dataLabels.applyTo === 'perSeries' && (
-                            <div className="space-y-2">
-                                <div className="text-muted-foreground">
-                                    Remplacements de série — vide garde le style
-                                    d'étiquette partagé ci-dessous.
-                                </div>
-                                {seriesNames.length === 0 && (
-                                    <p className="text-[10px] text-muted-foreground">
-                                        Ajoutez un champ Légende ou Valeurs pour
-                                        voir les séries.
-                                    </p>
-                                )}
-                                {seriesNames.map((name) => {
-                                    const ov =
-                                        dataLabels.seriesStyles?.[name] ?? {};
-                                    const patch = (
-                                        p: Partial<DataLabelSeriesOverride>,
-                                    ) => {
-                                        const next = {
-                                            ...(dataLabels.seriesStyles ?? {}),
-                                        };
-                                        next[name] = {
-                                            ...dataLabels.seriesStyles?.[name],
-                                            ...p,
-                                        };
-                                        patchDataLabels({
-                                            seriesStyles: next,
-                                        });
-                                    };
-                                    return (
-                                        <div
-                                            key={name}
-                                            className="rounded border border-border p-2"
-                                        >
-                                            <div className="mb-1 flex items-center justify-between gap-2">
-                                                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                                                    {name}
-                                                </span>
-                                                <ColorInput
-                                                    value={
-                                                        ov.color ??
-                                                        dataLabels.font?.color
-                                                    }
-                                                    onChange={(v) =>
-                                                        patch({ color: v })
-                                                    }
-                                                    className="h-5 w-8"
-                                                />
-                                            </div>
-                                            <div className="flex items-end gap-2">
-                                                <div className="flex-1">
-                                                    <Biu
-                                                        label="Style de police"
-                                                        bold={ov.font?.bold}
-                                                        italic={ov.font?.italic}
-                                                        underline={
-                                                            ov.font?.underline
-                                                        }
-                                                        onChange={(p) =>
-                                                            patch({
-                                                                font: {
-                                                                    ...(ov.font ??
-                                                                        {}),
-                                                                    ...p,
-                                                                },
-                                                            })
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="w-20">
-                                                    <NumberInput
-                                                        label="Taille"
-                                                        min={8}
-                                                        max={48}
-                                                        value={
-                                                            ov.font?.fontSize ??
-                                                            9
-                                                        }
-                                                        onChange={(v) =>
-                                                            patch({
-                                                                font: {
-                                                                    ...(ov.font ??
-                                                                        {}),
-                                                                    fontSize: v,
-                                                                },
-                                                            })
-                                                        }
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        <Select
-                            label="Position"
-                            value={dataLabels.position}
-                            options={LABEL_POSITIONS}
-                            onChange={(v) =>
-                                patchDataLabels({
-                                    position: v as DataLabelPosition,
-                                })
-                            }
-                        />
-                        <Select
-                            label="Contenu"
-                            value={dataLabels.content ?? 'value'}
-                            options={DATA_LABEL_CONTENTS}
-                            onChange={(v) =>
-                                patchDataLabels({
-                                    content: v as DataLabelContent,
-                                })
-                            }
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                            <Select
-                                label="Unités d'affichage"
-                                value={dataLabels.displayUnits}
-                                options={DISPLAY_UNITS.map((u) => ({
-                                    value: u,
-                                    label: DISPLAY_UNIT_LABELS[u],
-                                }))}
-                                onChange={(v) =>
-                                    patchDataLabels({
-                                        displayUnits: v as DisplayUnit,
-                                    })
-                                }
-                            />
-                            <TextInput
-                                label="Suffixe"
-                                placeholder="ex. kW"
-                                value={dataLabels.suffix ?? ''}
-                                onChange={(v) =>
-                                    patchDataLabels({
-                                        suffix: v.trim() || undefined,
-                                    })
-                                }
-                            />
-                        </div>
-                        <NumberInput
-                            label="Décimales des valeurs"
-                            min={0}
-                            max={10}
-                            value={dataLabels.decimals ?? 1}
-                            onChange={(v) => patchDataLabels({ decimals: v })}
-                        />
-                        <FontStyleControls
-                            label="Police des étiquettes"
-                            font={dataLabels.font}
-                            onChange={(p) =>
-                                patchDataLabels({
-                                    font: { ...dataLabels.font, ...p },
-                                })
-                            }
-                        />
-                    </>
+                    <DataLabelsForm
+                        labels={dataLabels}
+                        onPatch={patchDataLabels}
+                        seriesNames={seriesNames}
+                    />
                 )}
             </Section>
 

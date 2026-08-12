@@ -147,6 +147,7 @@ function renderAndCapture(
     partial: Visual,
     rows: Row[] = sales.rows,
     tables: TableDef[] = [sales],
+    staticRender: boolean = false,
 ) {
     setTables(tables);
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -155,7 +156,12 @@ function renderAndCapture(
     try {
         act(() =>
             root.render(
-                <ChartBody visual={partial} rows={rows} match={null} />,
+                <ChartBody
+                    visual={partial}
+                    rows={rows}
+                    match={null}
+                    static={staticRender}
+                />,
             ),
         );
     } finally {
@@ -1384,6 +1390,71 @@ describe('new analytics kinds', () => {
         const dots = all.__rechartsCalls?.ReferenceDot ?? [];
         const constDots = dots.filter((d) => d.fill === '#00ff00');
         expect(constDots.length, 'constant-crossing dots').toBeGreaterThan(0);
+    });
+
+    it('attaches hover tooltip handlers to analytics reference lines', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [
+                    { kind: 'constant' as const, enabled: true, value: 50 },
+                    {
+                        kind: 'average' as const,
+                        enabled: true,
+                    },
+                ],
+            }),
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const constant = lines.find((l) =>
+            String(
+                (l.label as { value?: string } | undefined)?.value ?? '',
+            ).includes('Objectif'),
+        );
+        const average = lines.find(
+            (l) =>
+                typeof (l.label as { value?: string } | undefined)?.value ===
+                    'string' &&
+                String(
+                    (l.label as { value?: string } | undefined)!.value,
+                ).startsWith('Moyenne '),
+        );
+        expect(constant, 'constant ReferenceLine').toBeDefined();
+        expect(average, 'average ReferenceLine').toBeDefined();
+        for (const line of [constant!, average!]) {
+            expect(typeof line.onMouseEnter, 'onMouseEnter').toBe('function');
+            expect(typeof line.onMouseMove, 'onMouseMove').toBe('function');
+            expect(typeof line.onMouseLeave, 'onMouseLeave').toBe('function');
+            expect(line.onMouseEnter, 'handler list').toHaveLength(1);
+        }
+    });
+
+    it('skips analytics hover handlers on static renders', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                analytics: [{ kind: 'constant' as const, enabled: true }],
+            }),
+            undefined,
+            undefined,
+            true,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        const lines = all.__rechartsCalls?.ReferenceLine ?? [];
+        const constant = lines.find((l) =>
+            String(
+                (l.label as { value?: string } | undefined)?.value ?? '',
+            ).includes('Objectif'),
+        );
+        expect(constant, 'constant ReferenceLine').toBeDefined();
+        expect(constant!.onMouseEnter, 'no onMouseEnter when static').toBeUndefined();
     });
 
     it('colors the trend/forecast and band visuals from the line color', () => {

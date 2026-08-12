@@ -279,6 +279,21 @@ class EndpointDatasetRegistry
         return $this->extractSlug($url);
     }
 
+    /**
+     * Whether a raw data.json item is eligible for a dataset row: it has a
+     * usable api/ slug, is a GET and is not an auth/admin endpoint.
+     */
+    public function eligible(array $item): bool
+    {
+        $method = strtoupper((string) ($item['method'] ?? 'GET'));
+        $slug = $this->slugOf((string) ($item['endpoint'] ?? ''));
+
+        return $slug !== ''
+            && $method === 'GET'
+            && ! str_starts_with($slug, 'api/auth/')
+            && ! str_starts_with($slug, 'api/admin/');
+    }
+
     private function extractSlug(string $url): string
     {
         $parsed = parse_url($url);
