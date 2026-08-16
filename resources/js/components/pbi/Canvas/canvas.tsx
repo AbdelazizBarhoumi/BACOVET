@@ -66,7 +66,7 @@ export function Canvas({
         setSelectedIds,
         select,
         updateVisual,
-        removeVisual,
+        removeVisuals,
         duplicateVisual,
         showGridlines,
         snapToGrid,
@@ -349,6 +349,40 @@ export function Canvas({
         },
         [],
     );
+
+    /** Delete/Backspace removes the whole selection, mirroring how moving a
+     * selection drags every member together. Ignored while typing or when the
+     * context menu / records modal is open. */
+    useEffect(() => {
+        if (readOnly) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            const target = e.target as HTMLElement | null;
+            if (
+                target &&
+                (target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.isContentEditable)
+            )
+                return;
+            if (menu || records) return;
+            if (!(selectedIds ?? []).length) return;
+            e.preventDefault();
+            removeVisuals(selectedIds);
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [readOnly, menu, records, selectedIds, removeVisuals]);
+
+    /** Delete the clicked visual alone, or the entire selection when it is a
+     * member of a multi-selection (consistent with moving a group). */
+    const deleteVisual = (id: string) => {
+        const ids =
+            (selectedIds ?? []).length > 1 && selectedIds.includes(id)
+                ? selectedIds
+                : [id];
+        removeVisuals(ids);
+    };
 
     const liveMaxX =
         drag && live
@@ -672,7 +706,7 @@ export function Canvas({
                                                 </button>
                                                 <button
                                                     onClick={() =>
-                                                        removeVisual(v.id)
+                                                        deleteVisual(v.id)
                                                     }
                                                     aria-label="Supprimer le visuel"
                                                 >
@@ -899,7 +933,7 @@ export function Canvas({
                     />
                     <MenuItem
                         label="Supprimer"
-                        onClick={() => removeVisual(menuVisual.id)}
+                        onClick={() => deleteVisual(menuVisual.id)}
                     />
                 </div>
             )}

@@ -457,13 +457,14 @@ export function OptionalNumberInput({
             <input
                 type="number"
                 value={value ?? ''}
-                onChange={(e) =>
+                onChange={(e) => {
+                    const raw = Number(e.target.value);
                     onChange(
-                        e.target.value === ''
+                        e.target.value === '' || !Number.isFinite(raw)
                             ? undefined
-                            : Number(e.target.value),
-                    )
-                }
+                            : raw,
+                    );
+                }}
                 className="w-full rounded border border-border bg-background px-2 py-1"
             />
         </label>

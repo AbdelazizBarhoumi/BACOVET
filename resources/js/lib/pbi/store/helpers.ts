@@ -26,7 +26,8 @@ export function uid(prefix = 'v') {
 }
 
 let zTop = 100;
-export function takeZTop(): number {
+export function takeZTop(floor = 0): number {
+    if (floor >= zTop) zTop = floor;
     zTop += 1;
     return zTop;
 }

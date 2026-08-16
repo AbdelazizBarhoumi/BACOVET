@@ -214,7 +214,14 @@ export function valueAxisProps(
     const label = axisTitle(axis, vertical);
     if (label) props.label = label;
     if (axis.min !== undefined || axis.max !== undefined)
-        props.domain = [axis.min ?? 'auto', axis.max ?? 'auto'];
+        props.domain = [
+            axis.min !== undefined && Number.isFinite(axis.min)
+                ? axis.min
+                : 'auto',
+            axis.max !== undefined && Number.isFinite(axis.max)
+                ? axis.max
+                : 'auto',
+        ];
     return props;
 }
 
@@ -295,7 +302,14 @@ export function axisDefProps(
             suffix: axis.suffix,
         });
     if (!axis.auto && (axis.min !== undefined || axis.max !== undefined))
-        props.domain = [axis.min ?? 'auto', axis.max ?? 'auto'];
+        props.domain = [
+            axis.min !== undefined && Number.isFinite(axis.min)
+                ? axis.min
+                : 'auto',
+            axis.max !== undefined && Number.isFinite(axis.max)
+                ? axis.max
+                : 'auto',
+        ];
     return props;
 }
 

@@ -1,0 +1,194 @@
+' Diagrammes de séquence — BACOVET
+' Version simplifiée pour des utilisateurs non techniques.
+' Format Markdown (Mermaid) : sequence-diagrams.md
+
+@startuml
+' ════════════════════════════════════════════════
+' 1. Connexion et premier changement de mot de passe
+' ════════════════════════════════════════════════
+title 1. Connexion et premier changement de mot de passe
+
+actor "Utilisateur" as U
+participant "Frontend" as F
+participant "Backend" as B
+participant "Base de données" as D
+
+U -> F : Saisit matricule et mot de passe
+F -> B : Envoie les identifiants
+B -> D : Recherche le compte
+D --> B : Compte trouvé
+B -> B : Vérifie le mot de passe
+alt Identifiants corrects et compte actif
+    B -> D : Consigne la connexion (journal d'activité)
+    opt Premier mot de passe
+        B --> F : Demande de choisir un nouveau mot de passe
+        U -> F : Saisit le nouveau mot de passe
+        F -> B : Envoie le nouveau mot de passe
+        alt Nouveau mot de passe valide
+            B -> D : Met à jour le mot de passe (journal d'activité)
+            B --> F : Mot de passe mis à jour
+        else Nouveau mot de passe invalide
+            B --> F : Message d'erreur
+            F --> U : Affiche le message d'erreur
+        end
+    end
+    B --> F : Accès autorisé
+    F --> U : Affiche l'application
+else Identifiants incorrects
+    B -> D : Consigne l'échec de connexion (journal d'activité)
+    B --> F : Message d'erreur
+    F --> U : Affiche le message d'erreur
+end
+
+@enduml
+
+@startuml
+' ════════════════════════════════════════════════
+' 2. Créer ou modifier une page de tableau de bord
+' ════════════════════════════════════════════════
+title 2. Créer ou modifier une page de tableau de bord
+
+actor "Utilisateur" as U
+participant "Frontend" as F
+participant "Backend" as B
+participant "Base de données" as D
+
+U -> F : Ouvre le constructeur de pages
+F -> B : Demande la liste des pages
+B -> D : Lit les pages existantes
+D --> B : Liste des pages
+B --> F : Pages disponibles
+F --> U : Affiche la liste des pages
+
+U -> F : Crée une nouvelle page
+F -> B : Envoie la demande de création
+B -> D : Crée la page
+D --> B : Page créée
+B -> D : Consigne l'action (journal d'activité)
+B --> F : Page créée
+F --> U : Ouvre l'éditeur de la page
+
+U -> F : Ajoute des graphiques et indicateurs
+U -> F : Enregistre la mise en page
+F -> B : Envoie la mise en page
+B -> D : Sauvegarde la mise en page
+D --> B : Mise en page enregistrée
+B -> D : Consigne l'action (journal d'activité)
+B --> F : Confirmation
+F --> U : Page enregistrée
+
+@enduml
+
+@startuml
+' ════════════════════════════════════════════════
+' 3. Créer une mesure avec l'assistant
+' ════════════════════════════════════════════════
+title 3. Créer une mesure avec l'assistant
+
+actor "Utilisateur" as U
+participant "Frontend" as F
+participant "Backend" as B
+participant "Base de données" as D
+
+U -> F : Ouvre l'assistant de mesure
+F -> B : Demande les données disponibles
+B -> D : Lit les jeux de données
+D --> B : Données disponibles
+B --> F : Colonnes et données
+F --> U : Propose les étapes de création
+
+U -> F : Choisit les données et l'opération
+F -> F : Calcule le résultat en direct
+F --> U : Aperçu du résultat
+alt Le résultat est correct
+    U -> F : Enregistre la mesure
+    F -> B : Envoie la mesure
+    B -> D : Sauvegarde la mesure
+    D --> B : Mesure enregistrée
+    B -> D : Consigne l'action (journal d'activité)
+    B --> F : Confirmation
+    F --> U : Mesure enregistrée
+else Le résultat n'est pas correct
+    U -> F : Modifie les données ou l'opération
+    F --> U : Nouvel aperçu
+end
+
+@enduml
+
+@startuml
+' ════════════════════════════════════════════════
+' 4. Créer une source de données (endpoint)
+' ════════════════════════════════════════════════
+title 4. Créer une source de données (endpoint)
+
+actor "Administrateur" as A
+participant "Frontend" as F
+participant "Backend" as B
+participant "Serveur de données" as S
+participant "Base de données" as D
+
+A -> F : Ouvre la gestion des sources de données
+F -> B : Demande la liste des sources
+B --> F : Sources existantes
+F --> A : Affiche la liste
+
+A -> F : Renseigne le nom et l'adresse de la source
+A -> F : Teste la connexion
+F -> B : Demande le test de connexion
+B -> S : Interroge la source de données
+alt La source répond correctement
+    S --> B : Données reçues
+    B --> F : Test réussi
+    F --> A : Affiche le résultat du test
+    A -> F : Enregistre la source
+    F -> B : Envoie la nouvelle source
+    B -> D : Sauvegarde la source et ses données
+    D --> B : Source enregistrée
+    B --> F : Confirmation
+    F --> A : Source enregistrée et disponible
+else La source ne répond pas
+    S --> B : Erreur de connexion
+    B --> F : Message d'erreur
+    F --> A : Affiche le message d'erreur
+end
+
+@enduml
+
+@startuml
+' ════════════════════════════════════════════════
+' 5. Ajouter un utilisateur
+' ════════════════════════════════════════════════
+title 5. Ajouter un utilisateur
+
+actor "Administrateur" as A
+participant "Frontend" as F
+participant "Backend" as B
+participant "Base de données" as D
+
+A -> F : Ouvre la gestion des utilisateurs
+F -> B : Demande la liste des utilisateurs
+B -> D : Lit les comptes existants
+D --> B : Liste des comptes
+B --> F : Utilisateurs disponibles
+F --> A : Affiche la liste
+
+A -> F : Saisit le nom, le matricule, l'email et le rôle
+A -> F : Saisit un mot de passe de départ
+A -> F : Valide la création
+F -> B : Envoie le nouveau compte
+B -> D : Vérifie que le matricule et l'email sont libres
+alt Toutes les informations sont valides
+    D --> B : Matricule et email libres
+    B -> B : Protège le mot de passe
+    B -> D : Crée le compte
+    D --> B : Compte créé
+    B -> D : Consigne l'action (journal d'activité)
+    B --> F : Compte créé
+    F --> A : Affiche la confirmation
+else Le matricule ou l'email existe déjà
+    D --> B : Information déjà utilisée
+    B --> F : Message d'erreur
+    F --> A : Affiche le message d'erreur
+end
+
+@enduml

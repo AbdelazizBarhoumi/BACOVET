@@ -127,6 +127,7 @@ type Ctx = State & {
     /** Moves a value axis up/down in the Y-axis order (affects color order). */
     moveValueAxis: (id: string, axisId: string, dir: -1 | 1) => void;
     removeVisual: (id: string) => void;
+    removeVisuals: (ids: string[]) => void;
     duplicateVisual: (id: string) => void;
     bringForward: (id: string) => void;
     sendBackward: (id: string) => void;
@@ -740,13 +741,35 @@ export function PbiProvider({
         [mapVisuals],
     );
 
+    const maxVisualZ = () => {
+        const s = rawStateRef.current;
+        const p =
+            s.pages.find((pg) => pg.id === s.activePageId) ?? s.pages[0];
+        return p ? Math.max(0, ...p.visuals.map((v) => v.z)) : 0;
+    };
+
+    // New visuals cascade down/right so they don't stack exactly on top of the
+    // previous one (they still land on top via takeZTop).
+    const visualCount = useCallback(() => {
+        const s = rawStateRef.current;
+        const p =
+            s.pages.find((pg) => pg.id === s.activePageId) ?? s.pages[0];
+        return p ? p.visuals.length : 0;
+    }, []);
+    const cascadePos = useCallback(() => {
+        const offset = (visualCount() % 8) * 24;
+        return { x: 40 + offset, y: 40 + offset };
+    }, [visualCount]);
+
     const addVisual = useCallback(
         (type: VisualType): string => {
             const big = type === 'card' || type === 'text' || type === 'button';
+            const floor = maxVisualZ();
+            const { x, y } = cascadePos();
             const v = mkVisual(
                 type,
-                40,
-                40,
+                x,
+                y,
                 type === 'gauge' ? 280 : big ? 260 : 420,
                 type === 'gauge' ? 180 : big ? 130 : 260,
                 {
@@ -757,6 +780,7 @@ export function PbiProvider({
                             : type === 'button'
                               ? 'Bouton'
                               : undefined,
+                    z: takeZTop(floor),
                 },
             );
             mapVisuals((vs) => [...vs, v]);
@@ -767,18 +791,20 @@ export function PbiProvider({
             });
             return v.id;
         },
-        [mapVisuals, setState],
+        [mapVisuals, setState, cascadePos],
     );
 
     const addShape = useCallback(
         (kind: ShapeKind) => {
             const def = SHAPES[kind];
-            const v = mkVisual('shape', 40, 40, def.defaultW, def.defaultH, {
+            const { x, y } = cascadePos();
+            const v = mkVisual('shape', x, y, def.defaultW, def.defaultH, {
                 shape: kind,
                 title: '',
                 showTitle: false,
                 background: DEFAULT_SHAPE_FILL,
                 shadow: false,
+                z: takeZTop(maxVisualZ()),
             });
             mapVisuals((vs) => [...vs, v]);
             setState((s) => ({ ...s, selectedId: v.id, selectedIds: [v.id] }));
@@ -787,7 +813,7 @@ export function PbiProvider({
                 type: `shape:${kind}`,
             });
         },
-        [mapVisuals, setState],
+        [mapVisuals, setState, cascadePos],
     );
 
     const dropField = useCallback(
@@ -1021,6 +1047,47 @@ export function PbiProvider({
         [state.interactions, state.defaultInteraction],
     );
 
+    const removeVisuals = useCallback(
+        (ids: string[]) =>
+            setState((s) => {
+                const removed = new Set(ids);
+                const removedVisuals = (
+                    s.pages.find((p) => p.id === s.activePageId)?.visuals ?? []
+                ).filter((v) => removed.has(v.id));
+                for (const r of removedVisuals) {
+                    logWidgetActivity('widget.delete', {
+                        id: r.id,
+                        type: r.type ?? '',
+                    });
+                }
+                const selectedIds = (s.selectedIds ?? []).filter(
+                    (x) => !removed.has(x),
+                );
+                return {
+                    ...s,
+                    crossFilter:
+                        s.crossFilter && removed.has(s.crossFilter.sourceId)
+                            ? null
+                            : s.crossFilter,
+                    selectedId: selectedIds.length
+                        ? selectedIds[selectedIds.length - 1]
+                        : null,
+                    selectedIds,
+                    pages: s.pages.map((p) =>
+                        p.id === s.activePageId
+                            ? {
+                                  ...p,
+                                  visuals: p.visuals.filter(
+                                      (v) => !removed.has(v.id),
+                                  ),
+                              }
+                            : p,
+                    ),
+                };
+            }),
+        [setState],
+    );
+
     const value: Ctx = {
         ...state,
         measures: state.measures ?? [],
@@ -1075,43 +1142,13 @@ export function PbiProvider({
         addValueAxis,
         removeValueAxis,
         moveValueAxis,
-        removeVisual: (id) =>
-            setState((s) => {
-                const removed = s.pages
-                    .find((p) => p.id === s.activePageId)
-                    ?.visuals.find((v) => v.id === id);
-                if (removed) {
-                    logWidgetActivity('widget.delete', {
-                        id: removed.id,
-                        type: removed.type ?? '',
-                    });
-                }
-                const selectedIds = (s.selectedIds ?? []).filter(
-                    (x) => x !== id,
-                );
-                return {
-                    ...s,
-                    crossFilter:
-                        s.crossFilter?.sourceId === id ? null : s.crossFilter,
-                    selectedId: selectedIds.length
-                        ? selectedIds[selectedIds.length - 1]
-                        : null,
-                    selectedIds,
-                    pages: s.pages.map((p) =>
-                        p.id === s.activePageId
-                            ? {
-                                  ...p,
-                                  visuals: p.visuals.filter((v) => v.id !== id),
-                              }
-                            : p,
-                    ),
-                };
-            }),
+        removeVisuals,
+        removeVisual: (id) => removeVisuals([id]),
         duplicateVisual: (id) =>
             mapVisuals((vs) => {
                 const v = vs.find((x) => x.id === id);
                 if (!v) return vs;
-                const z = takeZTop();
+                const z = takeZTop(maxVisualZ());
                 const copyId = uid();
                 logWidgetActivity('widget.duplicate', {
                     id: copyId,
@@ -1129,7 +1166,7 @@ export function PbiProvider({
                     },
                 ];
             }),
-        bringForward: (id) => updateVisual(id, { z: takeZTop() }),
+        bringForward: (id) => updateVisual(id, { z: takeZTop(maxVisualZ()) }),
         sendBackward: (id) =>
             mapVisuals((vs) => {
                 const min = Math.min(...vs.map((v) => v.z));

@@ -1,6 +1,6 @@
+import { toast } from 'sonner';
 import { useLiveData } from '@/hooks/use-live-data';
 import { pushAudit } from '@/lib/audit';
-import { toast } from 'sonner';
 
 function formatAgo(seconds: number): string {
     if (seconds < 60) {
@@ -23,6 +23,7 @@ const LiveSyncPill = () => {
     const {
         lastSync,
         elapsedMs,
+        now,
         hasError,
         errorCount,
         refreshIntervalSec,
@@ -108,7 +109,7 @@ const LiveSyncPill = () => {
             {cfg.label}
             {status === 'running' && (
                 <span className="opacity-60">
-                    · {Math.max(0, Math.floor((Date.now() - runningSince) / 1000))}s
+                    · {Math.max(0, Math.floor((now - runningSince) / 1000))}s
                 </span>
             )}
             {status === 'orange' && errorCount > 0 && (

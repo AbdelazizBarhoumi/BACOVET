@@ -1650,4 +1650,51 @@ describe('value-axis domains come from a single resolved source', () => {
         );
         expect(xValueAxis).toHaveProperty('domain', [0, 60]);
     });
+
+    it('never forwards a NaN min/max into the rendered axis domain', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif'), well('Volume')],
+                axes: [
+                    {
+                        ...defaultAxes()[0],
+                        auto: false,
+                        min: NaN,
+                        max: NaN,
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        // NaN min/max must not reach recharts (Decimal throws on NaN); the
+        // axis falls back to the nice domain of its series.
+        expect(valueAxis()).toHaveProperty('domain', [0, 100]);
+    });
+
+    it('falls back to the data extent when only one side is NaN', () => {
+        clearCalls();
+        const errors = renderAndCapture(
+            visual({
+                type: 'line',
+                axis: [well('Chaine')],
+                values: [well('Objectif')],
+                axes: [
+                    {
+                        ...defaultAxes()[0],
+                        auto: false,
+                        min: NaN,
+                        max: 50,
+                    },
+                ],
+            }),
+            crossingRows,
+        );
+        expect(errors, 'no render errors').toEqual([]);
+        // Objectif spans 10..90; the NaN min falls back to the data extent.
+        expect(valueAxis()).toHaveProperty('domain', [10, 50]);
+    });
 });

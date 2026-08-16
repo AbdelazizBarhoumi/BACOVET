@@ -583,7 +583,7 @@ export function ChartBody({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const animate = staticRender ? false : undefined;
+    const animate = false;
     const cf = normalizeConditionalFormat(visual.conditionalFormat);
     const extra = useMemo(() => {
         if (cf.style === 'none' || cf.style === 'fieldValue') return undefined;
@@ -1326,7 +1326,18 @@ export function ChartBody({
                 ? axis.auto
                 : min === undefined && max === undefined;
             if (!auto && (min !== undefined || max !== undefined))
-                return [min ?? lo, max ?? hi];
+                return [
+                    min !== undefined && Number.isFinite(min)
+                        ? min
+                        : Number.isFinite(lo)
+                          ? lo
+                          : 0,
+                    max !== undefined && Number.isFinite(max)
+                        ? max
+                        : Number.isFinite(hi)
+                          ? hi
+                          : 1,
+                ];
             return niceDomain(lo, hi);
         };
         const intersectionDots = (): React.ReactElement[] => {
