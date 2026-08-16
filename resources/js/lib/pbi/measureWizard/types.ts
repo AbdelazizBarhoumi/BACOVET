@@ -151,6 +151,18 @@ export type CompositeSpec = {
      * `na` emits `DIVIDE(a, b, NA())`. Absent means `zero`.
      */
     divZero?: DivZeroDefault;
+    /**
+     * Row-by-row ("ligne par ligne") mode: instead of aggregating each operand
+     * first and composing the two totals, the composition is computed per row
+     * of the base table (`from`, the operand-A table), then the per-row results
+     * are folded with the given X-iterator (`SUMX` / `AVERAGEX` / `MINX` /
+     * `MAXX` / `COUNTX`). `'list'` returns the per-row values as a list
+     * (`VALUEX`). A column operand that lives on another table is pulled into
+     * the row context through the join chain (`hops`) via a correlated
+     * `CALCULATE(SUM(...), FILTER(...))` lookup. Absent keeps the aggregate
+     * composition (`DIVIDE(SUM(a), SUM(b), 0) * 100`).
+     */
+    rowWise?: NumericAgg | 'list';
 };
 
 export type WizardSpec = {

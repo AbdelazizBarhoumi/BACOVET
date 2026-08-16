@@ -450,8 +450,9 @@ export function VisualizationsPane({
 }) {
     const {
         selected,
+        selectedIds,
         addVisual,
-        updateVisual,
+        updateVisualSingle,
         dropField,
         removeWellField,
         moveWellField,
@@ -1016,7 +1017,7 @@ export function VisualizationsPane({
                                 placeholder="Saisir une valeur"
                                 onCommit={(v) => {
                                     if (selected)
-                                        updateVisual(selected.id, {
+                                        updateVisualSingle(selected.id, {
                                             [boundInput.key]: v,
                                         });
                                 }}
@@ -1061,7 +1062,7 @@ export function VisualizationsPane({
                                         title={v.label}
                                         onClick={() =>
                                             selected
-                                                ? updateVisual(selected.id, {
+                                                ? updateVisualSingle(selected.id, {
                                                       type: v.type,
                                                   })
                                                 : addVisual(v.type)
@@ -1207,6 +1208,12 @@ export function VisualizationsPane({
                         ))}
                     </div>
                     <div className="flex-1 overflow-auto p-3">
+                        {selectedIds.length > 1 && (
+                            <div className="mb-2 rounded border border-brand/30 bg-brand/10 px-2 py-1.5 text-[11px] text-foreground">
+                                {selectedIds.length} visuels sélectionnés — les
+                                modifications s’appliquent à toute la sélection.
+                            </div>
+                        )}
                         {activeTab === 'fields' && config && (
                             <>
                                 {config.build.map(
@@ -1236,7 +1243,7 @@ export function VisualizationsPane({
                                                 selected.tooltipPageId ?? ''
                                             }
                                             onChange={(e) =>
-                                                updateVisual(selected.id, {
+                                                updateVisualSingle(selected.id, {
                                                     tooltipPageId:
                                                         e.target.value ||
                                                         undefined,

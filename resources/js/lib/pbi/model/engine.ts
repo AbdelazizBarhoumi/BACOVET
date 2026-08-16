@@ -1132,7 +1132,12 @@ function evalTableArg(
         const base = evalTableArg(node.args[0], ctx);
         const cond = node.args[1];
         return base.filter((frame) =>
-            isTruthy(evalCondition(cond, frame, ctx)),
+            isTruthy(
+                evalCondition(cond, frame, {
+                    ...ctx,
+                    iter: [...(ctx.iter ?? []), frame],
+                }),
+            ),
         );
     }
     if (node.kind === 'func') {
@@ -1764,6 +1769,29 @@ export function compileListMeasure(expression: string): ListMeasureImpl | null {
                 })
                 .filter((p) => p !== '');
             return parts.length ? [parts.join(delim)] : [];
+        };
+    }
+    if (topName === 'VALUEX') {
+        // VALUEX(<table-expr>, <scalar-expr>) — the row-wise composed list
+        // (W4 "Ligne par ligne"): returns the distinct non-empty per-row
+        // values of the scalar expression (each row of the base table's own
+        // A • B result).
+        const tableNode = node.args[0];
+        const exprNode = node.args[1];
+        if (!tableNode || !exprNode)
+            throw new MeasureSyntaxError(
+                'VALUEX() attend une table et une expression.',
+            );
+        return (rows, ctx = {}) => {
+            const frames = evalTableArg(tableNode, ctx);
+            return [
+                ...new Set(
+                    frames
+                        .map((frame) => evalCondition(exprNode, frame, ctx))
+                        .filter((v) => v !== null && v !== undefined && v !== '')
+                        .map((v) => String(v)),
+                ),
+            ].sort();
         };
     }
     if (topName !== 'VALUES' && topName !== 'DISTINCT') return null;

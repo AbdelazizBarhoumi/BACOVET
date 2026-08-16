@@ -91,14 +91,14 @@ function ElementGeneral({ visual }: { visual: Visual }) {
 
 /** The Format pane for text boxes and images: content + look only. */
 function TextImageFormat({ visual }: { visual: Visual }) {
-    const { updateVisual } = usePbi();
+    const { updateVisual, updateVisualSingle } = usePbi();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { pageId } = usePage().props as unknown as { pageId: number };
 
     const uploadImage = async (file: File) => {
         try {
             const url = await uploadPageImage(pageId, file);
-            updateVisual(visual.id, { imageUrl: url });
+            updateVisualSingle(visual.id, { imageUrl: url });
             toast.success('Image téléversée');
         } catch {
             toast.error("Échec du téléversement de l'image");
@@ -117,7 +117,7 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                             <textarea
                                 value={visual.text ?? ''}
                                 onChange={(e) =>
-                                    updateVisual(visual.id, {
+                                    updateVisualSingle(visual.id, {
                                         text: e.target.value,
                                     })
                                 }
@@ -191,7 +191,7 @@ function TextImageFormat({ visual }: { visual: Visual }) {
                         label="URL de l'image"
                         value={visual.imageUrl ?? ''}
                         onChange={(v) =>
-                            updateVisual(visual.id, { imageUrl: v })
+                            updateVisualSingle(visual.id, { imageUrl: v })
                         }
                     />
                     <label className="block">
@@ -243,14 +243,14 @@ function TextImageFormat({ visual }: { visual: Visual }) {
 
 function GenericFormat({ visual }: { visual: Visual }) {
     const selected = visual;
-    const { updateVisual } = usePbi();
+    const { updateVisual, updateVisualSingle } = usePbi();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { pageId } = usePage().props as unknown as { pageId: number };
 
     const uploadImage = async (file: File) => {
         try {
             const url = await uploadPageImage(pageId, file);
-            updateVisual(selected.id, { imageUrl: url });
+            updateVisualSingle(selected.id, { imageUrl: url });
             toast.success('Image téléversée');
         } catch {
             toast.error("Échec du téléversement de l'image");
@@ -274,7 +274,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                     <textarea
                         value={selected.text ?? ''}
                         onChange={(e) =>
-                            updateVisual(selected.id, {
+                            updateVisualSingle(selected.id, {
                                 text: e.target.value,
                             })
                         }
@@ -291,7 +291,7 @@ function GenericFormat({ visual }: { visual: Visual }) {
                         <input
                             value={selected.imageUrl ?? ''}
                             onChange={(e) =>
-                                updateVisual(selected.id, {
+                                updateVisualSingle(selected.id, {
                                     imageUrl: e.target.value,
                                 })
                             }

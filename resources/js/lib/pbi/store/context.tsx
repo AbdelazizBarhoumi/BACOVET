@@ -57,6 +57,7 @@ import {
     type VisualType,
     type WellField,
 } from '../model';
+import { effectivePatchFor } from '../multiFormat';
 import { DEFAULT_SHAPE_FILL, SHAPES, type ShapeKind } from '../shapes';
 import type { ReportTheme } from '../themes';
 import { CARTESIAN_TYPES, isSlicerType, type PaneName, type SlicerDateRange, type WellName } from './consts';
@@ -120,6 +121,9 @@ type Ctx = State & {
     addVisual: (type: VisualType) => string;
     addShape: (kind: ShapeKind) => void;
     updateVisual: (id: string, patch: Partial<Visual>) => void;
+    /** Single-visual update bypassing multi-selection bulk-apply (gestures,
+     * image upload, rename, type switch, z-order). */
+    updateVisualSingle: (id: string, patch: Partial<Visual>) => void;
     /** Adds a new independent value axis to a cartesian visual. Returns its id. */
     addValueAxis: (id: string) => string | undefined;
     /** Removes a value axis, re-binding its value fields to the primary axis. */
@@ -611,56 +615,95 @@ export function PbiProvider({
         [setState],
     );
 
-    const updateVisual = useCallback(
+    /** Apply a validated/coerced patch to a single visual (geometry clamps,
+     * colorIndex/maxCategories bounds, and the type-switch well migration). */
+    const applyVisualPatch = (v: Visual, patch: Partial<Visual>): Visual => {
+        const next = { ...patch };
+        for (const key of ['x', 'y', 'w', 'h'] as const) {
+            const value = next[key];
+            if (value !== undefined && !Number.isFinite(value))
+                delete next[key];
+        }
+        if (next.x !== undefined) next.x = Math.max(0, next.x);
+        if (next.y !== undefined) next.y = Math.max(0, next.y);
+        if (next.w !== undefined) next.w = Math.max(80, next.w);
+        if (next.h !== undefined) next.h = Math.max(60, next.h);
+        if (next.colorIndex !== undefined)
+            next.colorIndex = Math.max(
+                0,
+                Math.min(7, Math.round(next.colorIndex)),
+            );
+        if (next.maxCategories !== undefined)
+            next.maxCategories = Math.max(
+                2,
+                Math.min(5000, Math.round(next.maxCategories)),
+            );
+        const result = { ...v, ...next };
+        if (next.type && next.type !== v.type) {
+            if (
+                isSlicerType(next.type) &&
+                !result.axis.length &&
+                result.values.length
+            ) {
+                result.axis = [result.values[0]!];
+                result.values = result.values.slice(1);
+            } else if (
+                !isSlicerType(next.type) &&
+                !result.values.length
+            ) {
+                const numericAxis = result.axis.find(
+                    (field) =>
+                        fieldType(field.name, field.table) === 'number',
+                );
+                if (numericAxis) result.values = [numericAxis];
+            }
+        }
+        return result;
+    };
+
+    /** Single-visual update (drag/resize commits, image upload, rename, type
+     * switch, z-order). The formatting panes instead use the multi-aware
+     * `updateVisual` so a multi-selection edits every selected visual. */
+    const updateVisualSingle = useCallback(
         (id: string, patch: Partial<Visual>) =>
             mapVisuals((vs) =>
-                vs.map((v) => {
-                    if (v.id !== id) return v;
-                    const next = { ...patch };
-                    for (const key of ['x', 'y', 'w', 'h'] as const) {
-                        const value = next[key];
-                        if (value !== undefined && !Number.isFinite(value))
-                            delete next[key];
-                    }
-                    if (next.x !== undefined) next.x = Math.max(0, next.x);
-                    if (next.y !== undefined) next.y = Math.max(0, next.y);
-                    if (next.w !== undefined) next.w = Math.max(80, next.w);
-                    if (next.h !== undefined) next.h = Math.max(60, next.h);
-                    if (next.colorIndex !== undefined)
-                        next.colorIndex = Math.max(
-                            0,
-                            Math.min(7, Math.round(next.colorIndex)),
-                        );
-                    if (next.maxCategories !== undefined)
-                        next.maxCategories = Math.max(
-                            2,
-                            Math.min(5000, Math.round(next.maxCategories)),
-                        );
-                    const result = { ...v, ...next };
-                    if (next.type && next.type !== v.type) {
-                        if (
-                            isSlicerType(next.type) &&
-                            !result.axis.length &&
-                            result.values.length
-                        ) {
-                            result.axis = [result.values[0]!];
-                            result.values = result.values.slice(1);
-                        } else if (
-                            !isSlicerType(next.type) &&
-                            !result.values.length
-                        ) {
-                            const numericAxis = result.axis.find(
-                                (field) =>
-                                    fieldType(field.name, field.table) ===
-                                    'number',
-                            );
-                            if (numericAxis) result.values = [numericAxis];
-                        }
-                    }
-                    return result;
-                }),
+                vs.map((v) =>
+                    v.id === id ? applyVisualPatch(v, patch) : v,
+                ),
             ),
         [mapVisuals],
+    );
+
+    const updateVisual = useCallback(
+        (id: string, patch: Partial<Visual>) => {
+            const selectedIds = state.selectedIds ?? [];
+            const multi =
+                selectedIds.length > 1 && selectedIds.includes(id);
+            if (!multi) {
+                updateVisualSingle(id, patch);
+                return;
+            }
+            const anchor = page.visuals.find((v) => v.id === id);
+            if (!anchor) {
+                updateVisualSingle(id, patch);
+                return;
+            }
+            const anchorType = anchor.type;
+            const targets = new Set(selectedIds);
+            mapVisuals((vs) =>
+                vs.map((v) => {
+                    if (!targets.has(v.id)) return v;
+                    const next = effectivePatchFor(
+                        patch,
+                        anchorType,
+                        v.type,
+                    );
+                    if (!next) return v;
+                    return applyVisualPatch(v, next);
+                }),
+            );
+        },
+        [state.selectedIds, page.visuals, mapVisuals, updateVisualSingle],
     );
 
     const addValueAxis = useCallback(
@@ -1139,6 +1182,7 @@ export function PbiProvider({
         addVisual,
         addShape,
         updateVisual,
+        updateVisualSingle,
         addValueAxis,
         removeValueAxis,
         moveValueAxis,
@@ -1166,7 +1210,8 @@ export function PbiProvider({
                     },
                 ];
             }),
-        bringForward: (id) => updateVisual(id, { z: takeZTop(maxVisualZ()) }),
+        bringForward: (id) =>
+            updateVisualSingle(id, { z: takeZTop(maxVisualZ()) }),
         sendBackward: (id) =>
             mapVisuals((vs) => {
                 const min = Math.min(...vs.map((v) => v.z));

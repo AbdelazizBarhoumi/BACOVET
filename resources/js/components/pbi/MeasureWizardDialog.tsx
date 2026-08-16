@@ -292,6 +292,13 @@ export function MeasureWizardDialog({
     const [composeOp, setComposeOp] = useState<CompositeSpec['op']>('/');
     const [scaleHundreds, setScaleHundreds] = useState(true);
     const [divZero, setDivZero] = useState<DivZeroDefault>('zero');
+    // Row-by-row ("Ligne par ligne"): compute A • B per row of the base table
+    // then fold the per-row results (SUMX / AVERAGEX / …), or return them as a
+    // list (VALUEX). The per-operand `agg` is ignored while this is on.
+    const [composeRowWise, setComposeRowWise] = useState(false);
+    const [composeRowAgg, setComposeRowAgg] = useState<NumericAgg | 'list'>(
+        'sum',
+    );
     const [opA, setOpA] = useState<OperandDraft>(() => ({
         kind: 'column',
         measure: '',
@@ -317,8 +324,26 @@ export function MeasureWizardDialog({
         opA.table !== '' &&
         opB.table !== '' &&
         opA.table !== opB.table;
-    const effectiveFrom = bothColumnTables ? opA.table : fromTable;
-    const effectiveTo = bothColumnTables ? opB.table : effectiveFrom;
+    // Row-wise iterates the base (operand-A) column table; when only one
+    // operand is a column, that table is both ends (no cross-table lookup).
+    const effectiveFrom = composeRowWise
+        ? opA.kind === 'column'
+            ? opA.table
+            : opB.kind === 'column'
+              ? opB.table
+              : fromTable
+        : bothColumnTables
+          ? opA.table
+          : fromTable;
+    const effectiveTo = composeRowWise
+        ? opB.kind === 'column'
+            ? opB.table
+            : opA.kind === 'column'
+              ? opA.table
+              : effectiveFrom
+        : bothColumnTables
+          ? opB.table
+          : effectiveFrom;
 
     // The active chain is the hops of the currently selected variant. Edits
     // write back into its slot so switching variant keeps each one's tweaks.
@@ -553,6 +578,7 @@ export function MeasureWizardDialog({
                     op: composeOp,
                     scale: scaleHundreds,
                     divZero: composeOp === '/' ? divZero : undefined,
+                    ...(composeRowWise ? { rowWise: composeRowAgg } : {}),
                 },
             };
         }
@@ -617,6 +643,8 @@ export function MeasureWizardDialog({
         composeOp,
         scaleHundreds,
         divZero,
+        composeRowWise,
+        composeRowAgg,
     ]);
 
     const dax = useMemo(
@@ -659,6 +687,22 @@ export function MeasureWizardDialog({
         }
         if (mode === 'linked' && linkedStyle === 'compose') {
             if (!composeA || !composeB) return none;
+            // The VALUEX list is driven by the spec's `rowWise: 'list'` — the
+            // same flag that produced the DAX — never by the scalar path (which
+            // would surface a silent "Fonction non supportée" for a list func).
+            if (spec.composition?.rowWise === 'list') {
+                try {
+                    const compiled = compileListMeasure(expr);
+                    if (!compiled) return none;
+                    const values = compiled([], {});
+                    return {
+                        value: Array.isArray(values) ? values : [],
+                        error: null,
+                    };
+                } catch {
+                    return none;
+                }
+            }
             const r = evaluateMeasure(expr, []);
             return {
                 value: typeof r.value === 'number' ? r.value : null,
@@ -885,6 +929,10 @@ export function MeasureWizardDialog({
                                 setScaleHundreds={setScaleHundreds}
                                 divZero={divZero}
                                 setDivZero={setDivZero}
+                                rowWise={composeRowWise}
+                                setRowWise={setComposeRowWise}
+                                rowAgg={composeRowAgg}
+                                setRowAgg={setComposeRowAgg}
                                 paths={paths}
                                 activeVariant={activeVariant}
                                 setActiveVariant={setActiveVariant}
@@ -907,7 +955,9 @@ export function MeasureWizardDialog({
                                 value={
                                     typeof preview === 'number'
                                         ? preview
-                                        : null
+                                        : Array.isArray(preview)
+                                          ? preview
+                                          : null
                                 }
                                 error={previewError}
                                 dax={dax}
@@ -2556,6 +2606,7 @@ function OperandEditor({
     onChange,
     onCreateSimple,
     tableOnly = false,
+    hideAgg = false,
 }: {
     label: string;
     tables: TableDef[];
@@ -2564,6 +2615,7 @@ function OperandEditor({
     onChange: (d: OperandDraft) => void;
     onCreateSimple: () => void;
     tableOnly?: boolean;
+    hideAgg?: boolean;
 }) {
     const patch = (p: Partial<OperandDraft>) => onChange({ ...value, ...p });
     const operandFields = tables.find((t) => t.name === value.table)?.fields;
@@ -2586,7 +2638,9 @@ function OperandEditor({
         ? value.table || 'Choisissez une table'
         : value.kind === 'column'
           ? value.table && value.column
-              ? `${AGG_LABELS[value.agg]} de ${value.table}[${value.column}]`
+              ? hideAgg
+                  ? `${value.table}[${value.column}]`
+                  : `${AGG_LABELS[value.agg]} de ${value.table}[${value.column}]`
               : 'Choisissez une table et une colonne'
           : value.kind === 'measure'
             ? value.measure
@@ -2737,36 +2791,40 @@ function OperandEditor({
                                     </optgroup>
                                 )}
                             </select>
-                            <div className="flex flex-wrap gap-1">
-                                {AGG_KEYS.map((a) => {
-                                    const blocked =
-                                        (a === 'sum' || a === 'avg') &&
-                                        !isNumeric;
-                                    return (
-                                        <button
-                                            key={a}
-                                            onClick={() => patch({ agg: a })}
-                                            disabled={blocked}
-                                            title={
-                                                blocked
-                                                    ? 'Somme et Moyenne exigent une colonne numérique.'
-                                                    : undefined
-                                            }
-                                            className={cn(
-                                                'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
-                                                value.agg === a
-                                                    ? 'border-brand bg-brand/15'
-                                                    : 'border-border hover:bg-accent',
-                                                blocked &&
-                                                    'cursor-not-allowed opacity-40',
-                                            )}
-                                        >
-                                            {AGG_LABELS[a]}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            {numOnlyRemark && (
+                            {!hideAgg && (
+                                <div className="flex flex-wrap gap-1">
+                                    {AGG_KEYS.map((a) => {
+                                        const blocked =
+                                            (a === 'sum' || a === 'avg') &&
+                                            !isNumeric;
+                                        return (
+                                            <button
+                                                key={a}
+                                                onClick={() =>
+                                                    patch({ agg: a })
+                                                }
+                                                disabled={blocked}
+                                                title={
+                                                    blocked
+                                                        ? 'Somme et Moyenne exigent une colonne numérique.'
+                                                        : undefined
+                                                }
+                                                className={cn(
+                                                    'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+                                                    value.agg === a
+                                                        ? 'border-brand bg-brand/15'
+                                                        : 'border-border hover:bg-accent',
+                                                    blocked &&
+                                                        'cursor-not-allowed opacity-40',
+                                                )}
+                                            >
+                                                {AGG_LABELS[a]}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {!hideAgg && numOnlyRemark && (
                                 <p className="text-[10px] leading-snug text-muted-foreground">
                                     Somme et Moyenne exigent une colonne
                                     numérique — agrégation réglée sur Nombre
@@ -2774,6 +2832,77 @@ function OperandEditor({
                                 </p>
                             )}
                         </>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** Rounds a raw list value (e.g. "0.2480158730158730") to ~4 significant
+ *  digits so the chips stay readable and distinguishable; non-numeric values
+ *  (text lists) pass through untouched. */
+function formatChip(value: string): string {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return value;
+    return n.toLocaleString('en-US', {
+        maximumSignificantDigits: 4,
+        useGrouping: false,
+    });
+}
+
+/** Live preview for the LinkedStep cards. Lists (`string[]`, e.g. VALUEX)
+ *  render as chips; scalars as a bold number; errors / empties as a hint. */
+function LiveResult({
+    value,
+    error,
+    empty,
+}: {
+    value: number | string[] | null;
+    error: string | null;
+    empty: string;
+}) {
+    return (
+        <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2">
+            <div className="text-[12px] font-semibold text-brand">
+                Résultat en direct
+            </div>
+            {value !== null && !error ? (
+                Array.isArray(value) ? (
+                    value.length ? (
+                        <span className="mt-1 flex flex-wrap gap-1 font-mono text-[14px]">
+                            {value.slice(0, 12).map((v) => (
+                                <span
+                                    key={v}
+                                    className="rounded bg-background px-2 py-0.5 text-[12px]"
+                                >
+                                    {formatChip(v)}
+                                </span>
+                            ))}
+                            {value.length > 12 &&
+                                `… (+${value.length - 12})`}
+                        </span>
+                    ) : (
+                        <div className="mt-1 text-[12px] text-muted-foreground">
+                            Aucune valeur
+                        </div>
+                    )
+                ) : (
+                    <div className="mt-1 font-mono text-[16px] font-bold">
+                        {value}
+                    </div>
+                )
+            ) : (
+                <div className="mt-1 text-[12px] text-muted-foreground">
+                    {error ? (
+                        <>
+                            Impossible de calculer :{' '}
+                            <span className="font-mono text-[11px] text-red-600">
+                                {error}
+                            </span>
+                        </>
+                    ) : (
+                        empty
                     )}
                 </div>
             )}
@@ -2796,6 +2925,10 @@ function LinkedStep({
     setScaleHundreds,
     divZero,
     setDivZero,
+    rowWise,
+    setRowWise,
+    rowAgg,
+    setRowAgg,
     paths,
     activeVariant,
     setActiveVariant,
@@ -2848,6 +2981,10 @@ function LinkedStep({
     setScaleHundreds: (b: boolean) => void;
     divZero: DivZeroDefault;
     setDivZero: (d: DivZeroDefault) => void;
+    rowWise: boolean;
+    setRowWise: (b: boolean) => void;
+    rowAgg: NumericAgg | 'list';
+    setRowAgg: (a: NumericAgg | 'list') => void;
     paths: PathHop[][];
     activeVariant: number;
     setActiveVariant: (i: number) => void;
@@ -2867,7 +3004,7 @@ function LinkedStep({
     toColumns: string[];
     rankBy: ProposalRankBy;
     setRankBy: (r: ProposalRankBy) => void;
-    value: number | null;
+    value: number | string[] | null;
     error: string | null;
     dax: string;
     onCreateSimple: () => void;
@@ -2925,6 +3062,7 @@ function LinkedStep({
                             value={opA}
                             onChange={setOpA}
                             onCreateSimple={onCreateSimple}
+                            hideAgg
                         />
                         <div className="flex items-center justify-center">
                             <div className="flex flex-col gap-1.5">
@@ -2951,6 +3089,7 @@ function LinkedStep({
                             value={opB}
                             onChange={setOpB}
                             onCreateSimple={onCreateSimple}
+                            hideAgg
                         />
                     </div>
 
@@ -2975,6 +3114,75 @@ function LinkedStep({
                                 collapsible
                             />
                         )}
+
+                    <div className="rounded-lg border border-border p-3">
+                        <div className="mb-1.5 flex items-center gap-2 text-[12px] font-semibold">
+                            <List className="size-3.5 text-muted-foreground" />
+                            Agrégation
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {AGG_KEYS.map((a) => {
+                                const active = rowWise
+                                    ? rowAgg === a
+                                    : opA.agg === a && opB.agg === a;
+                                return (
+                                    <button
+                                        key={a}
+                                        onClick={() => {
+                                            if (rowWise) {
+                                                setRowAgg(a);
+                                            } else {
+                                                setOpA({ ...opA, agg: a });
+                                                setOpB({ ...opB, agg: a });
+                                                setRowAgg(a);
+                                            }
+                                        }}
+                                        className={cn(
+                                            'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+                                            active
+                                                ? 'border-brand bg-brand/15'
+                                                : 'border-border hover:bg-accent',
+                                        )}
+                                    >
+                                        {AGG_LABELS[a]}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                onClick={() => {
+                                    setRowWise(true);
+                                    setRowAgg('list');
+                                }}
+                                className={cn(
+                                    'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+                                    rowAgg === 'list' && rowWise
+                                        ? 'border-brand bg-brand/15'
+                                        : 'border-border hover:bg-accent',
+                                )}
+                            >
+                                Liste des valeurs
+                            </button>
+                            <button
+                                onClick={() => setRowWise(!rowWise)}
+                                title="Calcule A • B pour chaque ligne de la table de départ puis agrège les résultats (ou les renvoie en liste)."
+                                className={cn(
+                                    'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+                                    rowWise
+                                        ? 'border-brand bg-brand/15'
+                                        : 'border-border hover:bg-accent',
+                                )}
+                            >
+                                Ligne par ligne
+                            </button>
+                        </div>
+                        {rowWise && (
+                            <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+                                A • B est calculé pour chaque ligne de la table
+                                de départ puis agrégé (ou renvoyé en liste).
+                                L'agrégation des opérandes ne s'applique plus.
+                            </p>
+                        )}
+                    </div>
 
                     <div className="rounded-lg border border-border p-3">
                         <label className="flex items-center gap-2 text-[12px]">
@@ -3059,29 +3267,11 @@ function LinkedStep({
                         </pre>
                     </div>
 
-                    <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2">
-                        <div className="text-[12px] font-semibold text-brand">
-                            Résultat en direct
-                        </div>
-                        {value !== null && !error ? (
-                            <div className="mt-1 font-mono text-[16px] font-bold">
-                                {value}
-                            </div>
-                        ) : (
-                            <div className="mt-1 text-[12px] text-muted-foreground">
-                                {error ? (
-                                    <>
-                                        Impossible de calculer :{' '}
-                                        <span className="font-mono text-[11px] text-red-600">
-                                            {error}
-                                        </span>
-                                    </>
-                                ) : (
-                                    'Complétez les deux opérandes pour voir le résultat.'
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    <LiveResult
+                        value={value}
+                        error={error}
+                        empty="Complétez les deux opérandes pour voir le résultat."
+                    />
                 </>
             )}
 
@@ -3169,29 +3359,11 @@ function LinkedStep({
                         </pre>
                     </div>
 
-                    <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2">
-                        <div className="text-[12px] font-semibold text-brand">
-                            Résultat en direct
-                        </div>
-                        {value !== null && !error ? (
-                            <div className="mt-1 font-mono text-[16px] font-bold">
-                                {value}
-                            </div>
-                        ) : (
-                            <div className="mt-1 text-[12px] text-muted-foreground">
-                                {error ? (
-                                    <>
-                                        Impossible de calculer :{' '}
-                                        <span className="font-mono text-[11px] text-red-600">
-                                            {error}
-                                        </span>
-                                    </>
-                                ) : (
-                                    'Choisissez une liaison vérifiée entre A et B pour voir le résultat.'
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    <LiveResult
+                        value={value}
+                        error={error}
+                        empty="Choisissez une liaison vérifiée entre A et B pour voir le résultat."
+                    />
                 </>
             )}
         </div>

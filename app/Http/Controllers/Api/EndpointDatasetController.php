@@ -6,7 +6,9 @@ use App\Console\Commands\RunEndpointSync;
 use App\Http\Controllers\Controller;
 use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
+use App\Support\DatasetRows;
 use App\Support\DetachedProcess;
+use App\Support\SyncStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -19,7 +21,7 @@ class EndpointDatasetController extends Controller
      */
     public function status(): JsonResponse
     {
-        return response()->json(\App\Support\SyncStatus::payload());
+        return response()->json(SyncStatus::payload());
     }
 
     /**
@@ -123,6 +125,7 @@ class EndpointDatasetController extends Controller
                 'columns' => $this->mergeColumns(
                     $meta['columns'] ?? [],
                     $record->columns ?? [],
+                    $rows,
                 ),
                 'sample_data' => $rows,
                 'row_count' => is_array($rows) ? count($rows) : (int) ($record->row_count ?? 0),
@@ -137,13 +140,16 @@ class EndpointDatasetController extends Controller
 
     /**
      * Column names come from the data.json structure; types come from the
-     * DB record (inferred from the live rows at sync time).
+     * DB record (inferred from the live rows at sync time). When the record
+     * carries no type for a column (e.g. the sync never succeeded), fall back
+     * to inferring the type from the rows actually being served.
      *
      * @param  list<string>  $names
      * @param  list<array{name: string, type: string}>  $typed
+     * @param  list<array<string, mixed>>  $rows
      * @return list<array{name: string, type: string}>
      */
-    private function mergeColumns(array $names, array $typed): array
+    private function mergeColumns(array $names, array $typed, array $rows): array
     {
         $typeByName = collect($typed)
             ->mapWithKeys(fn (array $c): array => [(string) $c['name'] => (string) $c['type']]);
@@ -151,7 +157,10 @@ class EndpointDatasetController extends Controller
         return array_values(array_map(
             fn (string $name): array => [
                 'name' => $name,
-                'type' => $typeByName->get($name, 'text'),
+                'type' => $typeByName->get(
+                    $name,
+                    DatasetRows::inferColumnType($rows, $name),
+                ),
             ],
             $names
         ));

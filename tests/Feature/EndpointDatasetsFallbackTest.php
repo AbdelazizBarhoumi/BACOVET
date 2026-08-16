@@ -40,7 +40,7 @@ class EndpointDatasetsFallbackTest extends TestCase
         $bySlug = collect($response->json('datasets'))->keyBy('slug');
 
         $expected = [
-            'api/data/q/wip_chaine' => 34,
+            'api/data/q/wip_chaine' => 27,
             'api/data/q/taging_reel' => 100,
             'api/data/codestyle' => 100,
             'api/data/itemtrxenq' => 100,

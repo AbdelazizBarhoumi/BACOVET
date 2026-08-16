@@ -30,7 +30,11 @@ const AGG_FUNCS: Record<string, NumericAgg> = {
     count: 'count',
 };
 
-/** Parses one composed operand: `[Measure]`, `SUM(table[col])`, or a number. */
+/**
+ * Parses one composed operand: `[Measure]`, `SUM(table[col])`, a raw
+ * `table[col]` (row-wise), a correlated `CALCULATE(SUM(table[col]),
+ * FILTER(table, …))` lookup (row-wise cross-table), or a number.
+ */
 function parseOperand(s: string): CompositeOperand | null {
     const t = s.trim();
     const measure = /^\[\s*([^\]]+)\s*\]$/i.exec(t);
@@ -47,6 +51,29 @@ function parseOperand(s: string): CompositeOperand | null {
             table: agg[2]!,
             column: agg[3]!.trim(),
             agg: AGG_FUNCS[op] ?? 'sum',
+        };
+    }
+    // Row-wise: the per-row body references raw columns (`table[col]`) and,
+    // across tables, a correlated `CALCULATE(SUM(table[col]), FILTER(table, …))`.
+    const correlated =
+        /^CALCULATE\(\s*SUM\(\s*([a-zA-Z_][\w]*)\s*\[\s*([^\]]+)\s*\]\s*\)\s*,\s*FILTER\(\s*\1\s*,\s*.+\)\s*\)$/i.exec(
+            t,
+        );
+    if (correlated) {
+        return {
+            type: 'column',
+            table: correlated[1]!,
+            column: correlated[2]!.trim(),
+            agg: 'sum',
+        };
+    }
+    const rawCol = /^([a-zA-Z_][\w]*)\s*\[\s*([^\]]+)\s*\]$/i.exec(t);
+    if (rawCol) {
+        return {
+            type: 'column',
+            table: rawCol[1]!,
+            column: rawCol[2]!.trim(),
+            agg: 'sum',
         };
     }
     if (/^-?\d+(\.\d+)?$/.test(t)) return { type: 'number', value: Number(t) };
@@ -165,6 +192,54 @@ function hasTopLevelComma(s: string): boolean {
         else if (c === ',' && depth === 0) return true;
     }
     return false;
+}
+
+const ROW_WISE_FUNCS: Record<string, NumericAgg | 'list'> = {
+    sumx: 'sum',
+    averagex: 'avg',
+    minx: 'min',
+    maxx: 'max',
+    countx: 'count',
+    valuex: 'list',
+};
+
+/**
+ * Reverse the row-wise composition (W4 "Ligne par ligne"):
+ *   SUMX|AVERAGEX|MINX|MAXX|COUNTX(<base rows>, <bare composition>)
+ *   VALUEX(<base rows>, <bare composition>)
+ * `<base rows>` is the base table (same-table) or `FILTER(from, <existence
+ * chain>)` (cross-table); the chain predicate is mined for the from → to hops
+ * exactly like the other filtered forms.
+ */
+function parseRowWise(s: string): WizardSpec | null {
+    const t = s.trim();
+    const open = t.indexOf('(');
+    if (open < 0) return null;
+    const fn = t.slice(0, open).trim().toLowerCase();
+    const agg = ROW_WISE_FUNCS[fn];
+    if (!agg) return null;
+    const close = matchingParen(t, open);
+    if (close !== t.length - 1) return null;
+    const args = splitTopLevelArgs(t.slice(open + 1, close));
+    if (args.length !== 2) return null;
+    const target = splitTarget(args[0] ?? '');
+    if (!target) return null;
+    const derived =
+        target.predicate === null
+            ? { from: target.to, hops: [] as PathHop[] }
+            : deriveFiltered(target.to, target.predicate);
+    if (derived === null) return null;
+    const inner = parseComposition(args[1] ?? '');
+    if (inner === null || !inner.composition) return null;
+    return {
+        from: derived.from,
+        to: target.to,
+        hops: derived.hops,
+        kind: agg === 'list' ? 'list' : 'number',
+        column: '',
+        agg: agg === 'list' ? 'count' : 'sum',
+        composition: { ...inner.composition, rowWise: agg },
+    };
 }
 
 /**
@@ -636,6 +711,9 @@ export function deriveMeasureSpec(body: string): WizardSpec | null {
     if (concat) return concat;
     const ifTemplate = parseIfTemplate(trimmed);
     if (ifTemplate) return ifTemplate;
+
+    const rowWise = parseRowWise(trimmed);
+    if (rowWise) return rowWise;
 
     const composite = parseComposition(trimmed);
     if (composite) return composite;

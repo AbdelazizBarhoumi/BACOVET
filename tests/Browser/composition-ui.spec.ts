@@ -143,3 +143,109 @@ test.setTimeout(90_000);
         page.getByText(/« % » en DAX est l’opérateur modulo/),
     ).toHaveCount(0);
 });
+
+test('« Résultat en pourcentage (×100) » applies inside the per-row fold (W4)', async ({
+    page,
+}) => {
+    test.setTimeout(90_000);
+    await openCompositionStep(page);
+
+    await page.getByRole('button', { name: 'Ligne par ligne' }).click();
+    await expect(daxBox(page)).toContainText('SUMX(');
+
+    // ×100 is on by default → the per-row body carries "* 100".
+    await expect(daxBox(page)).toContainText('* 100');
+
+    // Uncheck → the "* 100" arm disappears from the per-row body.
+    await page
+        .getByText('Résultat en pourcentage (multiplié par 100)')
+        .click();
+    await expect(daxBox(page)).not.toContainText('* 100');
+
+    // Re-check → it comes back.
+    await page
+        .getByText('Résultat en pourcentage (multiplié par 100)')
+        .click();
+    await expect(daxBox(page)).toContainText('* 100');
+
+    // The live preview must follow: switch to '+' (sum of A+B can't be a
+    // zero-that-×100-is-still-zero) and assert the number changes with the
+    // checkbox, i.e. the ×100 is really applied to the computed value.
+    await page.getByRole('button', { name: '+', exact: true }).click();
+    const live = page
+        .locator('div')
+        .filter({ hasText: /^Résultat en direct$/ })
+        .locator('..')
+        .locator('div.font-mono.font-bold');
+    await live.waitFor({ state: 'visible' });
+    const before = (await live.textContent()) ?? '';
+    await page
+        .getByText('Résultat en pourcentage (multiplié par 100)')
+        .click();
+    await expect(live).not.toHaveText(before);
+});
+
+function daxBox(page: Page) {
+    return page
+        .locator('div')
+        .filter({ hasText: /^DAX$/ })
+        .locator('..')
+        .locator('pre');
+}
+
+test('« Ligne par ligne » toggles the per-row fold (SUMX) and back (W4)', async ({
+    page,
+}) => {
+    test.setTimeout(90_000);
+    await openCompositionStep(page);
+
+    // The unified "Agrégation" card holds the toggle pill next to the pills.
+    await expect(
+        page.getByRole('button', { name: 'Ligne par ligne' }),
+    ).toBeVisible();
+
+    // Default is aggregate-first: DIVIDE(SUM(A), SUM(B), 0) * 100.
+    await expect(daxBox(page)).toContainText('DIVIDE(');
+
+    // Toggle on → the per-row fold takes over (default = Somme → SUMX).
+    await page.getByRole('button', { name: 'Ligne par ligne' }).click();
+    await expect(daxBox(page)).toContainText('SUMX(');
+    await expect(
+        page.getByText(/pour chaque ligne de la table de départ/),
+    ).toBeVisible();
+
+    // Toggle off → back to the aggregate-first DIVIDE form.
+    await page.getByRole('button', { name: 'Ligne par ligne' }).click();
+    await expect(daxBox(page)).toContainText('DIVIDE(');
+    await expect(daxBox(page)).not.toContainText('SUMX(');
+});
+
+test('« Liste des valeurs » emits VALUEX and the live result renders chips (W4)', async ({
+    page,
+}) => {
+    test.setTimeout(90_000);
+    await openCompositionStep(page);
+
+    // "Liste des valeurs" sits in the same group, right after the pills.
+    await expect(
+        page.getByRole('button', { name: 'Liste des valeurs' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Ligne par ligne' }).click();
+    await page.getByRole('button', { name: 'Liste des valeurs' }).click();
+    await expect(daxBox(page)).toContainText('VALUEX(');
+
+    // The live preview must show the per-row values as chips — never a
+    // flattened scalar and never an error for the list function.
+    const live = page
+        .locator('div')
+        .filter({ hasText: /^Résultat en direct$/ })
+        .locator('..');
+    await expect(live).not.toContainText('Impossible de calculer');
+    await expect(
+        live.locator('span.rounded.bg-background').first(),
+    ).toBeVisible();
+    // Chips are formatted (~4 significant digits), never raw float strings like
+    // "0.2480158730158730" — otherwise the values blur together.
+    await expect(live).not.toContainText(/0\.\d{6,}/);
+});

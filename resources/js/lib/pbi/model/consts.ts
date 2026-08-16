@@ -308,7 +308,7 @@ const SCALAR_FUNCS = new Set([
 
 export { SCALAR_FUNCS };
 
-const LIST_FUNCS = new Set(['VALUES', 'DISTINCT']);
+const LIST_FUNCS = new Set(['VALUES', 'DISTINCT', 'VALUEX']);
 
 export { LIST_FUNCS };
 

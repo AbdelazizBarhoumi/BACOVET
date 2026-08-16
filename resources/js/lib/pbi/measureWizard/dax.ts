@@ -1,6 +1,7 @@
 import type {
     CompositeOperand,
     CompositeSpec,
+    DivZeroDefault,
     MeasureKind,
     NumericAgg,
     PathHop,
@@ -48,15 +49,19 @@ function operandDax(o: CompositeOperand): string {
     }
 }
 
-/** A composed measure: `DIVIDE([A],[B]) * 100` for ratios, else `(A op B)`. */
-export function buildCompositionDax(spec: CompositeSpec): string {
-    const a = operandDax(spec.a);
-    const b = operandDax(spec.b);
-    // Ratios always use DIVIDE so the zero denominator is never a bare `/`
-    // (W1-18): the 3rd argument carries the user's 0 / BLANK / NA policy.
+/** Compose two already-rendered operands: `DIVIDE([A],[B]) * 100` for ratios,
+ *  else `(A op B) * 100`. Ratios always use DIVIDE so the zero denominator is
+ *  never a bare `/` (W1-18): the 3rd argument carries the 0 / BLANK / NA policy. */
+function composeBody(
+    a: string,
+    b: string,
+    op: CompositeSpec['op'],
+    divZero: DivZeroDefault | undefined,
+    scale: boolean,
+): string {
     let body: string;
-    if (spec.op === '/') {
-        switch (spec.divZero ?? 'zero') {
+    if (op === '/') {
+        switch (divZero ?? 'zero') {
             case 'blank':
                 body = `DIVIDE(${a}, ${b})`;
                 break;
@@ -67,9 +72,121 @@ export function buildCompositionDax(spec: CompositeSpec): string {
                 body = `DIVIDE(${a}, ${b}, 0)`;
         }
     } else {
-        body = `(${a} ${spec.op} ${b})`;
+        body = `(${a} ${op} ${b})`;
     }
-    return spec.scale ? `${body} * 100` : body;
+    return scale ? `${body} * 100` : body;
+}
+
+/** A composed measure: `DIVIDE([A],[B]) * 100` for ratios, else `(A op B)`. */
+export function buildCompositionDax(spec: CompositeSpec): string {
+    return composeBody(
+        operandDax(spec.a),
+        operandDax(spec.b),
+        spec.op,
+        spec.divZero,
+        spec.scale,
+    );
+}
+
+/** DAX X-iterator for each per-row aggregation (W4 row-wise compose). */
+const ROW_WISE_ITERS: Record<NumericAgg, string> = {
+    sum: 'SUMX',
+    avg: 'AVERAGEX',
+    min: 'MINX',
+    max: 'MAXX',
+    count: 'COUNTX',
+};
+
+/**
+ * Table the row-wise composition iterates over: the operand-A column's table
+ * (the "base" side). Falls back to the target table when no column operand
+ * drives it.
+ */
+function rowWiseIterTable(spec: WizardSpec): string {
+    const c = spec.composition!;
+    if (c.a.type === 'column') return c.a.table;
+    if (c.b.type === 'column') return c.b.table;
+    return spec.to;
+}
+
+/**
+ * Correlated predicate on a row of the `hops[j]`-th node (from → … → to) that
+ * connects it back to the **current** base-table row being iterated. The base
+ * key is referenced as `TRIM(from[fromCol])`, which the engine resolves from
+ * the enclosing iterator frame (`ctx.iter`) — never from the node row being
+ * filtered, because the reference is table-qualified to `from`.
+ *
+ *   backToFrame(1) = TRIM(from[h.fromCol]) = TRIM(to[h.toCol])
+ *   backToFrame(2) = COUNTROWS(FILTER(node1,
+ *                      TRIM(node1[h1.fromCol]) = TRIM(to[h1.toCol])
+ *                      && TRIM(from[h0.fromCol]) = TRIM(node1[h0.toCol]))) > 0
+ *
+ * Evaluated over `to` rows this selects exactly the target rows matching the
+ * current base row, so it doubles as the row-wise existence predicate.
+ */
+function backToFrame(hops: PathHop[], j: number, from: string): string {
+    if (j === 0) return '';
+    const h = hops[j - 1]!;
+    const prev = nodeName(hops, j - 1, from);
+    const cur = nodeName(hops, j, from);
+    if (j === 1) {
+        return `TRIM(${from}[${h.fromCol}]) = TRIM(${cur}[${h.toCol}])`;
+    }
+    return `COUNTROWS(FILTER(${prev}, TRIM(${prev}[${h.fromCol}]) = TRIM(${cur}[${h.toCol}]) && ${backToFrame(hops, j - 1, from)})) > 0`;
+}
+
+/**
+ * One operand rendered **in the row context** of the row-wise iterator: a
+ * column on the iteration table stays raw (`table[col]`), a column on another
+ * table is pulled in through the join chain with a correlated
+ * `CALCULATE(SUM(table[col]), FILTER(table, <backToFrame>))` lookup, and
+ * measures / literals render as usual.
+ */
+function rowWiseOperandDax(
+    o: CompositeOperand,
+    iterTable: string,
+    spec: WizardSpec,
+): string {
+    switch (o.type) {
+        case 'number':
+            return String(o.value);
+        case 'measure':
+            return `[${o.name}]`;
+        case 'column': {
+            if (o.table === iterTable) return `${o.table}[${o.column}]`;
+            if (spec.hops.length === 0) return `${o.table}[${o.column}]`;
+            const pred = backToFrame(spec.hops, spec.hops.length, spec.from);
+            return `CALCULATE(SUM(${o.table}[${o.column}]), FILTER(${o.table}, ${pred}))`;
+        }
+    }
+}
+
+/**
+ * Row-by-row composition: `SUMX|AVERAGEX|MINX|MAXX|COUNTX(<base rows>, <per-row
+ * A • B>)`, computed per row of the base table instead of over the aggregated
+ * totals. `rowWise: 'list'` returns the per-row values as a `VALUEX` list. When
+ * an operand column lives on another table, the base rows are restricted to
+ * those having a match through the chain and the off-table operand is resolved
+ * by the correlated lookup above.
+ */
+export function buildRowWiseCompositionDax(spec: WizardSpec): string {
+    const c = spec.composition!;
+    const iterTable = rowWiseIterTable(spec);
+    const a = rowWiseOperandDax(c.a, iterTable, spec);
+    const b = rowWiseOperandDax(c.b, iterTable, spec);
+    const body = composeBody(a, b, c.op, c.divZero, c.scale);
+
+    const offTable =
+        (c.a.type === 'column' && c.a.table !== iterTable) ||
+        (c.b.type === 'column' && c.b.table !== iterTable);
+    let tableArg = iterTable;
+    if (offTable && spec.hops.length > 0) {
+        const pred = backToFrame(spec.hops, spec.hops.length, spec.from);
+        tableArg = `FILTER(${iterTable}, COUNTROWS(FILTER(${spec.to}, ${pred})) > 0)`;
+    }
+
+    if (c.rowWise === 'list') return `VALUEX(${tableArg}, ${body})`;
+    return `${ROW_WISE_ITERS[c.rowWise!]}(${tableArg}, ${body})`;
 }
 
 /**
@@ -276,7 +393,10 @@ function percentOfTotalDax(
  * exactly the bare composition, so existing composed DAX is unchanged.
  */
 function buildComposedDax(spec: WizardSpec): string {
-    let body = buildCompositionDax(spec.composition!);
+    let body =
+        spec.composition!.rowWise != null
+            ? buildRowWiseCompositionDax(spec)
+            : buildCompositionDax(spec.composition!);
     const { from, to, hops, condition, conditions } = spec;
     const rows =
         conditions && conditions.rows.length

@@ -8,7 +8,7 @@ export function SelectionPane({ onCollapse }: { onCollapse?: () => void }) {
         page,
         selected,
         select,
-        updateVisual,
+        updateVisualSingle,
         toggleVisualHidden,
         reorderVisual,
         togglePane,
@@ -48,7 +48,9 @@ export function SelectionPane({ onCollapse }: { onCollapse?: () => void }) {
                         <input
                             value={v.name}
                             onChange={(e) =>
-                                updateVisual(v.id, { name: e.target.value })
+                                updateVisualSingle(v.id, {
+                                    name: e.target.value,
+                                })
                             }
                             onFocus={() => select(v.id)}
                             className="min-w-0 flex-1 truncate bg-transparent outline-none"

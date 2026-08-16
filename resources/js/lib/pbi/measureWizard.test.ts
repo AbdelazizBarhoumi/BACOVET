@@ -11,6 +11,7 @@ import {
     measureExpression,
     proposePath,
     proposePaths,
+    type NumericAgg,
     type PathHop,
     type WizardSpec,
 } from './measureWizard';
@@ -1358,6 +1359,263 @@ describe('composition (Wave 1)', () => {
             [],
         );
         expect(na.error).toBeTruthy();
+    });
+});
+
+describe('row-wise composition (Ligne par ligne)', () => {
+    it('SUMX computes A ÷ B per row of the base table, not over the totals', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                ],
+                rows: [
+                    { Rejets: 25, Inspections: 200 },
+                    { Rejets: 5, Inspections: 0 },
+                ],
+            },
+        ]);
+        const dax = measureExpression('Taux', {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+                rowWise: 'sum',
+            },
+        } as WizardSpec);
+        expect(dax).toBe(
+            'Taux = SUMX(kpi_a, DIVIDE(kpi_a[Rejets], kpi_a[Inspections], 0) * 100)',
+        );
+        const r = evaluateMeasure(dax, []);
+        expect(r.error).toBeUndefined();
+        // Rows: 25/200×100 = 12.5 and 5/0 → 0. Per-row sum = 12.5.
+        expect(r.value).toBe(12.5);
+    });
+
+    it('AVERAGEX / MINX / MAXX / COUNTX fold the per-row values', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                ],
+                rows: [
+                    { Rejets: 25, Inspections: 200 },
+                    { Rejets: 5, Inspections: 0 },
+                ],
+            },
+        ]);
+        const base = {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number' as const,
+            column: '',
+            agg: 'sum' as const,
+        };
+        const mk = (rowWise: NumericAgg) =>
+            measureExpression('Taux', {
+                ...base,
+                composition: {
+                    a: {
+                        type: 'column' as const,
+                        table: 'kpi_a',
+                        column: 'Rejets',
+                        agg: 'sum' as const,
+                    },
+                    b: {
+                        type: 'column' as const,
+                        table: 'kpi_a',
+                        column: 'Inspections',
+                        agg: 'sum' as const,
+                    },
+                    op: '/' as const,
+                    scale: true,
+                    rowWise,
+                },
+            } as WizardSpec);
+        expect(evaluateMeasure(mk('avg'), []).value).toBe(6.25); // (12.5 + 0) / 2
+        expect(evaluateMeasure(mk('min'), []).value).toBe(0);
+        expect(evaluateMeasure(mk('max'), []).value).toBe(12.5);
+        expect(evaluateMeasure(mk('count'), []).value).toBe(2);
+    });
+
+    it('cross-table SUMX pulls the B column through a correlated lookup', () => {
+        setTables([
+            {
+                name: 'emp',
+                fields: [
+                    { table: 'emp', name: 'Id', type: 'text' },
+                    { table: 'emp', name: 'Target', type: 'number' },
+                ],
+                rows: [
+                    { Id: 'E1', Target: 100 },
+                    { Id: 'E2', Target: 60 },
+                    { Id: 'E3', Target: 20 },
+                ],
+            },
+            {
+                name: 'hours',
+                fields: [
+                    { table: 'hours', name: 'EmpId', type: 'text' },
+                    { table: 'hours', name: 'Hours', type: 'number' },
+                ],
+                rows: [
+                    { EmpId: 'E1', Hours: 10 },
+                    { EmpId: 'E2', Hours: 5 },
+                ],
+            },
+        ]);
+        const dax = measureExpression('Taux', {
+            from: 'emp',
+            to: 'hours',
+            hops: [
+                {
+                    from: 'emp',
+                    to: 'hours',
+                    fromCol: 'Id',
+                    toCol: 'EmpId',
+                    kind: 'fk_pk',
+                    overlap: 0.5,
+                    confidence: 0.5,
+                },
+            ],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'emp',
+                    column: 'Target',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'hours',
+                    column: 'Hours',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: false,
+                rowWise: 'sum',
+            },
+        } as WizardSpec);
+        expect(dax).toBe(
+            'Taux = SUMX(FILTER(emp, COUNTROWS(FILTER(hours, TRIM(emp[Id]) = TRIM(hours[EmpId]))) > 0), DIVIDE(emp[Target], CALCULATE(SUM(hours[Hours]), FILTER(hours, TRIM(emp[Id]) = TRIM(hours[EmpId]))), 0))',
+        );
+        const r = evaluateMeasure(dax, []);
+        expect(r.error).toBeUndefined();
+        // E1: 100/10 = 10; E2: 60/5 = 12; E3 has no hours row → excluded.
+        expect(r.value).toBe(22);
+    });
+
+    it('VALUEX returns the distinct per-row values as a list', () => {
+        setTables([
+            {
+                name: 'kpi_a',
+                fields: [
+                    { table: 'kpi_a', name: 'Rejets', type: 'number' },
+                    { table: 'kpi_a', name: 'Inspections', type: 'number' },
+                ],
+                rows: [
+                    { Rejets: 25, Inspections: 200 },
+                    { Rejets: 5, Inspections: 0 },
+                    { Rejets: 5, Inspections: 0 },
+                ],
+            },
+        ]);
+        const dax = measureExpression('Taux', {
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+                rowWise: 'list',
+            },
+        } as WizardSpec);
+        expect(dax).toBe(
+            'Taux = VALUEX(kpi_a, DIVIDE(kpi_a[Rejets], kpi_a[Inspections], 0) * 100)',
+        );
+        const compiled = compileListMeasure(dax);
+        expect(compiled).not.toBeNull();
+        expect(compiled!([], {})).toEqual(['0', '12.5']);
+    });
+
+    it('row-wise DAX round-trips through deriveMeasureSpec', () => {
+        const body = buildMeasureDax({
+            from: 'kpi_a',
+            to: 'kpi_a',
+            hops: [],
+            kind: 'number',
+            column: '',
+            agg: 'sum',
+            composition: {
+                a: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Rejets',
+                    agg: 'sum',
+                },
+                b: {
+                    type: 'column',
+                    table: 'kpi_a',
+                    column: 'Inspections',
+                    agg: 'sum',
+                },
+                op: '/',
+                scale: true,
+                rowWise: 'sum',
+            },
+        });
+        expect(body).toBe(
+            'SUMX(kpi_a, DIVIDE(kpi_a[Rejets], kpi_a[Inspections], 0) * 100)',
+        );
+        const spec = deriveMeasureSpec(body);
+        expect(spec).not.toBeNull();
+        expect(spec!.composition).toMatchObject({ rowWise: 'sum' });
+        expect(spec!.composition!.a).toMatchObject({
+            type: 'column',
+            table: 'kpi_a',
+            column: 'Rejets',
+            agg: 'sum',
+        });
     });
 });
 

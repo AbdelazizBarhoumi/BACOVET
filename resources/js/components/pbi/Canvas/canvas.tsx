@@ -65,7 +65,7 @@ export function Canvas({
         selectedIds,
         setSelectedIds,
         select,
-        updateVisual,
+        updateVisualSingle,
         removeVisuals,
         duplicateVisual,
         showGridlines,
@@ -107,6 +107,7 @@ export function Canvas({
     const [records, setRecords] = useState<string | null>(null);
     const ref = useRef<HTMLDivElement>(null);
     const fitRef = useRef<HTMLDivElement>(null);
+    const dragMovedRef = useRef(false);
     const [fitSize, setFitSize] = useState<{ w: number; h: number } | null>(
         null,
     );
@@ -135,7 +136,7 @@ export function Canvas({
         latestLiveRef.current = null;
         if (g) {
             for (const [id, geo] of Object.entries(g)) {
-                updateVisual(id, {
+                updateVisualSingle(id, {
                     x: geo.x,
                     y: geo.y,
                     w: geo.w,
@@ -145,7 +146,7 @@ export function Canvas({
         }
         setLive(null);
         setDrag(null);
-    }, [updateVisual]);
+    }, [updateVisualSingle]);
 
     const startMarquee = (e: React.MouseEvent) => {
         const rect = ref.current?.getBoundingClientRect();
@@ -225,7 +226,7 @@ export function Canvas({
     const uploadImage = async (id: string, file: File) => {
         try {
             const url = await uploadPageImage(pageId, file);
-            updateVisual(id, { imageUrl: url });
+            updateVisualSingle(id, { imageUrl: url });
             toast.success('Image téléversée');
         } catch {
             toast.error("Échec du téléversement de l'image");
@@ -265,6 +266,7 @@ export function Canvas({
     );
 
     const onMouseMove = (e: React.MouseEvent) => {
+        if (marquee || drag) dragMovedRef.current = true;
         if (marquee) {
             const rect = ref.current?.getBoundingClientRect();
             if (rect) {
@@ -478,16 +480,20 @@ export function Canvas({
                     ref={ref}
                     onMouseDown={(e) => {
                         if (readOnly) return;
+                        dragMovedRef.current = false;
                         if (e.target === e.currentTarget) startMarquee(e);
                     }}
                     onMouseMove={readOnly ? undefined : onMouseMove}
                     onMouseUp={readOnly ? undefined : endGesture}
                     onMouseLeave={readOnly ? undefined : endGesture}
-                    onClick={(e) =>
-                        !readOnly &&
-                        e.target === e.currentTarget &&
-                        select(null)
-                    }
+                    onClick={(e) => {
+                        if (readOnly) return;
+                        if (dragMovedRef.current) {
+                            dragMovedRef.current = false;
+                            return;
+                        }
+                        if (e.target === e.currentTarget) select(null);
+                    }}
                     onDragOver={(e) => {
                         if (readOnly) return;
                         e.preventDefault();
