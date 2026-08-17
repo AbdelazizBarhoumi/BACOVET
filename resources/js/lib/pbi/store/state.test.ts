@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Visual } from '../model';
 import { mkPage, mkVisual, wf } from './helpers';
-import { defaultState, normalizeState } from './state';
+import { defaultState, normalizeState, type ReportParameter } from './state';
+
+const parameter = (overrides: Partial<ReportParameter>): ReportParameter => ({
+    id: 'param-1',
+    pageId: 'p1',
+    root: 'https://bacovet.example',
+    name: 'chaine',
+    value: null,
+    values: ['CH01', 'CH02', 'CH03'],
+    ...overrides,
+});
 
 function cartesianWithoutAxes(): Visual {
     const v = mkVisual('column', 0, 0, 100, 100, {
@@ -19,10 +29,7 @@ describe('normalizeState — cartesian multi-axis migration', () => {
         const legacy = cartesianWithoutAxes();
         const state = defaultState();
         state.pages = [
-            mkPage('p1', 'P1', [
-                ...state.pages[0]!.visuals,
-                legacy,
-            ]),
+            mkPage('p1', 'P1', [...state.pages[0]!.visuals, legacy]),
         ];
         const next = normalizeState(state);
         const v = next.pages
@@ -37,7 +44,21 @@ describe('normalizeState — cartesian multi-axis migration', () => {
     it('preserves explicit axis ids while snapping unknown ones to y0', () => {
         const v = cartesianWithoutAxes();
         v.axes = [
-            { id: 'pct', position: 'right', order: 1, auto: true, title: '', showTitle: true, showLine: true, showLabels: true, showGridlines: false, color: '', numberFormat: 'auto', displayUnits: 'auto', lockRange: true },
+            {
+                id: 'pct',
+                position: 'right',
+                order: 1,
+                auto: true,
+                title: '',
+                showTitle: true,
+                showLine: true,
+                showLabels: true,
+                showGridlines: false,
+                color: '',
+                numberFormat: 'auto',
+                displayUnits: 'auto',
+                lockRange: true,
+            },
         ];
         v.values = [
             { ...v.values[0]!, axisId: 'pct' },
@@ -47,7 +68,11 @@ describe('normalizeState — cartesian multi-axis migration', () => {
         const next = normalizeState(state);
         const migrated = next.pages[0]!.visuals.find((x) => x.id === v.id)!;
         expect(migrated.axes).toHaveLength(1);
-        expect(migrated.axes![0]).toMatchObject({ min: 0, max: 1, auto: false });
+        expect(migrated.axes![0]).toMatchObject({
+            min: 0,
+            max: 1,
+            auto: false,
+        });
         expect(migrated.values.map((f) => f.axisId)).toEqual(['pct', 'pct']);
     });
 
@@ -58,11 +83,27 @@ describe('normalizeState — cartesian multi-axis migration', () => {
         const weird = {
             ...v,
             axes: [
-                { id: 'y0', position: 'left', order: 0, auto: true, title: '', showTitle: true, showLine: true, showLabels: true, showGridlines: true, color: '', numberFormat: 'auto', displayUnits: 'auto' },
+                {
+                    id: 'y0',
+                    position: 'left',
+                    order: 0,
+                    auto: true,
+                    title: '',
+                    showTitle: true,
+                    showLine: true,
+                    showLabels: true,
+                    showGridlines: true,
+                    color: '',
+                    numberFormat: 'auto',
+                    displayUnits: 'auto',
+                },
             ],
             seriesType: 'line',
         } as unknown as Visual;
-        const state = { ...defaultState(), pages: [mkPage('p1', 'P1', [weird])] };
+        const state = {
+            ...defaultState(),
+            pages: [mkPage('p1', 'P1', [weird])],
+        };
         const next = normalizeState(state);
         const migrated = next.pages[0]!.visuals.find((x) => x.id === v.id)!;
         expect(migrated.axes).toBeUndefined();
@@ -80,5 +121,51 @@ describe('normalizeState — cartesian multi-axis migration', () => {
         expect(migrated.axes).toHaveLength(1);
         expect(migrated.axes![0]!.id).toBe('y0');
         expect(migrated.values[0]!.axisId).toBe('y0');
+    });
+});
+
+describe('parameters', () => {
+    it('defaults to an empty list', () => {
+        expect(defaultState().parameters).toEqual([]);
+    });
+
+    it('round-trips parameters through normalizeState', () => {
+        const state = {
+            ...defaultState(),
+            parameters: [
+                parameter({
+                    id: 'param-1',
+                    pageId: 'p1',
+                    name: 'chaine',
+                    value: 'CH02',
+                }),
+            ],
+        };
+        const next = normalizeState(state);
+        expect(next.parameters).toHaveLength(1);
+        expect(next.parameters[0]).toMatchObject({
+            id: 'param-1',
+            pageId: 'p1',
+            root: 'https://bacovet.example',
+            name: 'chaine',
+            value: 'CH02',
+            values: ['CH01', 'CH02', 'CH03'],
+        });
+    });
+
+    it('coerces missing parameters to an empty list', () => {
+        const state = {
+            ...defaultState(),
+            parameters: undefined,
+        } as unknown as ReturnType<typeof defaultState>;
+        expect(normalizeState(state).parameters).toEqual([]);
+    });
+
+    it('defaults a missing value to null', () => {
+        const state = {
+            ...defaultState(),
+            parameters: [parameter({ value: undefined })],
+        } as unknown as ReturnType<typeof defaultState>;
+        expect(normalizeState(state).parameters[0]!.value).toBeNull();
     });
 });

@@ -1,4 +1,12 @@
-import { Eye, Filter, Pencil, Plus, Search, X } from 'lucide-react';
+import {
+    Eye,
+    Filter,
+    Pencil,
+    Plus,
+    Search,
+    SlidersHorizontal,
+    X,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -41,6 +49,9 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         measures,
         graph,
         state,
+        parameters,
+        setParameterValue,
+        removeParameter,
     } = usePbi();
     const columns = tables.flatMap((t) =>
         t.fields
@@ -242,6 +253,10 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         { value: 'ytd', label: 'Depuis le début de l’année' },
     ];
 
+    const pageParameters = parameters.filter(
+        (p) => p.pageId === state.activePageId,
+    );
+
     return (
         <div className="flex h-full flex-col">
             <PaneHeader
@@ -308,7 +323,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                     }
                                 }}
                                 placeholder="Ajouter un champ de filtre…"
-                                className="w-full bg-transparent py-1 text-[11px] placeholder:text-muted-foreground/50 outline-none"
+                                className="w-full bg-transparent py-1 text-[11px] outline-none placeholder:text-muted-foreground/50"
                             />
                             {newFilterQuery && (
                                 <button
@@ -389,7 +404,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                             setCustomSearchQuery(e.target.value)
                                         }
                                         placeholder="Rechercher des colonnes…"
-                                        className="w-full bg-transparent py-1 text-[11px] placeholder:text-muted-foreground/50 outline-none"
+                                        className="w-full bg-transparent py-1 text-[11px] outline-none placeholder:text-muted-foreground/50"
                                     />
                                 </div>
                                 {customSearchQuery && (
@@ -457,6 +472,67 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                     )}
                 </div>
                 <div className="space-y-2">
+                    {pageParameters.length > 0 && (
+                        <div className="space-y-2 rounded border border-brand/30 bg-brand/[0.04] p-2">
+                            <div className="flex items-center gap-1.5 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                                <SlidersHorizontal className="size-3" />
+                                Paramètres du rapport
+                            </div>
+                            {pageParameters.map((p) => (
+                                <div
+                                    key={p.id}
+                                    className="rounded border border-border bg-background p-2"
+                                >
+                                    <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium">
+                                        <span className="min-w-0 truncate">
+                                            {p.name}
+                                            <span className="block truncate text-[9px] font-normal text-muted-foreground">
+                                                {p.root}
+                                            </span>
+                                        </span>
+                                        <button
+                                            onClick={() =>
+                                                removeParameter(p.id)
+                                            }
+                                            title="Retirer le paramètre"
+                                            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                        >
+                                            <X className="size-3" />
+                                        </button>
+                                    </div>
+                                    <div className="max-h-36 overflow-auto">
+                                        {p.values.map((value) => (
+                                            <label
+                                                key={value}
+                                                className="flex items-center gap-2 py-[1px] text-[11px]"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={p.value === value}
+                                                    onChange={() =>
+                                                        setParameterValue(
+                                                            p.id,
+                                                            p.value === value
+                                                                ? null
+                                                                : value,
+                                                        )
+                                                    }
+                                                    className="size-3 accent-[var(--brand)]"
+                                                />
+                                                <span className="truncate font-mono">
+                                                    {value}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="mt-1 text-[9px] text-muted-foreground">
+                                        Tous les endpoints utilisant ce
+                                        paramètre rechargent la valeur choisie.
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     {!filters.length && (
                         <p className="text-[11px] text-muted-foreground">
                             Filtres sur toutes les pages. Glissez un champ ici
@@ -497,7 +573,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                             {' '}
                                             {f.type === 'search' && f.query
                                                 ? `\u201C${f.query}\u201D `
-                                            : f.type === 'topN'
+                                                : f.type === 'topN'
                                                   ? `N premiers : ${f.topN}`
                                                   : f.type === 'relativeDate'
                                                     ? (relativePresets.find(
@@ -524,7 +600,10 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                                     setCustomLabel(name);
                                                     setCustomColumns(
                                                         (f.columns ?? []).map(
-                                                            ({ table, column }) => ({
+                                                            ({
+                                                                table,
+                                                                column,
+                                                            }) => ({
                                                                 table,
                                                                 column,
                                                             }),
@@ -610,9 +689,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                         onChange={(e) =>
                                             setFilterQuery(
                                                 isCustom ? name : f.column,
-                                                isCustom
-                                                    ? undefined
-                                                    : f.table,
+                                                isCustom ? undefined : f.table,
                                                 e.target.value,
                                             )
                                         }
@@ -658,9 +735,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                 {f.type === 'relativeDate' && (
                                     <>
                                         <select
-                                            value={
-                                                f.relative ?? 'last7days'
-                                            }
+                                            value={f.relative ?? 'last7days'}
                                             onChange={(e) =>
                                                 setFilterRelative(
                                                     f.column,
@@ -728,16 +803,13 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                                     f.table,
                                                     f.topN ?? 10,
                                                     {
-                                                        name:
-                                                            e.target.value,
+                                                        name: e.target.value,
                                                         agg: 'sum',
-                                                        table:
-                                                            numericColumns.find(
-                                                                (c) =>
-                                                                    c.name ===
-                                                                    e.target
-                                                                        .value,
-                                                            )?.table,
+                                                        table: numericColumns.find(
+                                                            (c) =>
+                                                                c.name ===
+                                                                e.target.value,
+                                                        )?.table,
                                                     },
                                                 )
                                             }
@@ -766,8 +838,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                                 <select
                                                     aria-label={`Valeur de ${name}`}
                                                     value={
-                                                        pooledSelected(f)
-                                                            .length
+                                                        pooledSelected(f).length
                                                             ? pooledSelected(
                                                                   f,
                                                               )[0]

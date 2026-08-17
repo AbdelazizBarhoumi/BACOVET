@@ -49,6 +49,7 @@ export function datasetsSignature(list: EndpointDataset[]): string {
             d.row_count,
             d.last_synced_at ?? '',
             d.columns,
+            d.params ?? {},
             d.sample_data,
         ]),
     );

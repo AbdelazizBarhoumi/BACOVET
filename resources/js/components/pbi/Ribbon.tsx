@@ -10,6 +10,7 @@ import {
     MousePointerClick,
     Palette,
     Shapes as ShapesIcon,
+    SlidersHorizontal,
     Sparkles,
     SquareMousePointer,
     Type,
@@ -169,11 +170,13 @@ export function Ribbon({
     onOpenAssistant,
     onOpenManage,
     onOpenDataJson,
+    onOpenParameters,
 }: {
     onOpenDax: () => void;
     onOpenAssistant: () => void;
     onOpenManage: () => void;
     onOpenDataJson: () => void;
+    onOpenParameters: () => void;
 }) {
     const {
         ribbonTab,
@@ -291,6 +294,11 @@ export function Ribbon({
             {
                 title: 'Données',
                 actions: [
+                    {
+                        label: 'Paramètres',
+                        icon: SlidersHorizontal,
+                        onClick: onOpenParameters,
+                    },
                     {
                         label: 'Afficher les données JSON',
                         icon: Braces,

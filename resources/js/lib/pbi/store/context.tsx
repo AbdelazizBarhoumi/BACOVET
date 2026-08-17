@@ -60,7 +60,13 @@ import {
 import { effectivePatchFor } from '../multiFormat';
 import { DEFAULT_SHAPE_FILL, SHAPES, type ShapeKind } from '../shapes';
 import type { ReportTheme } from '../themes';
-import { CARTESIAN_TYPES, isSlicerType, type PaneName, type SlicerDateRange, type WellName } from './consts';
+import {
+    CARTESIAN_TYPES,
+    isSlicerType,
+    type PaneName,
+    type SlicerDateRange,
+    type WellName,
+} from './consts';
 import { mkPage, mkVisual, takeZTop, uid, wf } from './helpers';
 import {
     GESTURE_WINDOW_MS,
@@ -320,6 +326,14 @@ type Ctx = State & {
     setCustomFilterLabel: (oldLabel: string, label: string) => void;
     toggleCustomFilterPooledValue: (label: string, value: string) => void;
     setCustomFilterPooledValue: (label: string, value: string | null) => void;
+    addParameter: (entry: {
+        root: string;
+        name: string;
+        values: string[];
+        value?: string | null;
+    }) => void;
+    setParameterValue: (id: string, value: string | null) => void;
+    removeParameter: (id: string) => void;
     toggleEditInteractions: () => void;
     addBookmark: (name: string) => void;
     applyBookmark: (id: string) => void;
@@ -647,13 +661,9 @@ export function PbiProvider({
             ) {
                 result.axis = [result.values[0]!];
                 result.values = result.values.slice(1);
-            } else if (
-                !isSlicerType(next.type) &&
-                !result.values.length
-            ) {
+            } else if (!isSlicerType(next.type) && !result.values.length) {
                 const numericAxis = result.axis.find(
-                    (field) =>
-                        fieldType(field.name, field.table) === 'number',
+                    (field) => fieldType(field.name, field.table) === 'number',
                 );
                 if (numericAxis) result.values = [numericAxis];
             }
@@ -667,9 +677,7 @@ export function PbiProvider({
     const updateVisualSingle = useCallback(
         (id: string, patch: Partial<Visual>) =>
             mapVisuals((vs) =>
-                vs.map((v) =>
-                    v.id === id ? applyVisualPatch(v, patch) : v,
-                ),
+                vs.map((v) => (v.id === id ? applyVisualPatch(v, patch) : v)),
             ),
         [mapVisuals],
     );
@@ -677,8 +685,7 @@ export function PbiProvider({
     const updateVisual = useCallback(
         (id: string, patch: Partial<Visual>) => {
             const selectedIds = state.selectedIds ?? [];
-            const multi =
-                selectedIds.length > 1 && selectedIds.includes(id);
+            const multi = selectedIds.length > 1 && selectedIds.includes(id);
             if (!multi) {
                 updateVisualSingle(id, patch);
                 return;
@@ -693,11 +700,7 @@ export function PbiProvider({
             mapVisuals((vs) =>
                 vs.map((v) => {
                     if (!targets.has(v.id)) return v;
-                    const next = effectivePatchFor(
-                        patch,
-                        anchorType,
-                        v.type,
-                    );
+                    const next = effectivePatchFor(patch, anchorType, v.type);
                     if (!next) return v;
                     return applyVisualPatch(v, next);
                 }),
@@ -711,14 +714,19 @@ export function PbiProvider({
             let created: string | undefined;
             mapVisuals((vs) =>
                 vs.map((v) => {
-                    if (v.id !== visualId || !CARTESIAN_TYPES.includes(v.type)) {
+                    if (
+                        v.id !== visualId ||
+                        !CARTESIAN_TYPES.includes(v.type)
+                    ) {
                         return v;
                     }
                     const axes = v.axes ?? defaultAxes();
                     const id = uid('y');
                     const next: AxisDef = {
                         id,
-                        position: axisPositionDefault(v.type === 'bar' || v.type === 'stackedBar'),
+                        position: axisPositionDefault(
+                            v.type === 'bar' || v.type === 'stackedBar',
+                        ),
                         order: axes.length,
                         auto: true,
                         title: '',
@@ -776,7 +784,10 @@ export function PbiProvider({
                     reordered.splice(j, 0, axis!);
                     return {
                         ...v,
-                        axes: reordered.map((a, index) => ({ ...a, order: index })),
+                        axes: reordered.map((a, index) => ({
+                            ...a,
+                            order: index,
+                        })),
                     };
                 }),
             );
@@ -786,8 +797,7 @@ export function PbiProvider({
 
     const maxVisualZ = () => {
         const s = rawStateRef.current;
-        const p =
-            s.pages.find((pg) => pg.id === s.activePageId) ?? s.pages[0];
+        const p = s.pages.find((pg) => pg.id === s.activePageId) ?? s.pages[0];
         return p ? Math.max(0, ...p.visuals.map((v) => v.z)) : 0;
     };
 
@@ -795,8 +805,7 @@ export function PbiProvider({
     // previous one (they still land on top via takeZTop).
     const visualCount = useCallback(() => {
         const s = rawStateRef.current;
-        const p =
-            s.pages.find((pg) => pg.id === s.activePageId) ?? s.pages[0];
+        const p = s.pages.find((pg) => pg.id === s.activePageId) ?? s.pages[0];
         return p ? p.visuals.length : 0;
     }, []);
     const cascadePos = useCallback(() => {
@@ -1351,7 +1360,10 @@ export function PbiProvider({
                             ? v.analytics.map((a) =>
                                   a.kind === kind ? { ...a, value2: value } : a,
                               )
-                            : [...v.analytics, { kind, enabled: true, value2: value }],
+                            : [
+                                  ...v.analytics,
+                                  { kind, enabled: true, value2: value },
+                              ],
                     };
                 }),
             ),
@@ -1399,10 +1411,7 @@ export function PbiProvider({
                             ? v.analytics.map((a) =>
                                   a.kind === kind ? { ...a, color } : a,
                               )
-                            : [
-                                  ...v.analytics,
-                                  { kind, enabled: true, color },
-                              ],
+                            : [...v.analytics, { kind, enabled: true, color }],
                     };
                 }),
             ),
@@ -1416,7 +1425,9 @@ export function PbiProvider({
                         analytics: exists
                             ? v.analytics.map((a) => {
                                   if (a.kind !== kind) return a;
-                                  const axisColors = { ...(a.axisColors ?? {}) };
+                                  const axisColors = {
+                                      ...(a.axisColors ?? {}),
+                                  };
                                   if (color === undefined)
                                       delete axisColors[axisId];
                                   else axisColors[axisId] = color;
@@ -1429,7 +1440,9 @@ export function PbiProvider({
                                       enabled: true,
                                       ...(color === undefined
                                           ? {}
-                                          : { axisColors: { [axisId]: color } }),
+                                          : {
+                                                axisColors: { [axisId]: color },
+                                            }),
                                   },
                               ],
                     };
@@ -1445,7 +1458,9 @@ export function PbiProvider({
                         analytics: exists
                             ? v.analytics.map((a) => {
                                   if (a.kind !== kind) return a;
-                                  const axisValues = { ...(a.axisValues ?? {}) };
+                                  const axisValues = {
+                                      ...(a.axisValues ?? {}),
+                                  };
                                   if (value === undefined)
                                       delete axisValues[axisId];
                                   else axisValues[axisId] = value;
@@ -1458,7 +1473,9 @@ export function PbiProvider({
                                       enabled: true,
                                       ...(value === undefined
                                           ? {}
-                                          : { axisValues: { [axisId]: value } }),
+                                          : {
+                                                axisValues: { [axisId]: value },
+                                            }),
                                   },
                               ],
                     };
@@ -1786,6 +1803,43 @@ export function PbiProvider({
                 filters: s.filters.filter(
                     (f) => !filterMatches(f, column, table),
                 ),
+            })),
+        addParameter: (entry) =>
+            setState((s) => {
+                const pageId = s.activePageId;
+                const already = s.parameters.some(
+                    (p) =>
+                        p.pageId === pageId &&
+                        p.root === entry.root &&
+                        p.name === entry.name,
+                );
+                if (already) return s;
+                return {
+                    ...s,
+                    parameters: [
+                        ...s.parameters,
+                        {
+                            id: uid('param'),
+                            pageId,
+                            root: entry.root,
+                            name: entry.name,
+                            value: entry.value ?? null,
+                            values: [...entry.values],
+                        },
+                    ],
+                };
+            }),
+        setParameterValue: (id, value) =>
+            setState((s) => ({
+                ...s,
+                parameters: s.parameters.map((p) =>
+                    p.id === id ? { ...p, value } : p,
+                ),
+            })),
+        removeParameter: (id) =>
+            setState((s) => ({
+                ...s,
+                parameters: s.parameters.filter((p) => p.id !== id),
             })),
         setFilterType: (column, table, type) =>
             setState((s) => ({

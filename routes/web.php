@@ -95,6 +95,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/endpoint-datasets', [EndpointDatasetController::class, 'index']);
     Route::get('/api/endpoint-datasets/status', [EndpointDatasetController::class, 'status']);
     Route::post('/api/endpoint-datasets/sync', [EndpointDatasetController::class, 'sync']);
+    Route::get('/api/dashboard-parameters', [EndpointDatasetController::class, 'dashboardParameters']);
     Route::get('/api/schema', [EndpointDatasetController::class, 'schema']);
 
     Route::get('/api/settings/{key}', [SettingsController::class, 'show']);

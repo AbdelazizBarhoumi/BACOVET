@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Console\Commands\RunEndpointSync;
 use App\Http\Controllers\Controller;
 use App\Models\EndpointDataset;
+use App\Models\EndpointDatasetVariant;
 use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
 use App\Support\DetachedProcess;
+use App\Support\RootParameters;
 use App\Support\SyncStatus;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 class EndpointDatasetController extends Controller
@@ -92,9 +96,16 @@ class EndpointDatasetController extends Controller
      * live sync when available, and fall back to the last-known-good snapshot
      * in data.json so the builder / measure wizard stay usable even when the
      * API is unreachable or the database has never synced.
+     *
+     * An optional selection (`?p[chaine]=CH02`) switches each dataset to the
+     * already-stored parameter variant matching that selection — instant
+     * switching, no live fetch. Datasets that do not use the selected
+     * parameters keep their default rows.
      */
-    public function index(EndpointDatasetRegistry $registry): JsonResponse
+    public function index(Request $request, EndpointDatasetRegistry $registry): JsonResponse
     {
+        $selection = $this->normalizeSelection($request->query('p', []));
+
         $structure = $registry->endpoints();
         $structureBySlug = collect($structure)->keyBy('slug');
 
@@ -107,12 +118,23 @@ class EndpointDatasetController extends Controller
 
         $snapshots = $registry->rowsBySlug();
 
-        $datasets = $structureBySlug->map(function (array $meta, string $slug) use ($records, $snapshots) {
+        $variants = EndpointDatasetVariant::query()
+            ->whereIn('slug', $structureBySlug->keys())
+            ->get()
+            ->groupBy('slug');
+
+        $datasets = $structureBySlug->map(function (array $meta, string $slug) use ($records, $snapshots, $variants, $selection) {
             $record = $records->get($slug);
 
-            $rows = ! empty($record?->sample_data)
-                ? $record->sample_data
-                : ($snapshots[$slug] ?? null);
+            $active = $this->activeVariant($meta, $selection, $variants->get($slug));
+
+            if ($active !== null) {
+                $rows = $active['sample_data'] ?? null;
+            } else {
+                $rows = ! empty($record?->sample_data)
+                    ? $record->sample_data
+                    : ($snapshots[$slug] ?? null);
+            }
 
             return [
                 'slug' => $slug,
@@ -124,18 +146,196 @@ class EndpointDatasetController extends Controller
                 'method' => 'GET',
                 'columns' => $this->mergeColumns(
                     $meta['columns'] ?? [],
-                    $record->columns ?? [],
+                    $active['columns'] ?? $record->columns ?? [],
                     $rows,
                 ),
                 'sample_data' => $rows,
                 'row_count' => is_array($rows) ? count($rows) : (int) ($record->row_count ?? 0),
-                'status' => $record?->last_status,
-                'last_error' => $record?->last_error,
-                'last_synced_at' => $record?->last_synced_at?->toISOString(),
+                'status' => $active['last_status'] ?? $record?->last_status,
+                'last_error' => $active['last_error'] ?? $record?->last_error,
+                'last_synced_at' => $active !== null
+                    ? ($active['last_synced_at']?->toISOString() ?? $record?->last_synced_at?->toISOString())
+                    : $record?->last_synced_at?->toISOString(),
+                'params' => $active['params'] ?? [],
             ];
         })->values();
 
         return response()->json(['datasets' => $datasets]);
+    }
+
+    /**
+     * Declared parameters (from endpoint-params.json) that are actually used
+     * by at least one dataset in the registry.
+     *
+     * @return array<int, array{root: string, name: string, values: list<string>, current: ?string, affected_slugs: list<string>}>
+     */
+    public function dashboardParameters(EndpointDatasetRegistry $registry): JsonResponse
+    {
+        $definitions = RootParameters::load();
+        $structure = $registry->endpoints();
+
+        $usage = [];
+
+        foreach ($structure as $meta) {
+            $url = (string) ($meta['endpoint'] ?? '');
+            $root = $this->rootOf($url);
+
+            if ($root === '' || ! isset($definitions[$root])) {
+                continue;
+            }
+
+            $query = [];
+
+            $parsed = parse_url($url);
+
+            if (isset($parsed['query']) && $parsed['query'] !== '') {
+                parse_str($parsed['query'], $query);
+            }
+
+            foreach ($definitions[$root] as $definition) {
+                $name = trim((string) ($definition['name'] ?? ''));
+
+                if ($name === '' || ! array_key_exists($name, $query)) {
+                    continue;
+                }
+
+                $key = $root.'::'.$name;
+
+                if (! isset($usage[$key])) {
+                    $usage[$key] = [
+                        'root' => $root,
+                        'name' => $name,
+                        'values' => array_values(array_map('strval', (array) ($definition['values'] ?? []))),
+                        'slugs' => [],
+                        'current' => null,
+                    ];
+                }
+
+                $slug = (string) ($meta['slug'] ?? '');
+
+                if ($slug !== '' && ! in_array($slug, $usage[$key]['slugs'], true)) {
+                    $usage[$key]['slugs'][] = $slug;
+                }
+
+                if ($usage[$key]['current'] === null && is_scalar($query[$name])) {
+                    $usage[$key]['current'] = (string) $query[$name];
+                }
+            }
+        }
+
+        $result = array_values(array_map(
+            static fn (array $entry): array => [
+                'root' => $entry['root'],
+                'name' => $entry['name'],
+                'values' => $entry['values'],
+                'current' => $entry['current'],
+                'affected_slugs' => $entry['slugs'],
+            ],
+            $usage
+        ));
+
+        usort($result, static fn (array $a, array $b): int => strcmp($a['root'], $b['root']) ?: strcmp($a['name'], $b['name']));
+
+        return response()->json(['parameters' => $result]);
+    }
+
+    /**
+     * Pick the stored variant matching the active selection for a dataset slug.
+     *
+     * Only parameters actually present in the dataset's URL are considered, so
+     * a selection like {chaine: CH02, zone: ZA} matches a chaine-only dataset
+     * via {chaine: CH02}. Returns null when no selection is given, the dataset
+     * uses none of the selected parameters, or the variant is not synced yet.
+     *
+     * @param  array<string, mixed>  $meta
+     * @param  array<string, string>  $selection
+     * @param  Collection<int, EndpointDatasetVariant>|null  $variants
+     */
+    private function activeVariant(array $meta, array $selection, $variants): ?EndpointDatasetVariant
+    {
+        if ($selection === [] || $variants === null || $variants->isEmpty()) {
+            return null;
+        }
+
+        $endpoint = (string) ($meta['endpoint'] ?? '');
+        $query = [];
+
+        $parsed = parse_url($endpoint);
+
+        if (isset($parsed['query']) && $parsed['query'] !== '') {
+            parse_str($parsed['query'], $query);
+        }
+
+        $expected = [];
+
+        foreach (RootParameters::forRoot($this->rootOf($endpoint)) as $definition) {
+            $name = trim((string) ($definition['name'] ?? ''));
+
+            if ($name === '' || ! array_key_exists($name, $query) || ! array_key_exists($name, $selection)) {
+                continue;
+            }
+
+            $expected[$name] = (string) $selection[$name];
+        }
+
+        if ($expected === []) {
+            return null;
+        }
+
+        foreach ($variants as $variant) {
+            $params = $variant['params'] ?? [];
+
+            if (is_array($params) && $params == $expected) {
+                return $variant;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize the `p` selection query into a name => value map.
+     *
+     * @return array<string, string>
+     */
+    private function normalizeSelection(mixed $selection): array
+    {
+        if (! is_array($selection)) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($selection as $key => $value) {
+            $key = trim((string) $key);
+            $value = is_array($value) ? ($value[0] ?? '') : $value;
+
+            if ($key !== '' && is_string($value) && $value !== '') {
+                $result[$key] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Extract the root (scheme://host[:port]) of a URL.
+     */
+    private function rootOf(string $url): string
+    {
+        $parts = parse_url($url);
+
+        if (isset($parts['scheme'], $parts['host'])) {
+            $root = $parts['scheme'].'://'.$parts['host'];
+
+            if (isset($parts['port'])) {
+                $root .= ':'.$parts['port'];
+            }
+
+            return $root;
+        }
+
+        return '';
     }
 
     /**

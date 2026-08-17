@@ -16,6 +16,11 @@ import {
 } from '@/lib/pbi/graph';
 import { graphWithManualJoins } from '@/lib/pbi/graph';
 import { buildJoinRegistry, type JoinRegistry } from '@/lib/pbi/joins';
+import {
+    activeSelection,
+    datasetsUrlWithSelection,
+    selectionSignature,
+} from '@/lib/pbi/parameters';
 import type { State } from '@/lib/pbi/store';
 import { PbiProvider } from '@/lib/pbi/store';
 import { fetchBuilderSchema } from '@/services/endpointManagerApi';
@@ -66,9 +71,22 @@ export default function PageView() {
     // UI state (hover, selection, cross-filter highlight, drillthrough) must
     // not trigger checkpoints or dirty the layout.
     const lastPersistedStateRef = useRef<State | undefined>(undefined);
+    const selectionRef = useRef<Record<string, string>>({});
+    const lastSelectionSignatureRef = useRef<string | null>(null);
+    const [paramsTick, setParamsTick] = useState(0);
     const onStoreChange = useCallback((next: State) => {
         const prev = lastPersistedStateRef.current;
         lastPersistedStateRef.current = next;
+        const selection = activeSelection(next.parameters, next.activePageId);
+        const signature = selectionSignature(selection);
+        if (lastSelectionSignatureRef.current === null) {
+            lastSelectionSignatureRef.current = signature;
+            selectionRef.current = selection;
+        } else if (signature !== lastSelectionSignatureRef.current) {
+            lastSelectionSignatureRef.current = signature;
+            selectionRef.current = selection;
+            setParamsTick((t) => t + 1);
+        }
         // The first notification is the store's initial normalized state
         // (mount-time no-op syncs), not a user edit: register it as the
         // persistence baseline without marking the report dirty.
@@ -79,6 +97,7 @@ export default function PageView() {
             pages: s.pages,
             activePageId: s.activePageId,
             filters: s.filters,
+            parameters: s.parameters,
             slicerSelections: s.slicerSelections,
             slicerDateRanges: s.slicerDateRanges,
             slicerSync: s.slicerSync,
@@ -117,7 +136,10 @@ export default function PageView() {
         let stop = false;
         const load = async () => {
             try {
-                const datasets = await fetchEndpointDatasets();
+                const datasets = await fetchEndpointDatasets(
+                    undefined,
+                    datasetsUrlWithSelection(selectionRef.current),
+                );
                 if (stop) return;
                 setFailed(false);
                 const signature = datasetsSignature(datasets);
@@ -175,7 +197,7 @@ export default function PageView() {
             window.removeEventListener('focus', onFocus);
             clearInterval(timer);
         };
-    }, [retryKey]);
+    }, [retryKey, paramsTick]);
 
     if (!slug || !pageName) {
         return (

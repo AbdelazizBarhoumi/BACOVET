@@ -39,6 +39,22 @@ export type TooltipHover = {
     value: string;
 };
 
+/**
+ * A dashboard-level parameter selector: the value drives which stored
+ * endpoint variant (per parameter value) the page's datasets are read from.
+ * The selection is persisted in the layout, so it applies to every viewer.
+ */
+export type ReportParameter = {
+    id: string;
+    pageId: string;
+    root: string;
+    name: string;
+    /** selected value; null = default/current data */
+    value: string | null;
+    /** available options (declared per root), persisted for offline rendering */
+    values: string[];
+};
+
 export type { SlicerDateMode, SlicerDateRange } from './consts';
 
 export function slicerKey(
@@ -112,6 +128,8 @@ export type State = {
     /** ordered multi-selection; last entry is the primary selection */
     selectedIds: string[];
     filters: ReportFilter[];
+    /** dashboard-level parameter selectors (per page) */
+    parameters: ReportParameter[];
     slicerSelections: Record<string, string[]>;
     slicerDateRanges: Record<string, SlicerDateRange>;
     /** slicer id -> synced page ids */
@@ -228,6 +246,14 @@ export function normalizeState(state: State): State {
                 type: f.type ?? 'list',
             };
         }),
+        parameters: (state.parameters ?? []).map((p) => ({
+            id: p.id,
+            pageId: p.pageId,
+            root: p.root,
+            name: p.name,
+            value: p.value ?? null,
+            values: Array.isArray(p.values) ? p.values : [],
+        })),
         slicerSelections,
         pages: state.pages.map((page) => ({
             ...page,
@@ -273,7 +299,10 @@ export function normalizeState(state: State): State {
                             ? normalizeAxes(undefined)
                             : normalizeAxes(next.axes);
                     const axes: AxisDef[] = next.axes;
-                    if (next.type === 'pareto' && !axes.some((a) => a.lockRange)) {
+                    if (
+                        next.type === 'pareto' &&
+                        !axes.some((a) => a.lockRange)
+                    ) {
                         next.axes = [...axes, lockedPctAxis()];
                     }
                     const primaryId = axes[0]?.id ?? 'y0';
@@ -308,6 +337,7 @@ export const defaultState = (tables: TableDef[] = []): State => ({
     selectedId: null,
     selectedIds: [],
     filters: [],
+    parameters: [],
     slicerSelections: {},
     slicerDateRanges: {},
     slicerSync: {},
@@ -349,6 +379,7 @@ export const defaultState = (tables: TableDef[] = []): State => ({
 const HISTORY_KEYS = [
     'pages',
     'filters',
+    'parameters',
     'slicerSelections',
     'slicerDateRanges',
     'slicerSync',
@@ -373,6 +404,7 @@ export function historySubset(state: State): HistoryEntry {
     return {
         pages: state.pages,
         filters: state.filters,
+        parameters: state.parameters,
         slicerSelections: state.slicerSelections,
         slicerDateRanges: state.slicerDateRanges,
         slicerSync: state.slicerSync,

@@ -22,6 +22,8 @@ export type EndpointDataset = {
     row_count: number;
     last_synced_at: string | null;
     status?: string | null;
+    /** parameter variant currently served ([] = default/current data) */
+    params?: Record<string, string> | null;
 };
 
 export async function fetchEndpointDatasets(

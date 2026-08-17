@@ -3,9 +3,12 @@
 namespace App\Console\Commands;
 
 use App\Models\EndpointDataset;
+use App\Models\EndpointDatasetVariant;
 use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
+use App\Support\ParameterVariants;
 use App\Support\RootCredentials;
+use App\Support\RootParameters;
 use App\Support\RootState;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
@@ -481,14 +484,23 @@ class SyncEndpointData extends Command
 
         $urls = [];
         $apiKeys = [];
+        $plan = [];
 
         foreach ($endpoints as $i => $ep) {
-            $urls[$i] = $this->buildUrl($baseUrl, (string) $ep['endpoint']);
-            $apiKeys[$i] = RootCredentials::apiKeyFor($this->rootOf((string) $ep['endpoint'], $baseUrl));
+            $endpointUrl = (string) ($ep['endpoint'] ?? '');
+            $root = $this->rootOf($endpointUrl, $baseUrl);
+            $variants = ParameterVariants::expand($endpointUrl, RootParameters::forRoot($root));
+
+            foreach ($variants as $variant) {
+                $key = count($urls);
+                $urls[$key] = $this->buildUrl($baseUrl, $variant['url']);
+                $apiKeys[$key] = RootCredentials::apiKeyFor($root);
+                $plan[$key] = ['index' => $i, 'variant' => $variant];
+            }
         }
 
         $start = microtime(true);
-        $this->info('Fetching '.count($endpoints).' endpoint(s) from '.$baseUrl.' ...');
+        $this->info('Fetching '.count($plan).' request(s) for '.count($endpoints).' endpoint(s) from '.$baseUrl.' ...');
 
         $retryWhen = function (mixed $exception): bool {
             if ($exception instanceof ConnectionException) {
@@ -500,18 +512,18 @@ class SyncEndpointData extends Command
                 && $exception->response->status() >= 500;
         };
 
-        // One pool, every eligible endpoint in parallel.
-        $responses = Http::pool(function (Pool $pool) use ($endpoints, $urls, $apiKeys, $timeout, $connectTimeout, $retries, $retryWhen) {
-            foreach (array_keys($endpoints) as $i) {
-                $pool->as((string) $i)
+        // One pool, every request (endpoint × parameter value) in parallel.
+        $responses = Http::pool(function (Pool $pool) use ($urls, $apiKeys, $timeout, $connectTimeout, $retries, $retryWhen) {
+            foreach (array_keys($urls) as $key) {
+                $pool->as((string) $key)
                     ->withHeaders([
-                        'x-api-key' => $apiKeys[$i],
+                        'x-api-key' => $apiKeys[$key],
                         'Accept' => 'application/json',
                     ])
                     ->timeout($timeout)
                     ->connectTimeout($connectTimeout)
                     ->retry($retries + 1, 500, $retryWhen)
-                    ->get($urls[$i]);
+                    ->get($urls[$key]);
             }
         });
 
@@ -520,8 +532,11 @@ class SyncEndpointData extends Command
         $errors = 0;
         $responsesBySlug = [];
 
-        foreach ($endpoints as $i => $endpoint) {
-            $result = $this->fetchResult($responses[(string) $i] ?? null);
+        foreach ($plan as $key => $entry) {
+            $endpoint = $endpoints[$entry['index']];
+            $variant = $entry['variant'];
+            $slug = (string) ($endpoint['slug'] ?? '');
+            $result = $this->fetchResult($responses[(string) $key] ?? null);
             $rows = $result['ok'] ? DatasetRows::extractRows($result['data']) : [];
             $columns = array_values(array_map('strval', (array) ($endpoint['columns'] ?? [])));
 
@@ -555,22 +570,51 @@ class SyncEndpointData extends Command
                 $payload['row_count'] = count($rows);
             }
 
-            EndpointDataset::updateOrCreate(
-                ['slug' => (string) $endpoint['slug']],
-                $payload,
-            );
+            if (($variant['params'] ?? []) === []) {
+                // Default variant = the stored URL: keep endpoint_datasets and
+                // the data.json patch exactly as before.
+                EndpointDataset::updateOrCreate(
+                    ['slug' => $slug],
+                    $payload,
+                );
 
-            if ($result['ok']) {
-                $responsesBySlug[(string) $endpoint['slug']] = $result['data'];
-                $ok++;
+                if ($result['ok']) {
+                    $responsesBySlug[$slug] = $result['data'];
+                    $ok++;
+                } else {
+                    $errors++;
+                    $this->warn(sprintf(
+                        '  ✗ %s — %s (%s)',
+                        $endpoint['name'],
+                        mb_substr((string) $result['error'], 0, 160),
+                        $urls[$key]
+                    ));
+                }
             } else {
-                $errors++;
-                $this->warn(sprintf(
-                    '  ✗ %s — %s (%s)',
-                    $endpoint['name'],
-                    mb_substr((string) $result['error'], 0, 160),
-                    $urls[$i]
-                ));
+                // Parameter variant: one stored snapshot per value so the page
+                // builder can switch a dashboard parameter without re-fetching.
+                $variantPayload = [
+                    'last_status' => $payload['last_status'],
+                    'last_error' => $payload['last_error'],
+                    'last_synced_at' => $payload['last_synced_at'],
+                ];
+
+                if ($result['ok']) {
+                    $variantPayload['columns'] = DatasetRows::buildColumns($columns, $rows);
+                    $variantPayload['sample_data'] = $rows;
+                    $variantPayload['row_count'] = count($rows);
+                }
+
+                EndpointDatasetVariant::updateOrCreate(
+                    ['slug' => $slug, 'params' => $variant['params']],
+                    $variantPayload,
+                );
+
+                if ($result['ok']) {
+                    $ok++;
+                } else {
+                    $errors++;
+                }
             }
         }
 

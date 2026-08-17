@@ -14,7 +14,11 @@ import {
 import { useMemo, useState } from 'react';
 import { Canvas, PageTabs } from '@/components/pbi/Canvas';
 import { DataJsonDialog } from '@/components/pbi/DataJsonDialog';
-import { DaxDialog, ManageMeasuresDialog } from '@/components/pbi/Dialogs';
+import {
+    DaxDialog,
+    ManageMeasuresDialog,
+    ParametersDialog,
+} from '@/components/pbi/Dialogs';
 import { MeasureWizardDialog } from '@/components/pbi/MeasureWizardDialog';
 import {
     BookmarksPane,
@@ -109,6 +113,7 @@ export function EditBody() {
     const [wizard, setWizard] = useState(false);
     const [manage, setManage] = useState(false);
     const [dataJson, setDataJson] = useState(false);
+    const [parametersOpen, setParametersOpen] = useState(false);
     const [paneCollapsed, setPaneCollapsed] = useState<Record<string, boolean>>(
         {
             selection: false,
@@ -137,6 +142,7 @@ export function EditBody() {
                 onOpenAssistant={() => setWizard(true)}
                 onOpenManage={() => setManage(true)}
                 onOpenDataJson={() => setDataJson(true)}
+                onOpenParameters={() => setParametersOpen(true)}
             />
 
             {editInteractions && (
@@ -288,9 +294,7 @@ export function EditBody() {
                     onToggle={() => togglePaneCollapsed('visualizations')}
                 >
                     <VisualizationsPane
-                        onCollapse={() =>
-                            togglePaneCollapsed('visualizations')
-                        }
+                        onCollapse={() => togglePaneCollapsed('visualizations')}
                     />
                 </PaneShell>
                 <PaneShell
@@ -353,14 +357,18 @@ export function EditBody() {
             </footer>
 
             {dax && <DaxDialog onClose={() => setDax(false)} />}
-            {wizard && (
-                <MeasureWizardDialog onClose={() => setWizard(false)} />
-            )}
+            {wizard && <MeasureWizardDialog onClose={() => setWizard(false)} />}
             {manage && (
                 <ManageMeasuresDialog onClose={() => setManage(false)} />
             )}
             {dataJson && (
                 <DataJsonDialog open onClose={() => setDataJson(false)} />
+            )}
+            {parametersOpen && (
+                <ParametersDialog
+                    open
+                    onClose={() => setParametersOpen(false)}
+                />
             )}
         </div>
     );
