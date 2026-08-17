@@ -541,9 +541,10 @@ class SyncEndpointData extends Command
             $columns = array_values(array_map('strval', (array) ($endpoint['columns'] ?? [])));
 
             // Freshly imported / column-less endpoints become datasets only when
-            // the live response carries tabular rows to derive columns from.
+            // the live response carries tabular data to derive columns from
+            // (mirrors the registry's columnsFrom so structure and sync agree).
             if ($result['ok'] && $columns === []) {
-                $columns = array_keys($rows[0] ?? []);
+                $columns = DatasetRows::columnsFrom($result['data']);
             }
 
             if ($columns === []) {
@@ -573,9 +574,10 @@ class SyncEndpointData extends Command
             if (($variant['params'] ?? []) === []) {
                 // Default variant = the stored URL: keep endpoint_datasets and
                 // the data.json patch exactly as before.
-                EndpointDataset::updateOrCreate(
-                    ['slug' => $slug],
-                    $payload,
+                EndpointDataset::upsert(
+                    [$this->encodeUpsertJsonColumns(array_merge(['slug' => $slug], $payload), ['columns', 'sample_data'])],
+                    ['slug'],
+                    array_keys($payload),
                 );
 
                 if ($result['ok']) {
@@ -605,9 +607,10 @@ class SyncEndpointData extends Command
                     $variantPayload['row_count'] = count($rows);
                 }
 
-                EndpointDatasetVariant::updateOrCreate(
-                    ['slug' => $slug, 'params' => $variant['params']],
-                    $variantPayload,
+                EndpointDatasetVariant::upsert(
+                    [$this->encodeUpsertJsonColumns(array_merge(['slug' => $slug, 'params' => $variant['params']], $variantPayload), ['params', 'columns', 'sample_data'])],
+                    ['slug', 'params'],
+                    array_keys($variantPayload),
                 );
 
                 if ($result['ok']) {
@@ -1136,5 +1139,20 @@ class SyncEndpointData extends Command
         }
 
         return true;
+    }
+
+    /**
+     * Model upsert bypasses casts, so JSON-typed columns must be encoded
+     * explicitly before binding. Lists the affected column names by table.
+     */
+    private function encodeUpsertJsonColumns(array $values, array $jsonColumns): array
+    {
+        foreach ($jsonColumns as $column) {
+            if (array_key_exists($column, $values) && is_array($values[$column])) {
+                $values[$column] = json_encode($values[$column]);
+            }
+        }
+
+        return $values;
     }
 }

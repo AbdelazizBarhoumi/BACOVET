@@ -136,6 +136,8 @@ class EndpointDatasetController extends Controller
                     : ($snapshots[$slug] ?? null);
             }
 
+            $rows = is_array($rows) ? $rows : [];
+
             return [
                 'slug' => $slug,
                 'name' => $meta['name'] ?? $record->name ?? $slug,
@@ -150,7 +152,7 @@ class EndpointDatasetController extends Controller
                     $rows,
                 ),
                 'sample_data' => $rows,
-                'row_count' => is_array($rows) ? count($rows) : (int) ($record->row_count ?? 0),
+                'row_count' => count($rows),
                 'status' => $active['last_status'] ?? $record?->last_status,
                 'last_error' => $active['last_error'] ?? $record?->last_error,
                 'last_synced_at' => $active !== null
@@ -285,7 +287,11 @@ class EndpointDatasetController extends Controller
         foreach ($variants as $variant) {
             $params = $variant['params'] ?? [];
 
-            if (is_array($params) && $params == $expected) {
+            // Only serve a variant that actually carries rows: a variant whose
+            // live fetch failed is stored with last_status=error and no
+            // sample_data, and serving it would blank the dataset. Falling back
+            // to the default last-known-good rows is always better.
+            if (is_array($params) && $params == $expected && ! empty($variant['sample_data'])) {
                 return $variant;
             }
         }

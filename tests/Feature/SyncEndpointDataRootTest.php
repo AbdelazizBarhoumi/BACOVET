@@ -314,26 +314,148 @@ class SyncEndpointDataRootTest extends TestCase
         $this->assertSame([['code' => 'A', 'qty' => 10]], $dataset->sample_data);
     }
 
-    public function test_datasets_sync_skips_endpoint_without_columns_after_fetch(): void
+    public function test_datasets_sync_derives_columns_from_live_single_object_rows(): void
     {
-        // A non-tabular endpoint returns an object with no tabular data — no
-        // columns can be derived, so no dataset row should be created.
+        // A single-object response (KPI snapshot) must become a dataset: the
+        // object's keys are the columns and the object is served as one row.
         $this->writeData([
-            ['id' => 'ep-1', 'name' => 'v_primary', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/api/data/v_primary', 'status' => 200, 'response' => new \stdClass],
+            ['id' => 'ep-1', 'name' => 'kpi_snapshot', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/data/kpi/snapshot', 'status' => 200, 'response' => new \stdClass],
         ]);
 
         Http::fake([
-            'https://api.primary.test/api/data/v_primary*' => Http::response(['success' => true, 'data' => ['count' => 5]], 200),
+            'https://api.primary.test/data/kpi/snapshot*' => Http::response(['success' => true, 'data' => ['chaine' => 'CH01', 'efficience_pct' => 85, 'effectif' => 12]], 200),
         ]);
 
         $this->artisan('sync:endpoint-data', [
             '--phase' => 'datasets',
             '--force' => true,
             '--retry' => 0,
-            '--slug' => ['api/data/v_primary'],
+            '--slug' => ['data/kpi/snapshot'],
         ])->assertSuccessful();
 
-        $this->assertDatabaseMissing('endpoint_datasets', ['slug' => 'api/data/v_primary']);
+        $this->assertDatabaseHas('endpoint_datasets', [
+            'slug' => 'data/kpi/snapshot',
+            'last_status' => 'ok',
+            'row_count' => 1,
+        ]);
+
+        $dataset = EndpointDataset::where('slug', 'data/kpi/snapshot')->first();
+
+        $this->assertSame(['chaine', 'efficience_pct', 'effectif'], array_column($dataset->columns, 'name'));
+        $this->assertSame([['chaine' => 'CH01', 'efficience_pct' => 85, 'effectif' => 12]], $dataset->sample_data);
+    }
+
+    public function test_datasets_sync_exposes_nested_object_list_columns_and_rows(): void
+    {
+        // Nested object-lists inside a single-object `data` must be reachable:
+        // their keys become columns and each element a denormalized row.
+        $this->writeData([
+            ['id' => 'ep-1', 'name' => 'pareto_defauts', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/data/kpi/pareto-defauts', 'status' => 200, 'response' => new \stdClass],
+        ]);
+
+        Http::fake([
+            'https://api.primary.test/data/kpi/pareto-defauts*' => Http::response(['success' => true, 'data' => [
+                'chaine' => 'CH01',
+                'total' => 8,
+                'defauts' => [
+                    ['category' => 'couleur', 'count' => 4, 'cumulative_pct' => 50],
+                    ['category' => 'elasticite', 'count' => 4, 'cumulative_pct' => 100],
+                ],
+            ]], 200),
+        ]);
+
+        $this->artisan('sync:endpoint-data', [
+            '--phase' => 'datasets',
+            '--force' => true,
+            '--retry' => 0,
+            '--slug' => ['data/kpi/pareto-defauts'],
+        ])->assertSuccessful();
+
+        $this->assertDatabaseHas('endpoint_datasets', [
+            'slug' => 'data/kpi/pareto-defauts',
+            'last_status' => 'ok',
+            'row_count' => 2,
+        ]);
+
+        $dataset = EndpointDataset::where('slug', 'data/kpi/pareto-defauts')->first();
+
+        $this->assertSame(
+            ['chaine', 'total', 'category', 'count', 'cumulative_pct'],
+            array_column($dataset->columns, 'name'),
+        );
+        $this->assertSame([
+            ['chaine' => 'CH01', 'total' => 8, 'category' => 'couleur', 'count' => 4, 'cumulative_pct' => 50],
+            ['chaine' => 'CH01', 'total' => 8, 'category' => 'elasticite', 'count' => 4, 'cumulative_pct' => 100],
+        ], $dataset->sample_data);
+    }
+
+    public function test_datasets_sync_skips_endpoint_without_data_key_after_fetch(): void
+    {
+        // A response without a `data` key (e.g. KPI snapshots with nested
+        // jour/dernier_jour/annee objects) is not tabular — no dataset row.
+        $this->writeData([
+            ['id' => 'ep-1', 'name' => 'kpi_br_cgl', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/api/data/q/kpi_br_cgl', 'status' => 200, 'response' => new \stdClass],
+        ]);
+
+        Http::fake([
+            'https://api.primary.test/api/data/q/kpi_br_cgl*' => Http::response(['success' => true, 'req' => 'F-REQ-102', 'jour' => ['day' => '2026-08-17', 'br_pct' => 27.96]], 200),
+        ]);
+
+        $this->artisan('sync:endpoint-data', [
+            '--phase' => 'datasets',
+            '--force' => true,
+            '--retry' => 0,
+            '--slug' => ['api/data/q/kpi_br_cgl'],
+        ])->assertSuccessful();
+
+        $this->assertDatabaseMissing('endpoint_datasets', ['slug' => 'api/data/q/kpi_br_cgl']);
+    }
+
+    public function test_datasets_sync_collapses_multiple_object_lists_to_a_single_row(): void
+    {
+        // A single-object `data` with several nested object-lists (like the
+        // chaine-complet KPI object) must not be expanded into a cartesian
+        // product: that would blow up memory. It is served as one row.
+        $this->writeData([
+            ['id' => 'ep-1', 'name' => 'chaine_complet', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/data/kpi/chaine-complet', 'status' => 200, 'response' => new \stdClass],
+        ]);
+
+        Http::fake([
+            'https://api.primary.test/data/kpi/chaine-complet*' => Http::response(['success' => true, 'data' => [
+                'chaine' => 'CH01',
+                'gpro' => [
+                    ['day' => '2026-08-15', 'effectif' => 16],
+                    ['day' => '2026-08-16', 'effectif' => 18],
+                ],
+                'top_ops' => [
+                    ['opno' => 225, 'qty' => 456],
+                    ['opno' => 224, 'qty' => 84],
+                ],
+                'orders' => [
+                    ['n_of' => '4524764431', 'qte' => 2868],
+                    ['n_of' => '4524760712', 'qte' => 5892],
+                ],
+            ]], 200),
+        ]);
+
+        $this->artisan('sync:endpoint-data', [
+            '--phase' => 'datasets',
+            '--force' => true,
+            '--retry' => 0,
+            '--slug' => ['data/kpi/chaine-complet'],
+        ])->assertSuccessful();
+
+        $this->assertDatabaseHas('endpoint_datasets', [
+            'slug' => 'data/kpi/chaine-complet',
+            'last_status' => 'ok',
+            'row_count' => 1,
+        ]);
+
+        $dataset = EndpointDataset::where('slug', 'data/kpi/chaine-complet')->first();
+
+        $this->assertCount(1, $dataset->sample_data);
+        $this->assertSame('CH01', $dataset->sample_data[0]['chaine']);
+        $this->assertSame(['chaine', 'day', 'effectif', 'opno', 'qty', 'n_of', 'qte'], array_column($dataset->columns, 'name'));
     }
 
     private function readData(): array

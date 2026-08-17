@@ -16,7 +16,7 @@ import {
     type Visual,
     type WellField,
 } from '@/lib/pbi/model';
-import { formatTableNumber, isTableNumberCustomized } from '@/lib/pbi/model';
+import { formatTableNumber, formatTableTreated, isTableNumberCustomized } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
 import { EmptyVisual } from './shared';
 
@@ -38,7 +38,11 @@ function ListCell({
     if (well.listAgg)
         return (
             <span className="font-mono tabular-nums">
-                {listTreatment(codes, well.listAgg, well.index ?? 1) ?? '—'}
+                {formatTableTreated(
+                    listTreatment(codes, well.listAgg, well.index ?? 1),
+                    visual,
+                    well,
+                ) ?? '—'}
             </span>
         );
     const fmt = isTableNumberCustomized(visual)

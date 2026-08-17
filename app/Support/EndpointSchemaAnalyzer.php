@@ -60,8 +60,7 @@ class EndpointSchemaAnalyzer
     private function analyzeEntry(array $item): ?array
     {
         $response = is_array($item['response'] ?? null) ? $item['response'] : [];
-        $data = is_array($response['data'] ?? null) ? array_values(array_filter($response['data'], 'is_array')) : [];
-        $rows = array_slice($data, 0, self::MAX_ROWS);
+        $rows = array_slice(DatasetRows::extractRows($response), 0, self::MAX_ROWS);
 
         $fields = $this->extractFields($response, $rows);
         $columns = [];
@@ -311,7 +310,7 @@ class EndpointSchemaAnalyzer
     }
 
     /**
-     * Extract column names from response.columns or the first data row.
+     * Extract column names from response.columns or the data rows.
      *
      * @param  array<string, mixed>  $response
      * @param  array<int, array<string, mixed>>  $rows
@@ -319,11 +318,7 @@ class EndpointSchemaAnalyzer
      */
     private function extractFields(array $response, array $rows): array
     {
-        $columns = $response['columns'] ?? [];
-
-        if (empty($columns) && isset($rows[0]) && is_array($rows[0])) {
-            $columns = array_keys($rows[0]);
-        }
+        $columns = DatasetRows::columnsFrom($response);
 
         return array_values(array_unique(array_map('strval', (array) $columns)));
     }
@@ -487,12 +482,6 @@ class EndpointSchemaAnalyzer
             return '';
         }
 
-        $path = ltrim($parsed['path'], '/');
-
-        if (! str_starts_with($path, 'api/')) {
-            return '';
-        }
-
-        return $path;
+        return ltrim($parsed['path'], '/');
     }
 }

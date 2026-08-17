@@ -135,6 +135,7 @@ export {
     formatNumberPattern,
     formatNumberWith,
     formatTableNumber,
+    formatTableTreated,
     formatValue,
     formatWellValue,
     inferFieldType,

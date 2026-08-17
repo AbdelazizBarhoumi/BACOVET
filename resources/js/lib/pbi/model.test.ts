@@ -14,6 +14,7 @@ import {
     formatDisplayUnitValue,
     formatNumberPattern,
     formatTableNumber,
+    formatTableTreated,
     gaugeBoundValue,
     inferFieldType,
     isListMeasure,
@@ -927,6 +928,52 @@ describe('table/matrix number formatting (tableNumber block)', () => {
                 tableNumber: { displayUnits: 'percent', suffix: 'pts' },
             }),
         ).toBe('50.0pts');
+    });
+});
+
+describe('formatTableTreated — listAgg treated cells through the tableNumber block', () => {
+    const noTableNumber = {} as Pick<
+        Visual,
+        'numberFormat' | 'tableNumber'
+    >;
+    const autoBlock: Pick<Visual, 'numberFormat' | 'tableNumber'> = {
+        numberFormat: 'auto',
+        tableNumber: { displayUnits: 'auto', decimals: 2, suffix: 'kW' },
+    };
+    const noneBlock: Pick<Visual, 'numberFormat' | 'tableNumber'> = {
+        numberFormat: 'auto',
+        tableNumber: { displayUnits: 'none', decimals: 2, suffix: 'kW' },
+    };
+
+    it('passes null through unchanged', () => {
+        expect(formatTableTreated(null, autoBlock)).toBeNull();
+    });
+
+    it('is byte-identical to the raw treatment when unconfigured', () => {
+        expect(formatTableTreated('22', noTableNumber)).toBe('22');
+        expect(formatTableTreated('2.5', noTableNumber)).toBe('2.5');
+        expect(formatTableTreated('CH01', noTableNumber)).toBe('CH01');
+        expect(formatTableTreated('0', noTableNumber)).toBe('0');
+    });
+
+    it('applies the configured block to numeric treatments', () => {
+        expect(formatTableTreated('22', autoBlock)).toBe('22kW');
+        expect(formatTableTreated('0.248015873015873', autoBlock)).toBe(
+            '0.25kW',
+        );
+        expect(formatTableTreated('22', noneBlock)).toBe('22.00kW');
+        expect(formatTableTreated('12.5', noneBlock)).toBe('12.50kW');
+    });
+
+    it('leaves text codes from first/raw/latest/nth untouched', () => {
+        expect(formatTableTreated('CH01', autoBlock)).toBe('CH01');
+        expect(formatTableTreated('ABC-123', noneBlock)).toBe('ABC-123');
+    });
+
+    it('honors the per-field format first', () => {
+        expect(
+            formatTableTreated('2500', autoBlock, { format: 'currency' }),
+        ).toBe('$2,500');
     });
 });
 

@@ -936,6 +936,25 @@ export function isTableNumberCustomized(
     );
 }
 
+/**
+ * Formats a `listAgg`-treated list cell (count/sum/min/max/first/latest/nth)
+ * through the visual's "Valeurs numériques" block. Unconfigured tables keep
+ * the raw treated output byte-for-byte; configured ones apply the display
+ * unit/decimals/suffix to numeric results while text codes (from `first`,
+ * `raw`, `latest` or `nth`) pass through untouched. `null` stays `null` so
+ * callers render `—`.
+ */
+export function formatTableTreated(
+    treated: string | null,
+    visual: Pick<Visual, 'numberFormat' | 'tableNumber'>,
+    wf?: Pick<WellField, 'format'>,
+): string | null {
+    if (treated === null) return null;
+    if (!isTableNumberCustomized(visual)) return treated;
+    const n = Number(String(treated).trim());
+    return Number.isFinite(n) ? formatTableNumber(n, visual, wf) : treated;
+}
+
 export function normalizeCategoryLabelStyle(
     input: unknown,
 ): CategoryLabelStyle {

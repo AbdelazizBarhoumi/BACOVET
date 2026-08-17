@@ -1760,20 +1760,11 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
-     * Extract column names from response.columns or the first data row.
+     * Extract column names from response.columns or the data rows.
      */
     private function extractFields(array $item): array
     {
-        $columns = $item['response']['columns'] ?? [];
-
-        if (empty($columns) && isset($item['response']['data']) && is_array($item['response']['data']) && count($item['response']['data']) > 0) {
-            $firstRecord = array_values($item['response']['data'])[0] ?? null;
-            if (is_array($firstRecord)) {
-                $columns = array_keys($firstRecord);
-            }
-        }
-
-        return array_values(array_map('strval', (array) $columns));
+        return DatasetRows::columnsFrom($item['response'] ?? null);
     }
 
     /**
@@ -1995,7 +1986,7 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
-     * Extract the endpoint slug from a full URL.
+     * Extract the endpoint slug from a full URL (its path).
      * e.g. "https://api.example.com/api/data/itemtrxenq?limit=100" → "api/data/itemtrxenq"
      */
     private function extractSlug(string $url): string
@@ -2005,12 +1996,6 @@ class NovacityEndpointsController extends Controller
             return '';
         }
 
-        $path = ltrim($parsed['path'], '/');
-
-        if (! str_starts_with($path, 'api/')) {
-            return '';
-        }
-
-        return $path;
+        return ltrim($parsed['path'], '/');
     }
 }

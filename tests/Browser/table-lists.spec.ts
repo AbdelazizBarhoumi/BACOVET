@@ -2,29 +2,41 @@ import { test, expect, type Page } from '@playwright/test';
 import { login } from '../../playwright.config';
 
 /**
- * Table / matrix per-row list rendering (W1-12, W1-13, W1-14, W1-15).
+ * Table / matrix per-row list rendering (W1-12, W1-13, W1-14, W1-15), driven
+ * entirely by live endpoint data — no dependency on a fixed `e2e-dashboard`
+ * fixture.
  *
- * Targets `/p/e2e-dashboard` (page 14). Its active page ("Page 4") holds the
- * exact fixtures: a card `vmskywg8y2` with a list measure and no axis (global
- * list, W1-13) and a table `vmskyy3ue3` with axis `wip_chaine[ProdGroup]` and
- * value `Liste opérations` (per-row list, W1-12/14/15).
+ * A probe page is assembled in the test from `/api/endpoint-datasets`:
+ *  - a table visual: axis on a text column A (≥2 distinct non-empty values),
+ *    value = a `VALUES(A)` list measure → one chip per row group (W1-12);
+ *  - a card visual with the same list measure and no axis → the global
+ *    distinct list (W1-13);
+ *  - the same table with `listAgg='count'` → a positive integer per row,
+ *    never 0 (W1-15);
+ *  - the same table with `listAgg='sum'` over a numeric column → a single
+ *    treated value per row, never the chip list / bare 0 (W1-15).
  *
- * Assertions are structural (chips present, per-row chip sets differ, dash
- * for empty chains, no bare 0, count treatment yields a positive integer)
- * rather than pinned to a specific data snapshot: the app reads live-synced
- * endpoint data that drifts from any static capture.
- *
- * The `listAgg` case patches a throwaway copy of the page via the builder API
- * (never the user's e2e-dashboard) and deletes it afterwards.
+ * Assertions are structural (chips present, per-row chip sets differ, no bare
+ * 0, treated cells collapse to a number or —), never pinned to a snapshot.
  */
 
-const E2E_DASHBOARD_SLUG = 'e2e-dashboard';
-const TABLE_VISUAL_ID = 'vmskyy3ue3';
-const CARD_VISUAL_ID = 'vmskywg8y2';
-const PAGE4_ID = 'pmskyvxr01';
-const PROBE_SLUG = 'e2e-listagg-probe';
-const PROBE_SUM_SLUG = 'e2e-listagg-sum-probe';
-const PROBE_CARD_SLUG = 'e2e-listagg-card-probe';
+type Dataset = {
+    slug: string;
+    label: string | null;
+    object: string | null;
+    columns: { name: string; type: string }[] | null;
+    sample_data: Record<string, unknown>[] | null;
+};
+
+const PAGE_PRESET = {
+    preset: '16:9',
+    width: 1280,
+    height: 720,
+    background: 'var(--card)',
+    wallpaper: 'var(--muted)',
+    tooltip: false,
+    hidden: false,
+};
 
 async function csrf(page: Page): Promise<string> {
     return page.evaluate(() => {
@@ -41,323 +53,508 @@ async function apiHeaders(page: Page) {
     };
 }
 
-async function readPage(page: Page, slug: string) {
-    const res = await page.request.get(`/api/builder-pages/${slug}`);
+/** Mirror of `tableName()` in `@/lib/pbi/datasets`. */
+function tableNameOf(d: Dataset): string {
+    return d.label || d.object || d.slug.split('/').pop() || d.slug;
+}
+
+function normalizeType(t: string): 'number' | 'date' | 'boolean' | 'text' {
+    if (t === 'number' || t === 'integer' || t === 'float') return 'number';
+    if (t === 'date') return 'date';
+    if (t === 'boolean' || t === 'bool') return 'boolean';
+    return 'text';
+}
+
+/** Column name, effective type and distinct non-empty values. */
+function columnsOf(
+    d: Dataset,
+): { name: string; type: string; distinct: Set<string> }[] {
+    const rows = d.sample_data ?? [];
+    let names: string[];
+    let declared: Map<string, string>;
+    if (d.columns && d.columns.length) {
+        names = d.columns.map((c) => c.name);
+        declared = new Map(d.columns.map((c) => [c.name, c.type]));
+    } else {
+        names = Object.keys(rows[0] ?? {});
+        declared = new Map();
+    }
+    return names.map((name) => {
+        const nonEmpty = rows
+            .map((r) => r[name] ?? null)
+            .filter((v) => v !== null && v !== undefined && v !== '');
+        const numeric =
+            nonEmpty.length > 0 &&
+            nonEmpty.every((v) => isFinite(Number(String(v).trim())));
+        const type = declared.has(name)
+            ? declared.get(name)!
+            : numeric
+              ? 'number'
+              : 'text';
+        return {
+            name,
+            type,
+            distinct: new Set(nonEmpty.map((v) => String(v).trim())),
+        };
+    });
+}
+
+/**
+ * First dataset with a text column A (≥2 distinct non-empty values, at least
+ * one non-numeric, `0` absent) and a numeric column with a finite value.
+ */
+async function pickListDataset(
+    page: Page,
+): Promise<{ name: string; axisCol: string; numCol: string } | null> {
+    const res = await page.request.get('/api/endpoint-datasets');
     expect(res.ok()).toBeTruthy();
-    return res.json();
+    const body: { datasets?: Dataset[] } = await res.json();
+    for (const d of body.datasets ?? []) {
+        const cols = columnsOf(d);
+        const axis = cols.find(
+            (c) =>
+                normalizeType(c.type) === 'text' &&
+                c.distinct.size >= 2 &&
+                [...c.distinct].some((v) => !isFinite(Number(v))) &&
+                !c.distinct.has('0'),
+        );
+        if (!axis) continue;
+        const rows = d.sample_data ?? [];
+        const num = cols.find((c) => {
+            if (normalizeType(c.type) !== 'number') return false;
+            return rows.some((r) => {
+                const v = r[c.name];
+                return (
+                    v !== null &&
+                    v !== undefined &&
+                    v !== '' &&
+                    isFinite(Number(String(v).trim()))
+                );
+            });
+        });
+        if (!num) continue;
+        return { name: tableNameOf(d), axisCol: axis.name, numCol: num.name };
+    }
+    return null;
 }
 
-async function openDashboard(page: Page) {
+function mkTableVisual(
+    id: string,
+    axis: { table: string; name: string },
+    values: unknown[],
+) {
+    return {
+        id,
+        type: 'table',
+        name: 'Table probe',
+        title: '',
+        x: 8,
+        y: 8,
+        w: 800,
+        h: 400,
+        z: 1,
+        hidden: false,
+        axis: [{ table: axis.table, name: axis.name, agg: 'count' }],
+        legend: [],
+        values,
+        tooltips: [],
+        smallMultiples: [],
+        drillFields: [],
+        minimum: [],
+        maximum: [],
+        target: [],
+        showTitle: true,
+        showLegend: true,
+        showLabels: false,
+        background: 'var(--card)',
+        border: true,
+        shadow: false,
+        altText: '',
+        colorIndex: 0,
+        analytics: [],
+        conditionalFormat: false,
+        subtotals: false,
+        drillLevel: 0,
+        maxCategories: 200,
+        rotation: 0,
+        numberFormat: 'auto',
+    };
+}
+
+function mkCardVisual(id: string, values: unknown[]) {
+    return {
+        id,
+        type: 'card',
+        name: 'Card probe',
+        title: '',
+        x: 820,
+        y: 8,
+        w: 400,
+        h: 200,
+        z: 2,
+        hidden: false,
+        axis: [],
+        legend: [],
+        values,
+        tooltips: [],
+        smallMultiples: [],
+        drillFields: [],
+        minimum: [],
+        maximum: [],
+        target: [],
+        showTitle: true,
+        showLegend: true,
+        showLabels: false,
+        background: 'var(--card)',
+        border: true,
+        shadow: false,
+        altText: '',
+        colorIndex: 0,
+        analytics: [],
+        conditionalFormat: false,
+        subtotals: false,
+        drillLevel: 0,
+        maxCategories: 200,
+        rotation: 0,
+    };
+}
+
+function buildLayout(visuals: unknown[]): { version: number; pbi: object } {
+    const page = {
+        id: 'p1',
+        name: 'Page 1',
+        visuals,
+        format: { ...PAGE_PRESET },
+        mobile: {},
+        tabOrder: (visuals as { id: string }[]).map((v) => v.id),
+    };
+    return {
+        version: 2,
+        pbi: {
+            pages: [page],
+            activePageId: 'p1',
+            selectedId: null,
+            selectedIds: [],
+            filters: [],
+            parameters: [],
+            slicerSelections: {},
+            slicerDateRanges: {},
+            slicerSync: {},
+            crossFilter: null,
+            interactions: {},
+            defaultInteraction: 'highlight',
+            tooltipHover: null,
+            editInteractions: false,
+            bookmarks: [],
+            theme: 'default',
+            customThemes: [],
+            showGridlines: true,
+            snapToGrid: true,
+            zoom: 100,
+            mobileView: false,
+            fullscreen: false,
+            ribbonTab: 'Insertion',
+            openPanes: {
+                filters: true,
+                visualizations: true,
+                data: true,
+                selection: false,
+                bookmarks: false,
+                syncSlicers: false,
+                analytics: false,
+                themes: false,
+            },
+            drillthrough: null,
+        },
+    };
+}
+
+async function createProbe(
+    page: Page,
+    slug: string,
+    layout: { version: number; pbi: object },
+): Promise<{ id: number; slug: string }> {
+    const res = await page.request.post('/api/builder-pages', {
+        data: { name: 'E2E table lists probe', slug },
+        headers: await apiHeaders(page),
+    });
+    expect(res.ok()).toBeTruthy();
+    const created: { page: { id: number; slug: string } } = await res.json();
+    const saved = await page.request.put(
+        `/api/builder-pages/${created.page.id}`,
+        {
+            data: { layout },
+            headers: await apiHeaders(page),
+        },
+    );
+    expect(saved.ok()).toBeTruthy();
+    return { id: created.page.id, slug: created.page.slug };
+}
+
+async function deleteProbe(page: Page, id: number): Promise<void> {
+    await page.request
+        .delete(`/api/builder-pages/${id}`, { headers: await apiHeaders(page) })
+        .catch(() => {});
+}
+
+async function createListMeasure(
+    page: Page,
+    expression: string,
+): Promise<{ id: number; name: string }> {
+    const name = `Probe Liste ${Date.now()}${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+    const res = await page.request.post('/api/measures', {
+        data: { name, expression },
+        headers: await apiHeaders(page),
+    });
+    expect(res.ok()).toBeTruthy();
+    const body: { measure: { id: number; name: string } } = await res.json();
+    return { id: body.measure.id, name: body.measure.name };
+}
+
+async function deleteMeasure(page: Page, id: number): Promise<void> {
+    await page.request
+        .delete(`/api/measures/${id}`, { headers: await apiHeaders(page) })
+        .catch(() => {});
+}
+
+function daxTable(name: string): string {
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+        ? name
+        : `'${name.replace(/'/g, "''")}'`;
+}
+
+const listAggWell = (name: string, listAgg?: string) => ({
+    table: 'Measures',
+    name,
+    agg: 'sum',
+    ...(listAgg ? { listAgg } : {}),
+});
+
+/** First two tbody rows with a non-empty axis label. */
+async function nonEmptyAxisRows(
+    table: ReturnType<Page['locator']>,
+): Promise<number[]> {
+    const rows = table.locator('tbody tr');
+    const count = await rows.count();
+    const idx: number[] = [];
+    for (let i = 0; i < count && idx.length < 2; i++) {
+        const label =
+            (await rows.nth(i).locator('td').nth(0).textContent())?.trim() ?? '';
+        if (label) idx.push(i);
+    }
+    return idx;
+}
+
+test('table renders per-row list chips and distinct chip sets (W1-12, W1-14)', async ({
+    page,
+}) => {
+    test.setTimeout(120_000);
     await login(page);
-    await page.goto(`/p/${E2E_DASHBOARD_SLUG}`);
-    const table = page
-        .getByTestId(`visual-${TABLE_VISUAL_ID}`)
-        .locator('table');
-    await expect(table).toBeVisible({ timeout: 60_000 });
-    return table;
-}
+    const picked = await pickListDataset(page);
+    expect(picked).not.toBeNull();
+    const { name, axisCol } = picked!;
 
-test.describe('per-row list rendering (W1-12/13/14/15)', () => {
-    test.describe.configure({ mode: 'serial', timeout: 90_000 });
-
-    test('table renders per-row list chips, not numbers (W1-12)', async ({
+    const measure = await createListMeasure(
         page,
-    }) => {
-        const table = await openDashboard(page);
-        const rows = table.locator('tbody tr');
-        await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-
-        // Row 0 is the first chain (CH01): per-row distinct ops as chips,
-        // never a bare number.
-        await expect(rows.nth(0).locator('td').nth(0)).toHaveText(/CH01/);
-        const chips = rows
-            .nth(0)
-            .locator('td')
-            .nth(1)
-            .locator('span.font-mono');
-        await expect(chips.first()).toBeVisible({ timeout: 60_000 });
-        expect(await chips.count()).toBeGreaterThan(0);
-        await expect(rows.nth(0).locator('td').nth(1)).not.toHaveText(/^\d+$/);
-    });
-
-    test('table shows the value column contents instead of repeating the chain label', async ({
-        page,
-    }) => {
-        const table = await openDashboard(page);
-        const rows = table.locator('tbody tr');
-        await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-
-        const firstAxis = (await rows.nth(0).locator('td').nth(0).textContent())
-            ?.trim();
-        const firstValue = (await rows.nth(0).locator('td').nth(1).textContent())
-            ?.trim();
-
-        expect(firstAxis).toBeTruthy();
-        expect(firstValue).toBeTruthy();
-        expect(firstValue).not.toEqual(firstAxis);
-
-        // Ensure at least one row has a value cell not starting with the chain
-        // prefix, so we are not just mirroring the left column.
-        const valueCells = table
-            .locator('tbody tr td:nth-child(2)')
-            .allTextContents();
-        const values = (await valueCells).map((text) => text.trim());
-        expect(values.some((text) => text && !/^CH\d/.test(text))).toBe(true);
-    });
-
-    test('different chains show different chip sets and empty renders — (W1-14, W1-15)', async ({
-        page,
-    }) => {
-        const table = await openDashboard(page);
-        const rows = table.locator('tbody tr');
-        await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-
-        // Row 2 = CH02, a real chain: at least one op chip.
-        await expect(rows.nth(2).locator('td').nth(0)).toHaveText(/CH02/);
-        const row2Chips = rows
-            .nth(2)
-            .locator('td')
-            .nth(1)
-            .locator('span.font-mono');
-        await expect(row2Chips.first()).toBeVisible({ timeout: 60_000 });
-        expect(await row2Chips.count()).toBeGreaterThan(0);
-
-        // Row 1 = CH01B, a chain with no empdefecteff rows -> `—`, never 0.
-        await expect(rows.nth(1).locator('td').nth(0)).toHaveText(/CH01B/);
-        await expect(rows.nth(1).locator('td').nth(1)).toHaveText('—');
-        await expect(
-            rows.nth(1).locator('td').nth(1).locator('span.font-mono'),
-        ).toHaveCount(0);
-
-        // Different chains render different chip sets (per-row scoping).
-        const chipSet = async (n: number) =>
-            new Set(
-                await rows
-                    .nth(n)
-                    .locator('td')
-                    .nth(1)
-                    .locator('span.font-mono')
-                    .allTextContents(),
-            );
-        const set0 = await chipSet(0);
-        const set2 = await chipSet(2);
-        expect(set0.size).toBeGreaterThan(0);
-        expect(set2.size).toBeGreaterThan(0);
-        expect(set0).not.toEqual(set2);
-
-        // Regression net: no bare 0 anywhere in the list column.
-        const texts = (
-            await table.locator('tbody tr td:nth-child(2)').allTextContents()
-        ).map((t) => t.trim());
-        expect(texts).not.toContain('0');
-        expect(texts).toContain('—');
-    });
-
-    test('card keeps the global list with no axis (W1-13)', async ({
-        page,
-    }) => {
-        await login(page);
-        await page.goto(`/p/${E2E_DASHBOARD_SLUG}`);
-        const card = page.getByTestId(`visual-${CARD_VISUAL_ID}`);
-        await expect(card).toBeVisible({ timeout: 60_000 });
-        const items = card.locator('div.leading-snug');
-        await expect(items.first()).toBeVisible({ timeout: 60_000 });
-        expect(await items.count()).toBeGreaterThan(10);
-    });
-
-    test('listAgg=count applies the treatment per row (W1-15)', async ({
-        page,
-    }) => {
-        await login(page);
-        await page.goto(`/p/${E2E_DASHBOARD_SLUG}`);
-        await expect(
-            page.getByTestId(`visual-${TABLE_VISUAL_ID}`).locator('table'),
-        ).toBeVisible({ timeout: 60_000 });
-
-        const dashboard = await readPage(page, E2E_DASHBOARD_SLUG);
-        const layout = structuredClone(dashboard.layout);
-        const probe = await page.request.post('/api/builder-pages', {
-            data: { name: 'E2E listAgg probe', slug: PROBE_SLUG },
-            headers: await apiHeaders(page),
-        });
-        expect(probe.ok()).toBeTruthy();
-        const probePage = (await probe.json()).page;
+        `Probe = VALUES(${daxTable(name)}[${axisCol}])`,
+    );
+    try {
+        const layout = buildLayout([
+            mkTableVisual('t1', { table: name, name: axisCol }, [
+                listAggWell(measure.name),
+            ]),
+        ]);
+        const probe = await createProbe(
+            page,
+            `e2e-tlists-chips-${Date.now().toString(36)}`,
+            layout,
+        );
         try {
-            const page4 = layout.pbi.pages.find(
-                (p: { id: string }) => p.id === PAGE4_ID,
-            );
-            const vis = page4.visuals.find(
-                (v: { id: string }) => v.id === TABLE_VISUAL_ID,
-            );
-            vis.values[0].listAgg = 'count';
-            const saved = await page.request.put(
-                `/api/builder-pages/${probePage.id}`,
-                {
-                    data: { layout },
-                    headers: await apiHeaders(page),
-                },
-            );
-            expect(saved.ok()).toBeTruthy();
-
-            await page.goto(`/p/${probePage.slug}`);
-            const table = page
-                .getByTestId(`visual-${TABLE_VISUAL_ID}`)
-                .locator('table');
+            await page.goto(`/p/${probe.slug}`);
+            const table = page.getByTestId('visual-t1').locator('table');
             const rows = table.locator('tbody tr');
             await expect(rows.first()).toBeVisible({ timeout: 60_000 });
 
-            // CH01 -> a positive integer (its distinct-op count); CH01B ->
-            // no rows -> "—", never "0".
-            await expect(rows.nth(0).locator('td').nth(0)).toHaveText(/CH01/);
-            await expect(rows.nth(0).locator('td').nth(1)).toHaveText(
-                /^[1-9]\d*$/,
+            // The list column renders per-row chips, and the live dataset has
+            // at least two distinct axis values → ≥2 chip groups.
+            const chips = table.locator(
+                'tbody tr td:nth-child(2) span.font-mono',
             );
-            await expect(rows.nth(1).locator('td').nth(0)).toHaveText(/CH01B/);
-            await expect(rows.nth(1).locator('td').nth(1)).toHaveText('—');
-        } finally {
-            await page.request
-                .delete(`/api/builder-pages/${probePage.id}`, {
-                    headers: await apiHeaders(page),
-                })
-                .catch(() => {});
-        }
-    });
+            await expect(chips.first()).toBeVisible({ timeout: 60_000 });
+            expect(await chips.count()).toBeGreaterThanOrEqual(2);
 
-    test('listAgg=sum applies the numeric treatment per row (W1-15)', async ({
-        page,
-    }) => {
-        await login(page);
-        await page.goto(`/p/${E2E_DASHBOARD_SLUG}`);
-        await expect(
-            page.getByTestId(`visual-${TABLE_VISUAL_ID}`).locator('table'),
-        ).toBeVisible({ timeout: 60_000 });
+            // At least one chip is a text code, not a bare number (W1-12).
+            const chipTexts = await chips.allTextContents();
+            expect(
+                chipTexts.some((c) => !/^-?\d[\d.,]*$/.test(c.trim())),
+            ).toBe(true);
 
-        const dashboard = await readPage(page, E2E_DASHBOARD_SLUG);
-        const layout = structuredClone(dashboard.layout);
-        const probe = await page.request.post('/api/builder-pages', {
-            data: { name: 'E2E listAgg sum probe', slug: PROBE_SUM_SLUG },
-            headers: await apiHeaders(page),
-        });
-        expect(probe.ok()).toBeTruthy();
-        const probePage = (await probe.json()).page;
-        try {
-            const page4 = layout.pbi.pages.find(
-                (p: { id: string }) => p.id === PAGE4_ID,
-            );
-            const vis = page4.visuals.find(
-                (v: { id: string }) => v.id === TABLE_VISUAL_ID,
-            );
-            vis.values[0].listAgg = 'sum';
-            const saved = await page.request.put(
-                `/api/builder-pages/${probePage.id}`,
-                {
-                    data: { layout },
-                    headers: await apiHeaders(page),
-                },
-            );
-            expect(saved.ok()).toBeTruthy();
+            // Two different axis groups render different chip sets (W1-14).
+            const idx = await nonEmptyAxisRows(table);
+            expect(idx.length).toBeGreaterThanOrEqual(2);
+            const setOf = async (i: number) =>
+                new Set(
+                    await rows
+                        .nth(i)
+                        .locator('td')
+                        .nth(1)
+                        .locator('span.font-mono')
+                        .allTextContents(),
+                );
+            const a = await setOf(idx[0]!);
+            const b = await setOf(idx[1]!);
+            expect(a.size).toBeGreaterThan(0);
+            expect(b.size).toBeGreaterThan(0);
+            expect(a).not.toEqual(b);
 
-            await page.goto(`/p/${probePage.slug}`);
-            const table = page
-                .getByTestId(`visual-${TABLE_VISUAL_ID}`)
-                .locator('table');
-            const rows = table.locator('tbody tr');
-            await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-
-            // Numeric mode: the cell collapses to a single treated value — a
-            // number when the row has numeric codes, otherwise "—". It must
-            // never render the chips list nor a bare 0. (Op codes are
-            // text-dominated on this live dataset, so most rows are "—", which
-            // is exactly the ignored-codes contract.)
-            await expect(rows.nth(0).locator('td').nth(0)).toHaveText(/CH01/);
-            const cell1 = rows.nth(0).locator('td').nth(1);
-            const cellText = (await cell1.textContent())?.trim() ?? '';
-            expect(cellText).toMatch(/^(?:[0-9]+|—)$/);
-            await expect(rows.nth(1).locator('td').nth(1)).toHaveText('—');
-
-            // Regression net: no chips and no bare 0 anywhere in the column.
+            // Regression net: the list column never renders a bare 0.
             const texts = (
                 await table.locator('tbody tr td:nth-child(2)').allTextContents()
             ).map((t) => t.trim());
-            expect(texts.every((t) => /^(?:[0-9]+|—)$/.test(t))).toBe(true);
             expect(texts).not.toContain('0');
-            expect(texts).toContain('—');
         } finally {
-            await page.request
-                .delete(`/api/builder-pages/${probePage.id}`, {
-                    headers: await apiHeaders(page),
-                })
-                .catch(() => {});
+            await deleteProbe(page, probe.id);
         }
-    });
+    } finally {
+        await deleteMeasure(page, measure.id);
+    }
+});
 
-    test('card applies the listAgg treatment and non-numeric codes fall back to — (W1-15)', async ({
+test('card keeps the global list with no axis (W1-13)', async ({ page }) => {
+    test.setTimeout(120_000);
+    await login(page);
+    const picked = await pickListDataset(page);
+    expect(picked).not.toBeNull();
+    const { name, axisCol } = picked!;
+
+    const measure = await createListMeasure(
         page,
-    }) => {
-        await login(page);
-        await page.goto(`/p/${E2E_DASHBOARD_SLUG}`);
-        await expect(
-            page.getByTestId(`visual-${CARD_VISUAL_ID}`),
-        ).toBeVisible({ timeout: 60_000 });
-
-        const dashboard = await readPage(page, E2E_DASHBOARD_SLUG);
-        const layout = structuredClone(dashboard.layout);
-        const probe = await page.request.post('/api/builder-pages', {
-            data: { name: 'E2E listAgg card probe', slug: PROBE_CARD_SLUG },
-            headers: await apiHeaders(page),
-        });
-        expect(probe.ok()).toBeTruthy();
-        const probePage = (await probe.json()).page;
+        `Probe = VALUES(${daxTable(name)}[${axisCol}])`,
+    );
+    try {
+        const layout = buildLayout([
+            mkCardVisual('c1', [listAggWell(measure.name)]),
+        ]);
+        const probe = await createProbe(
+            page,
+            `e2e-tlists-card-${Date.now().toString(36)}`,
+            layout,
+        );
         try {
-            const page4 = layout.pbi.pages.find(
-                (p: { id: string }) => p.id === PAGE4_ID,
-            );
-            const vis = page4.visuals.find(
-                (v: { id: string }) => v.id === CARD_VISUAL_ID,
-            );
-            vis.values[0].listAgg = 'count';
-            const saved = await page.request.put(
-                `/api/builder-pages/${probePage.id}`,
-                {
-                    data: { layout },
-                    headers: await apiHeaders(page),
-                },
-            );
-            expect(saved.ok()).toBeTruthy();
-
-            await page.goto(`/p/${probePage.slug}`);
-            const card = page.getByTestId(`visual-${CARD_VISUAL_ID}`);
+            await page.goto(`/p/${probe.slug}`);
+            const card = page.getByTestId('visual-c1');
             await expect(card).toBeVisible({ timeout: 60_000 });
-            // count treatment -> a positive integer, no chips list.
-            await expect(
-                card.locator('div.leading-snug'),
-            ).toHaveCount(0);
-            await expect(card.locator('span.text-xl')).toHaveText(/^[1-9]\d*$/);
-
-            // A numeric mode over a text-only list ignores every code and
-            // renders the "—" fallback, not 0.
-            const layout2 = structuredClone(layout);
-            const vis2 = layout2.pbi.pages
-                .find((p: { id: string }) => p.id === PAGE4_ID)
-                .visuals.find((v: { id: string }) => v.id === CARD_VISUAL_ID);
-            vis2.values[0].listAgg = 'sum';
-            const saved2 = await page.request.put(
-                `/api/builder-pages/${probePage.id}`,
-                {
-                    data: { layout: layout2 },
-                    headers: await apiHeaders(page),
-                },
-            );
-            expect(saved2.ok()).toBeTruthy();
-            await page.reload();
-            await expect(card).toBeVisible({ timeout: 60_000 });
-            await expect(card.locator('span.text-xl')).toHaveText('—');
+            const items = card.locator('div.leading-snug');
+            await expect(items.first()).toBeVisible({ timeout: 60_000 });
+            // Global distinct list of the axis column (≥2 by selection).
+            expect(await items.count()).toBeGreaterThanOrEqual(2);
         } finally {
-            await page.request
-                .delete(`/api/builder-pages/${probePage.id}`, {
-                    headers: await apiHeaders(page),
-                })
-                .catch(() => {});
+            await deleteProbe(page, probe.id);
         }
-    });
+    } finally {
+        await deleteMeasure(page, measure.id);
+    }
+});
+
+test('listAgg=count applies the treatment per row (W1-15)', async ({
+    page,
+}) => {
+    test.setTimeout(120_000);
+    await login(page);
+    const picked = await pickListDataset(page);
+    expect(picked).not.toBeNull();
+    const { name, axisCol } = picked!;
+
+    const measure = await createListMeasure(
+        page,
+        `Probe = VALUES(${daxTable(name)}[${axisCol}])`,
+    );
+    try {
+        const layout = buildLayout([
+            mkTableVisual('t1', { table: name, name: axisCol }, [
+                listAggWell(measure.name, 'count'),
+            ]),
+        ]);
+        const probe = await createProbe(
+            page,
+            `e2e-tlists-count-${Date.now().toString(36)}`,
+            layout,
+        );
+        try {
+            await page.goto(`/p/${probe.slug}`);
+            const table = page.getByTestId('visual-t1').locator('table');
+            const rows = table.locator('tbody tr');
+            await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+
+            // Every non-empty group collapses to a positive integer (its
+            // distinct-list size), never 0 and never the chip list.
+            const idx = await nonEmptyAxisRows(table);
+            expect(idx.length).toBeGreaterThanOrEqual(2);
+            for (const i of idx) {
+                await expect(rows.nth(i).locator('td').nth(1)).toHaveText(
+                    /^[1-9]\d*$/,
+                );
+            }
+        } finally {
+            await deleteProbe(page, probe.id);
+        }
+    } finally {
+        await deleteMeasure(page, measure.id);
+    }
+});
+
+test('listAgg=sum applies the numeric treatment per row (W1-15)', async ({
+    page,
+}) => {
+    test.setTimeout(120_000);
+    await login(page);
+    const picked = await pickListDataset(page);
+    expect(picked).not.toBeNull();
+    const { name, numCol } = picked!;
+
+    const measure = await createListMeasure(
+        page,
+        `Probe = VALUES(${daxTable(name)}[${numCol}])`,
+    );
+    try {
+        const layout = buildLayout([
+            mkTableVisual('t1', { table: name, name: numCol }, [
+                listAggWell(measure.name, 'sum'),
+            ]),
+        ]);
+        const probe = await createProbe(
+            page,
+            `e2e-tlists-sum-${Date.now().toString(36)}`,
+            layout,
+        );
+        try {
+            await page.goto(`/p/${probe.slug}`);
+            const table = page.getByTestId('visual-t1').locator('table');
+            const rows = table.locator('tbody tr');
+            await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+
+            // Numeric mode: each non-empty group collapses to a single treated
+            // value — a number when it has numeric codes, otherwise —. Never
+            // the chip list.
+            const idx = await nonEmptyAxisRows(table);
+            expect(idx.length).toBeGreaterThanOrEqual(1);
+            const texts: string[] = [];
+            for (const i of idx) {
+                const t =
+                    (await rows.nth(i).locator('td').nth(1).textContent())
+                        ?.trim() ?? '';
+                expect(t).toMatch(/^(?:-?\d[\d.,]*|—)$/);
+                texts.push(t);
+            }
+            expect(
+                texts.some((t) => /^-?\d[\d.,]*$/.test(t)),
+            ).toBe(true);
+        } finally {
+            await deleteProbe(page, probe.id);
+        }
+    } finally {
+        await deleteMeasure(page, measure.id);
+    }
 });

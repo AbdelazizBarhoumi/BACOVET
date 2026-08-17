@@ -2,12 +2,13 @@
 
 namespace App\Services;
 
+use App\Support\DatasetRows;
 use App\Support\RootState;
 use Illuminate\Support\Facades\Cache;
 
 class EndpointDatasetRegistry
 {
-    private const CACHE_KEY = 'endpoint-datasets:registry:v1';
+    private const CACHE_KEY = 'endpoint-datasets:registry:v2';
 
     public function path(): string
     {
@@ -18,7 +19,7 @@ class EndpointDatasetRegistry
      * Eligible, tabular, non-auth/admin GET endpoints from data.json.
      *
      * Each entry:
-     *  - slug        : api/... path
+     *  - slug        : URL path (any non-empty path)
      *  - endpoint    : full stored URL (path + optional query)
      *  - name        : display name
      *  - label       : response.label or null
@@ -26,7 +27,8 @@ class EndpointDatasetRegistry
      *  - object_type : response.object_type or null
      *  - source      : detected source (SDT/QCM/DIVATEX/OTHER)
      *  - method      : "GET"
-     *  - columns     : list of column names (response.columns, else first data row keys)
+     *  - columns     : list of column names (response.columns, else derived
+     *                  from response.data rows or a single object's keys)
      *
      * @return array<int, array<string, mixed>>
      */
@@ -79,10 +81,10 @@ class EndpointDatasetRegistry
                 continue;
             }
 
-            $data = $item['response']['data'] ?? null;
+            $rows = DatasetRows::extractRows($item['response'] ?? null);
 
-            if (is_array($data)) {
-                $rowsBySlug[$slug] = array_values($data);
+            if ($rows !== []) {
+                $rowsBySlug[$slug] = $rows;
             }
         }
 
@@ -322,8 +324,7 @@ class EndpointDatasetRegistry
     }
 
     /**
-     * Dataset slug for a raw endpoint URL ('' when neither api/- nor data/
-     * prefixed).
+     * Dataset slug for a raw endpoint URL (its path, '' when unparsable).
      */
     public function slugOf(string $url): string
     {
@@ -332,7 +333,7 @@ class EndpointDatasetRegistry
 
     /**
      * Whether a raw data.json item is eligible for a dataset row: it has a
-     * usable api/ or data/ slug, is a GET and is not an auth/admin endpoint.
+     * usable path slug, is a GET and is not an auth/admin endpoint.
      */
     public function eligible(array $item): bool
     {
@@ -357,37 +358,17 @@ class EndpointDatasetRegistry
             return '';
         }
 
-        $path = ltrim($parsed['path'], '/');
-
-        if (str_starts_with($path, 'api/') || str_starts_with($path, 'data/')) {
-            return $path;
-        }
-
-        return '';
+        return ltrim($parsed['path'], '/');
     }
 
     /**
-     * Column names from response.columns, else inferred from the first data row.
+     * Column names from response.columns, else inferred from the data rows.
      *
      * @return list<string>
      */
     private function extractColumns(array $item): array
     {
-        $response = $item['response'] ?? [];
-        $columns = $response['columns'] ?? [];
-
-        if (empty($columns)) {
-            $data = $response['data'] ?? null;
-
-            if (is_array($data) && is_array($data[0] ?? null)) {
-                $columns = array_keys($data[0]);
-            }
-        }
-
-        return array_values(array_filter(
-            array_map('strval', (array) $columns),
-            static fn (string $c): bool => $c !== ''
-        ));
+        return DatasetRows::columnsFrom($item['response'] ?? null);
     }
 
     private function nullableString(mixed $value): ?string

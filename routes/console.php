@@ -38,7 +38,12 @@ if (! function_exists('isSyncDue')) {
 // fresh 24/7. The gate below keeps the cadence at the configured interval
 // (settings.sync_interval_seconds, min 60s); the lock that used to skip
 // overlapping refreshes has been removed.
-Schedule::command('sync:endpoint-data --phase=refresh --force')
+//
+// --phase=all runs the registry refresh AND the datasets phase in one pass:
+// without the datasets phase, endpoint_datasets (and the parameter variants
+// that drive dashboard parameters) would only ever be stored by a manual
+// Rafraîchir, so a fresh deploy would never populate them automatically.
+Schedule::command('sync:endpoint-data --phase=all --force')
     ->everyMinute()
     ->when(fn () => isSyncDue('sync_interval_seconds'))
     ->name('endpoint-data');
