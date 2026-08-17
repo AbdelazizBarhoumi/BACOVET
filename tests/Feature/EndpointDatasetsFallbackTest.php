@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\NovacityEndpointsController;
 use App\Models\EndpointDataset;
 use App\Models\Role;
 use App\Models\User;
@@ -14,6 +15,74 @@ use Tests\TestCase;
 class EndpointDatasetsFallbackTest extends TestCase
 {
     use RefreshDatabase;
+
+    private string $dataFile;
+
+    private string $disabledRootsFile;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->dataFile = storage_path('framework/testing/endpoint-datasets-fallback-data.json');
+        $this->disabledRootsFile = storage_path('framework/testing/endpoint-disabled-roots.json');
+
+        @mkdir(dirname($this->dataFile), 0755, true);
+
+        config([
+            'novacity.data_file' => 'framework/testing/endpoint-datasets-fallback-data.json',
+        ]);
+
+        $this->writeData([
+            [
+                'id' => 'ep-1',
+                'name' => 'wip_chaine (SDT)',
+                'method' => 'GET',
+                'endpoint' => 'https://api.primary.test/api/data/q/wip_chaine',
+                'status' => 200,
+                'response' => [
+                    'success' => true,
+                    'source' => 'SDT',
+                    'columns' => ['ProdGroup', 'WIP_Chaine'],
+                    'data' => array_map(
+                        fn (int $i): array => ['ProdGroup' => "CH{$i}J", 'WIP_Chaine' => $i],
+                        range(1, 27),
+                    ),
+                ],
+            ],
+            [
+                'id' => 'ep-2',
+                'name' => 'taging_reel (QCM)',
+                'method' => 'GET',
+                'endpoint' => 'https://api.primary.test/api/data/q/taging_reel',
+                'status' => 200,
+                'response' => [
+                    'success' => true,
+                    'source' => 'QCM',
+                    'columns' => ['MONo', 'ProdGroup'],
+                    'data' => array_map(
+                        fn (int $i): array => ['MONo' => "MO{$i}", 'ProdGroup' => 'A'],
+                        range(1, 100),
+                    ),
+                ],
+            ],
+        ]);
+
+        NovacityEndpointsController::flushCache();
+    }
+
+    protected function tearDown(): void
+    {
+        @unlink($this->dataFile);
+        @unlink($this->disabledRootsFile);
+        NovacityEndpointsController::flushCache();
+        parent::tearDown();
+    }
+
+    private function writeData(array $items): void
+    {
+        file_put_contents($this->dataFile, json_encode($items, JSON_PRETTY_PRINT));
+    }
 
     private function userWithRole(): User
     {
@@ -42,8 +111,6 @@ class EndpointDatasetsFallbackTest extends TestCase
         $expected = [
             'api/data/q/wip_chaine' => 27,
             'api/data/q/taging_reel' => 100,
-            'api/data/codestyle' => 100,
-            'api/data/itemtrxenq' => 100,
         ];
 
         foreach ($expected as $slug => $count) {
@@ -84,6 +151,7 @@ class EndpointDatasetsFallbackTest extends TestCase
             $this->actingAs($user)->json('GET', '/api/endpoint-datasets')->json('datasets'),
         )->firstWhere('slug', 'api/data/q/wip_chaine');
 
+        $this->assertNotNull($dataset);
         $this->assertSame([['ProdGroup' => 'LIVE', 'WIP_Chaine' => 5]], $dataset['sample_data']);
         $this->assertSame(1, $dataset['row_count']);
     }

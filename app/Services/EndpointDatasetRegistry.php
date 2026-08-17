@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\RootState;
 use Illuminate\Support\Facades\Cache;
 
 class EndpointDatasetRegistry
@@ -68,6 +69,10 @@ class EndpointDatasetRegistry
                 continue;
             }
 
+            if (RootState::isDisabled($item)) {
+                continue;
+            }
+
             $slug = $this->slugOf((string) ($item['endpoint'] ?? ''));
 
             if ($slug === '') {
@@ -122,6 +127,10 @@ class EndpointDatasetRegistry
 
         foreach ($items as $i => $item) {
             if (! is_array($item)) {
+                continue;
+            }
+
+            if (RootState::isDisabled($item)) {
                 continue;
             }
 
@@ -237,9 +246,34 @@ class EndpointDatasetRegistry
 
     /**
      * Build a dataset entry for a raw data.json item, or null when not eligible.
+     *
+     * Unlike entryMeta(), this requires non-empty columns: endpoints whose
+     * stored response has no columns (and no derivable data rows) are not
+     * datasets yet.
      */
     public function buildEntry(array $item): ?array
     {
+        $entry = $this->entryMeta($item);
+
+        if ($entry === null || empty($entry['columns'])) {
+            return null;
+        }
+
+        return $entry;
+    }
+
+    /**
+     * Build a dataset entry for a raw data.json item without the columns gate:
+     * eligible by URL/method but possibly column-less (e.g. freshly imported
+     * endpoints waiting for a live fetch). Used by the datasets sync phase so
+     * imported endpoints can be turned into datasets by fetching live rows.
+     */
+    public function entryMeta(array $item): ?array
+    {
+        if (RootState::isDisabled($item)) {
+            return null;
+        }
+
         $method = strtoupper((string) ($item['method'] ?? 'GET'));
         $url = (string) ($item['endpoint'] ?? '');
         $slug = $this->extractSlug($url);
@@ -252,11 +286,6 @@ class EndpointDatasetRegistry
         }
 
         $response = $item['response'] ?? [];
-        $columns = $this->extractColumns($item);
-
-        if (empty($columns)) {
-            return null;
-        }
 
         return [
             'slug' => $slug,
@@ -267,12 +296,34 @@ class EndpointDatasetRegistry
             'object_type' => $this->nullableString($response['object_type'] ?? null),
             'source' => $this->detectSource($item),
             'method' => 'GET',
-            'columns' => $columns,
+            'columns' => $this->extractColumns($item),
         ];
     }
 
     /**
-     * Dataset slug for a raw endpoint URL ('' when not api/-prefixed).
+     * Eligible-by-URL raw items (api/ slug, GET, non-auth/admin, non-disabled)
+     * regardless of whether columns are present. Suitable for the datasets sync
+     * phase which can derive columns from live rows.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function eligibleItems(): array
+    {
+        $items = $this->readItems();
+
+        if ($items === null) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $items,
+            fn (array $item): bool => $this->eligible($item)
+        ));
+    }
+
+    /**
+     * Dataset slug for a raw endpoint URL ('' when neither api/- nor data/
+     * prefixed).
      */
     public function slugOf(string $url): string
     {
@@ -281,10 +332,14 @@ class EndpointDatasetRegistry
 
     /**
      * Whether a raw data.json item is eligible for a dataset row: it has a
-     * usable api/ slug, is a GET and is not an auth/admin endpoint.
+     * usable api/ or data/ slug, is a GET and is not an auth/admin endpoint.
      */
     public function eligible(array $item): bool
     {
+        if (RootState::isDisabled($item)) {
+            return false;
+        }
+
         $method = strtoupper((string) ($item['method'] ?? 'GET'));
         $slug = $this->slugOf((string) ($item['endpoint'] ?? ''));
 
@@ -304,7 +359,11 @@ class EndpointDatasetRegistry
 
         $path = ltrim($parsed['path'], '/');
 
-        return str_starts_with($path, 'api/') ? $path : '';
+        if (str_starts_with($path, 'api/') || str_starts_with($path, 'data/')) {
+            return $path;
+        }
+
+        return '';
     }
 
     /**

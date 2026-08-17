@@ -30,6 +30,10 @@ class EndpointSchemaAnalyzer
         $valueSets = [];
 
         foreach ($items as $item) {
+            if (! is_array($item) || RootState::isDisabled($item)) {
+                continue;
+            }
+
             $result = $this->analyzeEntry($item);
             if ($result === null) {
                 continue;

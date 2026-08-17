@@ -113,6 +113,42 @@ export function EndpointDetailDialog({
                                     </div>
                                 </div>
                             </div>
+
+                            {entry.parameters &&
+                                entry.parameters.length > 0 && (
+                                    <div className="space-y-2">
+                                        <span className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                            Paramètres
+                                        </span>
+                                        <div className="flex flex-wrap gap-2">
+                                            {entry.parameters.map(
+                                                (parameter) => (
+                                                    <div
+                                                        key={parameter.name}
+                                                        className="rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs"
+                                                    >
+                                                        <span className="font-mono font-semibold uppercase">
+                                                            {parameter.name}
+                                                        </span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                            =
+                                                        </span>{' '}
+                                                        <span className="font-mono font-bold text-warning">
+                                                            {parameter.selected}
+                                                        </span>
+                                                        <span className="ml-1 text-[10px] text-muted-foreground">
+                                                            (
+                                                            {parameter.values.join(
+                                                                ', ',
+                                                            )}
+                                                            )
+                                                        </span>
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                         </TabsContent>
 
                         <TabsContent value="response">

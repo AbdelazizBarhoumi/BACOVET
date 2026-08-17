@@ -2,6 +2,7 @@ import {
     Folder,
     KeyRound,
     LayoutList,
+    Power,
     RefreshCw,
     Server,
 } from 'lucide-react';
@@ -20,6 +21,9 @@ export function EndpointsGroupTabs({
     onRefreshGroup,
     refreshingRoot,
     keyedRoots = [],
+    disabledRoots = [],
+    togglingRoot = null,
+    onToggleRoot,
 }: {
     groups: RootGroupTab[];
     active: string | null;
@@ -27,9 +31,13 @@ export function EndpointsGroupTabs({
     onRefreshGroup: (root: string) => void;
     refreshingRoot: string | null;
     keyedRoots?: string[];
+    disabledRoots?: string[];
+    togglingRoot?: string | null;
+    onToggleRoot?: (root: string, disabled: boolean) => void;
 }) {
     const total = groups.reduce((acc, g) => acc + g.count, 0);
     const keyedRootSet = new Set(keyedRoots);
+    const disabledRootSet = new Set(disabledRoots);
 
     const tabClass = (selected: boolean) =>
         cn(
@@ -56,12 +64,13 @@ export function EndpointsGroupTabs({
 
             {groups.map((group) => {
                 const selected = active === group.root;
+                const rootDisabled = disabledRootSet.has(group.root);
                 return (
                     <button
                         key={group.root}
                         type="button"
                         onClick={() => onSelect(selected ? null : group.root)}
-                        className={tabClass(selected)}
+                        className={cn(tabClass(selected), rootDisabled && 'opacity-55')}
                         title={group.root}
                     >
                         <Server className="h-3 w-3 shrink-0" />
@@ -79,26 +88,72 @@ export function EndpointsGroupTabs({
                                 <KeyRound className="h-3 w-3" />
                             </span>
                         )}
+                        {rootDisabled && (
+                            <span className="ml-0.5 rounded bg-destructive/10 px-1 font-mono text-[9px] font-bold tracking-wider text-destructive uppercase">
+                                Off
+                            </span>
+                        )}
+                        {onToggleRoot && (
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded hover:bg-foreground/10"
+                                title={
+                                    rootDisabled
+                                        ? 'Réactiver toute la racine'
+                                        : 'Désactiver toute la racine'
+                                }
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleRoot(group.root, !rootDisabled);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onToggleRoot(group.root, !rootDisabled);
+                                    }
+                                }}
+                            >
+                                <Power
+                                    className={cn(
+                                        'h-3 w-3',
+                                        rootDisabled && 'text-destructive',
+                                        togglingRoot === group.root &&
+                                            'animate-pulse',
+                                    )}
+                                />
+                            </span>
+                        )}
                         <span
                             role="button"
                             tabIndex={0}
                             className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded hover:bg-foreground/10"
-                            title="Rafraîchir ce groupe"
+                            title={
+                                rootDisabled
+                                    ? 'Racine désactivée — réactivez-la pour rafraîchir'
+                                    : 'Rafraîchir ce groupe'
+                            }
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onRefreshGroup(group.root);
+                                if (!rootDisabled) {
+                                    onRefreshGroup(group.root);
+                                }
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    onRefreshGroup(group.root);
+                                    if (!rootDisabled) {
+                                        onRefreshGroup(group.root);
+                                    }
                                 }
                             }}
                         >
                             <RefreshCw
                                 className={cn(
                                     'h-3 w-3',
+                                    rootDisabled && 'opacity-40',
                                     refreshingRoot === group.root &&
                                         'animate-spin',
                                 )}

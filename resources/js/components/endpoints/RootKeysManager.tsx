@@ -19,12 +19,14 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import {
     fetchRootCredentials,
     removeRootCredential,
     rewriteEndpointRoot,
     saveRootCredential,
+    toggleRootDisabled,
     type RootCredentialInfo,
 } from '@/services/endpointManagerApi';
 
@@ -146,6 +148,28 @@ export function RootKeysManager({
                 err instanceof Error
                     ? err.message
                     : 'Échec de la suppression de la clé API',
+            );
+        } finally {
+            setBusy(root, false);
+        }
+    };
+
+    const handleToggleRoot = async (root: string, disabled: boolean) => {
+        setBusy(root, true);
+        try {
+            const result = await toggleRootDisabled(root, disabled);
+            toast.success(
+                result.disabled
+                    ? `Racine désactivée — ${result.count} endpoint(s) retirés des datasets`
+                    : `Racine réactivée — ${result.count} endpoint(s) restaurés`,
+            );
+            await load();
+            onChanged();
+        } catch (err) {
+            toast.error(
+                err instanceof Error
+                    ? err.message
+                    : 'Échec de la désactivation de la racine',
             );
         } finally {
             setBusy(root, false);
@@ -384,6 +408,11 @@ export function RootKeysManager({
                                                             ? ''
                                                             : 's'}
                                                     </span>
+                                                    {root.disabled && (
+                                                        <span className="rounded bg-destructive/10 px-1 font-mono font-bold tracking-wider text-destructive uppercase">
+                                                            Désactivée
+                                                        </span>
+                                                    )}
                                                     {renaming && renameError ? (
                                                         <span className="text-destructive">
                                                             {renameError}
@@ -432,6 +461,25 @@ export function RootKeysManager({
                                                     </>
                                                 ) : (
                                                     <>
+                                                        <Switch
+                                                            checked={
+                                                                !root.disabled
+                                                            }
+                                                            disabled={busy}
+                                                            onCheckedChange={(
+                                                                checked,
+                                                            ) =>
+                                                                void handleToggleRoot(
+                                                                    root.root,
+                                                                    !checked,
+                                                                )
+                                                            }
+                                                            title={
+                                                                root.disabled
+                                                                    ? 'Réactiver toute la racine'
+                                                                    : 'Désactiver toute la racine'
+                                                            }
+                                                        />
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"

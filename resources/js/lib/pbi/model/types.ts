@@ -332,6 +332,9 @@ export type Visual = {
     radius?: number;
     /** number format applied to values/ticks when fields don't override */
     numberFormat?: NumberFormat;
+    /** table/matrix value-cell number presentation (display units, decimals,
+     * custom suffix); absent → numberFormat presets + field overrides only. */
+    tableNumber?: TableNumberStyle;
     /** analytics pane */
     analytics: AnalyticsLine[];
     /** conditional formatting for table/matrix + column charts */
@@ -484,6 +487,18 @@ export type FxRule = {
 export type FxFormat = {
     enabled: boolean;
     rules: FxRule[];
+};
+
+/** Number presentation for table/matrix value cells: display-unit scaling,
+ * decimal places and a custom suffix. Mirrors the card's callout formatting
+ * (and the cartesian axes), minus the typography. */
+export type TableNumberStyle = {
+    displayUnits: DisplayUnit;
+    /** Decimal places; `undefined` follows the unit's default. */
+    decimals?: number;
+    /** Custom string appended after the value, overriding the unit's built-in
+     * token (K/M/B/%/$). Empty/`undefined` keeps the built-in token. */
+    suffix?: string;
 };
 
 /** The big number of a card/gauge. */

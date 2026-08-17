@@ -14,12 +14,19 @@ import {
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
-    extractRoot,
-    isDefaultRoot,
-    UNKNOWN_ROOT,
-} from '@/lib/endpoint-roots';
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { extractRoot, isDefaultRoot, UNKNOWN_ROOT } from '@/lib/endpoint-roots';
 import { cn } from '@/lib/utils';
-import type { EndpointSummary } from '@/services/endpointManagerApi';
+import type {
+    EndpointParameterView,
+    EndpointSummary,
+} from '@/services/endpointManagerApi';
 import { RetryBadge } from './RetryBadge';
 import { StatusBadge } from './StatusBadge';
 
@@ -70,6 +77,10 @@ export function EndpointRow({
     onDuplicate,
     onDelete,
     onRefreshOne,
+    onToggle,
+    togglingId,
+    onParameterChange,
+    paramBusyId,
 }: {
     item: EndpointSummary;
     refreshingId: string | null;
@@ -80,15 +91,37 @@ export function EndpointRow({
     onDuplicate: (item: EndpointSummary) => void;
     onDelete: (item: EndpointSummary) => void;
     onRefreshOne: (item: EndpointSummary) => void;
+    onToggle: (item: EndpointSummary, disabled: boolean) => void;
+    togglingId?: string | null;
+    onParameterChange?: (
+        item: EndpointSummary,
+        parameter: EndpointParameterView,
+        value: string,
+    ) => void;
+    paramBusyId?: string | null;
 }) {
     const root = extractRoot(item.endpoint);
+    const disabled = Boolean(item.disabled);
+    const rootDisabled = Boolean(item.root_disabled);
+    const parameters = item.parameters ?? [];
+    const paramBusy = paramBusyId === item.id;
 
     return (
-        <tr className="border-b border-border/50 hover:bg-muted/30">
+        <tr
+            className={cn(
+                'border-b border-border/50 hover:bg-muted/30',
+                disabled && 'opacity-60',
+            )}
+        >
             <td className="max-w-[240px] px-3 py-2 text-xs font-semibold">
                 <span className="block truncate" title={item.name}>
                     {item.name}
                 </span>
+                {disabled && (
+                    <span className="mt-0.5 inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                        Désactivé
+                    </span>
+                )}
             </td>
             <td className="px-3">
                 <MethodBadge method={item.method} />
@@ -130,6 +163,64 @@ export function EndpointRow({
                 <SourceBadge source={item.source} />
             </td>
             <td className="px-3">
+                {parameters.length === 0 ? (
+                    <span className="text-xs text-muted-foreground/50">—</span>
+                ) : (
+                    <div className="flex min-w-[150px] flex-col gap-1">
+                        {parameters.map((parameter) => {
+                            const options = parameter.values.includes(
+                                parameter.selected,
+                            )
+                                ? parameter.values
+                                : [...parameter.values, parameter.selected];
+                            return (
+                                <div
+                                    key={parameter.name}
+                                    className="flex items-center gap-1.5"
+                                >
+                                    <span className="shrink-0 font-mono text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+                                        {parameter.name}
+                                    </span>
+                                    <Select
+                                        value={parameter.selected}
+                                        disabled={
+                                            paramBusy ||
+                                            disabled ||
+                                            rootDisabled
+                                        }
+                                        onValueChange={(value) =>
+                                            onParameterChange?.(
+                                                item,
+                                                parameter,
+                                                value,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            className="h-6 w-[110px] px-2 font-mono text-[10px]"
+                                            title="Changer la valeur du paramètre puis rafraîchir"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {options.map((value) => (
+                                                <SelectItem
+                                                    key={value}
+                                                    value={value}
+                                                    className="font-mono text-xs"
+                                                >
+                                                    {value}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </td>
+            <td className="px-3">
                 <div className="flex items-center gap-1.5">
                     <StatusBadge status={item.status} />
                     {item.retry_pending && (
@@ -140,14 +231,34 @@ export function EndpointRow({
             <td className="px-3 text-right text-xs tabular-nums">
                 {item.row_count}
             </td>
+            <td className="px-3">
+                <div className="flex items-center justify-center">
+                    <Switch
+                        checked={!disabled}
+                        disabled={togglingId === item.id || rootDisabled}
+                        onCheckedChange={(checked) => onToggle(item, !checked)}
+                        title={
+                            rootDisabled
+                                ? 'Racine désactivée — réactivez la racine pour activer ses endpoints'
+                                : disabled
+                                  ? 'Réactiver cet endpoint'
+                                  : 'Désactiver cet endpoint'
+                        }
+                    />
+                </div>
+            </td>
             <td className="px-3 text-right">
                 <div className="flex items-center justify-end gap-1">
                     <Button
                         size="sm"
                         variant="ghost"
                         className="h-7 w-7 p-0"
-                        title="Rafraîchir cet endpoint maintenant"
-                        disabled={refreshingId === item.id}
+                        title={
+                            disabled
+                                ? 'Endpoint désactivé — réactiver pour rafraîchir'
+                                : 'Rafraîchir cet endpoint maintenant'
+                        }
+                        disabled={refreshingId === item.id || disabled}
                         onClick={() => onRefreshOne(item)}
                     >
                         <RefreshCw
@@ -207,8 +318,10 @@ function TableHead({ showRoot }: { showRoot: boolean }) {
             <th className="px-3 py-2 text-left">Endpoint</th>
             {showRoot && <th className="px-3 py-2 text-left">Racine</th>}
             <th className="px-3 py-2 text-left">Source</th>
+            <th className="px-3 py-2 text-left">Paramètres</th>
             <th className="px-3 py-2 text-left">Statut</th>
             <th className="px-3 py-2 text-right">Lignes</th>
+            <th className="px-3 py-2 text-center">Actif</th>
             <th className="px-3 py-2 text-right">Actions</th>
         </tr>
     );
@@ -269,12 +382,16 @@ export function EndpointsTable({
     onDuplicate,
     onDelete,
     onRefreshOne,
+    onToggle,
+    togglingId,
     refreshingId,
     page,
     perPage,
     total,
     onPageChange,
     defaultRoot,
+    onParameterChange,
+    paramBusyId,
 }: {
     items: EndpointSummary[];
     loading: boolean;
@@ -283,12 +400,20 @@ export function EndpointsTable({
     onDuplicate: (item: EndpointSummary) => void;
     onDelete: (item: EndpointSummary) => void;
     onRefreshOne: (item: EndpointSummary) => void;
+    onToggle: (item: EndpointSummary, disabled: boolean) => void;
+    togglingId?: string | null;
     refreshingId: string | null;
     page: number;
     perPage: number;
     total: number;
     onPageChange: (page: number) => void;
     defaultRoot: string;
+    onParameterChange?: (
+        item: EndpointSummary,
+        parameter: EndpointParameterView,
+        value: string,
+    ) => void;
+    paramBusyId?: string | null;
 }) {
     return (
         <div>
@@ -330,6 +455,10 @@ export function EndpointsTable({
                                     onDuplicate={onDuplicate}
                                     onDelete={onDelete}
                                     onRefreshOne={onRefreshOne}
+                                    onToggle={onToggle}
+                                    togglingId={togglingId}
+                                    onParameterChange={onParameterChange}
+                                    paramBusyId={paramBusyId}
                                 />
                             ))}
                         </tbody>
@@ -358,6 +487,11 @@ export function GroupedEndpointsTable({
     onDuplicate,
     onDelete,
     onRefreshOne,
+    onToggle,
+    onToggleRoot,
+    togglingRoot,
+    disabledRoots = [],
+    togglingId,
     refreshingId,
     page,
     perPage,
@@ -365,6 +499,8 @@ export function GroupedEndpointsTable({
     onPageChange,
     defaultRoot,
     onOpenKeys,
+    onParameterChange,
+    paramBusyId,
 }: {
     items: EndpointSummary[];
     loading: boolean;
@@ -373,6 +509,11 @@ export function GroupedEndpointsTable({
     onDuplicate: (item: EndpointSummary) => void;
     onDelete: (item: EndpointSummary) => void;
     onRefreshOne: (item: EndpointSummary) => void;
+    onToggle: (item: EndpointSummary, disabled: boolean) => void;
+    onToggleRoot?: (root: string, disabled: boolean) => void;
+    togglingRoot?: string | null;
+    disabledRoots?: string[];
+    togglingId?: string | null;
     refreshingId: string | null;
     page: number;
     perPage: number;
@@ -380,6 +521,12 @@ export function GroupedEndpointsTable({
     onPageChange: (page: number) => void;
     defaultRoot: string;
     onOpenKeys?: (root: string) => void;
+    onParameterChange?: (
+        item: EndpointSummary,
+        parameter: EndpointParameterView,
+        value: string,
+    ) => void;
+    paramBusyId?: string | null;
 }) {
     const groups = useMemo(() => {
         const folders = new Map<string, EndpointSummary[]>();
@@ -392,6 +539,7 @@ export function GroupedEndpointsTable({
         return [...folders.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     }, [items]);
 
+    const disabledRootSet = new Set(disabledRoots);
     const [open, setOpen] = useState<Record<string, boolean>>({});
 
     const toggle = (key: string) => {
@@ -417,6 +565,8 @@ export function GroupedEndpointsTable({
                 <div className="max-h-[560px] overflow-auto">
                     {groups.map(([key, list]) => {
                         const isOpen = open[key] ?? true;
+                        const rootDisabled =
+                            key !== UNKNOWN_ROOT && disabledRootSet.has(key);
                         return (
                             <div
                                 key={key}
@@ -425,7 +575,10 @@ export function GroupedEndpointsTable({
                                 <button
                                     type="button"
                                     onClick={() => toggle(key)}
-                                    className="flex w-full items-center gap-2 border-b border-border/40 bg-muted/30 px-3 py-2 text-left hover:bg-muted/50"
+                                    className={cn(
+                                        'flex w-full items-center gap-2 border-b border-border/40 bg-muted/30 px-3 py-2 text-left hover:bg-muted/50',
+                                        rootDisabled && 'opacity-60',
+                                    )}
                                 >
                                     {isOpen ? (
                                         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -443,9 +596,28 @@ export function GroupedEndpointsTable({
                                                 : key}
                                         </span>
                                     )}
+                                    {rootDisabled && (
+                                        <span className="shrink-0 rounded bg-destructive/10 px-1 font-mono text-[9px] font-bold tracking-wider text-destructive uppercase">
+                                            Off
+                                        </span>
+                                    )}
                                     <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                                         {list.length}
                                     </span>
+                                    {key !== UNKNOWN_ROOT && onToggleRoot && (
+                                        <Switch
+                                            checked={!rootDisabled}
+                                            disabled={togglingRoot === key}
+                                            onCheckedChange={(checked) =>
+                                                onToggleRoot(key, !checked)
+                                            }
+                                            title={
+                                                rootDisabled
+                                                    ? 'Réactiver toute la racine'
+                                                    : 'Désactiver toute la racine'
+                                            }
+                                        />
+                                    )}
                                     {key !== UNKNOWN_ROOT && onOpenKeys && (
                                         <span
                                             role="button"
@@ -489,6 +661,12 @@ export function GroupedEndpointsTable({
                                                     onDuplicate={onDuplicate}
                                                     onDelete={onDelete}
                                                     onRefreshOne={onRefreshOne}
+                                                    onToggle={onToggle}
+                                                    togglingId={togglingId}
+                                                    onParameterChange={
+                                                        onParameterChange
+                                                    }
+                                                    paramBusyId={paramBusyId}
                                                 />
                                             ))}
                                         </tbody>

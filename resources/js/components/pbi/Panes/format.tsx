@@ -2,7 +2,15 @@ import { usePage } from '@inertiajs/react';
 import { Upload } from 'lucide-react';
 import { useRef } from 'react';
 import { toast } from 'sonner';
-import { NUMBER_FORMATS, type NumberFormat, type Visual } from '@/lib/pbi/model';
+import {
+    DISPLAY_UNITS,
+    NUMBER_FORMATS,
+    normalizeTableNumber,
+    type DisplayUnit,
+    type NumberFormat,
+    type TableNumberStyle,
+    type Visual,
+} from '@/lib/pbi/model';
 import { SHAPE_KINDS, SHAPES, type ShapeKind } from '@/lib/pbi/shapes';
 import { usePbi } from '@/lib/pbi/store';
 import { uploadPageImage } from '@/lib/pbi/uploadImage';
@@ -20,6 +28,16 @@ import {
     TitleSection,
 } from '../formatControls';
 import { CONDITIONAL_FORMAT_TYPES } from './shared';
+
+const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
+    auto: 'Auto',
+    none: 'Aucune',
+    thousands: 'Milliers (K)',
+    millions: 'Millions (M)',
+    billions: 'Milliards (B)',
+    percent: 'Pourcentage (%)',
+    currency: 'Devise ($)',
+};
 
 /** Shared "General" block for text/image elements: background, border (color,
  * width, radius), shadow and position/size. No chart-only options. */
@@ -246,6 +264,10 @@ function GenericFormat({ visual }: { visual: Visual }) {
     const { updateVisual, updateVisualSingle } = usePbi();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { pageId } = usePage().props as unknown as { pageId: number };
+
+    const tn = normalizeTableNumber(selected.tableNumber);
+    const patchTableNumber = (patch: Partial<TableNumberStyle>) =>
+        updateVisual(selected.id, { tableNumber: { ...tn, ...patch } });
 
     const uploadImage = async (file: File) => {
         try {
@@ -523,6 +545,47 @@ function GenericFormat({ visual }: { visual: Visual }) {
                             ))}
                         </select>
                     </label>
+                    {(selected.type === 'table' || selected.type === 'matrix') && (
+                        <div className="mt-2 rounded border border-border p-2">
+                            <span className="mb-2 block text-[11px] font-semibold">
+                                Valeurs numériques
+                            </span>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Select
+                                    label="Unités d'affichage"
+                                    value={tn.displayUnits}
+                                    options={DISPLAY_UNITS.map((u) => ({
+                                        value: u,
+                                        label: DISPLAY_UNIT_LABELS[u],
+                                    }))}
+                                    onChange={(v) =>
+                                        patchTableNumber({
+                                            displayUnits: v as DisplayUnit,
+                                        })
+                                    }
+                                />
+                                <TextInput
+                                    label="Suffixe"
+                                    placeholder="ex. kW"
+                                    value={tn.suffix ?? ''}
+                                    onChange={(v) =>
+                                        patchTableNumber({
+                                            suffix: v.trim() || undefined,
+                                        })
+                                    }
+                                />
+                            </div>
+                            <NumberInput
+                                label="Décimales des valeurs"
+                                min={0}
+                                max={10}
+                                value={tn.decimals ?? 1}
+                                onChange={(v) =>
+                                    patchTableNumber({ decimals: v })
+                                }
+                            />
+                        </div>
+                    )}
                 </>
             )}
             {selected.border && (

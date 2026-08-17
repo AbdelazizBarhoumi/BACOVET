@@ -39,15 +39,20 @@ function isTimeoutError(err: unknown): boolean {
     );
 }
 
+const CUSTOM_ROOT = '__custom__';
+const DEFAULT_ROOT = '__default__';
+
 function TestEndpointFields({
     entry,
     defaultRoot,
+    roots = [],
     busy,
     onCancel,
     onSubmit,
 }: {
     entry?: EndpointEntry | null;
     defaultRoot: string;
+    roots?: string[];
     busy: boolean;
     onCancel: () => void;
     onSubmit: (payload: EndpointPayload) => void;
@@ -72,6 +77,9 @@ function TestEndpointFields({
     const [errors, setErrors] = useState<FieldErrors>({});
     const [secondsLeft, setSecondsLeft] = useState(TEST_TIMEOUT_S);
     const testAbortRef = useRef<AbortController | null>(null);
+
+    const isCustomRoot =
+        baseUrl.trim() !== '' && !roots.includes(baseUrl.trim());
 
     const paramsChanged = entry
         ? method !== entry.method ||
@@ -242,16 +250,59 @@ function TestEndpointFields({
                     <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
                         Racine API
                     </Label>
-                    <Input
-                        value={baseUrl}
-                        onChange={(e) => setBaseUrl(e.target.value)}
-                        placeholder={
-                            defaultRoot
-                                ? defaultRoot
-                                : 'https://api.example.com'
+                    <Select
+                        value={
+                            isCustomRoot
+                                ? CUSTOM_ROOT
+                                : baseUrl === ''
+                                  ? DEFAULT_ROOT
+                                  : baseUrl
                         }
-                        className="font-mono text-sm"
-                    />
+                        onValueChange={(value) => {
+                            if (value === CUSTOM_ROOT) return;
+                            setBaseUrl(value === DEFAULT_ROOT ? '' : value);
+                        }}
+                    >
+                        <SelectTrigger className="h-9 w-full font-mono text-sm">
+                            <SelectValue placeholder="Choisir une racine" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem
+                                value={DEFAULT_ROOT}
+                                className="font-mono text-xs"
+                            >
+                                Racine par défaut
+                                {defaultRoot ? ` — ${defaultRoot}` : ''}
+                            </SelectItem>
+                            {roots.map((root) => (
+                                <SelectItem
+                                    key={root}
+                                    value={root}
+                                    className="font-mono text-xs"
+                                >
+                                    {root}
+                                </SelectItem>
+                            ))}
+                            <SelectItem
+                                value={CUSTOM_ROOT}
+                                className="font-mono text-xs"
+                            >
+                                Personnalisée…
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {isCustomRoot && (
+                        <Input
+                            value={baseUrl}
+                            onChange={(e) => setBaseUrl(e.target.value)}
+                            placeholder={
+                                defaultRoot
+                                    ? defaultRoot
+                                    : 'https://api.example.com'
+                            }
+                            className="font-mono text-sm"
+                        />
+                    )}
                     {!baseUrl.trim() && defaultRoot && (
                         <p className="text-[10px] text-muted-foreground">
                             Utilisation de la racine par défaut :{' '}
@@ -366,6 +417,7 @@ export function EndpointFormDialog({
     onOpenChange,
     entry,
     defaultRoot = '',
+    roots = [],
     busy = false,
     onSubmit,
 }: {
@@ -373,6 +425,7 @@ export function EndpointFormDialog({
     onOpenChange: (open: boolean) => void;
     entry?: EndpointEntry | null;
     defaultRoot?: string;
+    roots?: string[];
     busy?: boolean;
     onSubmit: (payload: EndpointPayload) => void;
 }) {
@@ -389,6 +442,7 @@ export function EndpointFormDialog({
                     key={entry?.id ?? 'new'}
                     entry={entry}
                     defaultRoot={defaultRoot}
+                    roots={roots}
                     busy={busy}
                     onCancel={() => onOpenChange(false)}
                     onSubmit={onSubmit}

@@ -1,4 +1,4 @@
-import { KeyRound } from 'lucide-react';
+import { KeyRound, SlidersHorizontal } from 'lucide-react';
 import {
     lazy,
     Suspense,
@@ -9,6 +9,7 @@ import {
     useState,
 } from 'react';
 import { toast } from 'sonner';
+import { BulkImportDialog } from '@/components/endpoints/BulkImportDialog';
 import { EndpointDetailDialog } from '@/components/endpoints/EndpointDetailDialog';
 import { EndpointFormDialog } from '@/components/endpoints/EndpointFormDialog';
 import {
@@ -25,6 +26,7 @@ import {
     type ToolbarValue,
 } from '@/components/endpoints/EndpointsToolbar';
 import { RootKeysManager } from '@/components/endpoints/RootKeysManager';
+import { RootParametersManager } from '@/components/endpoints/RootParametersManager';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Panel } from '@/components/widgets';
@@ -33,12 +35,14 @@ import { inferEntryKeys } from '@/lib/relationship-utils';
 import {
     fetchEndpoint,
     fetchRootCredentials,
+    setEndpointParameter,
     triggerEndpointRefresh,
     triggerGroupRefresh,
     triggerRefresh,
     waitForRefreshCompletion,
     type EndpointEntry,
     type EndpointFilters,
+    type EndpointParameterView,
     type EndpointPayload,
     type EndpointSummary,
 } from '@/services/endpointManagerApi';
@@ -70,6 +74,7 @@ const INITIAL_TOOLBAR: ToolbarValue = {
     method: 'all',
     source: 'all',
     status: 'all',
+    enabled: 'active',
 };
 
 const SEARCH_DEBOUNCE_MS = 350;
@@ -86,6 +91,12 @@ function toFilters(
             toolbar.status === 'all'
                 ? undefined
                 : (toolbar.status as 'ok' | 'warn' | 'error'),
+        enabled:
+            toolbar.enabled === 'all'
+                ? 'all'
+                : toolbar.enabled === 'disabled'
+                  ? '0'
+                  : '1',
         root: root || undefined,
     };
 }
@@ -106,6 +117,8 @@ export function EndpointsManager() {
         update,
         remove,
         duplicate,
+        toggleEnabled,
+        toggleRoot,
         refresh,
     } = useEndpoints();
 
@@ -119,6 +132,10 @@ export function EndpointsManager() {
     const [saving, setSaving] = useState(false);
     const [refreshingId, setRefreshingId] = useState<string | null>(null);
     const [refreshingRoot, setRefreshingRoot] = useState<string | null>(null);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
+    const [togglingRoot, setTogglingRoot] = useState<string | null>(null);
+    const [disabledRoots, setDisabledRoots] = useState<string[]>([]);
+    const [importOpen, setImportOpen] = useState(false);
     const [activeRoot, setActiveRoot] = useState<string | null>(null);
     const [display, setDisplay] = useState<'flat' | 'grouped'>('grouped');
     const [refreshAll, setRefreshAll] = useState(false);
@@ -128,6 +145,16 @@ export function EndpointsManager() {
         null,
     );
     const [keyedRoots, setKeyedRoots] = useState<string[]>([]);
+    const [paramsOpen, setParamsOpen] = useState(false);
+    const [paramBusyId, setParamBusyId] = useState<string | null>(null);
+    const [rootInfo, setRootInfo] = useState<
+        {
+            root: string;
+            count: number;
+            disabled: boolean;
+            disabled_count: number;
+        }[]
+    >([]);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const editAbortRef = useRef<AbortController | null>(null);
     const detailAbortRef = useRef<AbortController | null>(null);
@@ -137,13 +164,28 @@ export function EndpointsManager() {
     const loadKeyedRoots = useCallback(async () => {
         try {
             const data = await fetchRootCredentials();
+            setRootInfo(
+                data.roots.map((root) => ({
+                    root: root.root,
+                    count: root.count,
+                    disabled: root.disabled,
+                    disabled_count: root.disabled_count,
+                })),
+            );
             setKeyedRoots(
                 data.roots
                     .filter((root) => root.has_api_key)
                     .map((root) => root.root),
             );
+            setDisabledRoots(
+                data.roots
+                    .filter((root) => root.disabled)
+                    .map((root) => root.root),
+            );
         } catch {
+            setRootInfo([]);
             setKeyedRoots([]);
+            setDisabledRoots([]);
         }
     }, []);
 
@@ -264,6 +306,37 @@ export function EndpointsManager() {
         void loadKeyedRoots();
         void refresh(undefined, { quiet: true });
     }, [loadKeyedRoots, refresh]);
+
+    const handleParamsChanged = useCallback(() => {
+        void refresh(undefined, { quiet: true });
+    }, [refresh]);
+
+    const handleParameterChange = useCallback(
+        async (
+            summary: EndpointSummary,
+            parameter: EndpointParameterView,
+            value: string,
+        ) => {
+            if (paramBusyId) return;
+            setParamBusyId(summary.id);
+            try {
+                await setEndpointParameter(summary.id, parameter.name, value);
+                toast.success(
+                    `« ${summary.name} » — ${parameter.name}=${value} enregistré. Rafraîchissez pour recharger les données.`,
+                );
+                applyFilters(toFilters(toolbar, activeRoot));
+            } catch (err) {
+                toast.error(
+                    err instanceof Error
+                        ? err.message
+                        : `Échec du changement de paramètre de « ${summary.name} »`,
+                );
+            } finally {
+                setParamBusyId(null);
+            }
+        },
+        [paramBusyId, applyFilters, toolbar, activeRoot],
+    );
 
     const handleRefreshGroup = useCallback(
         async (root: string) => {
@@ -428,6 +501,64 @@ export function EndpointsManager() {
         [duplicate, error],
     );
 
+    const handleToggle = useCallback(
+        async (summary: EndpointSummary, disabled: boolean) => {
+            if (togglingId) return;
+            setTogglingId(summary.id);
+            try {
+                const result = await toggleEnabled(summary.id, disabled);
+                if (result) {
+                    toast.success(
+                        disabled
+                            ? `« ${summary.name} » désactivé — retiré des datasets`
+                            : `« ${summary.name} » réactivé`,
+                    );
+                } else {
+                    toast.error(
+                        error || 'Échec de l’activation / désactivation',
+                    );
+                }
+            } finally {
+                setTogglingId(null);
+            }
+        },
+        [togglingId, toggleEnabled, error],
+    );
+
+    const handleToggleRoot = useCallback(
+        async (root: string, disabled: boolean) => {
+            if (togglingRoot) return;
+            setTogglingRoot(root);
+            try {
+                const result = await toggleRoot(root, disabled);
+                if (result) {
+                    toast.success(
+                        result.disabled
+                            ? `Racine désactivée — ${result.count} endpoint(s) retirés des datasets`
+                            : `Racine réactivée — ${result.count} endpoint(s) restaurés`,
+                    );
+                    void loadKeyedRoots();
+                    applyFilters(toFilters(toolbar, activeRoot));
+                } else {
+                    toast.error(
+                        error || 'Échec de la désactivation de la racine',
+                    );
+                }
+            } finally {
+                setTogglingRoot(null);
+            }
+        },
+        [
+            togglingRoot,
+            toggleRoot,
+            loadKeyedRoots,
+            applyFilters,
+            toolbar,
+            activeRoot,
+            error,
+        ],
+    );
+
     const handleRefreshOne = useCallback(
         async (summary: EndpointSummary) => {
             setRefreshingId(summary.id);
@@ -463,12 +594,22 @@ export function EndpointsManager() {
 
     const rootGroups = useMemo(
         () =>
-            Object.entries(stats?.by_root ?? {}).map(([root, count]) => ({
-                root,
-                count,
+            rootInfo.map((root) => ({
+                root: root.root,
+                count: root.disabled
+                    ? 0
+                    : Math.max(0, root.count - root.disabled_count),
             })),
-        [stats],
+        [rootInfo],
     );
+
+    const knownRoots = useMemo(() => {
+        const set = new Set<string>();
+        for (const root of rootInfo) set.add(root.root);
+        for (const root of keyedRoots) set.add(root);
+        if (globalRoot) set.add(globalRoot);
+        return [...set].sort((a, b) => a.localeCompare(b));
+    }, [rootInfo, keyedRoots, globalRoot]);
 
     const detailKeys = useMemo(
         () => (detailEntry ? inferEntryKeys(detailEntry) : null),
@@ -508,6 +649,9 @@ export function EndpointsManager() {
                                     onRefreshGroup={handleRefreshGroup}
                                     refreshingRoot={refreshingRoot}
                                     keyedRoots={keyedRoots}
+                                    disabledRoots={disabledRoots}
+                                    togglingRoot={togglingRoot}
+                                    onToggleRoot={handleToggleRoot}
                                 />
                                 <EndpointsDisplayToggle
                                     value={display}
@@ -518,12 +662,23 @@ export function EndpointsManager() {
                                     onChange={handleToolbarChange}
                                     onRefresh={handleRefreshAll}
                                     onNew={handleNew}
+                                    onImport={() => setImportOpen(true)}
                                     loading={loading}
                                     refreshing={refreshAll || refreshing}
                                     refreshingElapsed={refreshAllElapsed}
                                     sources={sources}
                                 />
                                 <div className="h-5 w-px bg-border" />
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 font-mono text-[10px] tracking-wider uppercase"
+                                    onClick={() => setParamsOpen(true)}
+                                    title="Définir les listes de paramètres (ex. chaine) par racine"
+                                >
+                                    <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                                    Paramètres
+                                </Button>
                                 <Button
                                     size="sm"
                                     variant="outline"
@@ -546,6 +701,11 @@ export function EndpointsManager() {
                                 onDuplicate={handleDuplicate}
                                 onDelete={handleDelete}
                                 onRefreshOne={handleRefreshOne}
+                                onToggle={handleToggle}
+                                onToggleRoot={handleToggleRoot}
+                                togglingRoot={togglingRoot}
+                                disabledRoots={disabledRoots}
+                                togglingId={togglingId}
                                 refreshingId={refreshingId}
                                 page={page}
                                 perPage={perPage}
@@ -553,6 +713,8 @@ export function EndpointsManager() {
                                 onPageChange={goToPage}
                                 defaultRoot={activeRoot ?? globalRoot}
                                 onOpenKeys={handleOpenKeys}
+                                onParameterChange={handleParameterChange}
+                                paramBusyId={paramBusyId}
                             />
                         ) : (
                             <EndpointsTable
@@ -563,12 +725,16 @@ export function EndpointsManager() {
                                 onDuplicate={handleDuplicate}
                                 onDelete={handleDelete}
                                 onRefreshOne={handleRefreshOne}
+                                onToggle={handleToggle}
+                                togglingId={togglingId}
                                 refreshingId={refreshingId}
                                 page={page}
                                 perPage={perPage}
                                 total={total}
                                 onPageChange={goToPage}
                                 defaultRoot={activeRoot ?? globalRoot}
+                                onParameterChange={handleParameterChange}
+                                paramBusyId={paramBusyId}
                             />
                         )}
                     </Panel>
@@ -597,6 +763,7 @@ export function EndpointsManager() {
                 onOpenChange={handleFormOpenChange}
                 entry={editingEntry}
                 defaultRoot={activeRoot ?? globalRoot}
+                roots={knownRoots}
                 busy={saving}
                 onSubmit={handleSubmit}
             />
@@ -614,6 +781,23 @@ export function EndpointsManager() {
                 onOpenChange={setKeysOpen}
                 selectedRoot={keysSelectedRoot}
                 onChanged={handleRootsChanged}
+            />
+
+            <RootParametersManager
+                open={paramsOpen}
+                onOpenChange={setParamsOpen}
+                selectedRoot={activeRoot}
+                roots={knownRoots}
+                onChanged={handleParamsChanged}
+            />
+
+            <BulkImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                defaultRoot={activeRoot ?? globalRoot}
+                onImported={() => {
+                    applyFilters(toFilters(toolbar, activeRoot));
+                }}
             />
         </>
     );

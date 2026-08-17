@@ -64,6 +64,7 @@ import type {
     LegendStyle,
     NumberFormat,
     PlotAreaStyle,
+    TableNumberStyle,
     TitleStyle,
     ValueAggregationMode,
     ValueFormat,
@@ -621,6 +622,11 @@ export const DEFAULT_CALLOUT: CalloutStyle = {
     fx: { enabled: false, rules: [] },
 };
 
+/** Default table/matrix value-cell number presentation: pure auto. */
+export const DEFAULT_TABLE_NUMBER: TableNumberStyle = {
+    displayUnits: 'auto',
+};
+
 export const DEFAULT_CATEGORY_LABEL: CategoryLabelStyle = {
     show: true,
     fontSize: 11,
@@ -878,6 +884,56 @@ export function normalizeCalloutStyle(input: unknown): CalloutStyle {
     if (typeof value.color === 'string' && value.color.trim())
         style.color = value.color.trim();
     return style;
+}
+
+/** Normalizes a persisted `Visual.tableNumber` block; garbage yields the
+ *  auto default so tables never break on a malformed blob. */
+export function normalizeTableNumber(input: unknown): TableNumberStyle {
+    if (!input || typeof input !== 'object') return { ...DEFAULT_TABLE_NUMBER };
+    const value = input as Record<string, unknown>;
+    const style: TableNumberStyle = {
+        displayUnits: isDisplayUnit(value.displayUnits)
+            ? value.displayUnits
+            : DEFAULT_TABLE_NUMBER.displayUnits,
+    };
+    if (typeof value.decimals === 'number' && isFinite(value.decimals))
+        style.decimals = value.decimals;
+    if (typeof value.suffix === 'string' && value.suffix.trim())
+        style.suffix = value.suffix.trim();
+    return style;
+}
+
+/** Formats a table/matrix value cell: a per-field `WellField.format` wins,
+ * otherwise the visual's `tableNumber` block (display units, decimals,
+ * suffix) composes with its `numberFormat` presets — the same semantics as
+ * the cartesian value axes (`formatAxisDefTick`). The auto/auto combination
+ * reproduces `formatWellValue`, so unconfigured tables are unchanged. */
+export function formatTableNumber(
+    n: number,
+    visual: Pick<Visual, 'numberFormat' | 'tableNumber'>,
+    wf?: Pick<WellField, 'format'>,
+): string {
+    if (wf?.format && wf.format !== 'auto')
+        return formatNumberWith(n, wf.format);
+    const tn = normalizeTableNumber(visual.tableNumber);
+    return formatAxisDefTick(n, {
+        displayUnits: tn.displayUnits,
+        numberFormat: visual.numberFormat,
+        decimals: tn.decimals,
+        suffix: tn.suffix,
+    });
+}
+
+/** True when the visual's table number block carries any explicit setting
+ * (a unit other than auto, decimal places or a suffix) — gates per-row chip
+ * reformatting so unconfigured tables keep their raw values. */
+export function isTableNumberCustomized(
+    visual: Pick<Visual, 'tableNumber'>,
+): boolean {
+    const tn = normalizeTableNumber(visual.tableNumber);
+    return (
+        tn.displayUnits !== 'auto' || tn.decimals !== undefined || !!tn.suffix
+    );
 }
 
 export function normalizeCategoryLabelStyle(

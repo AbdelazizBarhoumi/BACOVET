@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Search } from 'lucide-react';
+import { Import, Plus, RefreshCw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,6 +14,7 @@ export type ToolbarValue = {
     method: string;
     source: string;
     status: string;
+    enabled: 'active' | 'disabled' | 'all';
 };
 
 const METHODS = ['GET', 'POST'];
@@ -23,12 +24,18 @@ const STATUS_OPTIONS = [
     { value: 'warn', label: '3xx-4xx' },
     { value: 'error', label: '5xx' },
 ];
+const ENABLED_OPTIONS = [
+    { value: 'active', label: 'Activés' },
+    { value: 'disabled', label: 'Désactivés' },
+    { value: 'all', label: 'Tous' },
+];
 
 export function EndpointsToolbar({
     value,
     onChange,
     onRefresh,
     onNew,
+    onImport,
     loading,
     refreshing = false,
     refreshingElapsed = 0,
@@ -38,6 +45,7 @@ export function EndpointsToolbar({
     onChange: (next: ToolbarValue) => void;
     onRefresh: () => void;
     onNew: () => void;
+    onImport: () => void;
     loading: boolean;
     refreshing?: boolean;
     refreshingElapsed?: number;
@@ -108,6 +116,24 @@ export function EndpointsToolbar({
                 </SelectContent>
             </Select>
 
+            <Select
+                value={value.enabled}
+                onValueChange={(enabled) =>
+                    set({ enabled: enabled as ToolbarValue['enabled'] })
+                }
+            >
+                <SelectTrigger className="h-7 w-28 font-mono text-[10px] tracking-wider uppercase">
+                    <SelectValue placeholder="Activation" />
+                </SelectTrigger>
+                <SelectContent>
+                    {ENABLED_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+
             <Button
                 size="sm"
                 variant="outline"
@@ -127,6 +153,16 @@ export function EndpointsToolbar({
                     : loading
                       ? 'Chargement…'
                       : 'Rafraîchir'}
+            </Button>
+
+            <Button
+                size="sm"
+                variant="outline"
+                onClick={onImport}
+                className="h-7 text-[10px] tracking-wider uppercase"
+                title="Importer des endpoints en masse (CSV ou texte)"
+            >
+                <Import className="mr-1 h-3 w-3" /> Importer
             </Button>
 
             <Button

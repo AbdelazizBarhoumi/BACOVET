@@ -13,10 +13,12 @@ import {
     formatCallout,
     formatDisplayUnitValue,
     formatNumberPattern,
+    formatTableNumber,
     gaugeBoundValue,
     inferFieldType,
     isListMeasure,
     isMeasure,
+    isTableNumberCustomized,
     listAggIgnoredCount,
     listMeasureValue,
     listTreatment,
@@ -27,6 +29,7 @@ import {
     normalizeCalloutStyle,
     normalizeCategoryLabelStyle,
     normalizeGaugeStyle,
+    normalizeTableNumber,
     normalizeTitleStyle,
     normalizeValueFormat,
     normalizeWellField,
@@ -44,6 +47,7 @@ import {
     type FxOp,
     type FxRule,
     type TableDef,
+    type Visual,
     type WellField,
 } from './model';
 import { slicerKey } from './store';
@@ -824,6 +828,105 @@ describe('formatAxisDefTick — multi-axis unit/suffix composition', () => {
                 suffix: 'pts',
             }),
         ).toBe('50.00pts');
+    });
+});
+
+describe('table/matrix number formatting (tableNumber block)', () => {
+    const noTableNumber = {} as Pick<
+        Visual,
+        'numberFormat' | 'tableNumber'
+    >;
+
+    it('normalizes garbage to the auto default', () => {
+        expect(normalizeTableNumber(undefined)).toEqual({ displayUnits: 'auto' });
+        expect(normalizeTableNumber(null)).toEqual({ displayUnits: 'auto' });
+        expect(normalizeTableNumber('nope')).toEqual({ displayUnits: 'auto' });
+        expect(normalizeTableNumber({ displayUnits: 'nope' })).toEqual({
+            displayUnits: 'auto',
+        });
+        expect(normalizeTableNumber({ decimals: '2' })).toEqual({
+            displayUnits: 'auto',
+        });
+    });
+
+    it('keeps valid units, decimals and a trimmed suffix', () => {
+        expect(
+            normalizeTableNumber({ displayUnits: 'thousands', decimals: 1 }),
+        ).toEqual({ displayUnits: 'thousands', decimals: 1 });
+        expect(
+            normalizeTableNumber({
+                displayUnits: 'percent',
+                decimals: 2,
+                suffix: '  kW  ',
+            }),
+        ).toEqual({ displayUnits: 'percent', decimals: 2, suffix: 'kW' });
+        expect(
+            normalizeTableNumber({ displayUnits: 'none', suffix: '   ' }),
+        ).toEqual({ displayUnits: 'none' });
+    });
+
+    it('is unconfigured when nothing is customized', () => {
+        expect(isTableNumberCustomized(noTableNumber)).toBe(false);
+        expect(
+            isTableNumberCustomized({ tableNumber: { displayUnits: 'auto' } }),
+        ).toBe(false);
+    });
+
+    it('is configured when a unit, decimals or suffix is set', () => {
+        expect(
+            isTableNumberCustomized({
+                tableNumber: { displayUnits: 'thousands' },
+            }),
+        ).toBe(true);
+        expect(
+            isTableNumberCustomized({
+                tableNumber: { displayUnits: 'auto', decimals: 2 },
+            }),
+        ).toBe(true);
+        expect(
+            isTableNumberCustomized({
+                tableNumber: { displayUnits: 'auto', suffix: 'kW' },
+            }),
+        ).toBe(true);
+    });
+
+    it('matches the plain well format when unconfigured (auto)', () => {
+        expect(formatTableNumber(12_345.678, noTableNumber)).toBe('12.3K');
+        expect(formatTableNumber(250, noTableNumber)).toBe('250');
+        expect(formatTableNumber(0.248, noTableNumber)).toBe('0');
+    });
+
+    it('honors the per-field format override first', () => {
+        expect(
+            formatTableNumber(12_345.678, noTableNumber, { format: '2dec' }),
+        ).toBe('12,345.68');
+        expect(
+            formatTableNumber(0.5, noTableNumber, { format: 'percent' }),
+        ).toBe('50.0%');
+    });
+
+    it('applies decimals + suffix from the tableNumber block', () => {
+        const visual: Pick<Visual, 'numberFormat' | 'tableNumber'> = {
+            numberFormat: 'auto',
+            tableNumber: { displayUnits: 'auto', decimals: 2, suffix: 'kW' },
+        };
+        expect(formatTableNumber(12_345.678, visual)).toBe('12.35kW');
+        expect(formatTableNumber(0.248015873015873, visual)).toBe('0.25kW');
+    });
+
+    it('applies display units and honors explicit decimals over presets', () => {
+        expect(
+            formatTableNumber(12_345, {
+                numberFormat: 'int',
+                tableNumber: { displayUnits: 'thousands' },
+            }),
+        ).toBe('12K');
+        expect(
+            formatTableNumber(0.5, {
+                numberFormat: 'auto',
+                tableNumber: { displayUnits: 'percent', suffix: 'pts' },
+            }),
+        ).toBe('50.0pts');
     });
 });
 

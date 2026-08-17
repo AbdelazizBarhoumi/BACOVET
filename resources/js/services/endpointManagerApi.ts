@@ -20,6 +20,17 @@ const BASE_URL = '';
 export type EndpointResponse =
     Record<string, unknown> | unknown[] | string | number | boolean | null;
 
+/** A declared query parameter definition (name + available values). */
+export type EndpointParameter = {
+    name: string;
+    values: string[];
+};
+
+/** A parameter as shown in a row: definition + the value selected in the URL. */
+export type EndpointParameterView = EndpointParameter & {
+    selected: string;
+};
+
 export type EndpointEntry = {
     id: string;
     name: string;
@@ -27,6 +38,7 @@ export type EndpointEntry = {
     endpoint: string;
     status: number;
     response: EndpointResponse;
+    parameters?: EndpointParameterView[];
 };
 
 export type EndpointSummary = {
@@ -47,7 +59,10 @@ export type EndpointSummary = {
     last_error_at?: string | null;
     last_error?: string | null;
     consecutive_failures?: number;
+    disabled?: boolean;
+    root_disabled?: boolean;
     retry_pending?: boolean;
+    parameters?: EndpointParameterView[];
 };
 
 export type EndpointsStats = {
@@ -73,6 +88,7 @@ export type EndpointFilters = {
     status_group?: 'ok' | 'warn' | 'error';
     source?: string;
     root?: string;
+    enabled?: '1' | '0' | 'all';
     page?: number;
     per_page?: number;
 };
@@ -83,6 +99,7 @@ export type EndpointPayload = {
     endpoint: string;
     status: number;
     response: EndpointResponse;
+    disabled?: boolean;
 };
 
 function getCsrfToken(): string {
@@ -156,6 +173,7 @@ export const fetchEndpoints = (
     if (filters.status_group) params.set('status_group', filters.status_group);
     if (filters.source) params.set('source', filters.source);
     if (filters.root) params.set('root', filters.root);
+    params.set('enabled', String(filters.enabled ?? '1'));
     params.set('page', String(filters.page ?? 1));
     params.set('per_page', String(filters.per_page ?? 50));
 
@@ -428,7 +446,9 @@ export const waitForRefreshCompletion = async (
             return {
                 success: true,
                 exit_code: 0,
-                output: started ? '' : 'Le rafraîchissement n’a pas démarré — réessayez.',
+                output: started
+                    ? ''
+                    : 'Le rafraîchissement n’a pas démarré — réessayez.',
                 meta: health.meta,
                 retry_pending_count: health.retry_pending_count,
                 retry_ids: health.retry_ids,
@@ -487,14 +507,38 @@ export const rewriteEndpointRoot = async (
 export type RootCredentialInfo = {
     root: string;
     count: number;
+    disabled: boolean;
+    disabled_count: number;
     has_api_key: boolean;
     masked_api_key: string;
+};
+
+export type ToggleRootResult = {
+    success: boolean;
+    root: string;
+    disabled: boolean;
+    count: number;
 };
 
 export const fetchRootCredentials = async (): Promise<{
     roots: RootCredentialInfo[];
 }> => {
     return fetchWithToken(`${BASE_URL}/novacity-endpoints/roots`);
+};
+
+export const toggleRootDisabled = async (
+    root: string,
+    disabled: boolean,
+): Promise<ToggleRootResult> => {
+    const result = await fetchWithToken<ToggleRootResult>(
+        `${BASE_URL}/novacity-endpoints/roots/toggle`,
+        {
+            method: 'POST',
+            body: JSON.stringify({ root, disabled }),
+        },
+    );
+    clearEndpointCaches();
+    return result;
 };
 
 export const saveRootCredential = async (
@@ -519,6 +563,73 @@ export const removeRootCredential = async (
         `${BASE_URL}/novacity-endpoints/roots/${encodeURIComponent(root)}`,
         { method: 'DELETE' },
     );
+};
+
+// ── Per-root query parameter definitions ────────────────────────────────
+
+export type RootParametersInfo = {
+    root: string;
+    parameters: EndpointParameter[];
+};
+
+export const fetchRootParameters = async (): Promise<{
+    roots: RootParametersInfo[];
+}> => {
+    return fetchWithToken(`${BASE_URL}/novacity-endpoints/params`);
+};
+
+export const saveRootParameters = async (
+    root: string,
+    parameters: EndpointParameter[],
+): Promise<{
+    success: boolean;
+    root: string;
+    parameters: EndpointParameter[];
+}> => {
+    clearEndpointCaches();
+    return fetchWithToken(`${BASE_URL}/novacity-endpoints/params/roots`, {
+        method: 'POST',
+        body: JSON.stringify({ root, parameters }),
+    });
+};
+
+export const removeRootParameter = async (
+    root: string,
+    name: string,
+): Promise<{
+    success: boolean;
+    root: string;
+    parameters: EndpointParameter[];
+}> => {
+    clearEndpointCaches();
+    return fetchWithToken(
+        `${BASE_URL}/novacity-endpoints/params/roots/delete`,
+        {
+            method: 'POST',
+            body: JSON.stringify({ root, name }),
+        },
+    );
+};
+
+/**
+ * Switch the selected value of a declared query parameter for one endpoint.
+ * The stored URL is rewritten (e.g. ?chaine=CH01 → ?chaine=CH02) so the next
+ * refresh — single, group or "refresh all" — fetches the new value.
+ */
+export const setEndpointParameter = async (
+    id: string,
+    name: string,
+    value: string,
+): Promise<EndpointSummary> => {
+    const result = await fetchWithToken<{
+        success: boolean;
+        entry: EndpointSummary;
+    }>(`${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}/parameter`, {
+        method: 'POST',
+        body: JSON.stringify({ name, value }),
+    });
+    clearEndpointCaches();
+    return result.entry;
 };
 
 // ── Mutations ────────────────────────────────────────────────────────────
@@ -563,6 +674,56 @@ export const duplicateEndpoint = async (id: string): Promise<EndpointEntry> => {
     );
     clearEndpointCaches();
     return result.entry;
+};
+
+/**
+ * Toggle the enabled/disabled state of an endpoint. Disabled endpoints are
+ * excluded from the dataset registry (endpoint_datasets / builder / schema)
+ * and from refresh sweeps until re-enabled.
+ */
+export const toggleEndpointDisabled = async (
+    id: string,
+    disabled: boolean,
+): Promise<EndpointSummary> => {
+    const result = await fetchWithToken<{
+        success: boolean;
+        entry: EndpointSummary;
+    }>(`${BASE_URL}/novacity-endpoints/${encodeURIComponent(id)}/toggle`, {
+        method: 'PATCH',
+        body: JSON.stringify({ disabled }),
+    });
+    clearEndpointCaches();
+    return result.entry;
+};
+
+export type BulkImportMode = 'csv' | 'json';
+
+export type BulkImportResult = {
+    success: boolean;
+    created: number;
+    skipped: number;
+    errors: { row: number; error: string }[];
+    entries: EndpointSummary[];
+};
+
+/**
+ * Bulk import endpoints into the registry from pasted CSV/JSON text. No live
+ * network calls happen server-side; entries are registered and can be
+ * refreshed afterwards.
+ */
+export const importEndpoints = async (
+    mode: BulkImportMode,
+    content: string,
+): Promise<BulkImportResult> => {
+    const result = await fetchWithToken<BulkImportResult>(
+        `${BASE_URL}/novacity-endpoints/import`,
+        {
+            method: 'POST',
+            body: JSON.stringify({ mode, content }),
+        },
+    );
+    clearEndpointCaches();
+    return result;
 };
 
 export const reorderEndpoints = async (

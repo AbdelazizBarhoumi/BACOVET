@@ -16,8 +16,9 @@ import {
     type Visual,
     type WellField,
 } from '@/lib/pbi/model';
+import { formatTableNumber, isTableNumberCustomized } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
-import { EmptyVisual, visualFmt } from './shared';
+import { EmptyVisual } from './shared';
 
 /**
  * Renders the chips/pills for a per-row distinct-value list, honoring the
@@ -27,9 +28,11 @@ import { EmptyVisual, visualFmt } from './shared';
 function ListCell({
     codes,
     well,
+    visual,
 }: {
     codes: string[];
     well: WellField;
+    visual: Visual;
 }) {
     if (!codes.length) return <span className="text-muted-foreground">—</span>;
     if (well.listAgg)
@@ -38,6 +41,12 @@ function ListCell({
                 {listTreatment(codes, well.listAgg, well.index ?? 1) ?? '—'}
             </span>
         );
+    const fmt = isTableNumberCustomized(visual)
+        ? (c: string) => {
+              const n = Number(c);
+              return Number.isFinite(n) ? formatTableNumber(n, visual, well) : c;
+          }
+        : (c: string) => c;
     return (
         <div className="flex flex-wrap items-center justify-end">
             {codes.map((c, i) => (
@@ -48,7 +57,7 @@ function ListCell({
                         </span>
                     )}
                     <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                        {c}
+                        {fmt(c)}
                     </span>
                 </Fragment>
             ))}
@@ -66,7 +75,7 @@ function CellValue({
     visual: Visual;
     well: WellField;
 }) {
-    if (Array.isArray(value)) return <ListCell codes={value} well={well} />;
+    if (Array.isArray(value)) return <ListCell codes={value} well={well} visual={visual} />;
     if (value === null || value === undefined) {
         return <span className="text-muted-foreground">—</span>;
     }
@@ -76,7 +85,7 @@ function CellValue({
     if (isListMeasure(well.name))
         return <span className="text-muted-foreground">—</span>;
     const n = Number(value);
-    return visualFmt(Number.isFinite(n) ? n : 0, visual, well);
+    return formatTableNumber(Number.isFinite(n) ? n : 0, visual, well);
 }
 
 /**
@@ -302,7 +311,7 @@ export function TableVisual({
                                         key={s}
                                         className="px-2 py-1 text-right tabular-nums"
                                     >
-                                        {visualFmt(
+                                        {formatTableNumber(
                                             totals[numericSeries.indexOf(s)],
                                             visual,
                                             wellForSeries(s) ??

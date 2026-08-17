@@ -5,12 +5,15 @@ import {
     duplicateEndpoint,
     fetchEndpoints,
     reorderEndpoints,
+    toggleEndpointDisabled,
+    toggleRootDisabled,
     updateEndpoint,
     type EndpointEntry,
     type EndpointFilters,
     type EndpointPayload,
     type EndpointSummary,
     type EndpointsStats,
+    type ToggleRootResult,
 } from '@/services/endpointManagerApi';
 
 const EMPTY_STATS: EndpointsStats = {
@@ -196,6 +199,48 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         [refresh],
     );
 
+    const toggleEnabled = useCallback(
+        async (
+            id: string,
+            disabled: boolean,
+        ): Promise<EndpointSummary | null> => {
+            try {
+                const entry = await toggleEndpointDisabled(id, disabled);
+                await refresh(undefined, { quiet: true });
+                return entry;
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Échec de l’activation / désactivation',
+                );
+                return null;
+            }
+        },
+        [refresh],
+    );
+
+    const toggleRoot = useCallback(
+        async (
+            root: string,
+            disabled: boolean,
+        ): Promise<ToggleRootResult | null> => {
+            try {
+                const result = await toggleRootDisabled(root, disabled);
+                await refresh(undefined, { quiet: true });
+                return result;
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Échec de la désactivation de la racine',
+                );
+                return null;
+            }
+        },
+        [refresh],
+    );
+
     const reorder = useCallback(async (ids: string[]): Promise<boolean> => {
         try {
             const items = await reorderEndpoints(ids);
@@ -229,6 +274,8 @@ export function useEndpoints(initialFilters: EndpointFilters = {}) {
         update,
         remove,
         duplicate,
+        toggleEnabled,
+        toggleRoot,
         reorder,
     };
 }

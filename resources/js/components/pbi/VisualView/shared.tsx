@@ -78,6 +78,11 @@ export function visualFmt(
     return formatWellValue(n, wf, visual.numberFormat ?? 'auto');
 }
 
+export {
+    formatTableNumber as tableValueFmt,
+    isTableNumberCustomized as tableNumberCustomized,
+} from '@/lib/pbi/model';
+
 /** Recharts tick formatter bound to a visual's number format. */
 export function tickFmt(visual: Pick<Visual, 'numberFormat'>) {
     return (v: number) => formatNumberWith(v, visual.numberFormat ?? 'auto');

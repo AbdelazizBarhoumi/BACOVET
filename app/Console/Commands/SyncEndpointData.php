@@ -6,6 +6,7 @@ use App\Models\EndpointDataset;
 use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
 use App\Support\RootCredentials;
+use App\Support\RootState;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
@@ -26,6 +27,7 @@ class SyncEndpointData extends Command
         {--force : Run even outside the 08:00-21:59 window}
         {--id= : Only refresh the endpoint with this id}
         {--root= : Only refresh endpoints whose stored URL uses this root (scheme://host[:port])}
+        {--slug=* : datasets phase only — restrict to these dataset slugs (repeatable)}
         {--wave= : Internal wave id from sync:endpoint-data:dispatch (decrements the in-flight counter on exit)}';
 
     protected $description = 'Refresh the endpoint registry (data.json) and/or sync live rows into endpoint_datasets from NOVACITY_BASE_URL';
@@ -150,6 +152,14 @@ class SyncEndpointData extends Command
         $pendingIds = $retryOnly ? $this->pendingRetryIds() : [];
 
         foreach ($items as $i => $item) {
+            // Disabled endpoints are intentionally out of the sweep: they must
+            // not be re-fetched nor have their status/response rewritten until
+            // re-enabled from the endpoints admin page. A disabled root disables
+            // every endpoint sharing it.
+            if (RootState::isDisabled($item)) {
+                continue;
+            }
+
             if ($onlyId !== '') {
                 if ((string) ($item['id'] ?? '') === $onlyId) {
                     $indexes[] = $i;
@@ -414,12 +424,40 @@ class SyncEndpointData extends Command
             return self::FAILURE;
         }
 
-        $endpoints = $registry->endpoints();
+        $endpoints = $registry->eligibleItems();
 
         if ($endpoints === []) {
             $this->warn('No eligible endpoints found in data.json.');
 
             return self::SUCCESS;
+        }
+
+        $endpoints = array_values(array_map(
+            fn (array $item): array => $registry->entryMeta($item) ?? [],
+            $endpoints
+        ));
+
+        $endpoints = array_values(array_filter(
+            $endpoints,
+            fn (array $ep): bool => isset($ep['slug']) && $ep['slug'] !== ''
+        ));
+
+        $onlySlugs = array_values(array_filter(
+            array_map('strval', (array) $this->option('slug')),
+            static fn (string $s): bool => $s !== ''
+        ));
+
+        if ($onlySlugs !== []) {
+            $endpoints = array_values(array_filter(
+                $endpoints,
+                fn (array $ep): bool => in_array((string) $ep['slug'], $onlySlugs, true)
+            ));
+
+            if ($endpoints === []) {
+                $this->error('No endpoint found with slug '.implode(', ', $onlySlugs).'.');
+
+                return self::FAILURE;
+            }
         }
 
         $onlyRoot = strtolower(rtrim((string) $this->option('root'), '/'));
@@ -485,6 +523,17 @@ class SyncEndpointData extends Command
         foreach ($endpoints as $i => $endpoint) {
             $result = $this->fetchResult($responses[(string) $i] ?? null);
             $rows = $result['ok'] ? DatasetRows::extractRows($result['data']) : [];
+            $columns = array_values(array_map('strval', (array) ($endpoint['columns'] ?? [])));
+
+            // Freshly imported / column-less endpoints become datasets only when
+            // the live response carries tabular rows to derive columns from.
+            if ($result['ok'] && $columns === []) {
+                $columns = array_keys($rows[0] ?? []);
+            }
+
+            if ($columns === []) {
+                continue;
+            }
 
             $payload = [
                 'name' => (string) $endpoint['name'],
@@ -501,7 +550,7 @@ class SyncEndpointData extends Command
             // Keep the last-known-good snapshot (columns/rows) when a fetch
             // fails so registered endpoints stay usable in the builder.
             if ($result['ok']) {
-                $payload['columns'] = DatasetRows::buildColumns((array) $endpoint['columns'], $rows);
+                $payload['columns'] = DatasetRows::buildColumns($columns, $rows);
                 $payload['sample_data'] = $rows;
                 $payload['row_count'] = count($rows);
             }

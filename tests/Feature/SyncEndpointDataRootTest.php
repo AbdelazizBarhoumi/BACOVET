@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Console\Commands\RunEndpointSync;
+use App\Models\EndpointDataset;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -252,6 +253,87 @@ class SyncEndpointDataRootTest extends TestCase
             '--root' => 'https://api.missing.test',
         ])->assertFailed()
             ->expectsOutputToContain('No endpoint found with root https://api.missing.test');
+    }
+
+    public function test_datasets_slug_option_only_syncs_matching_slug(): void
+    {
+        $this->writeData([
+            ['id' => 'ep-1', 'name' => 'v_primary', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/api/data/v_primary', 'status' => 200, 'response' => ['data' => [['a' => 1], ['a' => 2]], 'label' => 'P', 'object' => 'O', 'object_type' => 'T']],
+            ['id' => 'ep-2', 'name' => 'v_custom', 'method' => 'GET', 'endpoint' => 'https://api.custom.test/api/data/v_custom', 'status' => 200, 'response' => ['data' => [['b' => 3]], 'label' => 'C', 'object' => 'O2', 'object_type' => 'T2']],
+        ]);
+
+        Http::fake([
+            'https://api.custom.test/api/data/v_custom*' => Http::response(['success' => true, 'data' => [['b' => 9]]], 200),
+        ]);
+
+        $this->artisan('sync:endpoint-data', [
+            '--phase' => 'datasets',
+            '--force' => true,
+            '--retry' => 0,
+            '--batch' => 5,
+            '--slug' => ['api/data/v_custom'],
+        ])->assertSuccessful();
+
+        Http::assertNotSent(fn ($request) => str_starts_with($request->url(), 'https://api.primary.test'));
+
+        $this->assertDatabaseHas('endpoint_datasets', ['slug' => 'api/data/v_custom', 'last_status' => 'ok', 'row_count' => 1]);
+        $this->assertDatabaseMissing('endpoint_datasets', ['slug' => 'api/data/v_primary']);
+    }
+
+    public function test_datasets_sync_derives_columns_from_live_rows_for_column_less_endpoints(): void
+    {
+        // Freshly imported endpoints have no columns/rows in data.json yet;
+        // the datasets phase must fetch live rows and derive columns from them.
+        $this->writeData([
+            ['id' => 'ep-1', 'name' => 'v_primary', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/api/data/v_primary', 'status' => 200, 'response' => new \stdClass],
+        ]);
+
+        Http::fake([
+            'https://api.primary.test/api/data/v_primary*' => Http::response(['success' => true, 'data' => [['code' => 'A', 'qty' => 10]]], 200),
+        ]);
+
+        $this->artisan('sync:endpoint-data', [
+            '--phase' => 'datasets',
+            '--force' => true,
+            '--retry' => 0,
+            '--slug' => ['api/data/v_primary'],
+        ])->assertSuccessful();
+
+        $this->assertDatabaseHas('endpoint_datasets', [
+            'slug' => 'api/data/v_primary',
+            'last_status' => 'ok',
+            'row_count' => 1,
+        ]);
+
+        $dataset = EndpointDataset::where('slug', 'api/data/v_primary')->first();
+
+        $this->assertSame([
+            ['name' => 'code', 'type' => 'text'],
+            ['name' => 'qty', 'type' => 'number'],
+        ], $dataset->columns);
+        $this->assertSame([['code' => 'A', 'qty' => 10]], $dataset->sample_data);
+    }
+
+    public function test_datasets_sync_skips_endpoint_without_columns_after_fetch(): void
+    {
+        // A non-tabular endpoint returns an object with no tabular data — no
+        // columns can be derived, so no dataset row should be created.
+        $this->writeData([
+            ['id' => 'ep-1', 'name' => 'v_primary', 'method' => 'GET', 'endpoint' => 'https://api.primary.test/api/data/v_primary', 'status' => 200, 'response' => new \stdClass],
+        ]);
+
+        Http::fake([
+            'https://api.primary.test/api/data/v_primary*' => Http::response(['success' => true, 'data' => ['count' => 5]], 200),
+        ]);
+
+        $this->artisan('sync:endpoint-data', [
+            '--phase' => 'datasets',
+            '--force' => true,
+            '--retry' => 0,
+            '--slug' => ['api/data/v_primary'],
+        ])->assertSuccessful();
+
+        $this->assertDatabaseMissing('endpoint_datasets', ['slug' => 'api/data/v_primary']);
     }
 
     private function readData(): array

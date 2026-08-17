@@ -160,9 +160,16 @@ Route::middleware(['auth', 'role:it'])->prefix('novacity-endpoints')->group(func
     Route::post('/refresh-group', [NovacityEndpointsController::class, 'refreshGroup']);
     Route::get('/roots', [NovacityEndpointsController::class, 'roots']);
     Route::post('/roots', [NovacityEndpointsController::class, 'storeRoot']);
+    Route::post('/roots/toggle', [NovacityEndpointsController::class, 'toggleRoot']);
     Route::delete('/roots/{root}', [NovacityEndpointsController::class, 'destroyRoot']);
+    Route::get('/params', [NovacityEndpointsController::class, 'parameterLists']);
+    Route::post('/params/roots', [NovacityEndpointsController::class, 'storeRootParameters']);
+    Route::post('/params/roots/delete', [NovacityEndpointsController::class, 'deleteRootParameter']);
     Route::post('/{id}/refresh', [NovacityEndpointsController::class, 'refreshOne']);
     Route::post('/test', [NovacityEndpointsController::class, 'test']);
+    Route::post('/import', [NovacityEndpointsController::class, 'import']);
+    Route::patch('/{id}/toggle', [NovacityEndpointsController::class, 'toggle']);
+    Route::post('/{id}/parameter', [NovacityEndpointsController::class, 'setParameter']);
     Route::post('/', [NovacityEndpointsController::class, 'store']);
     Route::post('/reorder', [NovacityEndpointsController::class, 'reorder']);
     Route::get('/{id}', [NovacityEndpointsController::class, 'show']);
