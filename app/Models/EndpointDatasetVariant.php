@@ -17,6 +17,7 @@ class EndpointDatasetVariant extends Model
     protected $fillable = [
         'slug',
         'params',
+        'params_hash',
         'columns',
         'sample_data',
         'row_count',
@@ -32,4 +33,38 @@ class EndpointDatasetVariant extends Model
         'row_count' => 'integer',
         'last_synced_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $model) {
+            $model->params_hash = self::hashParams($model->params);
+        });
+    }
+
+    /**
+     * Canonical md5 of the params so a unique index can be applied on MySQL
+     * (JSON columns cannot be indexed directly).
+     */
+    public static function hashParams(?array $params): ?string
+    {
+        if ($params === null) {
+            return null;
+        }
+
+        $canonical = $params;
+        self::sortRecursively($canonical);
+
+        return md5(json_encode($canonical));
+    }
+
+    private static function sortRecursively(array &$value): void
+    {
+        ksort($value);
+
+        foreach ($value as &$child) {
+            if (is_array($child)) {
+                self::sortRecursively($child);
+            }
+        }
+    }
 }

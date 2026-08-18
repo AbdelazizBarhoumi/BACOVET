@@ -2193,7 +2193,7 @@ export function ChartBody({
         case 'text':
             return (
                 <div
-                    className="h-full w-full overflow-auto p-2"
+                    className="scrollbar-none h-full w-full overflow-auto p-2"
                     style={{
                         fontSize: visual.fontSize ?? undefined,
                         color: visual.fontColor ?? undefined,
@@ -2404,7 +2404,7 @@ export function ChartBody({
                                     className="flex flex-col items-center"
                                 >
                                     {listed.length ? (
-                                        <div className="max-h-full overflow-auto text-center text-sm">
+                                        <div className="scrollbar-none max-h-full overflow-auto text-center text-sm">
                                             {listed.map((code) => (
                                                 <div
                                                     key={code}
@@ -2704,7 +2704,8 @@ export function ChartBody({
                 { running: 0, items: [] },
             ).items;
             const renderWaterfallIcon = () => (props: CfLabelProps) => {
-                const row = props.index != null ? wdata[props.index] : undefined;
+                const row =
+                    props.index != null ? wdata[props.index] : undefined;
                 const icon = cfIconFor(row);
                 if (!icon) return null;
                 return labelLinesNode(
@@ -2801,8 +2802,7 @@ export function ChartBody({
                 if (point.cx == null) return <g />;
                 const icon = cfIconFor(point.payload);
                 const dim =
-                    matchSet &&
-                    !matchSet.has(String(point.payload?.category));
+                    matchSet && !matchSet.has(String(point.payload?.category));
                 if (icon) {
                     return (
                         <g opacity={dim ? 0.25 : 1}>

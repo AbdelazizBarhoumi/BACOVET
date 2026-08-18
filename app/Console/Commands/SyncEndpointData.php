@@ -596,6 +596,7 @@ class SyncEndpointData extends Command
                 // Parameter variant: one stored snapshot per value so the page
                 // builder can switch a dashboard parameter without re-fetching.
                 $variantPayload = [
+                    'params_hash' => EndpointDatasetVariant::hashParams($variant['params']),
                     'last_status' => $payload['last_status'],
                     'last_error' => $payload['last_error'],
                     'last_synced_at' => $payload['last_synced_at'],
@@ -609,7 +610,7 @@ class SyncEndpointData extends Command
 
                 EndpointDatasetVariant::upsert(
                     [$this->encodeUpsertJsonColumns(array_merge(['slug' => $slug, 'params' => $variant['params']], $variantPayload), ['params', 'columns', 'sample_data'])],
-                    ['slug', 'params'],
+                    ['slug', 'params_hash'],
                     array_keys($variantPayload),
                 );
 

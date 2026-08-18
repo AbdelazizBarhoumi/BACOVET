@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('slug');
             $table->json('params')->nullable();
+            $table->string('params_hash', 32)->nullable();
             $table->json('columns')->nullable();
             $table->json('sample_data')->nullable();
             $table->unsignedInteger('row_count')->default(0);
@@ -20,7 +21,9 @@ return new class extends Migration
             $table->timestamp('last_synced_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['slug', 'params']);
+            // MySQL cannot index a JSON column directly (error 3152), so the
+            // unique key covers a canonical md5 of the params instead.
+            $table->unique(['slug', 'params_hash']);
             $table->index('last_status');
         });
     }

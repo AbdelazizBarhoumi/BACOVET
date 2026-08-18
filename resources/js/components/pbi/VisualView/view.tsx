@@ -1,10 +1,6 @@
 import { useMemo } from 'react';
 import { enrichRows } from '@/lib/pbi/joins';
-import {
-    distinctValues,
-    type Row,
-    type Visual,
-} from '@/lib/pbi/model';
+import { distinctValues, type Row, type Visual } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
 import { ChartBody } from './chart';
 import { EmptyVisual, useInteractiveRows } from './shared';
@@ -49,7 +45,7 @@ export function VisualView({
         return <EmptyVisual label="Aucune donnée pour les petits multiples" />;
 
     return (
-        <div className="grid h-full w-full grid-cols-2 gap-1 overflow-auto p-1 lg:grid-cols-3">
+        <div className="scrollbar-none grid h-full w-full grid-cols-2 gap-1 overflow-auto p-1 lg:grid-cols-3">
             {cells.map((value) => (
                 <div
                     key={value}

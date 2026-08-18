@@ -7,16 +7,18 @@ import {
 } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import type { RelativePreset } from '@/lib/pbi/filters';
-import {
-    distinctValues,
-    type Row,
-    type Visual,
-} from '@/lib/pbi/model';
+import { distinctValues, type Row, type Visual } from '@/lib/pbi/model';
 import { slicerKey, usePbi, type SlicerDateMode } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 import { EmptyVisual } from './shared';
 
-export function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
+export function SlicerVisual({
+    visual,
+    rows,
+}: {
+    visual: Visual;
+    rows: Row[];
+}) {
     const {
         slicerSelections,
         slicerDateRanges,
@@ -76,7 +78,7 @@ export function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) 
                                 </button>
                             )}
                         </div>
-                        <div className="min-h-0 flex-1 overflow-auto p-1">
+                        <div className="scrollbar-none min-h-0 flex-1 overflow-auto p-1">
                             {values.map((v) => (
                                 <button
                                     key={v}
@@ -113,7 +115,7 @@ export function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) 
                     placeholder={`Tapez pour filtrer ${col}…`}
                     className="rounded border border-border bg-background px-2 py-1 text-[11px] placeholder:text-muted-foreground/50"
                 />
-                <div className="flex-1 overflow-auto">
+                <div className="scrollbar-none flex-1 overflow-auto">
                     {values.map((v) => (
                         <button
                             key={v}
@@ -369,7 +371,7 @@ export function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) 
 
     if (visual.type === 'buttonSlicer')
         return (
-            <div className="flex h-full flex-wrap content-start gap-1 overflow-auto p-1">
+            <div className="scrollbar-none flex h-full flex-wrap content-start gap-1 overflow-auto p-1">
                 {values.map((v) => (
                     <button
                         key={v}
@@ -395,7 +397,7 @@ export function SlicerVisual({ visual, rows }: { visual: Visual; rows: Row[] }) 
             >
                 Effacer
             </button>
-            <div className="mt-1 flex-1 overflow-auto pr-1">
+            <div className="mt-1 scrollbar-none flex-1 overflow-auto pr-1">
                 {values.map((v) => (
                     <label
                         key={v}

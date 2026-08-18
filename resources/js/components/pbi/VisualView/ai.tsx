@@ -19,7 +19,13 @@ import {
     type Visual,
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
-import { EmptyVisual, axisPropsFor, chartTooltip, tickFmt, visualFmt } from './shared';
+import {
+    EmptyVisual,
+    axisPropsFor,
+    chartTooltip,
+    tickFmt,
+    visualFmt,
+} from './shared';
 
 export function SmartNarrative({
     visual,
@@ -42,7 +48,7 @@ export function SmartNarrative({
     const bottom = sorted[sorted.length - 1]!;
     const total = data.reduce((t, d) => t + Number(d[key]), 0);
     return (
-        <div className="h-full overflow-auto p-2 text-[11px] leading-relaxed text-foreground">
+        <div className="scrollbar-none h-full overflow-auto p-2 text-[11px] leading-relaxed text-foreground">
             <p>
                 <strong>{key}</strong> totalise{' '}
                 <strong>{visualFmt(total, visual, visual.values[0])}</strong>{' '}
@@ -68,7 +74,13 @@ export function SmartNarrative({
     );
 }
 
-export function KeyInfluencers({ visual, rows }: { visual: Visual; rows: Row[] }) {
+export function KeyInfluencers({
+    visual,
+    rows,
+}: {
+    visual: Visual;
+    rows: Row[];
+}) {
     const dim = visual.axis[0]?.name;
     const measure = visual.values[0];
     if (!dim || !measure)
@@ -85,7 +97,7 @@ export function KeyInfluencers({ visual, rows }: { visual: Visual; rows: Row[] }
         .sort((a, b) => b.v - a.v);
     const total = scored.reduce((t, s) => t + s.v, 0) || 1;
     return (
-        <div className="h-full overflow-auto p-1 text-[11px]">
+        <div className="scrollbar-none h-full overflow-auto p-1 text-[11px]">
             <p className="mb-2 text-muted-foreground">
                 Quels facteurs influencent{' '}
                 <strong>{measureLabel(measure)}</strong> à la hausse ?
@@ -110,7 +122,13 @@ export function KeyInfluencers({ visual, rows }: { visual: Visual; rows: Row[] }
     );
 }
 
-export function DecompositionTree({ visual, rows }: { visual: Visual; rows: Row[] }) {
+export function DecompositionTree({
+    visual,
+    rows,
+}: {
+    visual: Visual;
+    rows: Row[];
+}) {
     const [path, setPath] = useState<{ col: string; val: string }[]>([]);
     const measure = visual.values[0];
     const levels = (
@@ -138,7 +156,7 @@ export function DecompositionTree({ visual, rows }: { visual: Visual; rows: Row[
     const max = Math.max(...items.map((i) => i.v), 1);
 
     return (
-        <div className="flex h-full gap-3 overflow-auto p-1 text-[11px]">
+        <div className="scrollbar-none flex h-full gap-3 overflow-auto p-1 text-[11px]">
             <div className="min-w-24">
                 <div className="font-semibold">{measureLabel(measure)}</div>
                 <div className="text-lg">
@@ -224,7 +242,10 @@ export function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             tickFormatter={tickFmt(visual)}
                             {...axisPropsFor(visual)}
                         />
-                        <Tooltip content={chartTooltip(visual)} isAnimationActive={false} />
+                        <Tooltip
+                            content={chartTooltip(visual)}
+                            isAnimationActive={false}
+                        />
                         <Bar
                             dataKey={series[0] ?? 'value'}
                             fill="var(--chart-1)"
@@ -299,7 +320,7 @@ export function MapVisual({
         );
     const max = Math.max(...data.map((d) => Number(d[key]) || 0), 1);
     return (
-        <div className="grid h-full grid-cols-3 content-start gap-1 overflow-auto rounded bg-muted/40 p-1">
+        <div className="scrollbar-none grid h-full grid-cols-3 content-start gap-1 overflow-auto rounded bg-muted/40 p-1">
             {data.map((d, i) => {
                 const v = Number(d[key]) || 0;
                 const dimmed = matchSet && !matchSet.has(String(d['category']));
