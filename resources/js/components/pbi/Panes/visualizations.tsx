@@ -36,6 +36,7 @@ import { CARTESIAN_TYPES } from '@/lib/pbi/store/consts';
 import { visualConfig } from '@/lib/pbi/visualConfig';
 import { cn } from '@/lib/utils';
 import { CartesianFormat } from '../CartesianFormat';
+import { ClockFormat } from '../ClockFormat';
 import { ColorInput } from '../formatControls';
 import { GaugeFormat } from '../GaugeFormat';
 import { SingleValueFormat } from '../SingleValueFormat';
@@ -47,6 +48,7 @@ import {
     IconButtonPreview,
     IconButtonSlicerPreview,
     IconCardPreview,
+    IconClockPreview,
     IconColumnPreview,
     IconComboPreview,
     IconDateSlicerPreview,
@@ -235,6 +237,7 @@ const VISUAL_GROUPS: {
             },
             { type: 'image', label: 'Image', Icon: IconImagePreview },
             { type: 'button', label: 'Bouton', Icon: IconButtonPreview },
+            { type: 'clock', label: 'Horloge', Icon: IconClockPreview },
         ],
     },
 ];
@@ -434,8 +437,7 @@ function ValueAxisSelect({
         >
             {normalized.map((a) => (
                 <option key={a.id} value={a.id}>
-                    Axe {a.order + 1}{' '}
-                    {a.title ? `— ${a.title}` : ''}
+                    Axe {a.order + 1} {a.title ? `— ${a.title}` : ''}
                 </option>
             ))}
             <option value="__new__">+ Nouvel axe</option>
@@ -677,10 +679,7 @@ export function VisualizationsPane({
                                             className="w-16 rounded border border-border bg-background text-[10px]"
                                         >
                                             {AGGS.map((a) => (
-                                                <option
-                                                    key={a}
-                                                    value={a}
-                                                >
+                                                <option key={a} value={a}>
                                                     {AGG_LABELS[a]}
                                                 </option>
                                             ))}
@@ -708,169 +707,183 @@ export function VisualizationsPane({
                                             }}
                                             className="mb-0.5 cursor-grab rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
                                         >
-                                        <div className="flex flex-wrap items-center gap-1">
-                                            {issue && (
-                                                <TriangleAlert
-                                                    className="size-3 shrink-0 text-warning"
-                                                    aria-label={issue}
-                                                />
-                                            )}
-                                            <span className="flex-1 truncate">
-                                                {numericField
-                                                    ? measureLabel(f)
-                                                    : fieldLabel(f)}
-                                            </span>
-                                            {!valueRow && aggSelect}
-                                            {SINGLE_VALUE_WELLS.has(name) &&
-                                                !numericField &&
-                                                !isMeasure(f.name) &&
-                                                !detailOn && (
-                                                    <select
-                                                        value={
-                                                            f.valueAggregation ??
-                                                            'first'
-                                                        }
-                                                        onChange={(e) =>
-                                                            setWellValueAgg(
-                                                                selected.id,
-                                                                name,
-                                                                i,
-                                                                e.target
-                                                                    .value as ValueAggregationMode,
-                                                            )
-                                                        }
-                                                        data-testid={`value-agg-select-${name}-${i}`}
-                                                        className="rounded border border-border bg-background text-[10px]"
-                                                    >
-                                                        {VALUE_AGGREGATION_MODES.map(
-                                                            (m) => (
-                                                                <option
-                                                                    key={m}
-                                                                    value={m}
-                                                                >
-                                                                    {
-                                                                        VALUE_AGGREGATION_LABELS[
-                                                                            m
-                                                                        ]
-                                                                    }
-                                                                </option>
-                                                            ),
-                                                        )}
-                                                    </select>
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                {issue && (
+                                                    <TriangleAlert
+                                                        className="size-3 shrink-0 text-warning"
+                                                        aria-label={issue}
+                                                    />
                                                 )}
-                                            {SINGLE_VALUE_WELLS.has(name) &&
-                                                isListMeasure(f.name) && (
-                                                    <select
-                                                        title="Traitement de la liste"
-                                                        aria-label="Traitement de la liste"
-                                                        value={
-                                                            f.listAgg ?? 'list'
-                                                        }
-                                                        onChange={(e) =>
-                                                            handleListAggChange(
-                                                                selected.id,
-                                                                name,
-                                                                i,
-                                                                f,
-                                                                e.target.value,
-                                                            )
-                                                        }
-                                                        className="rounded border border-border bg-background text-[10px]"
-                                                    >
-                                                        <option value="list">
-                                                            Liste
-                                                        </option>
-                                                        <option value="count">
-                                                            {AGG_LABELS.count}
-                                                        </option>
-                                                        <option value="distinct">
-                                                            {
-                                                                AGG_LABELS.distinct
-                                                            }
-                                                        </option>
-                                                        <option value="first">
-                                                            {AGG_LABELS.first}
-                                                        </option>
-                                                        <option value="latest">
-                                                            {AGG_LABELS.latest}
-                                                        </option>
-                                                        <option value="raw">
-                                                            {AGG_LABELS.raw}
-                                                        </option>
-                                                        <option value="nth">
-                                                            {AGG_LABELS.nth}
-                                                        </option>
-                                                        <option value="sum">
-                                                            {AGG_LABELS.sum}
-                                                        </option>
-                                                        <option value="avg">
-                                                            {AGG_LABELS.avg}
-                                                        </option>
-                                                        <option value="min">
-                                                            {AGG_LABELS.min}
-                                                        </option>
-                                                        <option value="max">
-                                                            {AGG_LABELS.max}
-                                                        </option>
-                                                    </select>
-                                                )}
-                                            {issue && (
-                                                <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
-                                                    {issue}
+                                                <span className="flex-1 truncate">
+                                                    {numericField
+                                                        ? measureLabel(f)
+                                                        : fieldLabel(f)}
                                                 </span>
-                                            )}
-                                            {!valueRow && (
-                                                <button
-                                                    onClick={() =>
-                                                        removeWellField(
-                                                            selected.id,
-                                                            name,
-                                                            i,
-                                                        )
-                                                    }
-                                                >
-                                                    <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                                </button>
-                                            )}
-                                        </div>
-                                        {valueRow && aggSelect && (
-                                            <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
-                                                {aggSelect}
+                                                {!valueRow && aggSelect}
+                                                {SINGLE_VALUE_WELLS.has(name) &&
+                                                    !numericField &&
+                                                    !isMeasure(f.name) &&
+                                                    !detailOn && (
+                                                        <select
+                                                            value={
+                                                                f.valueAggregation ??
+                                                                'first'
+                                                            }
+                                                            onChange={(e) =>
+                                                                setWellValueAgg(
+                                                                    selected.id,
+                                                                    name,
+                                                                    i,
+                                                                    e.target
+                                                                        .value as ValueAggregationMode,
+                                                                )
+                                                            }
+                                                            data-testid={`value-agg-select-${name}-${i}`}
+                                                            className="rounded border border-border bg-background text-[10px]"
+                                                        >
+                                                            {VALUE_AGGREGATION_MODES.map(
+                                                                (m) => (
+                                                                    <option
+                                                                        key={m}
+                                                                        value={
+                                                                            m
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            VALUE_AGGREGATION_LABELS[
+                                                                                m
+                                                                            ]
+                                                                        }
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
+                                                    )}
+                                                {SINGLE_VALUE_WELLS.has(name) &&
+                                                    isListMeasure(f.name) && (
+                                                        <select
+                                                            title="Traitement de la liste"
+                                                            aria-label="Traitement de la liste"
+                                                            value={
+                                                                f.listAgg ??
+                                                                'list'
+                                                            }
+                                                            onChange={(e) =>
+                                                                handleListAggChange(
+                                                                    selected.id,
+                                                                    name,
+                                                                    i,
+                                                                    f,
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            className="rounded border border-border bg-background text-[10px]"
+                                                        >
+                                                            <option value="list">
+                                                                Liste
+                                                            </option>
+                                                            <option value="count">
+                                                                {
+                                                                    AGG_LABELS.count
+                                                                }
+                                                            </option>
+                                                            <option value="distinct">
+                                                                {
+                                                                    AGG_LABELS.distinct
+                                                                }
+                                                            </option>
+                                                            <option value="first">
+                                                                {
+                                                                    AGG_LABELS.first
+                                                                }
+                                                            </option>
+                                                            <option value="latest">
+                                                                {
+                                                                    AGG_LABELS.latest
+                                                                }
+                                                            </option>
+                                                            <option value="raw">
+                                                                {AGG_LABELS.raw}
+                                                            </option>
+                                                            <option value="nth">
+                                                                {AGG_LABELS.nth}
+                                                            </option>
+                                                            <option value="sum">
+                                                                {AGG_LABELS.sum}
+                                                            </option>
+                                                            <option value="avg">
+                                                                {AGG_LABELS.avg}
+                                                            </option>
+                                                            <option value="min">
+                                                                {AGG_LABELS.min}
+                                                            </option>
+                                                            <option value="max">
+                                                                {AGG_LABELS.max}
+                                                            </option>
+                                                        </select>
+                                                    )}
+                                                {issue && (
+                                                    <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
+                                                        {issue}
+                                                    </span>
+                                                )}
+                                                {!valueRow && (
+                                                    <button
+                                                        onClick={() =>
+                                                            removeWellField(
+                                                                selected.id,
+                                                                name,
+                                                                i,
+                                                            )
+                                                        }
+                                                    >
+                                                        <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                                    </button>
+                                                )}
                                             </div>
-                                        )}
-                                        {valueRow && (
-                                            <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
-                                                <ValueFieldControls
-                                                    visualId={selected.id}
-                                                    field={f}
-                                                    index={i}
-                                                    patchWellField={
-                                                        patchWellField
-                                                    }
-                                                />
-                                                <ValueAxisSelect
-                                                    visualId={selected.id}
-                                                    axes={selected.axes ?? []}
-                                                    field={f}
-                                                    index={i}
-                                                    addValueAxis={addValueAxis}
-                                                    patchWellField={
-                                                        patchWellField
-                                                    }
-                                                />
-                                                <button
-                                                    onClick={() =>
-                                                        removeWellField(
-                                                            selected.id,
-                                                            name,
-                                                            i,
-                                                        )
-                                                    }
-                                                >
-                                                    <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                                </button>
-                                            </div>
-                                        )}
+                                            {valueRow && aggSelect && (
+                                                <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
+                                                    {aggSelect}
+                                                </div>
+                                            )}
+                                            {valueRow && (
+                                                <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
+                                                    <ValueFieldControls
+                                                        visualId={selected.id}
+                                                        field={f}
+                                                        index={i}
+                                                        patchWellField={
+                                                            patchWellField
+                                                        }
+                                                    />
+                                                    <ValueAxisSelect
+                                                        visualId={selected.id}
+                                                        axes={
+                                                            selected.axes ?? []
+                                                        }
+                                                        field={f}
+                                                        index={i}
+                                                        addValueAxis={
+                                                            addValueAxis
+                                                        }
+                                                        patchWellField={
+                                                            patchWellField
+                                                        }
+                                                    />
+                                                    <button
+                                                        onClick={() =>
+                                                            removeWellField(
+                                                                selected.id,
+                                                                name,
+                                                                i,
+                                                            )
+                                                        }
+                                                    >
+                                                        <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                         {SINGLE_VALUE_WELLS.has(name) &&
                                             !isMeasure(f.name) && (
@@ -902,7 +915,8 @@ export function VisualizationsPane({
                                                                                             'first',
                                                                                         index: undefined,
                                                                                         window: undefined,
-                                                                                        windowDir: undefined,
+                                                                                        windowDir:
+                                                                                            undefined,
                                                                                     },
                                                                           )
                                                                         : patchWellField(
@@ -915,19 +929,18 @@ export function VisualizationsPane({
                                                                                       undefined,
                                                                                   index: undefined,
                                                                                   window: undefined,
-                                                                                  windowDir: undefined,
+                                                                                  windowDir:
+                                                                                      undefined,
                                                                               },
                                                                           )
                                                                 }
                                                             />
-                                                            Détail des
-                                                            lignes
+                                                            Détail des lignes
                                                         </label>
                                                     )}
                                                     {!detailOn &&
                                                         ((numericField &&
-                                                            f.agg ===
-                                                                'nth') ||
+                                                            f.agg === 'nth') ||
                                                             (!numericField &&
                                                                 (f.valueAggregation ??
                                                                     'first') ===
@@ -962,9 +975,7 @@ export function VisualizationsPane({
                                                                     f.windowDir ??
                                                                     'last'
                                                                 }
-                                                                onChange={(
-                                                                    e,
-                                                                ) =>
+                                                                onChange={(e) =>
                                                                     patchWellField(
                                                                         selected.id,
                                                                         name,
@@ -1062,9 +1073,12 @@ export function VisualizationsPane({
                                         title={v.label}
                                         onClick={() =>
                                             selected
-                                                ? updateVisualSingle(selected.id, {
-                                                      type: v.type,
-                                                  })
+                                                ? updateVisualSingle(
+                                                      selected.id,
+                                                      {
+                                                          type: v.type,
+                                                      },
+                                                  )
                                                 : addVisual(v.type)
                                         }
                                         className={cn(
@@ -1239,24 +1253,22 @@ export function VisualizationsPane({
                                             Page d’info-bulle
                                         </span>
                                         <select
-                                            value={
-                                                selected.tooltipPageId ?? ''
-                                            }
+                                            value={selected.tooltipPageId ?? ''}
                                             onChange={(e) =>
-                                                updateVisualSingle(selected.id, {
-                                                    tooltipPageId:
-                                                        e.target.value ||
-                                                        undefined,
-                                                })
+                                                updateVisualSingle(
+                                                    selected.id,
+                                                    {
+                                                        tooltipPageId:
+                                                            e.target.value ||
+                                                            undefined,
+                                                    },
+                                                )
                                             }
                                             className="w-full rounded border border-border bg-background px-2 py-1"
                                         >
                                             <option value="">Par défaut</option>
                                             {pages.map((p) => (
-                                                <option
-                                                    key={p.id}
-                                                    value={p.id}
-                                                >
+                                                <option key={p.id} value={p.id}>
                                                     {p.name}
                                                 </option>
                                             ))}
@@ -1275,6 +1287,8 @@ export function VisualizationsPane({
                                 <GaugeFormat visual={selected} />
                             ) : config?.format === 'element' ? (
                                 <TextImageFormat visual={selected} />
+                            ) : config?.format === 'clock' ? (
+                                <ClockFormat visual={selected} />
                             ) : (
                                 <GenericFormat visual={selected} />
                             ))}
@@ -1311,7 +1325,9 @@ export function VisualizationsPane({
                                                     <ColorInput
                                                         value={
                                                             line.color ??
-                                                            ANALYTICS_DEFAULT_COLOR[k]
+                                                            ANALYTICS_DEFAULT_COLOR[
+                                                                k
+                                                            ]
                                                         }
                                                         onChange={(v) =>
                                                             setAnalyticsColor(
@@ -1343,34 +1359,12 @@ export function VisualizationsPane({
                                                     )}
                                                 </div>
                                             )}
-                                            {enabled && valueEditable && paneAxes.length <= 1 && (
-                                                <input
-                                                    type="number"
-                                                    value={line.value ?? ''}
-                                                    onChange={(e) =>
-                                                        setAnalyticsValue(
-                                                            selected.id,
-                                                            k,
-                                                            e.target.value ===
-                                                                ''
-                                                                ? undefined
-                                                                : Number(
-                                                                      e.target
-                                                                          .value,
-                                                                  ),
-                                                        )
-                                                    }
-                                                    placeholder="Valeur"
-                                                    className="mt-1 w-full rounded border border-border bg-background px-2 py-1"
-                                                />
-                                            )}
-                                            {enabled && k === 'band' && (
-                                                <div className="mt-1 flex gap-1">
+                                            {enabled &&
+                                                valueEditable &&
+                                                paneAxes.length <= 1 && (
                                                     <input
                                                         type="number"
-                                                        value={
-                                                            line.value ?? ''
-                                                        }
+                                                        value={line.value ?? ''}
                                                         onChange={(e) =>
                                                             setAnalyticsValue(
                                                                 selected.id,
@@ -1380,7 +1374,32 @@ export function VisualizationsPane({
                                                                     ''
                                                                     ? undefined
                                                                     : Number(
-                                                                          e.target
+                                                                          e
+                                                                              .target
+                                                                              .value,
+                                                                      ),
+                                                            )
+                                                        }
+                                                        placeholder="Valeur"
+                                                        className="mt-1 w-full rounded border border-border bg-background px-2 py-1"
+                                                    />
+                                                )}
+                                            {enabled && k === 'band' && (
+                                                <div className="mt-1 flex gap-1">
+                                                    <input
+                                                        type="number"
+                                                        value={line.value ?? ''}
+                                                        onChange={(e) =>
+                                                            setAnalyticsValue(
+                                                                selected.id,
+                                                                k,
+                                                                e.target
+                                                                    .value ===
+                                                                    ''
+                                                                    ? undefined
+                                                                    : Number(
+                                                                          e
+                                                                              .target
                                                                               .value,
                                                                       ),
                                                             )
@@ -1402,7 +1421,8 @@ export function VisualizationsPane({
                                                                     ''
                                                                     ? undefined
                                                                     : Number(
-                                                                          e.target
+                                                                          e
+                                                                              .target
                                                                               .value,
                                                                       ),
                                                             )
@@ -1416,9 +1436,7 @@ export function VisualizationsPane({
                                                 <input
                                                     type="text"
                                                     list={`analytics-cat-${selected.id}`}
-                                                    value={
-                                                        line.category ?? ''
-                                                    }
+                                                    value={line.category ?? ''}
                                                     onChange={(e) =>
                                                         setAnalyticsCategory(
                                                             selected.id,
@@ -1449,8 +1467,7 @@ export function VisualizationsPane({
                                                             const current =
                                                                 line.axes ??
                                                                 paneAxes.map(
-                                                                    (x) =>
-                                                                        x.id,
+                                                                    (x) => x.id,
                                                                 );
                                                             const checked =
                                                                 current.includes(
@@ -1514,7 +1531,9 @@ export function VisualizationsPane({
                                                                                     .id
                                                                             ] ??
                                                                             line.color ??
-                                                                            ANALYTICS_DEFAULT_COLOR[k]
+                                                                            ANALYTICS_DEFAULT_COLOR[
+                                                                                k
+                                                                            ]
                                                                         }
                                                                         onChange={(
                                                                             v,
@@ -1525,7 +1544,9 @@ export function VisualizationsPane({
                                                                                 a.id,
                                                                                 v ===
                                                                                     (line.color ??
-                                                                                    ANALYTICS_DEFAULT_COLOR[k])
+                                                                                        ANALYTICS_DEFAULT_COLOR[
+                                                                                            k
+                                                                                        ])
                                                                                     ? undefined
                                                                                     : v,
                                                                             )

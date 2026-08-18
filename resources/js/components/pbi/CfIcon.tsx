@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
  * registry. Every name here is verified against the installed package — a
  * missing registry entry simply falls back to the unicode glyph.
  */
-const FLUENT_MAP: Record<string, React.ComponentType<{
+export const FLUENT_MAP: Record<string, React.ComponentType<{
     className?: string;
     style?: React.CSSProperties;
 }> | undefined> = {
@@ -103,6 +103,78 @@ export function CfIcon({ icon, size, className }: CfIconProps) {
         >
             {glyph}
         </span>
+    );
+}
+
+/**
+ * A conditional-formatting icon as a standalone SVG group centered on the
+ * given anchor `x`/`y` (defaults to the origin). Safe to use inside recharts'
+ * <svg> as a dot/shape replacement — it prefers the Fluent UI component and
+ * falls back to drawing the unicode glyph with SVG <text>.
+ */
+export function CfSvgIcon({
+    icon,
+    size,
+    x = 0,
+    y = 0,
+}: {
+    icon: CFIcon | undefined;
+    size: number;
+    x?: number;
+    y?: number;
+}) {
+    if (!icon) return null;
+    const half = size / 2;
+    const Found = icon.fluent ? FLUENT_MAP[icon.fluent] : undefined;
+    return (
+        <g transform={`translate(${x - half}, ${y - half})`}>
+            {Found ? (
+                <Found
+                    style={{
+                        fontSize: size,
+                        width: size,
+                        height: size,
+                        color: icon.color,
+                    }}
+                />
+            ) : (
+                <text
+                    x={half}
+                    y={half}
+                    fontSize={size}
+                    fill={icon.color}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    stroke="none"
+                >
+                    {icon.unicode}
+                </text>
+            )}
+        </g>
+    );
+}
+
+/**
+ * A conditional-formatting icon glyph as an SVG <tspan>, for embedding into
+ * recharts label <text> blocks. Draws the unicode glyph in the icon's color.
+ */
+export function CfSvgGlyph({
+    icon,
+    fontSize,
+}: {
+    icon: CFIcon | undefined;
+    fontSize?: number;
+}) {
+    if (!icon) return null;
+    return (
+        <tspan
+            fill={icon.color}
+            fontSize={fontSize}
+            stroke="none"
+            style={{ fontFamily: 'inherit' }}
+        >
+            {icon.unicode}&nbsp;
+        </tspan>
     );
 }
 

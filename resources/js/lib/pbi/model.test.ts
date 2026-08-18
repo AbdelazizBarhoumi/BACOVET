@@ -16,6 +16,7 @@ import {
     formatTableNumber,
     formatTableTreated,
     gaugeBoundValue,
+    hasExplicitGaugeValueFormat,
     inferFieldType,
     isListMeasure,
     isMeasure,
@@ -1376,6 +1377,20 @@ describe('gauge style normalizer', () => {
         expect(style.dataLabels.values.show).toBe(true);
         expect(style.dataLabels.callout.show).toBe(true);
         expect(style.fillColor).toBeUndefined();
+        expect(style.value).toEqual({ displayUnits: 'auto' });
+        expect(hasExplicitGaugeValueFormat(style.value)).toBe(false);
+    });
+
+    it('preserves the shared value format and detects it as explicit', () => {
+        const style = normalizeGaugeStyle({
+            value: { displayUnits: 'billions', decimals: 1, suffix: 'd' },
+        });
+        expect(style.value).toEqual({
+            displayUnits: 'billions',
+            decimals: 1,
+            suffix: 'd',
+        });
+        expect(hasExplicitGaugeValueFormat(style.value)).toBe(true);
     });
 
     it('preserves explicit values and sanitizes bad ones', () => {
@@ -2504,6 +2519,73 @@ describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") 
         };
         const { data } = buildTableCells(people.rows, [axis], [], [value]);
         expect(data).toEqual([{ category: 'E1', 'Dernier de Name': 'C' }]);
+    });
+});
+
+describe('buildTableCells — conditional-format basis (_cf / _cfx)', () => {
+    const sales: TableDef = {
+        name: 'sales',
+        fields: [
+            { table: 'sales', name: 'Region', type: 'text' },
+            { table: 'sales', name: 'Qty', type: 'number' },
+            { table: 'sales', name: 'Color', type: 'text' },
+        ],
+        rows: [
+            { Region: 'North', Qty: 10, Color: '#e11d48' },
+            { Region: 'North', Qty: 20, Color: '#16a34a' },
+            { Region: 'South', Qty: 5, Color: '#4c78d0' },
+        ],
+    };
+    beforeAll(() => setTables([structuredClone(sales)]));
+    const axis: WellField = { table: 'sales', name: 'Region', agg: 'sum' };
+    const value: WellField = { table: 'sales', name: 'Qty', agg: 'sum' };
+    const extra: WellField = { table: 'sales', name: 'Qty', agg: 'sum' };
+
+    it('stamps the aggregated gradient basis on every group row', () => {
+        const { data } = buildTableCells(
+            sales.rows,
+            [axis],
+            [],
+            [value],
+            undefined,
+            extra,
+        );
+        const byRegion = Object.fromEntries(
+            data.map((d) => [String(d['category']), d['_cf']]),
+        );
+        expect(byRegion['North']).toBe(30);
+        expect(byRegion['South']).toBe(5);
+    });
+
+    it('stamps the first non-null color cell for field-value style', () => {
+        const { data } = buildTableCells(
+            sales.rows,
+            [axis],
+            [],
+            [value],
+            undefined,
+            undefined,
+            'Color',
+        );
+        const byRegion = Object.fromEntries(
+            data.map((d) => [String(d['category']), d['_cfx']]),
+        );
+        expect(byRegion['North']).toBe('#e11d48');
+        expect(byRegion['South']).toBe('#4c78d0');
+    });
+
+    it('keeps the row-detail path from dropping the color basis', () => {
+        const text: WellField = { table: 'sales', name: 'Region', agg: 'count' };
+        const { data } = buildTableCells(
+            sales.rows,
+            [axis],
+            [],
+            [text],
+            undefined,
+            extra,
+        );
+        const cfValues = data.map((d) => Number(d['_cf']));
+        expect(cfValues).toEqual([10, 20, 5]);
     });
 });
 

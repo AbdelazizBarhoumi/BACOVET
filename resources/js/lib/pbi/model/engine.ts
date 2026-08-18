@@ -2554,6 +2554,8 @@ export function buildTableCells(
     legend: WellField[],
     values: WellField[],
     graph?: RelationGraph,
+    extra?: WellField,
+    extraColor?: string,
 ): { data: Record<string, unknown>[]; series: string[] } {
     const axisCol = axis[0]?.name;
     const axisTable = axis[0]?.table;
@@ -2563,7 +2565,11 @@ export function buildTableCells(
         list.some((f) => isListMeasure(f.name));
     const hasM = (list: WellField[]) => list.some((f) => isMeasure(f.name));
     const needsContext =
-        !!graph && (hasM(values) || hasM(legend) || hasList(values));
+        !!graph &&
+        (hasM(values) ||
+            hasM(legend) ||
+            hasList(values) ||
+            (extra != null && isMeasure(extra.name)));
 
     const ctxCache = new Map<string, EvalCtx | undefined>();
     const ctxFor = (key: string): EvalCtx | undefined => {
@@ -2609,6 +2615,29 @@ export function buildTableCells(
         return ctx;
     };
 
+    const firstNonNull = (groupRows: Row[], col: string): unknown => {
+        for (const r of groupRows) {
+            const v = r[col];
+            if (v !== null && v !== undefined && v !== '') return v;
+        }
+        return null;
+    };
+
+    /** Stamps the conditional-format basis (`_cf`) and field-value color
+     * (`_cfx`) onto a row item, mirroring `buildChartData`. */
+    const withCf = (
+        item: Record<string, unknown>,
+        groupRows: Row[],
+        ctx: EvalCtx | undefined,
+    ) => {
+        if (extra) item['_cf'] = aggregate(groupRows, extra, ctx);
+        if (extraColor)
+            item['_cfx'] = firstNonNull(groupRows, extraColor) as
+                | string
+                | number;
+        return item;
+    };
+
     if (!axisCol) {
         const single: Record<string, unknown> = { category: 'Total' };
         const series: string[] = [];
@@ -2617,7 +2646,7 @@ export function buildTableCells(
             series.push(label);
             single[label] = tableCellFor(rows, v, undefined);
         }
-        return { data: [single], series };
+        return { data: [withCf(single, rows, undefined)], series };
     }
 
     // Row-detail mode: one table row per dataset row so each raw value is
@@ -2646,7 +2675,7 @@ export function buildTableCells(
                         ? r[v.name]
                         : tableCellFor([r], v, ctx);
             }
-            return item;
+            return withCf(item, [r], ctx);
         });
         return { data, series: [...seriesSet] };
     }
@@ -2688,7 +2717,7 @@ export function buildTableCells(
                 item[label] = tableCellFor(groupRows, v, ctx);
             });
         }
-        return item;
+        return withCf(item, groupRows, ctx);
     });
 
     if (fieldType(axisCol, axis[0]?.table) === 'number')

@@ -5,7 +5,9 @@ import { toast } from 'sonner';
 import {
     DISPLAY_UNITS,
     NUMBER_FORMATS,
+    normalizeDataLabelStyle,
     normalizeTableNumber,
+    type DataLabelStyle,
     type DisplayUnit,
     type NumberFormat,
     type TableNumberStyle,
@@ -38,6 +40,18 @@ const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
     percent: 'Pourcentage (%)',
     currency: 'Devise ($)',
 };
+
+/** "Part du tout et distribution" charts that display numeric values and share
+ * the value display format (units / suffix / decimals). */
+const VALUE_FORMAT_TYPES = new Set([
+    'pie',
+    'donut',
+    'treemap',
+    'funnel',
+    'waterfall',
+    'scatter',
+    'bubble',
+]);
 
 /** Shared "General" block for text/image elements: background, border (color,
  * width, radius), shadow and position/size. No chart-only options. */
@@ -268,6 +282,10 @@ function GenericFormat({ visual }: { visual: Visual }) {
     const tn = normalizeTableNumber(selected.tableNumber);
     const patchTableNumber = (patch: Partial<TableNumberStyle>) =>
         updateVisual(selected.id, { tableNumber: { ...tn, ...patch } });
+
+    const dl = normalizeDataLabelStyle(selected.dataLabels);
+    const patchDl = (patch: Partial<DataLabelStyle>) =>
+        updateVisual(selected.id, { dataLabels: { ...dl, ...patch } });
 
     const uploadImage = async (file: File) => {
         try {
@@ -545,6 +563,47 @@ function GenericFormat({ visual }: { visual: Visual }) {
                             ))}
                         </select>
                     </label>
+                    {VALUE_FORMAT_TYPES.has(selected.type) && (
+                        <div className="mt-2 rounded border border-border p-2">
+                            <span className="mb-2 block text-[11px] font-semibold">
+                                Valeurs
+                            </span>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Select
+                                    label="Unités d'affichage"
+                                    value={dl.displayUnits}
+                                    options={DISPLAY_UNITS.map((u) => ({
+                                        value: u,
+                                        label: DISPLAY_UNIT_LABELS[u],
+                                    }))}
+                                    onChange={(v) =>
+                                        patchDl({
+                                            displayUnits: v as DisplayUnit,
+                                        })
+                                    }
+                                />
+                                <TextInput
+                                    label="Suffixe"
+                                    placeholder="ex. kW"
+                                    value={dl.suffix ?? ''}
+                                    onChange={(v) =>
+                                        patchDl({
+                                            suffix: v.trim() || undefined,
+                                        })
+                                    }
+                                />
+                            </div>
+                            <NumberInput
+                                label="Décimales des valeurs"
+                                min={0}
+                                max={10}
+                                value={dl.decimals ?? 1}
+                                onChange={(v) =>
+                                    patchDl({ decimals: v })
+                                }
+                            />
+                        </div>
+                    )}
                     {(selected.type === 'table' || selected.type === 'matrix') && (
                         <div className="mt-2 rounded border border-border p-2">
                             <span className="mb-2 block text-[11px] font-semibold">

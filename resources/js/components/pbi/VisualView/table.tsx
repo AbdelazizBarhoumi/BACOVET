@@ -1,6 +1,10 @@
 import { Fragment, useMemo } from 'react';
 import { CfIcon } from '@/components/pbi/CfIcon';
-import { conditionalColor, conditionalIcon } from '@/lib/pbi/conditionalFormat';
+import {
+    cfAggToAgg,
+    conditionalColor,
+    conditionalIcon,
+} from '@/lib/pbi/conditionalFormat';
 import { iconById } from '@/lib/pbi/icons';
 import {
     buildTableCells,
@@ -11,6 +15,7 @@ import {
     measureLabel,
     normalizeConditionalFormat,
     singleValueLabel,
+    wellForReference,
     type ConditionalFormat,
     type Row,
     type Visual,
@@ -143,6 +148,21 @@ export function TableVisual({
     const dimmed = (d: Record<string, unknown>) =>
         matchSet ? !matchSet.has(String(d['category'])) : false;
     const cf = normalizeConditionalFormat(visual.conditionalFormat);
+    const extra = useMemo(() => {
+        if (cf.style === 'none' || cf.style === 'fieldValue') return undefined;
+        if (cf.basedOn)
+            return (
+                wellForReference(
+                    { name: cf.basedOn, table: cf.basedOnTable },
+                    cfAggToAgg(cf.agg),
+                ) ?? undefined
+            );
+        return visual.values[0];
+    }, [cf, visual.values]);
+    const extraColor =
+        cf.style === 'fieldValue' && cf.fieldValue
+            ? cf.fieldValue
+            : undefined;
 
     const { data, series } = useMemo(
         () =>
@@ -152,13 +172,15 @@ export function TableVisual({
                 matrix ? visual.legend : [],
                 visual.values,
                 graph,
+                extra,
+                extraColor,
             ),
         // Rekey on the measure library itself: the engine evaluates measures
         // against module-scope registries (MEASURE_IMPL / LIST_MEASURE_IMPL /
         // TABLES) that the React Compiler cannot see, so a recompute when the
         // library is (re)loaded must be keyed on the visible `measures` prop.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [rows, visual.axis, visual.legend, visual.values, graph, measures],
+        [rows, visual.axis, visual.legend, visual.values, graph, measures, extra, extraColor],
     );
     if (!groupCol && !visual.values.length)
         return <EmptyVisual label="Table" />;
@@ -264,6 +286,7 @@ export function TableVisual({
                                                     style={{
                                                         width: `${((Number(value) || 0) / (maxByCol[s] as number)) * 100}%`,
                                                         backgroundColor:
+                                                            background ??
                                                             cf.max.color,
                                                         opacity: 0.15,
                                                     }}

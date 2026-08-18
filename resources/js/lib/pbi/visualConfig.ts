@@ -31,7 +31,8 @@ export type VisualConfig = {
     /** Analytics line kinds offered in the Analytics tab. */
     analyticsKinds: AnalyticsKind[];
     /** Which Format-tab renderer to use. */
-    format: 'generic' | 'singleValue' | 'cartesian' | 'gauge' | 'element';
+    format:
+        'generic' | 'singleValue' | 'cartesian' | 'gauge' | 'element' | 'clock';
     /** Format sections rendered by the section-based renderers. */
     sections: FormatSection[];
 };
@@ -78,13 +79,7 @@ export const GAUGE_CONFIG: VisualConfig = {
     showAnalytics: false,
     analyticsKinds: [],
     format: 'gauge',
-    sections: [
-        'title',
-        'gaugeAxis',
-        'colors',
-        'dataLabels',
-        'general',
-    ],
+    sections: ['title', 'gaugeAxis', 'colors', 'dataLabels', 'general'],
 };
 
 /** Bar/column charts and the line family (line / area / stacked area / combo):
@@ -150,6 +145,16 @@ export const ELEMENT_CONFIG: VisualConfig = {
     sections: [],
 };
 
+/** Clock element: a live time/date display. No field wells, no analytics,
+ *  format-only pane driven by the dedicated ClockFormat renderer. */
+export const CLOCK_CONFIG: VisualConfig = {
+    build: [],
+    showAnalytics: false,
+    analyticsKinds: [],
+    format: 'clock',
+    sections: [],
+};
+
 export function isSingleValueType(type: VisualType): boolean {
     return SINGLE_VALUE_TYPES.includes(type);
 }
@@ -162,6 +167,7 @@ export function visualConfig(type: VisualType): VisualConfig {
     if (type === 'gauge') return GAUGE_CONFIG;
     if (isSingleValueType(type)) return SINGLE_VALUE_CONFIG;
     if (isCartesianType(type)) return CARTESIAN_CONFIG;
+    if (type === 'clock') return CLOCK_CONFIG;
     if (type === 'text' || type === 'image') return ELEMENT_CONFIG;
     return GENERIC_CONFIG;
 }

@@ -473,11 +473,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                 </div>
                 <div className="space-y-2">
                     {pageParameters.length > 0 && (
-                        <div className="space-y-2 rounded border border-brand/30 bg-brand/[0.04] p-2">
-                            <div className="flex items-center gap-1.5 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
-                                <SlidersHorizontal className="size-3" />
-                                Paramètres du rapport
-                            </div>
+                        <div>
                             {pageParameters.map((p) => (
                                 <div
                                     key={p.id}
@@ -486,9 +482,6 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                     <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium">
                                         <span className="min-w-0 truncate">
                                             {p.name}
-                                            <span className="block truncate text-[9px] font-normal text-muted-foreground">
-                                                {p.root}
-                                            </span>
                                         </span>
                                         <button
                                             onClick={() =>

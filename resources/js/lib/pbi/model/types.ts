@@ -43,13 +43,7 @@ export type ValueAggregationMode = 'first' | 'latest' | 'count' | 'nth';
 
 /** Value presentation formats for numbers (per-field or per-visual). */
 export type NumberFormat =
-    | 'auto'
-    | 'int'
-    | '1dec'
-    | '2dec'
-    | 'compact'
-    | 'percent'
-    | 'currency';
+    'auto' | 'int' | '1dec' | '2dec' | 'compact' | 'percent' | 'currency';
 
 export type WellField = {
     table: string;
@@ -162,6 +156,7 @@ export type VisualType =
     | 'text'
     | 'image'
     | 'button'
+    | 'clock'
     | 'shape';
 
 export type AnalyticsKind =
@@ -203,22 +198,11 @@ export type CfStyle = 'none' | 'gradient' | 'rules' | 'fieldValue' | 'icons';
 
 /** How the based-on field is summarized into a number per category. */
 export type CfAgg =
-    | 'none'
-    | 'sum'
-    | 'average'
-    | 'min'
-    | 'max'
-    | 'count'
-    | 'first';
+    'none' | 'sum' | 'average' | 'min' | 'max' | 'count' | 'first';
 
 /** Lower/upper bound of a gradient or a rule threshold. */
 export type CfBoundType =
-    | 'none'
-    | 'lowest'
-    | 'highest'
-    | 'number'
-    | 'percent'
-    | 'percentile';
+    'none' | 'lowest' | 'highest' | 'number' | 'percent' | 'percentile';
 
 export type CfValueType = 'number' | 'percent' | 'percentile';
 
@@ -376,6 +360,8 @@ export type Visual = {
     plotArea?: PlotAreaStyle;
     /** gauge (single-value arc) styling */
     gauge?: GaugeStyle;
+    /** clock (live time/date element) styling */
+    clock?: ClockStyle;
 };
 
 export type PageFormat = {
@@ -698,11 +684,7 @@ export type BarStyle = {
 };
 
 export type DataLabelPosition =
-    | 'auto'
-    | 'insideEnd'
-    | 'outsideEnd'
-    | 'insideCenter'
-    | 'insideBase';
+    'auto' | 'insideEnd' | 'outsideEnd' | 'insideCenter' | 'insideBase';
 
 /** Per-series label override when `applyTo === 'perSeries'`. */
 export type DataLabelSeriesOverride = {
@@ -760,6 +742,13 @@ export type GaugeBoundStyle = {
     format?: string;
 };
 
+/** Shared display format applied to every gauge value (callout and bounds). */
+export type GaugeValueStyle = {
+    displayUnits: DisplayUnit;
+    decimals?: number;
+    suffix?: string;
+};
+
 /** One gauge label group (value labels / target label / callout). */
 export type GaugeLabelStyle = {
     show: boolean;
@@ -795,12 +784,37 @@ export type GaugeStyle = {
     /** Target marker color. */
     targetColor?: string;
     targetFx?: ConditionalFormat | boolean;
+    /** Shared display format (units/suffix/decimals) for every gauge value. */
+    value: GaugeValueStyle;
     axis: {
         min: GaugeBoundStyle;
         max: GaugeBoundStyle;
         target: GaugeBoundStyle;
     };
     dataLabels: GaugeDataLabelsStyle;
+};
+
+/** Date-format preset id offered by the clock element's Format pane. */
+export type ClockDateFormat =
+    | 'dd/MM/yyyy'
+    | 'dd/MM/yyyy HH:mm'
+    | 'dd MMMM yyyy'
+    | 'dd MMMM yyyy HH:mm'
+    | 'EEEE dd MMMM yyyy'
+    | 'MMMM yyyy';
+
+/** Live clock (time + optional date) element styling. */
+export type ClockStyle = {
+    /** Whether the time line is shown. */
+    showClock: boolean;
+    /** 12-hour vs 24-hour clock. */
+    hourFormat: '12' | '24';
+    /** Whether seconds are shown on the time line. */
+    showSeconds: boolean;
+    /** Whether the date line is shown. */
+    showDate: boolean;
+    /** Date-format preset applied to the date line. */
+    dateFormat: ClockDateFormat;
 };
 
 export type ScatterPoint = {

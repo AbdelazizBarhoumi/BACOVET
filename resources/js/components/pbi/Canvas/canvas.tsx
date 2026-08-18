@@ -46,7 +46,13 @@ import { PageBoundaryOverlay } from './boundary';
 import { MenuItem } from './menu';
 import { ResizeHandle } from './resize';
 import { TooltipPagePopup } from './tooltip';
-import { CENTER_TOL, GRID, type DragMember, type DragState, type LiveGeo } from './types';
+import {
+    CENTER_TOL,
+    GRID,
+    type DragMember,
+    type DragState,
+    type LiveGeo,
+} from './types';
 
 export function Canvas({
     readOnly = false,
@@ -547,7 +553,9 @@ export function Canvas({
                             : (tableRows[dataTable] ?? rows);
                         const isSel = (selectedIds ?? []).includes(v.id);
                         const isElement =
-                            v.type === 'text' || v.type === 'image';
+                            v.type === 'text' ||
+                            v.type === 'image' ||
+                            v.type === 'clock';
                         const interactionTarget =
                             !readOnly &&
                             editInteractions &&
@@ -1163,29 +1171,28 @@ export function Canvas({
                                                         ...wizardSpec.hops.map(
                                                             (h) => h.to,
                                                         ),
-                                                    ].map(
-                                                        (node, i, arr) => (
-                                                            <span
-                                                                key={`${node}-${i}`}
-                                                                className="flex items-center gap-1.5"
-                                                            >
-                                                                {i > 0 && (
-                                                                    <>
-                                                                        <span
-                                                                            className={cn(
-                                                                                'rounded border px-1.5 py-0.5 font-mono',
-                                                                                isReliableHop(
-                                                                                    wizardSpec
-                                                                                        .hops[
-                                                                                        i -
-                                                                                            1
-                                                                                    ]!,
-                                                                                )
-                                                                                    ? 'border-emerald-500/40 text-emerald-700'
-                                                                                    : 'border-red-400 text-red-600',
-                                                                            )}
-                                                                        >
-                                                                            {
+                                                    ].map((node, i, arr) => (
+                                                        <span
+                                                            key={`${node}-${i}`}
+                                                            className="flex items-center gap-1.5"
+                                                        >
+                                                            {i > 0 && (
+                                                                <>
+                                                                    <span
+                                                                        className={cn(
+                                                                            'rounded border px-1.5 py-0.5 font-mono',
+                                                                            isReliableHop(
+                                                                                wizardSpec
+                                                                                    .hops[
+                                                                                    i -
+                                                                                        1
+                                                                                ]!,
+                                                                            )
+                                                                                ? 'border-emerald-500/40 text-emerald-700'
+                                                                                : 'border-red-400 text-red-600',
+                                                                        )}
+                                                                    >
+                                                                        {
                                                                             wizardSpec
                                                                                 .hops[
                                                                                 i -
@@ -1193,8 +1200,8 @@ export function Canvas({
                                                                             ]!
                                                                                 .fromCol
                                                                         }
-                                                                            ↔
-                                                                            {
+                                                                        ↔
+                                                                        {
                                                                             wizardSpec
                                                                                 .hops[
                                                                                 i -
@@ -1202,14 +1209,14 @@ export function Canvas({
                                                                             ]!
                                                                                 .toCol
                                                                         }
-                                                                        </span>
-                                                                        <span>
-                                                                            →
-                                                                        </span>
-                                                                    </>
-                                                                )}
-                                                                <span
-                                                                    className={cn(
+                                                                    </span>
+                                                                    <span>
+                                                                        →
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                            <span
+                                                                className={cn(
                                                                     'rounded-md border px-2 py-0.5 font-medium',
                                                                     i === 0 ||
                                                                         i ===
@@ -1217,13 +1224,12 @@ export function Canvas({
                                                                                 1
                                                                         ? 'border-brand/40 bg-brand/10'
                                                                         : 'border-border bg-background',
-                                                                    )}
-                                                                >
-                                                                    {node}
-                                                                </span>
+                                                                )}
+                                                            >
+                                                                {node}
                                                             </span>
-                                                        ),
-                                                    )}
+                                                        </span>
+                                                    ))}
                                                 </div>
                                             )}
                                             <div className="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">

@@ -478,16 +478,271 @@ function ParetoLineSection({
     );
 }
 
+/** Editor for the value axes of a cartesian visual: one collapsible block
+ * per axis with range, format and placement controls. Position options follow
+ * the chart orientation (bottom/top for horizontal bars, left/right for
+ * vertical columns). */
+function ValueAxesSection({
+    title,
+    axes,
+    horizontal,
+    patchAxisDef,
+    stackedFamily,
+    visualId,
+}: {
+    title: string;
+    axes: AxisDef[];
+    horizontal: boolean;
+    patchAxisDef: (axisId: string, patch: Partial<AxisDef>) => void;
+    stackedFamily: boolean;
+    visualId: string;
+}) {
+    const { addValueAxis, removeValueAxis, moveValueAxis } = usePbi();
+    return (
+        <Section title={title} defaultOpen={axes.length > 1}>
+            {axes.map((a, i) => (
+                <div
+                    key={a.id}
+                    className="space-y-1.5 rounded border border-dashed border-border/60 p-2"
+                >
+                    <div className="flex items-center gap-1">
+                        <span className="flex-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+                            Axe {i + 1}
+                        </span>
+                        {axes.length > 1 && (
+                            <>
+                                <button
+                                    onClick={() =>
+                                        moveValueAxis(visualId, a.id, -1)
+                                    }
+                                    disabled={i === 0}
+                                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                    title="Monter"
+                                >
+                                    ↑
+                                </button>
+                                <button
+                                    onClick={() =>
+                                        moveValueAxis(visualId, a.id, 1)
+                                    }
+                                    disabled={i === axes.length - 1}
+                                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                    title="Descendre"
+                                >
+                                    ↓
+                                </button>
+                                <button
+                                    onClick={() =>
+                                        removeValueAxis(visualId, a.id)
+                                    }
+                                    className="text-muted-foreground hover:text-destructive"
+                                    title="Supprimer l'axe"
+                                >
+                                    ×
+                                </button>
+                            </>
+                        )}
+                    </div>
+                    <Toggle
+                        label="Afficher l'axe"
+                        checked={a.showLine || a.showLabels}
+                        onChange={(v) =>
+                            patchAxisDef(a.id, {
+                                showLine: v,
+                                showLabels: v,
+                            })
+                        }
+                    />
+                    <TextInput
+                        label="Titre"
+                        value={a.title}
+                        placeholder="Aucun"
+                        onChange={(v) => patchAxisDef(a.id, { title: v })}
+                    />
+                    <Toggle
+                        label="Afficher le titre"
+                        checked={a.showTitle}
+                        onChange={(v) =>
+                            patchAxisDef(a.id, { showTitle: v })
+                        }
+                    />
+                    <Stepper
+                        label="Décalage du titre (px)"
+                        value={a.titleOffset ?? 0}
+                        min={-40}
+                        max={80}
+                        onChange={(v) =>
+                            patchAxisDef(a.id, { titleOffset: v })
+                        }
+                    />
+                    <Stepper
+                        label="Décalage de l'axe (px)"
+                        value={a.gap ?? 0}
+                        min={-30}
+                        max={80}
+                        onChange={(v) => patchAxisDef(a.id, { gap: v })}
+                    />
+                    <Toggle
+                        label="Afficher la ligne"
+                        checked={a.showLine}
+                        onChange={(v) =>
+                            patchAxisDef(a.id, { showLine: v })
+                        }
+                    />
+                    <Toggle
+                        label="Afficher les valeurs"
+                        checked={a.showLabels}
+                        onChange={(v) =>
+                            patchAxisDef(a.id, { showLabels: v })
+                        }
+                    />
+                    {!a.lockRange && (
+                        <>
+                            <Toggle
+                                label="Échelle automatique"
+                                checked={a.auto}
+                                onChange={(v) =>
+                                    patchAxisDef(a.id, {
+                                        auto: v,
+                                        ...(v
+                                            ? {
+                                                  min: undefined,
+                                                  max: undefined,
+                                              }
+                                            : {}),
+                                    })
+                                }
+                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                <OptionalNumberInput
+                                    label="Min"
+                                    value={a.min}
+                                    onChange={(v) =>
+                                        patchAxisDef(a.id, {
+                                            min: v,
+                                            auto:
+                                                v === undefined &&
+                                                a.max === undefined,
+                                        })
+                                    }
+                                />
+                                <OptionalNumberInput
+                                    label="Max"
+                                    value={a.max}
+                                    onChange={(v) =>
+                                        patchAxisDef(a.id, {
+                                            max: v,
+                                            auto:
+                                                v === undefined &&
+                                                a.min === undefined,
+                                        })
+                                    }
+                                />
+                            </div>
+                        </>
+                    )}
+                    <Select
+                        label="Position"
+                        value={a.position}
+                        options={
+                            horizontal
+                                ? AXIS_POSITIONS_HORIZONTAL
+                                : AXIS_POSITIONS_VERTICAL
+                        }
+                        onChange={(v) =>
+                            patchAxisDef(a.id, {
+                                position: v as AxisPosition,
+                            })
+                        }
+                    />
+                    <ColorInput
+                        label="Couleur"
+                        value={a.color || 'default'}
+                        onChange={(v) =>
+                            patchAxisDef(a.id, {
+                                color: v === 'default' ? '' : v,
+                            })
+                        }
+                    />
+                    {stackedFamily && (
+                        <ColorInput
+                            label="Espace vide des barres"
+                            value={a.emptyColor ?? STACKED_EMPTY_FILL}
+                            onChange={(v) =>
+                                patchAxisDef(a.id, {
+                                    emptyColor:
+                                        v === 'default' ? undefined : v,
+                                })
+                            }
+                        />
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                        <Select
+                            label="Format"
+                            value={a.numberFormat}
+                            options={NUMBER_FORMATS}
+                            onChange={(v) =>
+                                patchAxisDef(a.id, {
+                                    numberFormat: v as NumberFormat,
+                                })
+                            }
+                        />
+                        <Select
+                            label="Unités"
+                            value={a.displayUnits}
+                            options={DISPLAY_UNITS.map((u) => ({
+                                value: u,
+                                label: DISPLAY_UNIT_LABELS[u],
+                            }))}
+                            onChange={(v) =>
+                                patchAxisDef(a.id, {
+                                    displayUnits: v as DisplayUnit,
+                                })
+                            }
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <TextInput
+                            label="Suffixe"
+                            placeholder="ex. kW"
+                            value={a.suffix ?? ''}
+                            onChange={(v) =>
+                                patchAxisDef(a.id, {
+                                    suffix: v.trim() || undefined,
+                                })
+                            }
+                        />
+                        <NumberInput
+                            label="Décimales"
+                            min={0}
+                            max={10}
+                            value={a.decimals ?? 1}
+                            onChange={(v) =>
+                                patchAxisDef(a.id, { decimals: v })
+                            }
+                        />
+                    </div>
+                    {a.lockRange && (
+                        <p className="text-[10px] text-muted-foreground">
+                            Échelle verrouillée (0–100 %) pour cet axe.
+                        </p>
+                    )}
+                </div>
+            ))}
+            <button
+                onClick={() => addValueAxis(visualId)}
+                className="mt-2 rounded border border-dashed border-border px-2 py-1 text-[10px] text-muted-foreground hover:border-brand hover:text-brand"
+            >
+                + Ajouter un axe
+            </button>
+        </Section>
+    );
+}
+
 /** Format tab for the bar/column family: axes, gridlines, bars, data labels,
  * legend, plot area and general. Each section is collapsible. */
 export function CartesianFormat({ visual }: { visual: Visual }) {
-    const {
-        updateVisual,
-        addValueAxis,
-        removeValueAxis,
-        moveValueAxis,
-        tables,
-    } = usePbi();
+    const { updateVisual, tables } = usePbi();
     const horizontal = HORIZONTAL_TYPES.includes(visual.type);
     const stackedFamily = STACKED_TYPES.includes(visual.type);
     const xAxis = normalizeAxisStyle(visual.xAxis);
@@ -560,272 +815,80 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 onPatch={(p) => updateVisual(visual.id, p)}
             />
 
-            <AxisSection
-                title="Axe X"
-                axis={xAxis}
-                isValue={horizontal}
-                showEmptyFill={stackedFamily && horizontal}
-                onPatch={(p) => patchAxis('xAxis', p)}
-            />
-            {visual.type === 'pareto' && (
-                <ParetoLineSection
-                    axes={axes}
-                    patchAxisDef={patchAxisDef}
-                    seriesNames={seriesNames}
-                />
-            )}
             {axes.length > 0 ? (
-                <Section title="Axe Y" defaultOpen={axes.length > 1}>
-                    {axes.map((a, i) => (
-                        <div
-                            key={a.id}
-                            className="space-y-1.5 rounded border border-dashed border-border/60 p-2"
-                        >
-                            <div className="flex items-center gap-1">
-                                <span className="flex-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-                                    Axe {i + 1}
-                                </span>
-                                {axes.length > 1 && (
-                                    <>
-                                        <button
-                                            onClick={() =>
-                                                moveValueAxis(
-                                                    visual.id,
-                                                    a.id,
-                                                    -1,
-                                                )
-                                            }
-                                            disabled={i === 0}
-                                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                            title="Monter"
-                                        >
-                                            ↑
-                                        </button>
-                                        <button
-                                            onClick={() =>
-                                                moveValueAxis(
-                                                    visual.id,
-                                                    a.id,
-                                                    1,
-                                                )
-                                            }
-                                            disabled={i === axes.length - 1}
-                                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                            title="Descendre"
-                                        >
-                                            ↓
-                                        </button>
-                                        <button
-                                            onClick={() =>
-                                                removeValueAxis(visual.id, a.id)
-                                            }
-                                            className="text-muted-foreground hover:text-destructive"
-                                            title="Supprimer l'axe"
-                                        >
-                                            ×
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                            <Toggle
-                                label="Afficher l'axe"
-                                checked={a.showLine || a.showLabels}
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, {
-                                        showLine: v,
-                                        showLabels: v,
-                                    })
-                                }
+                horizontal ? (
+                    <>
+                        <ValueAxesSection
+                            title="Axe X"
+                            axes={axes}
+                            horizontal={horizontal}
+                            patchAxisDef={patchAxisDef}
+                            stackedFamily={stackedFamily}
+                            visualId={visual.id}
+                        />
+                        {visual.type === 'pareto' && (
+                            <ParetoLineSection
+                                axes={axes}
+                                patchAxisDef={patchAxisDef}
+                                seriesNames={seriesNames}
                             />
-                            <TextInput
-                                label="Titre"
-                                value={a.title}
-                                placeholder="Aucun"
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, { title: v })
-                                }
+                        )}
+                        <AxisSection
+                            title="Axe Y"
+                            axis={yAxis}
+                            isValue={false}
+                            onPatch={(p) => patchAxis('yAxis', p)}
+                        />
+                    </>
+                ) : (
+                    <>
+                        <AxisSection
+                            title="Axe X"
+                            axis={xAxis}
+                            isValue={false}
+                            onPatch={(p) => patchAxis('xAxis', p)}
+                        />
+                        {visual.type === 'pareto' && (
+                            <ParetoLineSection
+                                axes={axes}
+                                patchAxisDef={patchAxisDef}
+                                seriesNames={seriesNames}
                             />
-                            <Toggle
-                                label="Afficher le titre"
-                                checked={a.showTitle}
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, { showTitle: v })
-                                }
-                            />
-                            <Stepper
-                                label="Décalage du titre (px)"
-                                value={a.titleOffset ?? 0}
-                                min={-40}
-                                max={80}
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, { titleOffset: v })
-                                }
-                            />
-                            <Stepper
-                                label="Décalage de l'axe (px)"
-                                value={a.gap ?? 0}
-                                min={-30}
-                                max={80}
-                                onChange={(v) => patchAxisDef(a.id, { gap: v })}
-                            />
-                            <Toggle
-                                label="Afficher la ligne"
-                                checked={a.showLine}
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, { showLine: v })
-                                }
-                            />
-                            <Toggle
-                                label="Afficher les valeurs"
-                                checked={a.showLabels}
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, { showLabels: v })
-                                }
-                            />
-                            {!a.lockRange && (
-                                <>
-                                    <Toggle
-                                        label="Échelle automatique"
-                                        checked={a.auto}
-                                        onChange={(v) =>
-                                            patchAxisDef(a.id, {
-                                                auto: v,
-                                                ...(v
-                                                    ? {
-                                                          min: undefined,
-                                                          max: undefined,
-                                                      }
-                                                    : {}),
-                                            })
-                                        }
-                                    />
-                                    {!a.auto && (
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <OptionalNumberInput
-                                                label="Min"
-                                                value={a.min}
-                                                onChange={(v) =>
-                                                    patchAxisDef(a.id, {
-                                                        min: v,
-                                                    })
-                                                }
-                                            />
-                                            <OptionalNumberInput
-                                                label="Max"
-                                                value={a.max}
-                                                onChange={(v) =>
-                                                    patchAxisDef(a.id, {
-                                                        max: v,
-                                                    })
-                                                }
-                                            />
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                            <Select
-                                label="Position"
-                                value={a.position}
-                                options={
-                                    horizontal
-                                        ? AXIS_POSITIONS_HORIZONTAL
-                                        : AXIS_POSITIONS_VERTICAL
-                                }
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, {
-                                        position: v as AxisPosition,
-                                    })
-                                }
-                            />
-                            <ColorInput
-                                label="Couleur"
-                                value={a.color || 'default'}
-                                onChange={(v) =>
-                                    patchAxisDef(a.id, {
-                                        color: v === 'default' ? '' : v,
-                                    })
-                                }
-                            />
-                            {stackedFamily && (
-                                <ColorInput
-                                    label="Espace vide des barres"
-                                    value={a.emptyColor ?? STACKED_EMPTY_FILL}
-                                    onChange={(v) =>
-                                        patchAxisDef(a.id, {
-                                            emptyColor:
-                                                v === 'default' ? undefined : v,
-                                        })
-                                    }
-                                />
-                            )}
-                            <div className="grid grid-cols-2 gap-2">
-                                <Select
-                                    label="Format"
-                                    value={a.numberFormat}
-                                    options={NUMBER_FORMATS}
-                                    onChange={(v) =>
-                                        patchAxisDef(a.id, {
-                                            numberFormat: v as NumberFormat,
-                                        })
-                                    }
-                                />
-                                <Select
-                                    label="Unités"
-                                    value={a.displayUnits}
-                                    options={DISPLAY_UNITS.map((u) => ({
-                                        value: u,
-                                        label: DISPLAY_UNIT_LABELS[u],
-                                    }))}
-                                    onChange={(v) =>
-                                        patchAxisDef(a.id, {
-                                            displayUnits: v as DisplayUnit,
-                                        })
-                                    }
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <TextInput
-                                    label="Suffixe"
-                                    placeholder="ex. kW"
-                                    value={a.suffix ?? ''}
-                                    onChange={(v) =>
-                                        patchAxisDef(a.id, {
-                                            suffix: v.trim() || undefined,
-                                        })
-                                    }
-                                />
-                                <NumberInput
-                                    label="Décimales"
-                                    min={0}
-                                    max={10}
-                                    value={a.decimals ?? 1}
-                                    onChange={(v) =>
-                                        patchAxisDef(a.id, { decimals: v })
-                                    }
-                                />
-                            </div>
-                            {a.lockRange && (
-                                <p className="text-[10px] text-muted-foreground">
-                                    Échelle verrouillée (0–100 %) pour cet axe.
-                                </p>
-                            )}
-                        </div>
-                    ))}
-                    <button
-                        onClick={() => addValueAxis(visual.id)}
-                        className="mt-2 rounded border border-dashed border-border px-2 py-1 text-[10px] text-muted-foreground hover:border-brand hover:text-brand"
-                    >
-                        + Ajouter un axe
-                    </button>
-                </Section>
+                        )}
+                        <ValueAxesSection
+                            title="Axe Y"
+                            axes={axes}
+                            horizontal={horizontal}
+                            patchAxisDef={patchAxisDef}
+                            stackedFamily={stackedFamily}
+                            visualId={visual.id}
+                        />
+                    </>
+                )
             ) : (
-                <AxisSection
-                    title="Axe Y"
-                    axis={yAxis}
-                    isValue={!horizontal}
-                    showEmptyFill={stackedFamily && !horizontal}
-                    onPatch={(p) => patchAxis('yAxis', p)}
-                />
+                <>
+                    <AxisSection
+                        title="Axe X"
+                        axis={xAxis}
+                        isValue={horizontal}
+                        showEmptyFill={stackedFamily && horizontal}
+                        onPatch={(p) => patchAxis('xAxis', p)}
+                    />
+                    {visual.type === 'pareto' && (
+                        <ParetoLineSection
+                            axes={axes}
+                            patchAxisDef={patchAxisDef}
+                            seriesNames={seriesNames}
+                        />
+                    )}
+                    <AxisSection
+                        title="Axe Y"
+                        axis={yAxis}
+                        isValue={!horizontal}
+                        showEmptyFill={stackedFamily && !horizontal}
+                        onPatch={(p) => patchAxis('yAxis', p)}
+                    />
+                </>
             )}
 
             <Section title="Repères">

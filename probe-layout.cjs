@@ -1,6 +1,6 @@
-const { chromium } = require('@playwright/test');
 const { readFileSync, existsSync } = require('node:fs');
 const path = require('node:path');
+const { chromium } = require('@playwright/test');
 function envFromDotenv() {
   const file = path.resolve(process.cwd(), '.env');
   if (!existsSync(file)) return {};

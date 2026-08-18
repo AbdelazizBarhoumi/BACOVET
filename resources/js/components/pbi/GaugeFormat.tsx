@@ -1,7 +1,9 @@
 import {
+    DISPLAY_UNITS,
     fieldLabel,
     normalizeConditionalFormat,
     normalizeGaugeStyle,
+    type DisplayUnit,
     type GaugeBoundStyle,
     type GaugeLabelStyle,
     type GaugeStyle,
@@ -16,6 +18,7 @@ import {
     FONT_OPTIONS,
     GeneralSection,
     NumberInput,
+    OptionalNumberInput,
     Section,
     Select,
     TextInput,
@@ -24,6 +27,16 @@ import {
     ToggleGroup,
     ValueFormatControl,
 } from './formatControls';
+
+const DISPLAY_UNIT_LABELS: Record<DisplayUnit, string> = {
+    auto: 'Auto',
+    none: 'Aucune',
+    thousands: 'Milliers (K)',
+    millions: 'Millions (M)',
+    billions: 'Milliards (B)',
+    percent: 'Pourcentage (%)',
+    currency: 'Devise ($)',
+};
 
 type GaugeBoundKey = 'min' | 'max' | 'target';
 type GaugeLabelKey = 'values' | 'targetLabel' | 'callout';
@@ -155,6 +168,8 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
 
     const patchGauge = (patch: Partial<GaugeStyle>) =>
         updateVisual(visual.id, { gauge: { ...gauge, ...patch } });
+    const patchValue = (patch: Partial<GaugeStyle['value']>) =>
+        patchGauge({ value: { ...gauge.value, ...patch } });
     const patchBound = (key: GaugeBoundKey, patch: Partial<GaugeBoundStyle>) =>
         patchGauge({
             axis: { ...gauge.axis, [key]: { ...gauge.axis[key], ...patch } },
@@ -179,6 +194,52 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                     Format numérique Min / Max / Cible. Auto dérive le format
                     d'affichage du champ ou de la valeur saisie ; désactivé,
                     déverrouille une chaîne de format personnalisée.
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <Select
+                        label="Unités d'affichage"
+                        value={gauge.value.displayUnits}
+                        options={DISPLAY_UNITS.map((u) => ({
+                            value: u,
+                            label: DISPLAY_UNIT_LABELS[u],
+                        }))}
+                        onChange={(v) =>
+                            patchValue({
+                                displayUnits: v as DisplayUnit,
+                            })
+                        }
+                    />
+                    <TextInput
+                        label="Suffixe"
+                        placeholder="ex. kW"
+                        value={gauge.value.suffix ?? ''}
+                        onChange={(v) =>
+                            patchValue({ suffix: v.trim() || undefined })
+                        }
+                    />
+                </div>
+                <NumberInput
+                    label="Décimales des valeurs"
+                    min={0}
+                    max={10}
+                    value={gauge.value.decimals ?? 1}
+                    onChange={(v) => patchValue({ decimals: v })}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                    <OptionalNumberInput
+                        label="Min"
+                        value={visual.minimumValue}
+                        onChange={(v) =>
+                            updateVisual(visual.id, { minimumValue: v })
+                        }
+                    />
+                    <OptionalNumberInput
+                        label="Max"
+                        value={visual.maximumValue}
+                        onChange={(v) =>
+                            updateVisual(visual.id, { maximumValue: v })
+                        }
+                    />
                 </div>
                 {(
                     [
@@ -222,12 +283,12 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
             <Section title="Couleurs">
                 <div className="grid grid-cols-2 gap-2">
                     <ColorInput
-                        label="Couleur de remplissage"
+                        label="Remplissage"
                         value={gauge.fillColor}
                         onChange={(v) => patchGauge({ fillColor: v })}
                     />
                     <ColorInput
-                        label="Couleur cible"
+                        label="Cible"
                         value={gauge.targetColor}
                         onChange={(v) => patchGauge({ targetColor: v })}
                     />

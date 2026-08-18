@@ -2,17 +2,21 @@ import { gaugeFxColor } from '@/lib/pbi/conditionalFormat';
 import {
     fieldType,
     formatCallout,
+    formatDisplayUnitValue,
     formatNumberPattern,
     formatWellValue,
     gaugeBoundValue,
+    hasExplicitGaugeValueFormat,
     normalizeCategoryLabelStyle,
     normalizeConditionalFormat,
     normalizeGaugeStyle,
+    normalizeValueFormat,
     singleValue,
     singleValueLabel,
     type ConditionalFormat,
     type GaugeBoundStyle,
     type GaugeLabelStyle,
+    type GaugeValueStyle,
     type Row,
     type Visual,
     type WellField,
@@ -62,14 +66,23 @@ function clampLabel(deg: number, radius: number) {
     return { x: Math.min(192, Math.max(8, p.x)), y: Math.min(136, Math.max(4, p.y)) };
 }
 
-/** Formats a bound (min/max/target) value honoring Auto vs custom string. */
+/** Formats a bound (min/max/target) value honoring Auto vs custom string, and
+ * falling back to the shared gauge value format when one is explicitly set. */
 function formatBound(
     n: number,
     bound: GaugeBoundStyle,
+    value: GaugeValueStyle,
     visual: Visual,
     wf?: WellField,
 ): string {
     if (!bound.auto && bound.format) return formatNumberPattern(n, bound.format);
+    if (hasExplicitGaugeValueFormat(value))
+        return formatDisplayUnitValue(
+            n,
+            value.displayUnits,
+            value.decimals,
+            value.suffix,
+        );
     return formatWellValue(n, wf, visual.numberFormat);
 }
 
@@ -77,8 +90,18 @@ function formatBound(
 function formatLabel(
     n: number,
     style: GaugeLabelStyle,
+    value: GaugeValueStyle,
     wf?: WellField,
 ): string {
+    const vf = normalizeValueFormat(style.valueFormat);
+    if (!vf.auto && vf.format) return formatNumberPattern(n, vf.format);
+    if (hasExplicitGaugeValueFormat(value))
+        return formatDisplayUnitValue(
+            n,
+            value.displayUnits,
+            value.decimals,
+            value.suffix,
+        );
     return formatCallout(n, style, wf, 'number');
 }
 
@@ -149,8 +172,8 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const valuesStyle = dl.values;
     const targetLabelStyle = dl.targetLabel;
 
-    const minText = formatBound(min, gauge.axis.min, visual, minWf);
-    const maxText = formatBound(max, gauge.axis.max, visual, maxWf);
+    const minText = formatBound(min, gauge.axis.min, gauge.value, visual, minWf);
+    const maxText = formatBound(max, gauge.axis.max, gauge.value, visual, maxWf);
 
     const category = normalizeCategoryLabelStyle(visual.categoryLabel);
     const categoryLabel = singleValueLabel(wf, type);
@@ -233,7 +256,7 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             'var(--muted-foreground)'
                         }
                     >
-                        {formatLabel(target, targetLabelStyle, targetWf)}
+                        {formatLabel(target, targetLabelStyle, gauge.value, targetWf)}
                     </text>
                 );
             })()}
@@ -249,7 +272,7 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                     fontFamily={callout.fontFamily || visual.fontFamily}
                     fill={fxColor(callout.fx, val as number) ?? callout.color ?? 'var(--foreground)'}
                 >
-                    {formatLabel(val as number, callout, wf)}
+                    {formatLabel(val as number, callout, gauge.value, wf)}
                 </text>
             )}
             {category.show && (

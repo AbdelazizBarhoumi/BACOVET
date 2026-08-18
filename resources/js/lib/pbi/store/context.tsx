@@ -815,7 +815,11 @@ export function PbiProvider({
 
     const addVisual = useCallback(
         (type: VisualType): string => {
-            const big = type === 'card' || type === 'text' || type === 'button';
+            const big =
+                type === 'card' ||
+                type === 'text' ||
+                type === 'button' ||
+                type === 'clock';
             const floor = maxVisualZ();
             const { x, y } = cascadePos();
             const v = mkVisual(

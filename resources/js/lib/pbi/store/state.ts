@@ -5,6 +5,7 @@ import {
     conditionalFormatFromFx,
     lockedPctAxis,
     normalizeAxes,
+    normalizeClockStyle,
     normalizeConditionalFormat,
     normalizeWellField,
     registerMeasure,
@@ -286,6 +287,9 @@ export function normalizeState(state: State): State {
                     next.conditionalFormat = migrated ?? normalizedCf;
                 } else {
                     next.conditionalFormat = normalizedCf;
+                }
+                if (next.type === 'clock') {
+                    next.clock = normalizeClockStyle(next.clock);
                 }
                 for (const well of wells) {
                     next[well] = (visual[well] ?? [])

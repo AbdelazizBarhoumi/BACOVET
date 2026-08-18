@@ -906,6 +906,27 @@ export const IconButtonPreview = chartPreviewIcon(
     </>,
 );
 
+export const IconClockPreview = chartPreviewIcon(
+    <>
+        <circle
+            cx="10"
+            cy="10"
+            r="7.5"
+            fill="none"
+            stroke={CHART_COLORS.blue}
+            strokeWidth="1.1"
+        />
+        <path
+            d="M10 5.5 V10 L13.2 12"
+            fill="none"
+            stroke={CHART_COLORS.blue}
+            strokeWidth="1.3"
+            strokeLinecap="round"
+        />
+        <circle cx="10" cy="10" r="1.1" fill={CHART_COLORS.orange} />
+    </>,
+);
+
 // Fluent has no R / Python logos — a simple language badge, since actual
 // trademarked logos aren't ours to embed.
 // Field type indicators (Data pane) — Fluent's own symbols for each data

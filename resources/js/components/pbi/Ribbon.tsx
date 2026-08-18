@@ -2,6 +2,7 @@ import {
     Bookmark,
     Braces,
     ChevronDown,
+    Clock,
     Columns3,
     FolderCog,
     Image,
@@ -215,6 +216,11 @@ export function Ribbon({
                         label: 'Bouton',
                         icon: SquareMousePointer,
                         onClick: () => addVisual('button'),
+                    },
+                    {
+                        label: 'Horloge',
+                        icon: Clock,
+                        onClick: () => addVisual('clock'),
                     },
                     {
                         label: 'Signet',

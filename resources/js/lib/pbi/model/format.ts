@@ -20,12 +20,7 @@ import {
     LEGEND_POSITIONS,
     TITLE_HEADING_SIZES,
 } from './consts';
-import {
-    fieldType,
-    findTableForField,
-    isMeasure,
-    TABLES,
-} from './state';
+import { fieldType, findTableForField, isMeasure, TABLES } from './state';
 import type {
     Agg,
     AxisStyle,
@@ -42,6 +37,8 @@ import type {
     CfStyle,
     CfAgg,
     CfValueType,
+    ClockDateFormat,
+    ClockStyle,
     ConditionalFormat,
     DataLabelContent,
     DataLabelPosition,
@@ -58,6 +55,7 @@ import type {
     GaugeDataLabelsStyle,
     GaugeLabelStyle,
     GaugeStyle,
+    GaugeValueStyle,
     GridlineStyle,
     GridlinesStyle,
     LegendPosition,
@@ -749,10 +747,13 @@ export function formatAxisDefTick(
 ): string {
     const decimals =
         opts.decimals ??
-        (opts.numberFormat === 'int' ? 0
-            : opts.numberFormat === '1dec' ? 1
-            : opts.numberFormat === '2dec' ? 2
-            : undefined);
+        (opts.numberFormat === 'int'
+            ? 0
+            : opts.numberFormat === '1dec'
+              ? 1
+              : opts.numberFormat === '2dec'
+                ? 2
+                : undefined);
     const unit =
         opts.displayUnits && opts.displayUnits !== 'auto'
             ? opts.displayUnits
@@ -1049,7 +1050,8 @@ export function normalizeAxisStyle(input: unknown): AxisStyle {
     };
     if (typeof value.showTitle === 'boolean') style.showTitle = value.showTitle;
     if (typeof value.showLine === 'boolean') style.showLine = value.showLine;
-    if (typeof value.showLabels === 'boolean') style.showLabels = value.showLabels;
+    if (typeof value.showLabels === 'boolean')
+        style.showLabels = value.showLabels;
     if (typeof value.color === 'string' && value.color.trim())
         style.color = value.color.trim();
     if (typeof value.suffix === 'string' && value.suffix.trim())
@@ -1352,6 +1354,19 @@ export function normalizePlotAreaStyle(input: unknown): PlotAreaStyle {
 
 export const DEFAULT_GAUGE_BOUND: GaugeBoundStyle = { auto: true };
 
+export const DEFAULT_GAUGE_VALUE: GaugeValueStyle = { displayUnits: 'auto' };
+
+/** Whether the shared gauge value format was explicitly configured (non-auto
+ * units, decimals or a custom suffix) — when set it drives every gauge value
+ * instead of the per-field derivation. */
+export function hasExplicitGaugeValueFormat(v: GaugeValueStyle): boolean {
+    return (
+        v.displayUnits !== 'auto' ||
+        v.decimals !== undefined ||
+        Boolean(v.suffix?.trim())
+    );
+}
+
 export const DEFAULT_GAUGE_LABEL: GaugeLabelStyle = {
     show: true,
     displayUnits: 'auto',
@@ -1367,6 +1382,7 @@ export const DEFAULT_GAUGE_DATA_LABELS: GaugeDataLabelsStyle = {
 };
 
 export const DEFAULT_GAUGE: GaugeStyle = {
+    value: { ...DEFAULT_GAUGE_VALUE },
     axis: {
         min: { ...DEFAULT_GAUGE_BOUND },
         max: { ...DEFAULT_GAUGE_BOUND },
@@ -1383,6 +1399,7 @@ export const DEFAULT_GAUGE: GaugeStyle = {
 /** Fresh deep copy of the default gauge style (never shared across visuals). */
 export function defaultGaugeStyle(): GaugeStyle {
     return {
+        value: { ...DEFAULT_GAUGE_VALUE },
         axis: {
             min: { ...DEFAULT_GAUGE_BOUND },
             max: { ...DEFAULT_GAUGE_BOUND },
@@ -1395,6 +1412,24 @@ export function defaultGaugeStyle(): GaugeStyle {
             callout: { ...DEFAULT_GAUGE_LABEL, show: true },
         },
     };
+}
+
+function normalizeGaugeValue(
+    input: unknown,
+    fallback: GaugeValueStyle,
+): GaugeValueStyle {
+    if (!input || typeof input !== 'object') return { ...fallback };
+    const value = input as Record<string, unknown>;
+    const out: GaugeValueStyle = {
+        displayUnits: isDisplayUnit(value.displayUnits)
+            ? (value.displayUnits as DisplayUnit)
+            : fallback.displayUnits,
+    };
+    if (typeof value.decimals === 'number' && isFinite(value.decimals))
+        out.decimals = value.decimals;
+    if (typeof value.suffix === 'string' && value.suffix.trim())
+        out.suffix = value.suffix.trim();
+    return out;
 }
 
 function normalizeGaugeBound(
@@ -1447,6 +1482,7 @@ export function normalizeGaugeStyle(input: unknown): GaugeStyle {
     const axis = value.axis as Record<string, unknown> | undefined;
     const dataLabels = value.dataLabels as Record<string, unknown> | undefined;
     const out: GaugeStyle = {
+        value: normalizeGaugeValue(value.value, d.value),
         axis: {
             min: normalizeGaugeBound(axis?.min, d.axis.min),
             max: normalizeGaugeBound(axis?.max, d.axis.max),
@@ -1480,6 +1516,114 @@ export function normalizeGaugeStyle(input: unknown): GaugeStyle {
     if (value.targetFx !== undefined)
         out.targetFx = value.targetFx as ConditionalFormat | boolean;
     return out;
+}
+
+/* ------------------------- Clock normalizers ------------------------- */
+
+export const CLOCK_DATE_FORMATS: ClockDateFormat[] = [
+    'dd/MM/yyyy',
+    'dd/MM/yyyy HH:mm',
+    'dd MMMM yyyy',
+    'dd MMMM yyyy HH:mm',
+    'EEEE dd MMMM yyyy',
+    'MMMM yyyy',
+];
+
+export const CLOCK_DATE_LABELS: Record<ClockDateFormat, string> = {
+    'dd/MM/yyyy': '18/08/2026',
+    'dd/MM/yyyy HH:mm': '18/08/2026 14:05',
+    'dd MMMM yyyy': '18 août 2026',
+    'dd MMMM yyyy HH:mm': '18 août 2026 14:05',
+    'EEEE dd MMMM yyyy': 'mardi 18 août 2026',
+    'MMMM yyyy': 'août 2026',
+};
+
+export const DEFAULT_CLOCK: ClockStyle = {
+    showClock: true,
+    hourFormat: '24',
+    showSeconds: true,
+    showDate: true,
+    dateFormat: 'dd/MM/yyyy',
+};
+
+/** Fresh copy of the default clock style (never shared across visuals). */
+export function defaultClockStyle(): ClockStyle {
+    return { ...DEFAULT_CLOCK };
+}
+
+export function normalizeClockStyle(input: unknown): ClockStyle {
+    const d = defaultClockStyle();
+    if (!input || typeof input !== 'object') return d;
+    const value = input as Record<string, unknown>;
+    return {
+        showClock:
+            typeof value.showClock === 'boolean'
+                ? value.showClock
+                : d.showClock,
+        hourFormat: value.hourFormat === '12' ? '12' : d.hourFormat,
+        showSeconds:
+            typeof value.showSeconds === 'boolean'
+                ? value.showSeconds
+                : d.showSeconds,
+        showDate:
+            typeof value.showDate === 'boolean' ? value.showDate : d.showDate,
+        dateFormat: CLOCK_DATE_FORMATS.includes(
+            value.dateFormat as ClockDateFormat,
+        )
+            ? (value.dateFormat as ClockDateFormat)
+            : d.dateFormat,
+    };
+}
+
+/** Formats a Date for the clock element, honoring the given clock style. */
+export function formatClock(
+    date: Date,
+    style: ClockStyle = defaultClockStyle(),
+): { time: string; date: string } {
+    const opts: Intl.DateTimeFormatOptions = {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: style.hourFormat === '12',
+    };
+    if (style.showSeconds) opts.second = '2-digit';
+    const time = date.toLocaleTimeString('fr-FR', opts);
+    const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit' };
+    switch (style.dateFormat) {
+        case 'dd/MM/yyyy':
+            dateOpts.month = '2-digit';
+            dateOpts.year = 'numeric';
+            break;
+        case 'dd/MM/yyyy HH:mm':
+            dateOpts.month = '2-digit';
+            dateOpts.year = 'numeric';
+            break;
+        case 'dd MMMM yyyy':
+            dateOpts.month = 'long';
+            dateOpts.year = 'numeric';
+            break;
+        case 'dd MMMM yyyy HH:mm':
+            dateOpts.month = 'long';
+            dateOpts.year = 'numeric';
+            break;
+        case 'EEEE dd MMMM yyyy':
+            dateOpts.weekday = 'long';
+            dateOpts.month = 'long';
+            dateOpts.year = 'numeric';
+            break;
+        case 'MMMM yyyy':
+            dateOpts.day = undefined;
+            dateOpts.month = 'long';
+            dateOpts.year = 'numeric';
+            break;
+    }
+    let dateStr = date.toLocaleDateString('fr-FR', dateOpts);
+    if (
+        style.dateFormat === 'dd/MM/yyyy HH:mm' ||
+        style.dateFormat === 'dd MMMM yyyy HH:mm'
+    ) {
+        dateStr += ` ${time}`;
+    }
+    return { time, date: dateStr };
 }
 
 export function formatValue(value: unknown, type: FieldType = 'text'): string {

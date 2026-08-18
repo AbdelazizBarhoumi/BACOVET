@@ -20,6 +20,7 @@ import {
     normalizeCalloutStyle,
     normalizeCategoryLabelStyle,
     normalizeConditionalFormat,
+    normalizeDataLabelStyle,
     visualTable,
     type AxisStyle,
     type DataLabelPosition,
@@ -76,6 +77,30 @@ export function visualFmt(
     wf?: Pick<WellField, 'format'>,
 ): string {
     return formatWellValue(n, wf, visual.numberFormat ?? 'auto');
+}
+
+/** Formats a value honoring the shared data-label/value display format
+ * (display units / suffix / decimals) when explicitly configured, otherwise
+ * falling back to the visual's number format. Used by the "Part du tout et
+ * distribution" charts (pie, treemap, funnel, waterfall, scatter…). */
+export function valueFmtFor(
+    n: number,
+    visual: Visual,
+    wf?: Pick<WellField, 'format'>,
+): string {
+    const dl = normalizeDataLabelStyle(visual.dataLabels);
+    const explicit =
+        dl.displayUnits !== 'auto' ||
+        Boolean(dl.suffix?.trim()) ||
+        (dl.decimals !== undefined && dl.decimals !== 1);
+    if (explicit)
+        return formatDisplayUnitValue(n, dl.displayUnits, dl.decimals, dl.suffix);
+    return visualFmt(n, visual, wf);
+}
+
+/** Recharts tick formatter bound to the shared value display format. */
+export function valueTickFmt(visual: Visual) {
+    return (v: number) => valueFmtFor(v, visual, undefined);
 }
 
 export {
@@ -198,6 +223,7 @@ export function valueAxisProps(
         hide: !axis.show,
         stroke: color,
         axisLine: axis.showLine !== false,
+        allowDataOverflow: true,
         tick: fontStyleProps(axis.labelsFont, {
             fontSize: visual.fontSize ?? 10,
             color,

@@ -25,12 +25,15 @@ import {
     YAxis,
     ZAxis,
 } from 'recharts';
+import { CfSvgGlyph, CfSvgIcon } from '@/components/pbi/CfIcon';
 import { GaugeVisual } from '@/components/pbi/GaugeVisual';
 import {
     cfAggToAgg,
     conditionalColor,
+    conditionalIcon,
     parseColorCell,
 } from '@/lib/pbi/conditionalFormat';
+import { iconById, type CFIcon } from '@/lib/pbi/icons';
 import {
     ANALYTICS_DEFAULT_COLOR,
     aggregate,
@@ -73,6 +76,7 @@ import {
     ScriptVisual,
     SmartNarrative,
 } from './ai';
+import { ClockVisual } from './clock';
 import {
     AXIS_TITLE_GAP,
     AXIS_TITLE_RESERVE,
@@ -93,9 +97,10 @@ import {
     labelBlockAnchor,
     labelPosition,
     legendLabelFormatter,
-    tickFmt,
     tooltipStyle,
     valueAxisProps,
+    valueFmtFor,
+    valueTickFmt,
     visualFmt,
 } from './shared';
 import { SlicerVisual } from './slicer';
@@ -643,6 +648,25 @@ export function ChartBody({
         [data],
     );
 
+    /** Per-point icon when the format is an icon style; undefined otherwise. */
+    const cfIconFor = (
+        row: Record<string, string | number> | undefined,
+    ): CFIcon | undefined => {
+        if (cf.style !== 'icons' || !row) return undefined;
+        const raw = row['_cf'];
+        const n =
+            typeof raw === 'number' && isFinite(raw)
+                ? raw
+                : typeof raw === 'string' &&
+                    raw.trim() !== '' &&
+                    isFinite(Number(raw))
+                  ? Number(raw)
+                  : null;
+        const id = conditionalIcon(cf, n, cfValues);
+        if (!id) return undefined;
+        return iconById(cf.iconSet, id);
+    };
+
     /** Per-point conditional fill; falls back to the palette color. */
     const pointFill = (d: Record<string, string | number>, fallback: string) =>
         conditionalColor(cf, d['_cf'] ?? null, cfValues, d['_cfx']) ?? fallback;
@@ -895,7 +919,9 @@ export function ChartBody({
         }
     };
 
-    /** Shared multi-line <text> block for a data-label content renderer. */
+    /** Shared multi-line <text> block for a data-label content renderer. When
+     * `icon` is set it is drawn as the first line, pushing the text lines
+     * down so the block stays centered/anchored as a whole. */
     const labelLinesNode = (
         props: {
             viewBox?: {
@@ -910,9 +936,17 @@ export function ChartBody({
             offset?: number;
         },
         lines: string[],
-        style: ReturnType<typeof fontStyleProps>,
+        style: {
+            fontSize?: number;
+            fill?: string;
+            fontFamily?: string;
+            fontWeight?: number;
+            fontStyle?: string;
+            textDecoration?: string;
+        },
+        icon?: CFIcon,
     ) => {
-        if (!lines.length) return null;
+        if (!lines.length && !icon) return null;
         const vb = props.viewBox;
         const anchor = labelBlockAnchor(
             vb
@@ -927,11 +961,12 @@ export function ChartBody({
             props.offset ?? 5,
         );
         const lineHeight = (style.fontSize ?? 9) * 1.2;
+        const n = lines.length + (icon ? 1 : 0);
         const firstDy =
             anchor.block === 'end'
-                ? -(lines.length - 1) * lineHeight
+                ? -(n - 1) * lineHeight
                 : anchor.block === 'middle'
-                  ? -((lines.length - 1) * lineHeight) / 2
+                  ? -((n - 1) * lineHeight) / 2
                   : 0;
         return (
             <text
@@ -940,11 +975,22 @@ export function ChartBody({
                 y={anchor.y}
                 textAnchor={anchor.textAnchor}
             >
+                {icon && (
+                    <tspan
+                        key="cf-icon"
+                        x={anchor.x}
+                        dy={firstDy}
+                        fill={icon.color}
+                        stroke="none"
+                    >
+                        <CfSvgGlyph icon={icon} fontSize={style.fontSize} />
+                    </tspan>
+                )}
                 {lines.map((ln, i) => (
                     <tspan
                         key={i}
                         x={anchor.x}
-                        dy={i === 0 ? firstDy : lineHeight}
+                        dy={i === 0 && !icon ? firstDy : lineHeight}
                     >
                         {ln}
                     </tspan>
@@ -1008,8 +1054,13 @@ export function ChartBody({
             const row = raw[props.index];
             if (!row) return null;
             const lines = labelContentLines(row, s, seriesTotals[s] ?? 0);
-            if (!lines.length) return null;
-            return labelLinesNode(props, lines, labelStyleFor(s));
+            if (!lines.length && !cfIconFor(row)) return null;
+            return labelLinesNode(
+                props,
+                lines,
+                labelStyleFor(s),
+                cfIconFor(row),
+            );
         };
 
     /** Recharts LabelList `content` renderer for the Pareto cumulative-% line
@@ -1098,7 +1149,9 @@ export function ChartBody({
             </div>,
         );
 
-    /** Point renderer for line/area/combo: clickable dots, dimmed during highlight. */
+    /** Point renderer for line/area/combo: clickable dots, dimmed during
+     * highlight. When the conditional format is an icon style, the resolved
+     * icon replaces the dot. */
     const pointDot = (color: string) => {
         if (!axisCol) return false;
         return ({
@@ -1108,9 +1161,32 @@ export function ChartBody({
         }: {
             cx?: number;
             cy?: number;
-            payload?: { category?: string | number };
-        }) =>
-            cx != null ? (
+            payload?: Record<string, string | number>;
+        }) => {
+            if (cx == null) return <g />;
+            const icon = cfIconFor(payload);
+            const dim = matchSet
+                ? !matchSet.has(String(payload?.category))
+                : false;
+            if (icon) {
+                return (
+                    <g
+                        opacity={dim ? 0.25 : 1}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onPointClick(payload);
+                        }}
+                    >
+                        <CfSvgIcon
+                            icon={icon}
+                            size={matchSet ? 14 : 12}
+                            x={cx}
+                            y={cy ?? 0}
+                        />
+                    </g>
+                );
+            }
+            return (
                 <circle
                     cx={cx}
                     cy={cy ?? 0}
@@ -1127,9 +1203,8 @@ export function ChartBody({
                         onPointClick(payload);
                     }}
                 />
-            ) : (
-                <g />
             );
+        };
     };
 
     const hasValues = visual.values.length > 0;
@@ -2149,6 +2224,8 @@ export function ChartBody({
                     {visual.text || 'Bouton'}
                 </button>
             );
+        case 'clock':
+            return <ClockVisual visual={visual} />;
         case 'slicer':
         case 'buttonSlicer':
         case 'dropdownSlicer':
@@ -2199,6 +2276,81 @@ export function ChartBody({
                 hint="Aucune donnée ne correspond aux filtres actuels"
             />
         );
+
+    /** Props recharts passes to a LabelList `content` renderer (loosely typed:
+     * `viewBox` is a cartesian or polar geometry). */
+    type CfLabelProps = {
+        index?: number;
+        value?: number | string;
+        position?: string | { x?: number; y?: number };
+        offset?: number;
+        viewBox?: {
+            x?: number;
+            y?: number;
+            width?: number;
+            height?: number;
+            cx?: number;
+            cy?: number;
+            innerRadius?: number;
+            outerRadius?: number;
+            startAngle?: number;
+            endAngle?: number;
+            clockWise?: boolean;
+        };
+    };
+
+    /** Pie/donut slice label: value with the conditional icon prepended. */
+    const renderPieLabel = () => (props: CfLabelProps) => {
+        const row = props.index != null ? data[props.index] : undefined;
+        const icon = cfIconFor(row);
+        const vb = props.viewBox;
+        if (!vb || vb.cx == null || vb.cy == null) return null;
+        const mid = ((vb.startAngle ?? 0) + (vb.endAngle ?? 0)) / 2;
+        const r = ((vb.innerRadius ?? 0) + (vb.outerRadius ?? 0)) / 2;
+        const rad = (-mid * Math.PI) / 180;
+        const x = vb.cx + Math.cos(rad) * r;
+        const y = vb.cy + Math.sin(rad) * r;
+        const fs = visual.fontSize ?? 9;
+        return (
+            <text
+                x={x}
+                y={y}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize={fs}
+                fill="var(--foreground)"
+                stroke="none"
+            >
+                {icon && <CfSvgGlyph icon={icon} fontSize={fs * 1.15} />}
+                <tspan>
+                    {valueFmtFor(
+                        Number(props.value ?? 0),
+                        visual,
+                        visual.values[0],
+                    )}
+                </tspan>
+            </text>
+        );
+    };
+
+    /** Funnel section label: category with the conditional icon prepended,
+     * plus the formatted value beneath it. */
+    const renderFunnelLabel = () => (props: CfLabelProps) => {
+        const row = props.index != null ? data[props.index] : undefined;
+        const icon = cfIconFor(row);
+        const key = series[0] ?? 'value';
+        const val = row ? Number(row[key]) : Number.NaN;
+        const lines = [String(props.value ?? '')];
+        if (isFinite(val))
+            lines.push(valueFmtFor(val, visual, visual.values[0]));
+        if (!icon && !lines[0] && !lines[1]) return null;
+        return labelLinesNode(
+            props,
+            lines,
+            { fontSize: 10, fill: 'var(--foreground)' },
+            icon,
+        );
+    };
 
     switch (visual.type) {
         case 'card': {
@@ -2362,9 +2514,7 @@ export function ChartBody({
                             {visual.showLabels && (
                                 <LabelList
                                     dataKey={key}
-                                    formatter={(x: number) =>
-                                        visualFmt(x, visual, visual.values[0])
-                                    }
+                                    content={renderPieLabel()}
                                     style={{ fontSize: visual.fontSize ?? 9 }}
                                 />
                             )}
@@ -2390,11 +2540,77 @@ export function ChartBody({
                 name: String(d['category']),
                 category: d['category'],
                 size: Number(d[key]) || 0,
+                ...(d['_cf'] !== undefined ? { _cf: d['_cf'] } : {}),
                 fill:
                     matchSet && !matchSet.has(String(d['category']))
                         ? 'rgba(148,163,184,0.2)'
                         : pointFill(d, PALETTE[i % PALETTE.length]),
             }));
+            const renderTreemapTile = (node: {
+                x?: number;
+                y?: number;
+                width?: number;
+                height?: number;
+                name?: string;
+                category?: string | number;
+                value?: number;
+                _cf?: string | number;
+                fill?: string;
+            }) => {
+                const x = node.x ?? 0;
+                const y = node.y ?? 0;
+                const width = node.width ?? 0;
+                const height = node.height ?? 0;
+                const icon = cfIconFor(node);
+                const fs = visual.fontSize ?? 9;
+                return (
+                    <g>
+                        <rect
+                            x={x}
+                            y={y}
+                            width={width}
+                            height={height}
+                            fill={node.fill ?? 'var(--chart-1)'}
+                            stroke="var(--card)"
+                        />
+                        {width > 40 && height > 18 && (
+                            <text
+                                x={x + 4}
+                                y={y + fs}
+                                fontSize={fs}
+                                fill="var(--card)"
+                                stroke="none"
+                            >
+                                {icon && (
+                                    <CfSvgGlyph
+                                        icon={icon}
+                                        fontSize={fs * 1.15}
+                                    />
+                                )}
+                                <tspan>
+                                    {String(node.name ?? node.category ?? '')}
+                                </tspan>
+                            </text>
+                        )}
+                        {width > 60 && height > 30 && node.value != null && (
+                            <text
+                                x={x + 4}
+                                y={y + fs * 2.2}
+                                fontSize={fs * 0.9}
+                                fill="var(--card)"
+                                stroke="none"
+                                opacity={0.85}
+                            >
+                                {valueFmtFor(
+                                    Number(node.value) || 0,
+                                    visual,
+                                    visual.values[0],
+                                )}
+                            </text>
+                        )}
+                    </g>
+                );
+            };
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <Treemap
@@ -2402,6 +2618,9 @@ export function ChartBody({
                         dataKey="size"
                         nameKey="name"
                         stroke="var(--card)"
+                        content={
+                            renderTreemapTile as unknown as React.ReactElement
+                        }
                         isAnimationActive={false}
                         onClick={(node) =>
                             onPointClick({
@@ -2438,6 +2657,7 @@ export function ChartBody({
                             <LabelList
                                 position="right"
                                 dataKey="category"
+                                content={renderFunnelLabel()}
                                 style={{
                                     fontSize: 10,
                                     fill: 'var(--foreground)',
@@ -2483,6 +2703,17 @@ export function ChartBody({
                 },
                 { running: 0, items: [] },
             ).items;
+            const renderWaterfallIcon = () => (props: CfLabelProps) => {
+                const row = props.index != null ? wdata[props.index] : undefined;
+                const icon = cfIconFor(row);
+                if (!icon) return null;
+                return labelLinesNode(
+                    props,
+                    [],
+                    { fontSize: 10, fill: 'var(--foreground)' },
+                    icon,
+                );
+            };
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -2495,7 +2726,7 @@ export function ChartBody({
                         />
                         <XAxis dataKey="category" {...axisPropsFor(visual)} />
                         <YAxis
-                            tickFormatter={tickFmt(visual)}
+                            tickFormatter={valueTickFmt(visual)}
                             {...axisPropsFor(visual)}
                         />
                         <Tooltip
@@ -2522,6 +2753,12 @@ export function ChartBody({
                                     fillOpacity={itemOpacity(d)}
                                 />
                             ))}
+                            {cf.style === 'icons' && labelsShown && (
+                                <LabelList
+                                    content={renderWaterfallIcon()}
+                                    style={{ fontSize: 10 }}
+                                />
+                            )}
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>,
@@ -2540,6 +2777,9 @@ export function ChartBody({
                       ...(axisCol
                           ? { category: String(p.raw[axisCol] ?? '') }
                           : {}),
+                      ...(p.raw['_cf'] != null
+                          ? { _cf: p.raw['_cf'] as string | number }
+                          : {}),
                       ...(visual.legend[0]
                           ? {
                                 legend: String(
@@ -2553,6 +2793,41 @@ export function ChartBody({
             const scXKey = raw ? 'x' : xKey;
             const scYKey = raw ? 'y' : yKey;
             const scZKey = raw ? 'z' : zKey;
+            const renderScatterShape = (point: {
+                cx?: number;
+                cy?: number;
+                payload?: Record<string, string | number>;
+            }) => {
+                if (point.cx == null) return <g />;
+                const icon = cfIconFor(point.payload);
+                const dim =
+                    matchSet &&
+                    !matchSet.has(String(point.payload?.category));
+                if (icon) {
+                    return (
+                        <g opacity={dim ? 0.25 : 1}>
+                            <CfSvgIcon
+                                icon={icon}
+                                size={18}
+                                x={point.cx}
+                                y={point.cy ?? 0}
+                            />
+                        </g>
+                    );
+                }
+                return (
+                    <circle
+                        cx={point.cx}
+                        cy={point.cy ?? 0}
+                        r={4}
+                        fill={
+                            dim
+                                ? 'rgba(148,163,184,0.25)'
+                                : (seriesColor ?? 'var(--chart-1)')
+                        }
+                    />
+                );
+            };
             return wrap(
                 <ResponsiveContainer width="100%" height="100%">
                     <ScatterChart
@@ -2562,13 +2837,13 @@ export function ChartBody({
                         <XAxis
                             dataKey={scXKey}
                             type="number"
-                            tickFormatter={tickFmt(visual)}
+                            tickFormatter={valueTickFmt(visual)}
                             {...axisPropsFor(visual)}
                         />
                         <YAxis
                             dataKey={scYKey}
                             type="number"
-                            tickFormatter={tickFmt(visual)}
+                            tickFormatter={valueTickFmt(visual)}
                             {...axisPropsFor(visual)}
                         />
                         {visual.type === 'bubble' && (
@@ -2583,40 +2858,7 @@ export function ChartBody({
                             fill={seriesColor ?? 'var(--chart-1)'}
                             isAnimationActive={animate}
                             onClick={onPointClick}
-                            shape={
-                                matchSet
-                                    ? ({
-                                          cx,
-                                          cy,
-                                          payload,
-                                      }: {
-                                          cx?: number;
-                                          cy?: number;
-                                          payload?: {
-                                              category?: string | number;
-                                          };
-                                      }) =>
-                                          cx != null ? (
-                                              <circle
-                                                  cx={cx}
-                                                  cy={cy ?? 0}
-                                                  r={4}
-                                                  fill={
-                                                      matchSet.has(
-                                                          String(
-                                                              payload?.category,
-                                                          ),
-                                                      )
-                                                          ? (seriesColor ??
-                                                            'var(--chart-1)')
-                                                          : 'rgba(148,163,184,0.25)'
-                                                  }
-                                              />
-                                          ) : (
-                                              <g />
-                                          )
-                                    : undefined
-                            }
+                            shape={renderScatterShape}
                         />
                     </ScatterChart>
                 </ResponsiveContainer>,

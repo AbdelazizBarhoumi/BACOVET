@@ -1,6 +1,7 @@
 import {
     PAGE_PRESETS,
     defaultAxes,
+    defaultClockStyle,
     defaultGaugeStyle,
     fieldType,
     findTableForField,
@@ -154,7 +155,15 @@ export function mkVisual(
         ...(CARTESIAN_TYPES.includes(type) ? cartesianStyleDefaults() : {}),
         ...(type === 'pareto' ? paretoStyleDefaults() : {}),
         ...(type === 'gauge' ? gaugeStyleDefaults() : {}),
+        ...(type === 'clock' ? clockStyleDefaults() : {}),
         ...init,
+    };
+}
+
+/** Default clock style block for new clock elements. */
+function clockStyleDefaults(): Partial<Visual> {
+    return {
+        clock: defaultClockStyle(),
     };
 }
 

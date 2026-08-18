@@ -94,6 +94,7 @@ export const VISUAL_TYPE_LABELS: Record<string, string> = {
     text: 'Zone de texte',
     image: 'Image',
     button: 'Bouton',
+    clock: 'Horloge',
     shape: 'Forme',
 };
 
