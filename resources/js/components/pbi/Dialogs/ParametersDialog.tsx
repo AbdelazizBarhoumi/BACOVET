@@ -172,12 +172,10 @@ export function ParametersDialog({ open, onClose }: Props) {
                                                         root: item.root,
                                                         name: item.name,
                                                         values: item.values,
-                                                        value:
-                                                            item.current ??
-                                                            null,
+                                                        value: [...item.values],
                                                     });
                                                     toast.success(
-                                                        `« ${item.name} » ajouté — choisissez sa valeur dans le volet Filtres`,
+                                                        `« ${item.name} » ajouté — toutes les valeurs sont sélectionnées, désélectionnez-en pour filtrer`,
                                                     );
                                                 }}
                                             >

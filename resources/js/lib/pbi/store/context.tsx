@@ -330,9 +330,9 @@ type Ctx = State & {
         root: string;
         name: string;
         values: string[];
-        value?: string | null;
+        value?: string[];
     }) => void;
-    setParameterValue: (id: string, value: string | null) => void;
+    toggleParameterValue: (id: string, value: string) => void;
     removeParameter: (id: string) => void;
     toggleEditInteractions: () => void;
     addBookmark: (name: string) => void;
@@ -725,7 +725,9 @@ export function PbiProvider({
                     const next: AxisDef = {
                         id,
                         position: axisPositionDefault(
-                            v.type === 'bar' || v.type === 'stackedBar',
+                            v.type === 'bar' ||
+                                v.type === 'stackedBar' ||
+                                v.type === 'stacked100Bar',
                         ),
                         order: axes.length,
                         auto: true,
@@ -1827,17 +1829,24 @@ export function PbiProvider({
                             pageId,
                             root: entry.root,
                             name: entry.name,
-                            value: entry.value ?? null,
+                            value: [...(entry.value ?? [])],
                             values: [...entry.values],
                         },
                     ],
                 };
             }),
-        setParameterValue: (id, value) =>
+        toggleParameterValue: (id, value) =>
             setState((s) => ({
                 ...s,
                 parameters: s.parameters.map((p) =>
-                    p.id === id ? { ...p, value } : p,
+                    p.id === id
+                        ? {
+                              ...p,
+                              value: p.value.includes(value)
+                                  ? p.value.filter((v) => v !== value)
+                                  : [...p.value, value],
+                          }
+                        : p,
                 ),
             })),
         removeParameter: (id) =>

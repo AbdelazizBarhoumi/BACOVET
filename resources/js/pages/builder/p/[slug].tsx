@@ -71,7 +71,7 @@ export default function PageView() {
     // UI state (hover, selection, cross-filter highlight, drillthrough) must
     // not trigger checkpoints or dirty the layout.
     const lastPersistedStateRef = useRef<State | undefined>(undefined);
-    const selectionRef = useRef<Record<string, string>>({});
+    const selectionRef = useRef<Record<string, string[]>>({});
     const lastSelectionSignatureRef = useRef<string | null>(null);
     const [paramsTick, setParamsTick] = useState(0);
     const onStoreChange = useCallback((next: State) => {
@@ -82,6 +82,13 @@ export default function PageView() {
         if (lastSelectionSignatureRef.current === null) {
             lastSelectionSignatureRef.current = signature;
             selectionRef.current = selection;
+            // The first dataset load runs before the store emits its initial
+            // state, so it fetched with an empty selection (default data). If
+            // the layout already selects parameter values, refetch right away
+            // so the report honours them instead of waiting for a toggle.
+            if (signature !== '') {
+                setParamsTick((t) => t + 1);
+            }
         } else if (signature !== lastSelectionSignatureRef.current) {
             lastSelectionSignatureRef.current = signature;
             selectionRef.current = selection;

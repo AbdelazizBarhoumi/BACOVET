@@ -126,17 +126,76 @@ class EndpointDatasetController extends Controller
         $datasets = $structureBySlug->map(function (array $meta, string $slug) use ($records, $snapshots, $variants, $selection) {
             $record = $records->get($slug);
 
-            $active = $this->activeVariant($meta, $selection, $variants->get($slug));
+            $actives = $this->activeVariants($meta, $selection, $variants->get($slug));
 
-            if ($active !== null) {
-                $rows = $active['sample_data'] ?? null;
+            $defaultRows = ! empty($record?->sample_data)
+                ? $record->sample_data
+                : ($snapshots[$slug] ?? null);
+            $defaultRows = is_array($defaultRows) ? $defaultRows : [];
+
+            $includeDefault = $this->selectionCoversDefault($meta, $selection);
+
+            if ($actives === [] && ! $includeDefault) {
+                $rows = $defaultRows;
             } else {
-                $rows = ! empty($record?->sample_data)
-                    ? $record->sample_data
-                    : ($snapshots[$slug] ?? null);
+                $rows = [];
+                $seen = [];
+
+                foreach ($actives as $active) {
+                    $sample = $active['sample_data'] ?? null;
+
+                    if (! is_array($sample)) {
+                        continue;
+                    }
+
+                    foreach ($sample as $row) {
+                        $key = json_encode($row);
+
+                        if ($key === false || isset($seen[$key])) {
+                            continue;
+                        }
+
+                        $seen[$key] = true;
+                        $rows[] = $row;
+                    }
+                }
+
+                if ($includeDefault) {
+                    foreach ($defaultRows as $row) {
+                        $key = json_encode($row);
+
+                        if ($key === false || isset($seen[$key])) {
+                            continue;
+                        }
+
+                        $seen[$key] = true;
+                        $rows[] = $row;
+                    }
+                }
             }
 
             $rows = is_array($rows) ? $rows : [];
+
+            $typed = [];
+
+            foreach ($actives as $active) {
+                foreach ($active['columns'] ?? [] as $column) {
+                    $name = (string) ($column['name'] ?? '');
+                    $type = (string) ($column['type'] ?? '');
+
+                    if ($name !== '' && $type !== '' && ! isset($typed[$name])) {
+                        $typed[$name] = $type;
+                    }
+                }
+            }
+
+            $typedColumns = array_map(
+                static fn (string $name, string $type): array => ['name' => $name, 'type' => $type],
+                array_keys($typed),
+                array_values($typed),
+            );
+
+            $first = $actives[0] ?? null;
 
             return [
                 'slug' => $slug,
@@ -148,17 +207,17 @@ class EndpointDatasetController extends Controller
                 'method' => 'GET',
                 'columns' => $this->mergeColumns(
                     $meta['columns'] ?? [],
-                    $active['columns'] ?? $record->columns ?? [],
+                    $typedColumns !== [] ? $typedColumns : ($record->columns ?? []),
                     $rows,
                 ),
                 'sample_data' => $rows,
                 'row_count' => count($rows),
-                'status' => $active['last_status'] ?? $record?->last_status,
-                'last_error' => $active['last_error'] ?? $record?->last_error,
-                'last_synced_at' => $active !== null
-                    ? ($active['last_synced_at']?->toISOString() ?? $record?->last_synced_at?->toISOString())
+                'status' => $first['last_status'] ?? $record?->last_status,
+                'last_error' => $first['last_error'] ?? $record?->last_error,
+                'last_synced_at' => $first !== null
+                    ? ($first['last_synced_at']?->toISOString() ?? $record?->last_synced_at?->toISOString())
                     : $record?->last_synced_at?->toISOString(),
-                'params' => $active['params'] ?? [],
+                'params' => $first['params'] ?? [],
             ];
         })->values();
 
@@ -242,21 +301,26 @@ class EndpointDatasetController extends Controller
     }
 
     /**
-     * Pick the stored variant matching the active selection for a dataset slug.
+     * Collect the stored variants matching the active multi-value selection for
+     * a dataset slug.
      *
      * Only parameters actually present in the dataset's URL are considered, so
-     * a selection like {chaine: CH02, zone: ZA} matches a chaine-only dataset
-     * via {chaine: CH02}. Returns null when no selection is given, the dataset
-     * uses none of the selected parameters, or the variant is not synced yet.
+     * a selection like {chaine: [CH02, CH03], zone: [ZA]} matches a
+     * chaine-only dataset via {chaine: [CH02, CH03]}. A variant matches when
+     * every selection parameter it uses has its stored value inside the
+     * selected set; all matching variants are returned so their rows can be
+     * merged (union). Returns [] when no selection is given, the dataset uses
+     * none of the selected parameters, or no variant is synced yet.
      *
      * @param  array<string, mixed>  $meta
-     * @param  array<string, string>  $selection
+     * @param  array<string, list<string>>  $selection
      * @param  Collection<int, EndpointDatasetVariant>|null  $variants
+     * @return array<int, EndpointDatasetVariant>
      */
-    private function activeVariant(array $meta, array $selection, $variants): ?EndpointDatasetVariant
+    private function activeVariants(array $meta, array $selection, $variants): array
     {
         if ($selection === [] || $variants === null || $variants->isEmpty()) {
-            return null;
+            return [];
         }
 
         $endpoint = (string) ($meta['endpoint'] ?? '');
@@ -277,12 +341,23 @@ class EndpointDatasetController extends Controller
                 continue;
             }
 
-            $expected[$name] = (string) $selection[$name];
+            $allowed = array_values(array_filter(
+                array_map('strval', (array) $selection[$name]),
+                static fn (string $v): bool => $v !== '',
+            ));
+
+            if ($allowed === []) {
+                continue;
+            }
+
+            $expected[$name] = $allowed;
         }
 
         if ($expected === []) {
-            return null;
+            return [];
         }
+
+        $matches = [];
 
         foreach ($variants as $variant) {
             $params = $variant['params'] ?? [];
@@ -291,18 +366,82 @@ class EndpointDatasetController extends Controller
             // live fetch failed is stored with last_status=error and no
             // sample_data, and serving it would blank the dataset. Falling back
             // to the default last-known-good rows is always better.
-            if (is_array($params) && $params == $expected && ! empty($variant['sample_data'])) {
-                return $variant;
+            if (! is_array($params) || empty($variant['sample_data'])) {
+                continue;
+            }
+
+            $matchesSelection = true;
+
+            foreach ($expected as $name => $allowed) {
+                if (! array_key_exists($name, $params)) {
+                    continue;
+                }
+
+                if (! in_array((string) $params[$name], $allowed, true)) {
+                    $matchesSelection = false;
+                    break;
+                }
+            }
+
+            if ($matchesSelection) {
+                $matches[] = $variant;
             }
         }
 
-        return null;
+        return $matches;
     }
 
     /**
-     * Normalize the `p` selection query into a name => value map.
+     * Whether the multi-value selection includes the dataset endpoint URL's
+     * current value for a declared parameter.
      *
-     * @return array<string, string>
+     * A dataset's default rows are the live snapshot of its URL as-is, i.e.
+     * they represent the URL's current value. When that value is part of the
+     * selection, those rows must be merged alongside the matching stored
+     * variants; otherwise selecting several values silently drops the current
+     * value's data and the report only ever shows one selected value.
+     *
+     * @param  array<string, mixed>  $meta
+     * @param  array<string, list<string>>  $selection
+     */
+    private function selectionCoversDefault(array $meta, array $selection): bool
+    {
+        if ($selection === []) {
+            return false;
+        }
+
+        $endpoint = (string) ($meta['endpoint'] ?? '');
+        $query = [];
+
+        $parsed = parse_url($endpoint);
+
+        if (isset($parsed['query']) && $parsed['query'] !== '') {
+            parse_str($parsed['query'], $query);
+        }
+
+        foreach (RootParameters::forRoot($this->rootOf($endpoint)) as $definition) {
+            $name = trim((string) ($definition['name'] ?? ''));
+
+            if ($name === '' || ! array_key_exists($name, $query) || ! array_key_exists($name, $selection)) {
+                continue;
+            }
+
+            $current = (string) $query[$name];
+
+            if ($current !== '' && in_array($current, $selection[$name], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize the `p` selection query into a name => values map. Repeated
+     * `p[name]` entries (multiple selected values) are preserved as an array;
+     * a single value stays a single-entry array.
+     *
+     * @return array<string, list<string>>
      */
     private function normalizeSelection(mixed $selection): array
     {
@@ -314,10 +453,15 @@ class EndpointDatasetController extends Controller
 
         foreach ($selection as $key => $value) {
             $key = trim((string) $key);
-            $value = is_array($value) ? ($value[0] ?? '') : $value;
 
-            if ($key !== '' && is_string($value) && $value !== '') {
-                $result[$key] = $value;
+            if ($key === '') {
+                continue;
+            }
+
+            foreach (is_array($value) ? $value : [$value] as $item) {
+                if (is_string($item) && $item !== '') {
+                    $result[$key][] = $item;
+                }
             }
         }
 

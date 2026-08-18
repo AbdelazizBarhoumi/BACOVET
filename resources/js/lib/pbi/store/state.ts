@@ -50,8 +50,8 @@ export type ReportParameter = {
     pageId: string;
     root: string;
     name: string;
-    /** selected value; null = default/current data */
-    value: string | null;
+    /** selected values; empty = default/current data */
+    value: string[];
     /** available options (declared per root), persisted for offline rendering */
     values: string[];
 };
@@ -252,7 +252,11 @@ export function normalizeState(state: State): State {
             pageId: p.pageId,
             root: p.root,
             name: p.name,
-            value: p.value ?? null,
+            value: Array.isArray(p.value)
+                ? p.value.filter((v): v is string => typeof v === 'string')
+                : p.value == null
+                  ? []
+                  : [String(p.value)],
             values: Array.isArray(p.values) ? p.values : [],
         })),
         slicerSelections,

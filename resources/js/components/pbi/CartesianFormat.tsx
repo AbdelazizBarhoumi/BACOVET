@@ -48,6 +48,19 @@ import {
 /** Horizontal (bar) family — the value axis sits on X, categories on Y. */
 const HORIZONTAL_TYPES = ['bar', 'stackedBar', 'stacked100Bar'];
 
+/** Family that actually draws bars — transparency, corner radius and the
+ * per-category color picker only apply here. */
+const BAR_FAMILY_TYPES = [
+    'column',
+    'stackedColumn',
+    'stacked100Column',
+    'bar',
+    'stackedBar',
+    'stacked100Bar',
+    'combo',
+    'pareto',
+];
+
 /** Stacked family — bars pile up, so the empty space above them can be
  * filled via the value axis' `emptyColor`. */
 const STACKED_TYPES = [
@@ -421,7 +434,9 @@ function DataLabelsForm({
                 <FontStyleControls
                     label="Police des étiquettes"
                     font={labels.font}
-                    onChange={(p) => onPatch({ font: { ...labels.font, ...p } })}
+                    onChange={(p) =>
+                        onPatch({ font: { ...labels.font, ...p } })
+                    }
                 />
             )}
         </>
@@ -543,16 +558,6 @@ function ValueAxesSection({
                             </>
                         )}
                     </div>
-                    <Toggle
-                        label="Afficher l'axe"
-                        checked={a.showLine || a.showLabels}
-                        onChange={(v) =>
-                            patchAxisDef(a.id, {
-                                showLine: v,
-                                showLabels: v,
-                            })
-                        }
-                    />
                     <TextInput
                         label="Titre"
                         value={a.title}
@@ -562,18 +567,14 @@ function ValueAxesSection({
                     <Toggle
                         label="Afficher le titre"
                         checked={a.showTitle}
-                        onChange={(v) =>
-                            patchAxisDef(a.id, { showTitle: v })
-                        }
+                        onChange={(v) => patchAxisDef(a.id, { showTitle: v })}
                     />
                     <Stepper
                         label="Décalage du titre (px)"
                         value={a.titleOffset ?? 0}
                         min={-40}
                         max={80}
-                        onChange={(v) =>
-                            patchAxisDef(a.id, { titleOffset: v })
-                        }
+                        onChange={(v) => patchAxisDef(a.id, { titleOffset: v })}
                     />
                     <Stepper
                         label="Décalage de l'axe (px)"
@@ -585,16 +586,12 @@ function ValueAxesSection({
                     <Toggle
                         label="Afficher la ligne"
                         checked={a.showLine}
-                        onChange={(v) =>
-                            patchAxisDef(a.id, { showLine: v })
-                        }
+                        onChange={(v) => patchAxisDef(a.id, { showLine: v })}
                     />
                     <Toggle
                         label="Afficher les valeurs"
                         checked={a.showLabels}
-                        onChange={(v) =>
-                            patchAxisDef(a.id, { showLabels: v })
-                        }
+                        onChange={(v) => patchAxisDef(a.id, { showLabels: v })}
                     />
                     {!a.lockRange && (
                         <>
@@ -664,14 +661,13 @@ function ValueAxesSection({
                             })
                         }
                     />
-                    {stackedFamily && (
+                    {stackedFamily && !a.lockRange && (
                         <ColorInput
                             label="Espace vide des barres"
                             value={a.emptyColor ?? STACKED_EMPTY_FILL}
                             onChange={(v) =>
                                 patchAxisDef(a.id, {
-                                    emptyColor:
-                                        v === 'default' ? undefined : v,
+                                    emptyColor: v === 'default' ? undefined : v,
                                 })
                             }
                         />
@@ -745,6 +741,7 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
     const { updateVisual, tables } = usePbi();
     const horizontal = HORIZONTAL_TYPES.includes(visual.type);
     const stackedFamily = STACKED_TYPES.includes(visual.type);
+    const hasBars = BAR_FAMILY_TYPES.includes(visual.type);
     const xAxis = normalizeAxisStyle(visual.xAxis);
     const yAxis = normalizeAxisStyle(visual.yAxis);
     const gridlines = normalizeGridlinesStyle(visual.gridlines);
@@ -893,12 +890,12 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
 
             <Section title="Repères">
                 <Toggle
-                    label="Horizontal"
+                    label={horizontal ? 'Vertical' : 'Horizontal'}
                     checked={gridlines.horizontal}
                     onChange={(v) => patchGridlines({ horizontal: v })}
                 />
                 <Toggle
-                    label="Vertical"
+                    label={horizontal ? 'Horizontal' : 'Vertical'}
                     checked={gridlines.vertical}
                     onChange={(v) => patchGridlines({ vertical: v })}
                 />
@@ -917,87 +914,103 @@ export function CartesianFormat({ visual }: { visual: Visual }) {
                 />
             </Section>
 
-            <Section title="Barres" defaultOpen>
-                <Select
-                    label="Appliquer les réglages à"
-                    value={bars.applyTo}
-                    options={[
-                        { value: 'all', label: 'Toutes les catégories' },
-                        { value: 'perCategory', label: 'Par catégorie' },
-                    ]}
-                    onChange={(v) =>
-                        patchBars({
-                            applyTo: v as BarStyle['applyTo'],
-                        })
-                    }
-                />
-                {bars.applyTo === 'all' && (
+            {hasBars ? (
+                <Section title="Barres" defaultOpen>
+                    <Select
+                        label="Appliquer les réglages à"
+                        value={bars.applyTo}
+                        options={[
+                            { value: 'all', label: 'Toutes les catégories' },
+                            { value: 'perCategory', label: 'Par catégorie' },
+                        ]}
+                        onChange={(v) =>
+                            patchBars({
+                                applyTo: v as BarStyle['applyTo'],
+                            })
+                        }
+                    />
+                    {bars.applyTo === 'all' && (
+                        <ColorInput
+                            label="Couleur"
+                            value={bars.color}
+                            onChange={(v) => patchBars({ color: v })}
+                        />
+                    )}
+                    {bars.applyTo === 'perCategory' && (
+                        <div className="space-y-2">
+                            <div className="text-muted-foreground">
+                                Couleurs de catégorie — laissez vide pour garder
+                                la couleur de la palette.
+                            </div>
+                            {categories.length === 0 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                    Ajoutez un champ sur l'axe X pour voir les
+                                    catégories.
+                                </p>
+                            )}
+                            {categories.map((cat) => (
+                                <div
+                                    key={cat}
+                                    className="flex items-center gap-2"
+                                >
+                                    <span className="min-w-0 flex-1 truncate">
+                                        {cat}
+                                    </span>
+                                    <ColorInput
+                                        value={bars.categoryColors[cat]}
+                                        onChange={(v) => {
+                                            const next = {
+                                                ...bars.categoryColors,
+                                            };
+                                            next[cat] = v;
+                                            patchBars({ categoryColors: next });
+                                        }}
+                                        className="h-6 w-9"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="rounded border border-border">
+                        <ConditionalFormatControl visual={visual} />
+                    </div>
+                    <div>
+                        <div className="mb-1 flex items-center justify-between text-muted-foreground">
+                            <span>Transparence</span>
+                            <span className="tabular-nums">
+                                {bars.transparency}%
+                            </span>
+                        </div>
+                        <Slider
+                            value={[bars.transparency]}
+                            max={100}
+                            step={1}
+                            onValueChange={([v]) =>
+                                patchBars({ transparency: v ?? 0 })
+                            }
+                            aria-label="Transparence des barres"
+                        />
+                    </div>
+                    <NumberInput
+                        label="Rayon des coins (px)"
+                        min={0}
+                        max={24}
+                        value={bars.radius ?? 2}
+                        onChange={(v) => patchBars({ radius: v })}
+                    />
+                </Section>
+            ) : (
+                <Section title="Séries">
                     <ColorInput
                         label="Couleur"
                         value={bars.color}
                         onChange={(v) => patchBars({ color: v })}
                     />
-                )}
-                {bars.applyTo === 'perCategory' && (
-                    <div className="space-y-2">
-                        <div className="text-muted-foreground">
-                            Couleurs de catégorie — laissez vide pour garder la
-                            couleur de la palette.
-                        </div>
-                        {categories.length === 0 && (
-                            <p className="text-[10px] text-muted-foreground">
-                                Ajoutez un champ sur l'axe X pour voir les
-                                catégories.
-                            </p>
-                        )}
-                        {categories.map((cat) => (
-                            <div key={cat} className="flex items-center gap-2">
-                                <span className="min-w-0 flex-1 truncate">
-                                    {cat}
-                                </span>
-                                <ColorInput
-                                    value={bars.categoryColors[cat]}
-                                    onChange={(v) => {
-                                        const next = {
-                                            ...bars.categoryColors,
-                                        };
-                                        next[cat] = v;
-                                        patchBars({ categoryColors: next });
-                                    }}
-                                    className="h-6 w-9"
-                                />
-                            </div>
-                        ))}
+                    <div className="rounded border border-border">
+                        <ConditionalFormatControl visual={visual} />
                     </div>
-                )}
-                <div className="rounded border border-border">
-                    <ConditionalFormatControl visual={visual} />
-                </div>
-                <div>
-                    <div className="mb-1 flex items-center justify-between text-muted-foreground">
-                        <span>Transparence</span>
-                        <span className="tabular-nums">
-                            {bars.transparency}%
-                        </span>
-                    </div>
-                    <Slider
-                        value={[bars.transparency]}
-                        max={100}
-                        step={1}
-                        onValueChange={([v]) =>
-                            patchBars({ transparency: v ?? 0 })
-                        }
-                        aria-label="Transparence des barres"
-                    />
-                </div>
-                <NumberInput
-                    label="Rayon des coins (px)"
-                    min={0}
-                    max={24}
-                    value={bars.radius ?? 2}
-                    onChange={(v) => patchBars({ radius: v })}
-                />
-            </Section>
+                </Section>
+            )}
 
             <Section title="Étiquettes de données">
                 <Toggle

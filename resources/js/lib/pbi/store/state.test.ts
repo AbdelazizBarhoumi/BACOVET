@@ -8,7 +8,7 @@ const parameter = (overrides: Partial<ReportParameter>): ReportParameter => ({
     pageId: 'p1',
     root: 'https://bacovet.example',
     name: 'chaine',
-    value: null,
+    value: [],
     values: ['CH01', 'CH02', 'CH03'],
     ...overrides,
 });
@@ -137,7 +137,7 @@ describe('parameters', () => {
                     id: 'param-1',
                     pageId: 'p1',
                     name: 'chaine',
-                    value: 'CH02',
+                    value: ['CH02'],
                 }),
             ],
         };
@@ -148,7 +148,7 @@ describe('parameters', () => {
             pageId: 'p1',
             root: 'https://bacovet.example',
             name: 'chaine',
-            value: 'CH02',
+            value: ['CH02'],
             values: ['CH01', 'CH02', 'CH03'],
         });
     });
@@ -161,11 +161,24 @@ describe('parameters', () => {
         expect(normalizeState(state).parameters).toEqual([]);
     });
 
-    it('defaults a missing value to null', () => {
+    it('migrates a legacy single-string value into an array', () => {
+        const state = {
+            ...defaultState(),
+            parameters: [
+                {
+                    ...parameter({}),
+                    value: 'CH02',
+                } as unknown as ReportParameter,
+            ],
+        } as unknown as ReturnType<typeof defaultState>;
+        expect(normalizeState(state).parameters[0]!.value).toEqual(['CH02']);
+    });
+
+    it('defaults a missing value to an empty array', () => {
         const state = {
             ...defaultState(),
             parameters: [parameter({ value: undefined })],
         } as unknown as ReturnType<typeof defaultState>;
-        expect(normalizeState(state).parameters[0]!.value).toBeNull();
+        expect(normalizeState(state).parameters[0]!.value).toEqual([]);
     });
 });

@@ -1,12 +1,4 @@
-import {
-    Eye,
-    Filter,
-    Pencil,
-    Plus,
-    Search,
-    SlidersHorizontal,
-    X,
-} from 'lucide-react';
+import { Eye, Filter, Pencil, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -14,13 +6,13 @@ import {
     customFilterColumnsForTable,
     customFilterPooledValues,
     customFilterSelectedValues,
+    distinctValuesForTableColumn,
     isCustomFilter,
     relativeDateRange,
     type FilterType,
     type RelativePreset,
     type ReportFilter,
 } from '@/lib/pbi/filters';
-import { distinctValues } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
 import { cn } from '@/lib/utils';
 import { JoinMapDialog } from '../JoinMapDialog';
@@ -50,7 +42,7 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
         graph,
         state,
         parameters,
-        setParameterValue,
+        toggleParameterValue,
         removeParameter,
     } = usePbi();
     const columns = tables.flatMap((t) =>
@@ -114,11 +106,8 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
             .slice(0, 200);
     }, [columns, newFilterQuery]);
 
-    const rowsFor = (f: (typeof filters)[number]) =>
-        (f.table && tableRows[f.table]) || [];
-
     const filterValues = (f: (typeof filters)[number]) =>
-        distinctValues(f.column, rowsFor(f));
+        f.table ? distinctValuesForTableColumn(tables, f.table, f.column) : [];
 
     const filterName = (f: (typeof filters)[number]) =>
         isCustomFilter(f) ? (f.label ?? f.column) : f.column;
@@ -501,13 +490,13 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                             >
                                                 <input
                                                     type="checkbox"
-                                                    checked={p.value === value}
+                                                    checked={p.value.includes(
+                                                        value,
+                                                    )}
                                                     onChange={() =>
-                                                        setParameterValue(
+                                                        toggleParameterValue(
                                                             p.id,
-                                                            p.value === value
-                                                                ? null
-                                                                : value,
+                                                            value,
                                                         )
                                                     }
                                                     className="size-3 accent-[var(--brand)]"
@@ -520,7 +509,8 @@ export function FiltersPane({ onCollapse }: { onCollapse?: () => void }) {
                                     </div>
                                     <p className="mt-1 text-[9px] text-muted-foreground">
                                         Tous les endpoints utilisant ce
-                                        paramètre rechargent la valeur choisie.
+                                        paramètre rechargent les valeurs
+                                        choisies.
                                     </p>
                                 </div>
                             ))}
