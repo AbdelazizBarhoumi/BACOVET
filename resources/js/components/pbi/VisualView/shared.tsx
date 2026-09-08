@@ -525,7 +525,7 @@ export function CustomTooltip({
     label?: string | number;
     visual: Visual;
 }) {
-    const { setTooltipHover } = usePbi();
+    const { setTooltipHover, tooltipHover } = usePbi();
     const hoverCol = visual.axis[0]?.name;
     const lastHoverKeyRef = useRef<string | null>(null);
 
@@ -537,7 +537,11 @@ export function CustomTooltip({
         if (key === lastHoverKeyRef.current) return;
         lastHoverKeyRef.current = key;
         if (key === null) {
-            setTooltipHover(null);
+            // Only clear a hover this visual owns. Every mounted chart runs
+            // this effect, so an unconditional clear lets an inactive chart
+            // wipe the active hover of another chart on every re-render
+            // (lost highlight / update ping-pong between visuals).
+            if (tooltipHover?.sourceId === visual.id) setTooltipHover(null);
             return;
         }
         setTooltipHover({
@@ -549,7 +553,7 @@ export function CustomTooltip({
         // provider render). Depending on it here would re-run this effect on
         // every render and loop forever; it only wraps a stable setState.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [active, hoverCol, label, visual.id]);
+    }, [active, hoverCol, label, visual.id, tooltipHover?.sourceId]);
 
     if (!active || !payload?.length) return null;
     const datum = payload[0]?.payload ?? {};

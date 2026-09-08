@@ -1159,8 +1159,14 @@ export function PbiProvider({
         canRedo,
         select: (id, options) =>
             setState((s) => {
-                if (id === null)
+                if (id === null) {
+                    if (
+                        (s.selectedIds ?? []).length === 0 &&
+                        s.selectedId === null
+                    )
+                        return s;
                     return { ...s, selectedId: null, selectedIds: [] };
+                }
                 const prev = s.selectedIds ?? [];
                 let next: string[];
                 if (options?.toggle) {
@@ -1168,6 +1174,10 @@ export function PbiProvider({
                         ? prev.filter((x) => x !== id)
                         : [...prev, id];
                 } else if (prev.includes(id)) {
+                    // Already selected: keep state reference stable so a
+                    // mousedown-select in edit mode doesn't re-render (and
+                    // swallow) the chart click that follows on mouse-up.
+                    if (prev[prev.length - 1] === id) return s;
                     next = [...prev.filter((x) => x !== id), id];
                 } else {
                     next = [id];
@@ -1646,16 +1656,21 @@ export function PbiProvider({
             }),
         applyCrossFilter: (sourceId, column, value, table) =>
             setState((s) => {
+                // Synthetic "Autre" bucket (maxCategories rollup) matches no
+                // real row — never turn it into a sticky cross-filter.
+                if (normValue(value) === 'autre') return s;
+                const cur = s.crossFilter;
                 const same =
-                    s.crossFilter?.sourceId === sourceId &&
-                    s.crossFilter?.column === column &&
-                    s.crossFilter?.value === value &&
-                    s.crossFilter?.table === table;
+                    cur?.sourceId === sourceId &&
+                    normValue(cur?.column) === normValue(column) &&
+                    normValue(cur?.value) === normValue(value) &&
+                    normValue(cur?.table) === normValue(table);
+                if (same) return { ...s, crossFilter: null };
+                // No-op when nothing was set and incoming is empty.
+                if (!cur && (value === '' || value == null)) return s;
                 return {
                     ...s,
-                    crossFilter: same
-                        ? null
-                        : { sourceId, column, value, table },
+                    crossFilter: { sourceId, column, value, table },
                 };
             }),
         clearCrossFilter: () => setState((s) => ({ ...s, crossFilter: null })),

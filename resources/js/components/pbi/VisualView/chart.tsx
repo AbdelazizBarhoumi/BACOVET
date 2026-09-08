@@ -573,6 +573,7 @@ export function ChartBody({
 }) {
     const {
         applyCrossFilter,
+        crossFilter,
         setTooltipHover,
         tooltipHover,
         graph,
@@ -712,10 +713,14 @@ export function ChartBody({
         payload: { category?: string | number } | undefined,
     ) => {
         if (!axisCol || !payload?.category) return;
+        const category = String(payload.category);
+        // Synthetic maxCategories rollup bucket — matches no real row, so
+        // clicking it must never create a sticky cross-filter.
+        if (category.trim().toLowerCase() === 'autre') return;
         applyCrossFilter(
             visual.id,
             axisCol,
-            String(payload.category),
+            category,
             visual.axis[0]?.table,
         );
     };
@@ -736,9 +741,31 @@ export function ChartBody({
         return s;
     }, [match, rows, axisCol]);
 
+    /** When this visual owns the active cross-filter (the user clicked one of
+     * its own categories), highlight that category in THIS chart too by
+     * dimming the others — so a click always gives visible feedback, even
+     * when the other visuals on the page do not react (different column,
+     * interaction set to none, …). Clicking the same category again clears
+     * the filter and restores full opacity. */
+    const selfMatchSet = useMemo(() => {
+        if (
+            !crossFilter ||
+            crossFilter.sourceId !== visual.id ||
+            !axisCol ||
+            crossFilter.column !== axisCol
+        )
+            return null;
+        return new Set([String(crossFilter.value)]);
+    }, [crossFilter, visual.id, axisCol]);
+    const activeMatchSet = matchSet ?? selfMatchSet;
+
     /** Cell opacity per data item when a cross-highlight is active. */
     const itemOpacity = (d: Record<string, string | number>) =>
-        matchSet ? (matchSet.has(String(d['category'])) ? 1 : 0.2) : 1;
+        activeMatchSet
+            ? activeMatchSet.has(String(d['category']))
+                ? 1
+                : 0.2
+            : 1;
 
     /* ----- Cartesian (bar/column) style values ----- */
 
@@ -1173,8 +1200,8 @@ export function ChartBody({
         }) => {
             if (cx == null) return <g />;
             const icon = cfIconFor(payload);
-            const dim = matchSet
-                ? !matchSet.has(String(payload?.category))
+            const dim = activeMatchSet
+                ? !activeMatchSet.has(String(payload?.category))
                 : false;
             if (icon) {
                 return (
@@ -1187,7 +1214,7 @@ export function ChartBody({
                     >
                         <CfSvgIcon
                             icon={icon}
-                            size={matchSet ? 14 : 12}
+                            size={activeMatchSet ? 14 : 12}
                             x={cx}
                             y={cy ?? 0}
                         />
@@ -1198,10 +1225,10 @@ export function ChartBody({
                 <circle
                     cx={cx}
                     cy={cy ?? 0}
-                    r={matchSet ? 3 : 2}
+                    r={activeMatchSet ? 3 : 2}
                     fill={
-                        matchSet
-                            ? matchSet.has(String(payload?.category))
+                        activeMatchSet
+                            ? activeMatchSet.has(String(payload?.category))
                                 ? color
                                 : 'rgba(148,163,184,0.25)'
                             : color
@@ -2563,7 +2590,7 @@ export function ChartBody({
                 size: Number(d[key]) || 0,
                 ...(d['_cf'] !== undefined ? { _cf: d['_cf'] } : {}),
                 fill:
-                    matchSet && !matchSet.has(String(d['category']))
+                    activeMatchSet && !activeMatchSet.has(String(d['category']))
                         ? 'rgba(148,163,184,0.2)'
                         : pointFill(d, PALETTE[i % PALETTE.length]),
             }));
@@ -2823,7 +2850,8 @@ export function ChartBody({
                 if (point.cx == null) return <g />;
                 const icon = cfIconFor(point.payload);
                 const dim =
-                    matchSet && !matchSet.has(String(point.payload?.category));
+                    activeMatchSet &&
+                    !activeMatchSet.has(String(point.payload?.category));
                 if (icon) {
                     return (
                         <g opacity={dim ? 0.25 : 1}>

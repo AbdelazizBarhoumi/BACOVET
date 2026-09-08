@@ -217,3 +217,20 @@
 .animate-flash-alert {
     animation: flash-alert 1.5s ease-in-out infinite;
 }
+
+/* Recharts v3 renders keyboard-focusable SVG elements (wrapper, surface,
+ * sectors, bars). Clicking a chart moves focus there and the browser paints
+ * its default black outline as a full box around the chart / bars. The
+ * edit-mode widget selection (outline-brand on the container) is separate
+ * and is preserved — this only kills the SVG focus ring. */
+.recharts-wrapper:focus,
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible,
+.recharts-surface:focus,
+.recharts-sector:focus,
+.recharts-layer:focus,
+[data-testid^='visual-'] :focus:not(input):not(textarea):not(select):not(button):not([contenteditable='true']),
+svg:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}

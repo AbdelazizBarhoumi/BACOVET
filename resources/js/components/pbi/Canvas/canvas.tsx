@@ -149,9 +149,14 @@ export function Canvas({
                     h: geo.h,
                 });
             }
+            setLive(null);
+            setDrag(null);
+            return;
         }
-        setLive(null);
-        setDrag(null);
+        // No pending gesture (plain bar click): avoid setState churn between
+        // mousedown-select and the recharts click on mouse-up.
+        setLive((prev) => (prev === null ? prev : null));
+        setDrag((prev) => (prev === null ? prev : null));
     }, [updateVisualSingle]);
 
     const startMarquee = (e: React.MouseEvent) => {
