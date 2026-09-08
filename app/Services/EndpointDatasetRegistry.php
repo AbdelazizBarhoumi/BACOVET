@@ -254,7 +254,7 @@ class EndpointDatasetRegistry
     }
 
     /**
-     * Build a dataset entry for a raw data.json item, or null when not eligible.
+     * Build a dataset entry for a raw data.json item.
      *
      * Unlike entryMeta(), this requires non-empty columns: endpoints whose
      * stored response has no columns (and no derivable data rows) are not
@@ -264,10 +264,12 @@ class EndpointDatasetRegistry
     {
         $entry = $this->entryMeta($item);
 
-        if ($entry === null || empty($entry['columns'])) {
+        if ($entry === null) {
             return null;
         }
 
+        // Freshly imported endpoints may lack columns yet; include them
+        // anyway so the dashboard can derive columns from endpoint_datasets.
         return $entry;
     }
 

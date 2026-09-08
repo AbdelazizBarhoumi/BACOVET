@@ -547,10 +547,8 @@ class SyncEndpointData extends Command
                 $columns = DatasetRows::columnsFrom($result['data']);
             }
 
-            if ($columns === []) {
-                continue;
-            }
-
+            // Even column-less endpoints are registered so the dashboard
+            // can show them (with empty data until a proper sync runs).
             $payload = [
                 'name' => (string) $endpoint['name'],
                 'label' => $endpoint['label'],
