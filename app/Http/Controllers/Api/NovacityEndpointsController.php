@@ -769,16 +769,53 @@ class NovacityEndpointsController extends Controller
         $validated = $request->validate([
             'mode' => 'required|string|in:csv,json',
             'content' => 'required|string|max:5000000',
+            'import_mode' => 'nullable|string|in:append,replace',
+            'replace_roots' => 'nullable|array',
+            'replace_roots.*' => 'string|max:1000',
         ]);
 
         $mode = strtolower($validated['mode']);
         $content = trim($validated['content']);
+        $importMode = strtolower($validated['import_mode'] ?? 'append');
+        $replaceRoots = array_map(
+            fn (string $root): string => rtrim(trim($root), '/'),
+            $validated['replace_roots'] ?? []
+        );
 
         $rows = $mode === 'csv'
             ? $this->parseCsvRows($content)
             : $this->parseJsonRows($content);
 
         $items = $this->loadItems() ?? [];
+
+        // ── Replace mode: remove all endpoints from the specified roots ──
+        $removed = 0;
+        $removedSlugs = [];
+
+        if ($importMode === 'replace' && $replaceRoots !== []) {
+            $normalizedRoots = array_map('strtolower', $replaceRoots);
+
+            foreach ($items as $item) {
+                $itemRoot = strtolower($this->rootOf((string) ($item['endpoint'] ?? '')));
+                if (in_array($itemRoot, $normalizedRoots, true)) {
+                    $slug = app(EndpointDatasetRegistry::class)->slugOf((string) ($item['endpoint'] ?? ''));
+                    if ($slug !== '') {
+                        $removedSlugs[] = $slug;
+                    }
+                    $removed++;
+                }
+            }
+
+            $items = array_values(array_filter($items, function ($item) use ($normalizedRoots) {
+                $itemRoot = strtolower($this->rootOf((string) ($item['endpoint'] ?? '')));
+                return ! in_array($itemRoot, $normalizedRoots, true);
+            }));
+
+            // Clean up dataset rows for removed endpoints
+            if ($removedSlugs !== []) {
+                EndpointDataset::whereIn('slug', $removedSlugs)->delete();
+            }
+        }
 
         $existingUrls = [];
 
@@ -848,7 +885,7 @@ class NovacityEndpointsController extends Controller
             }
         }
 
-        if ($created !== [] || $skipped > 0) {
+        if ($created !== [] || $removed > 0) {
             if (! $this->persistItems($items)) {
                 return response()->json(['success' => false, 'error' => 'Failed to write data.json'], 500);
             }
@@ -879,6 +916,9 @@ class NovacityEndpointsController extends Controller
             'success' => $errors === [] || $created !== [],
             'created' => count($created),
             'skipped' => $skipped,
+            'removed' => $removed,
+            'import_mode' => $importMode,
+            'replace_roots' => $replaceRoots,
             'errors' => $errors,
             'entries' => array_map(fn (array $item) => $this->summarizeItem($item), $created),
         ]);
@@ -1448,6 +1488,269 @@ class NovacityEndpointsController extends Controller
         }
 
         return $rebuilt;
+    }
+
+    /**
+     * Fetch available endpoints from a catalogue URL. The URL must be the
+     * exact endpoint that returns the list of available data sources.
+     * Returns a normalized catalogue of endpoints that can be reviewed
+     * and approved for import.
+     */
+    public function catalogue(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => 'required|string|url|max:1000',
+            'api_key' => 'nullable|string|max:500',
+        ]);
+
+        $url = trim($validated['url']);
+        $providedApiKey = trim($validated['api_key'] ?? '');
+
+        // Use provided API key, fall back to stored key for this root
+        $apiKey = $providedApiKey !== ''
+            ? $providedApiKey
+            : RootCredentials::apiKeyFor($this->rootOf($url));
+
+        $token = config('novacity.admin_token');
+
+        $headers = [
+            'Accept' => 'application/json',
+        ];
+
+        if ($apiKey !== '') {
+            $headers['x-api-key'] = $apiKey;
+        }
+
+        if ($token) {
+            $headers['Authorization'] = 'Bearer '.$token;
+        }
+
+        $timeout = (int) config('novacity.timeout', 30);
+
+        try {
+            $response = Http::withHeaders($headers)
+                ->timeout($timeout)
+                ->get($url);
+
+            if ($response->status() !== 200) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'HTTP '.$response->status().': '.($response->reason() ?? 'Erreur inconnue'),
+                    'url' => $url,
+                ], $response->status());
+            }
+
+            $body = $response->json();
+
+            if (! is_array($body)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'La réponse n\'est pas un JSON valide',
+                    'url' => $url,
+                ], 422);
+            }
+
+            $baseUrl = $this->rootOf($url);
+            $rawItems = $this->findItemsInBody($body);
+            $endpoints = $this->extractEndpointsFromListing($body, $baseUrl);
+
+            // Collect available keys from the first raw item for key mapping UI
+            $availableKeys = [];
+            if ($rawItems !== []) {
+                $first = reset($rawItems);
+                if (is_array($first)) {
+                    $availableKeys = array_keys($first);
+                }
+            }
+
+            if ($endpoints === []) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Aucun endpoint trouvé dans la réponse',
+                    'url' => $url,
+                ], 404);
+            }
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Échec de la requête: '.$e->getMessage(),
+                'url' => $url,
+            ], 500);
+        }
+
+        // Mark which endpoints already exist in data.json
+        $existingUrls = [];
+        $existingByRoot = [];
+        $items = $this->loadItems() ?? [];
+
+        foreach ($items as $item) {
+            $existingUrls[strtolower(rtrim((string) ($item['endpoint'] ?? ''), '/'))] = true;
+            $itemRoot = $this->rootOf((string) ($item['endpoint'] ?? ''));
+            if ($itemRoot !== '') {
+                $existingByRoot[strtolower($itemRoot)] = ($existingByRoot[strtolower($itemRoot)] ?? 0) + 1;
+            }
+        }
+
+        foreach ($endpoints as &$endpoint) {
+            $fullUrl = rtrim($endpoint['endpoint'], '/');
+            $endpoint['already_imported'] = isset($existingUrls[strtolower($fullUrl)]);
+        }
+        unset($endpoint);
+
+        return response()->json([
+            'success' => true,
+            'url' => $url,
+            'root' => $this->rootOf($url),
+            'endpoints' => $endpoints,
+            'raw_items' => $rawItems,
+            'available_keys' => $availableKeys,
+            'total' => count($endpoints),
+            'existing_by_root' => $existingByRoot,
+            'existing_count' => count($items),
+        ]);
+    }
+
+    /**
+     * Extract and normalize endpoints from an API listing response.
+     * Auto-detects common response formats.
+     */
+    private function extractEndpointsFromListing(array $body, string $root): array
+    {
+        $items = $this->findItemsInBody($body);
+        $endpoints = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $endpoint = $this->normalizeCatalogueItem($item, $root);
+            if ($endpoint !== null) {
+                $endpoints[] = $endpoint;
+            }
+        }
+
+        return $endpoints;
+    }
+
+    /**
+     * Find the array of endpoint-like items inside a response body.
+     * Tries common wrapper keys and falls back to direct arrays.
+     */
+    private function findItemsInBody(array $body): array
+    {
+        // Format 1: Direct array of endpoint objects
+        if ($this->isEndpointArray($body)) {
+            return $body;
+        }
+
+        // Format 2-5: Common wrapper keys
+        foreach (['endpoints', 'data', 'items', 'results'] as $key) {
+            if (isset($body[$key]) && is_array($body[$key])) {
+                return $body[$key];
+            }
+        }
+
+        // Format 6: Nested under a key that contains an array
+        foreach ($body as $value) {
+            if (is_array($value) && $this->isEndpointArray($value)) {
+                return $value;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Check if an array contains endpoint-like objects.
+     */
+    private function isEndpointArray(array $items): bool
+    {
+        if ($items === []) {
+            return false;
+        }
+
+        $sample = reset($items);
+        if (! is_array($sample)) {
+            return false;
+        }
+
+        // Check for endpoint-like keys
+        $keys = array_keys($sample);
+        $lowerKeys = array_map('strtolower', $keys);
+
+        $hasEndpoint = in_array('endpoint', $lowerKeys, true)
+            || in_array('chemin', $lowerKeys, true)
+            || in_array('url', $lowerKeys, true)
+            || in_array('path', $lowerKeys, true)
+            || in_array('route', $lowerKeys, true);
+
+        $hasName = in_array('name', $lowerKeys, true)
+            || in_array('nom', $lowerKeys, true)
+            || in_array('title', $lowerKeys, true)
+            || in_array('label', $lowerKeys, true);
+
+        return $hasEndpoint || $hasName;
+    }
+
+    /**
+     * Normalize a single catalogue item into a consistent format.
+     */
+    private function normalizeCatalogueItem(array $item, string $root): ?array
+    {
+        // Find the endpoint URL — prefer 'chemin' (French) over English aliases
+        $endpoint = '';
+        foreach (['chemin', 'endpoint', 'url', 'path', 'route', 'uri'] as $key) {
+            if (isset($item[$key]) && is_string($item[$key]) && $item[$key] !== '') {
+                $endpoint = $item[$key];
+                break;
+            }
+        }
+
+        if ($endpoint === '') {
+            return null;
+        }
+
+        // Build full URL if path is relative
+        if (! preg_match('#^https?://#i', $endpoint)) {
+            $endpoint = $root.'/'.ltrim($endpoint, '/');
+        }
+
+        // Find the name — prefer 'nom' (French) over English aliases
+        $name = '';
+        foreach (['nom', 'name', 'title', 'label', 'description'] as $key) {
+            if (isset($item[$key]) && is_string($item[$key]) && $item[$key] !== '') {
+                $name = $item[$key];
+                break;
+            }
+        }
+
+        // If no name, derive from endpoint path
+        if ($name === '') {
+            $path = parse_url($endpoint, PHP_URL_PATH);
+            $name = $path !== false ? trim($path, '/') : 'Unknown';
+        }
+
+        // Find the method — support French 'methode' alias
+        $method = 'GET';
+        if (isset($item['methode']) && is_string($item['methode'])) {
+            $method = strtoupper($item['methode']);
+        } elseif (isset($item['method']) && is_string($item['method'])) {
+            $method = strtoupper($item['method']);
+        }
+
+        // Validate method
+        if (! in_array($method, ['GET', 'POST'], true)) {
+            $method = 'GET';
+        }
+
+        return [
+            'name' => $name,
+            'method' => $method,
+            'endpoint' => $endpoint,
+            'status' => 200,
+        ];
     }
 
     /**

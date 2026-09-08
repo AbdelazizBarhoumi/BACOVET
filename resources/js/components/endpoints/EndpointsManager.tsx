@@ -796,7 +796,7 @@ export function EndpointsManager() {
                 onOpenChange={setImportOpen}
                 defaultRoot={activeRoot ?? globalRoot}
                 onImported={() => {
-                    applyFilters(toFilters(toolbar, activeRoot));
+                    refresh();
                 }}
             />
         </>

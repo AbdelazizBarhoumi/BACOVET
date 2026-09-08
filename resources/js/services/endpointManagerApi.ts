@@ -702,10 +702,15 @@ export const toggleEndpointDisabled = async (
 
 export type BulkImportMode = 'csv' | 'json';
 
+export type ImportMode = 'append' | 'replace';
+
 export type BulkImportResult = {
     success: boolean;
     created: number;
     skipped: number;
+    removed: number;
+    import_mode: ImportMode;
+    replace_roots: string[];
     errors: { row: number; error: string }[];
     entries: EndpointSummary[];
 };
@@ -713,20 +718,73 @@ export type BulkImportResult = {
 /**
  * Bulk import endpoints into the registry from pasted CSV/JSON text. No live
  * network calls happen server-side; entries are registered and can be
- * refreshed afterwards.
+ * refreshed afterwards. When import_mode is 'replace', existing endpoints
+ * from the specified replace_roots are removed before importing.
  */
 export const importEndpoints = async (
     mode: BulkImportMode,
     content: string,
+    options?: {
+        import_mode?: ImportMode;
+        replace_roots?: string[];
+    },
 ): Promise<BulkImportResult> => {
     const result = await fetchWithToken<BulkImportResult>(
         `${BASE_URL}/novacity-endpoints/import`,
         {
             method: 'POST',
-            body: JSON.stringify({ mode, content }),
+            body: JSON.stringify({
+                mode,
+                content,
+                import_mode: options?.import_mode ?? 'append',
+                replace_roots: options?.replace_roots ?? [],
+            }),
         },
     );
     clearEndpointCaches();
+    return result;
+};
+
+export type CatalogueEndpoint = {
+    name: string;
+    method: 'GET' | 'POST';
+    endpoint: string;
+    status: number;
+    already_imported: boolean;
+};
+
+export type CatalogueResult = {
+    success: boolean;
+    url: string;
+    root: string;
+    endpoints: CatalogueEndpoint[];
+    raw_items: Record<string, unknown>[];
+    available_keys: string[];
+    total: number;
+    existing_by_root: Record<string, number>;
+    existing_count: number;
+    error?: string;
+};
+
+/**
+ * Fetch available endpoints from a catalogue URL. The URL must be the
+ * exact endpoint that returns the list of available data sources.
+ */
+export const fetchCatalogue = async (
+    url: string,
+    options?: { api_key?: string; signal?: AbortSignal },
+): Promise<CatalogueResult> => {
+    const result = await fetchWithToken<CatalogueResult>(
+        `${BASE_URL}/novacity-endpoints/catalogue`,
+        {
+            method: 'POST',
+            body: JSON.stringify({
+                url,
+                api_key: options?.api_key || undefined,
+            }),
+            signal: options?.signal,
+        },
+    );
     return result;
 };
 

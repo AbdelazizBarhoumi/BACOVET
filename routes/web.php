@@ -210,6 +210,7 @@ Route::middleware(['auth', 'role:it'])->prefix('novacity-endpoints')->group(func
     Route::post('/params/roots/delete', [NovacityEndpointsController::class, 'deleteRootParameter']);
     Route::post('/{id}/refresh', [NovacityEndpointsController::class, 'refreshOne']);
     Route::post('/test', [NovacityEndpointsController::class, 'test']);
+    Route::post('/catalogue', [NovacityEndpointsController::class, 'catalogue']);
     Route::post('/import', [NovacityEndpointsController::class, 'import']);
     Route::patch('/{id}/toggle', [NovacityEndpointsController::class, 'toggle']);
     Route::post('/{id}/parameter', [NovacityEndpointsController::class, 'setParameter']);

@@ -2,10 +2,13 @@ import {
     CheckCircle2,
     Download,
     FileUp,
+    Globe,
     Loader2,
+    RefreshCw,
+    Search,
     TriangleAlert,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,12 +18,23 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+    fetchCatalogue,
     importEndpoints,
     type BulkImportMode,
     type BulkImportResult,
+    type CatalogueResult,
+    type ImportMode,
 } from '@/services/endpointManagerApi';
 
 const CSV_HEADER = 'name,method,endpoint,status';
@@ -159,21 +173,41 @@ export function BulkImportDialog({
     defaultRoot?: string;
     onImported: () => void;
 }) {
-    const [mode, setMode] = useState<BulkImportMode>('csv');
+    const [mode, setMode] = useState<BulkImportMode | 'catalogue'>('csv');
     const [csvText, setCsvText] = useState('');
     const [jsonText, setJsonText] = useState('');
     const [fileName, setFileName] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
     const [result, setResult] = useState<BulkImportResult | null>(null);
 
-    const content = mode === 'csv' ? csvText : jsonText;
+    // Catalogue state
+    const [catalogueUrl, setCatalogueUrl] = useState(defaultRoot);
+    const [catalogueApiKey, setCatalogueApiKey] = useState('');
+    const [catalogueLoading, setCatalogueLoading] = useState(false);
+    const [catalogueResult, setCatalogueResult] =
+        useState<CatalogueResult | null>(null);
+    const [selectedEndpoints, setSelectedEndpoints] = useState<Set<number>>(
+        new Set(),
+    );
+    const [importingCatalogue, setImportingCatalogue] = useState(false);
+    const [catalogueImportMode, setCatalogueImportMode] =
+        useState<ImportMode>('append');
+    const [cataloguePathKey, setCataloguePathKey] = useState('');
+    const [catalogueNameKey, setCatalogueNameKey] = useState('');
+    const catalogueAbortRef = useRef<AbortController | null>(null);
+
+    const content = mode === 'csv' ? csvText : mode === 'json' ? jsonText : '';
 
     const preview = useMemo(
-        () => buildPreview(mode, content).slice(0, 50),
+        () =>
+            mode === 'catalogue'
+                ? []
+                : buildPreview(mode as BulkImportMode, content).slice(0, 50),
         [mode, content],
     );
 
     const previewWarning = useMemo(() => {
+        if (mode === 'catalogue') return null;
         if (!content.trim()) return null;
         if (mode === 'csv') {
             const rows = parseCsv(content.trim());
@@ -223,14 +257,17 @@ export function BulkImportDialog({
     };
 
     const canImport =
-        content.trim().length > 0 && !importing && previewWarning === null;
+        mode !== 'catalogue' &&
+        content.trim().length > 0 &&
+        !importing &&
+        previewWarning === null;
 
     const handleImport = async () => {
         if (!canImport) return;
         setImporting(true);
         setResult(null);
         try {
-            const res = await importEndpoints(mode, content);
+            const res = await importEndpoints(mode as BulkImportMode, content);
             setResult(res);
             if (res.created > 0) {
                 toast.success(
@@ -244,18 +281,214 @@ export function BulkImportDialog({
             toast.error(
                 err instanceof Error
                     ? err.message
-                    : 'Échec de l’import des endpoints',
+                    : 'Échec de l\'import des endpoints',
             );
         } finally {
             setImporting(false);
         }
     };
 
+    // ── Catalogue handlers ──────────────────────────────────────────────
+
+    const handleDiscover = useCallback(async () => {
+        const url = catalogueUrl.trim();
+        if (!url) {
+            toast.error('Veuillez entrer une URL de catalogue');
+            return;
+        }
+
+        catalogueAbortRef.current?.abort();
+        const controller = new AbortController();
+        catalogueAbortRef.current = controller;
+
+        setCatalogueLoading(true);
+        setCatalogueResult(null);
+        setSelectedEndpoints(new Set());
+        setCataloguePathKey('');
+        setCatalogueNameKey('');
+
+        try {
+            const res = await fetchCatalogue(url, {
+                api_key: catalogueApiKey.trim() || undefined,
+                signal: controller.signal,
+            });
+            if (controller.signal.aborted) return;
+            setCatalogueResult(res);
+            if (res.success && res.endpoints.length > 0) {
+                // Pre-select endpoints that are not already imported
+                const toSelect = new Set<number>();
+                res.endpoints.forEach((ep, i) => {
+                    if (!ep.already_imported) {
+                        toSelect.add(i);
+                    }
+                });
+                setSelectedEndpoints(toSelect);
+            } else if (!res.success) {
+                toast.error(res.error || 'Aucun endpoint trouvé');
+            }
+        } catch (err) {
+            if (controller.signal.aborted) return;
+            toast.error(
+                err instanceof Error
+                    ? err.message
+                    : 'Échec de la récupération du catalogue',
+            );
+        } finally {
+            setCatalogueLoading(false);
+        }
+    }, [catalogueUrl, catalogueApiKey]);
+
+    // Re-normalize endpoints from raw items when custom key mapping is selected
+    const displayEndpoints = useMemo(() => {
+        if (!catalogueResult) return [];
+        const hasCustomKeys = cataloguePathKey !== '' || catalogueNameKey !== '';
+        if (!hasCustomKeys || !catalogueResult.raw_items?.length) {
+            return catalogueResult.endpoints;
+        }
+        const root = catalogueResult.root;
+        return catalogueResult.raw_items.map((raw) => {
+            const pathVal =
+                cataloguePathKey !== '' && typeof raw[cataloguePathKey] === 'string'
+                    ? (raw[cataloguePathKey] as string)
+                    : '';
+            const nameVal =
+                catalogueNameKey !== '' && typeof raw[catalogueNameKey] === 'string'
+                    ? (raw[catalogueNameKey] as string)
+                    : '';
+            const methodVal =
+                typeof raw['methode'] === 'string'
+                    ? (raw['methode'] as string).toUpperCase()
+                    : typeof raw['method'] === 'string'
+                      ? (raw['method'] as string).toUpperCase()
+                      : 'GET';
+            const endpoint =
+                pathVal === ''
+                    ? ''
+                    : /^https?:\/\//i.test(pathVal)
+                      ? pathVal
+                      : `${root}/${pathVal.replace(/^\/+/, '')}`;
+            return {
+                name:
+                    nameVal ||
+                    (pathVal ? pathVal.split('/').filter(Boolean).pop() ?? '—' : '—'),
+                method: methodVal === 'POST' ? 'POST' : 'GET',
+                endpoint,
+                status: 200,
+                already_imported: false,
+            };
+        });
+    }, [catalogueResult, cataloguePathKey, catalogueNameKey]);
+
+    const handleToggleSelect = useCallback((index: number) => {
+        setSelectedEndpoints((prev) => {
+            const next = new Set(prev);
+            if (next.has(index)) {
+                next.delete(index);
+            } else {
+                next.add(index);
+            }
+            return next;
+        });
+    }, []);
+
+    const handleSelectAll = useCallback(() => {
+        if (!catalogueResult) return;
+        const all = new Set<number>();
+        displayEndpoints.forEach((_, i) => all.add(i));
+        setSelectedEndpoints(all);
+    }, [catalogueResult, displayEndpoints]);
+
+    const handleDeselectAll = useCallback(() => {
+        setSelectedEndpoints(new Set());
+    }, []);
+
+    const handleImportCatalogue = useCallback(async () => {
+        if (!catalogueResult || selectedEndpoints.size === 0) return;
+
+        setImportingCatalogue(true);
+        try {
+            const selected = Array.from(selectedEndpoints).map(
+                (i) => displayEndpoints[i],
+            );
+
+            // Convert to CSV format for the existing import endpoint
+            const csvLines = [CSV_HEADER];
+            for (const ep of selected) {
+                csvLines.push(
+                    [ep.name, ep.method, ep.endpoint, String(ep.status)]
+                        .map((v) => `"${v.replace(/"/g, '""')}"`)
+                        .join(','),
+                );
+            }
+            const csvContent = csvLines.join('\n');
+
+            const options =
+                catalogueImportMode === 'replace'
+                    ? {
+                          import_mode: 'replace' as const,
+                          replace_roots: [catalogueResult.root],
+                      }
+                    : { import_mode: 'append' as const };
+
+            const res = await importEndpoints('csv', csvContent, options);
+            if (res.success) {
+                const parts: string[] = [];
+                if (res.created > 0) {
+                    parts.push(`${res.created} endpoint(s) importé(s)`);
+                }
+                if (res.removed > 0) {
+                    parts.push(`${res.removed} supprimé(s)`);
+                }
+                if (res.skipped > 0) {
+                    parts.push(`${res.skipped} ignoré(s)`);
+                }
+                if (parts.length > 0) {
+                    toast.success(parts.join(', '));
+                } else {
+                    toast.info('Aucun changement — tous les endpoints existent déjà');
+                }
+                setCatalogueResult(null);
+                setSelectedEndpoints(new Set());
+                onImported();
+            } else if (res.errors.length > 0) {
+                toast.error('Aucun endpoint valide à importer');
+            }
+        } catch (err) {
+            toast.error(
+                err instanceof Error
+                    ? err.message
+                    : 'Échec de l\'import des endpoints',
+            );
+        } finally {
+            setImportingCatalogue(false);
+        }
+    }, [
+        catalogueResult,
+        selectedEndpoints,
+        catalogueImportMode,
+        displayEndpoints,
+        onImported,
+    ]);
+
+    const catalogueSelectedCount = selectedEndpoints.size;
+    const catalogueNewCount = displayEndpoints.filter(
+        (ep, i) => !ep.already_imported && selectedEndpoints.has(i),
+    ).length;
+    // In replace mode, all selected endpoints count (existing ones will be replaced)
+    const catalogueImportCount =
+        catalogueImportMode === 'replace'
+            ? catalogueSelectedCount
+            : catalogueNewCount;
+
     return (
         <Dialog
             open={open}
             onOpenChange={(next) => {
-                if (!next) setResult(null);
+                if (!next) {
+                    setResult(null);
+                    setCatalogueImportMode('append');
+                    catalogueAbortRef.current?.abort();
+                }
                 onOpenChange(next);
             }}
         >
@@ -267,51 +500,59 @@ export function BulkImportDialog({
                 </DialogHeader>
 
                 <div className="space-y-3">
-                    <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                        <span className="font-mono text-[10px] font-semibold tracking-wider text-foreground uppercase">
-                            Structure attendue
-                        </span>
-                        <div className="mt-1.5 space-y-1 font-mono text-[11px]">
-                            <p>
-                                Chaque ligne = un endpoint. Colonnes CSV :{' '}
-                                <span className="text-foreground">
-                                    name, method (GET|POST), endpoint (URL
-                                    complète), status (100–599, optionnel)
-                                </span>
-                                .
-                            </p>
-                            <p>
-                                Format JSON : tableau d'objets avec les mêmes
-                                clés, ex. :
-                            </p>
-                            <pre className="mt-1 overflow-auto rounded bg-background px-2 py-1.5 text-[10px] leading-relaxed">
-                                {JSON_EXAMPLE}
-                            </pre>
-                            <p className="mt-1 text-muted-foreground">
-                                Les doublons (endpoint déjà enregistré) sont
-                                ignorés. Après l'import, les endpoints GET
-                                éligibles sont rafraîchis automatiquement pour
-                                alimenter les jeux de données (data.json +
-                                dataset).
-                            </p>
-                            {defaultRoot && (
-                                <p className="mt-1 text-muted-foreground">
-                                    Racine par défaut :{' '}
+                    {mode !== 'catalogue' && (
+                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                            <span className="font-mono text-[10px] font-semibold tracking-wider text-foreground uppercase">
+                                Structure attendue
+                            </span>
+                            <div className="mt-1.5 space-y-1 font-mono text-[11px]">
+                                <p>
+                                    Chaque ligne = un endpoint. Colonnes CSV :{' '}
                                     <span className="text-foreground">
-                                        {defaultRoot}
+                                        name, method (GET|POST), endpoint (URL
+                                        complète), status (100–599, optionnel)
                                     </span>
+                                    .
                                 </p>
-                            )}
+                                <p>
+                                    Format JSON : tableau d'objets avec les mêmes
+                                    clés, ex. :
+                                </p>
+                                <pre className="mt-1 overflow-auto rounded bg-background px-2 py-1.5 text-[10px] leading-relaxed">
+                                    {JSON_EXAMPLE}
+                                </pre>
+                                <p className="mt-1 text-muted-foreground">
+                                    Les doublons (endpoint déjà enregistré) sont
+                                    ignorés. Après l'import, les endpoints GET
+                                    éligibles sont rafraîchis automatiquement pour
+                                    alimenter les jeux de données (data.json +
+                                    dataset).
+                                </p>
+                                {defaultRoot && (
+                                    <p className="mt-1 text-muted-foreground">
+                                        Racine par défaut :{' '}
+                                        <span className="text-foreground">
+                                            {defaultRoot}
+                                        </span>
+                                    </p>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <Tabs
                         value={mode}
-                        onValueChange={(v) => setMode(v as BulkImportMode)}
+                        onValueChange={(v) =>
+                            setMode(v as BulkImportMode | 'catalogue')
+                        }
                     >
                         <TabsList>
                             <TabsTrigger value="csv">Fichier CSV</TabsTrigger>
                             <TabsTrigger value="json">JSON / Texte</TabsTrigger>
+                            <TabsTrigger value="catalogue">
+                                <Globe className="mr-1.5 h-3.5 w-3.5" />
+                                API Catalogue
+                            </TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="csv" className="space-y-3">
@@ -377,22 +618,378 @@ export function BulkImportDialog({
                                 spellCheck={false}
                             />
                         </TabsContent>
+
+                        <TabsContent value="catalogue" className="space-y-3">
+                            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                                <span className="font-mono text-[10px] font-semibold tracking-wider text-foreground uppercase">
+                                    Catalogue API
+                                </span>
+                                <div className="mt-1.5 space-y-1 font-mono text-[11px]">
+                                    <p>
+                                        Entrez l'URL complète du catalogue qui
+                                        retourne la liste des endpoints disponibles.
+                                    </p>
+                                    <p className="mt-1 text-muted-foreground">
+                                        Sélectionnez les endpoints à importer, puis
+                                        cliquez sur « Approuver et importer » pour
+                                        les ajouter au registre avec synchronisation
+                                        automatique.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-end gap-2">
+                                <div className="flex-1 space-y-1.5">
+                                    <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                        URL du catalogue
+                                    </Label>
+                                    <Input
+                                        value={catalogueUrl}
+                                        onChange={(e) =>
+                                            setCatalogueUrl(e.target.value)
+                                        }
+                                        placeholder="http://bacovet-3216.eu1.netbird.service/data/v2/catalogue"
+                                        className="h-9 font-mono text-xs"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleDiscover();
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div className="w-48 space-y-1.5">
+                                    <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                        Clé API (optionnel)
+                                    </Label>
+                                    <Input
+                                        value={catalogueApiKey}
+                                        onChange={(e) =>
+                                            setCatalogueApiKey(e.target.value)
+                                        }
+                                        placeholder="x-api-key"
+                                        type="password"
+                                        className="h-9 font-mono text-xs"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleDiscover();
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <Button
+                                    size="sm"
+                                    onClick={handleDiscover}
+                                    disabled={
+                                        catalogueLoading ||
+                                        !catalogueUrl.trim()
+                                    }
+                                    className="h-9 px-4 text-[10px] tracking-wider uppercase"
+                                >
+                                    {catalogueLoading ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Search className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    {catalogueLoading
+                                        ? 'Recherche…'
+                                        : 'Découvrir'}
+                                </Button>
+                                {catalogueResult && catalogueResult.success && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleDiscover}
+                                        disabled={catalogueLoading}
+                                        className="h-9 px-3 text-[10px] tracking-wider uppercase"
+                                        title="Rafraîchir la découverte pour cette racine"
+                                    >
+                                        <RefreshCw className="h-3.5 w-3.5" />
+                                    </Button>
+                                )}
+                            </div>
+
+                            {catalogueResult && catalogueResult.success && (
+                                <div className="flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+                                    <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                        Mode d'import
+                                    </Label>
+                                    <div className="flex gap-1">
+                                        <Button
+                                            size="sm"
+                                            variant={
+                                                catalogueImportMode === 'append'
+                                                    ? 'default'
+                                                    : 'outline'
+                                            }
+                                            onClick={() =>
+                                                setCatalogueImportMode('append')
+                                            }
+                                            className="h-7 px-3 text-[10px] tracking-wider uppercase"
+                                        >
+                                            Ajouter
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant={
+                                                catalogueImportMode === 'replace'
+                                                    ? 'default'
+                                                    : 'outline'
+                                            }
+                                            onClick={() =>
+                                                setCatalogueImportMode(
+                                                    'replace',
+                                                )
+                                            }
+                                            className="h-7 px-3 text-[10px] tracking-wider uppercase"
+                                        >
+                                            Remplacer
+                                        </Button>
+                                    </div>
+                                    {catalogueImportMode === 'replace' && (
+                                        <span className="text-[10px] text-warning">
+                                            <TriangleAlert className="mr-1 inline h-3 w-3" />
+                                            Tous les endpoints existants de cette
+                                            racine ({catalogueResult.existing_by_root?.[catalogueResult.root.toLowerCase()] ?? 0})
+                                            seront supprimés
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
+                            {catalogueResult &&
+                                catalogueResult.success &&
+                                catalogueResult.available_keys?.length > 0 && (
+                                    <div className="flex items-end gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                                Clé du chemin (optionnel)
+                                            </Label>
+                                            <Select
+                                                value={cataloguePathKey || '__auto__'}
+                                                onValueChange={(v) =>
+                                                    setCataloguePathKey(
+                                                        v === '__auto__' ? '' : v,
+                                                    )
+                                                }
+                                            >
+                                                <SelectTrigger className="h-7 w-44 font-mono text-[11px]">
+                                                    <SelectValue placeholder="Auto-détecter" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__auto__">
+                                                        Auto-détecter
+                                                    </SelectItem>
+                                                    {catalogueResult.available_keys.map(
+                                                        (key) => (
+                                                            <SelectItem
+                                                                key={key}
+                                                                value={key}
+                                                                className="font-mono text-[11px]"
+                                                            >
+                                                                {key}
+                                                            </SelectItem>
+                                                        ),
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                                Clé du nom (optionnel)
+                                            </Label>
+                                            <Select
+                                                value={catalogueNameKey || '__auto__'}
+                                                onValueChange={(v) =>
+                                                    setCatalogueNameKey(
+                                                        v === '__auto__' ? '' : v,
+                                                    )
+                                                }
+                                            >
+                                                <SelectTrigger className="h-7 w-44 font-mono text-[11px]">
+                                                    <SelectValue placeholder="Auto-détecter" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__auto__">
+                                                        Auto-détecter
+                                                    </SelectItem>
+                                                    {catalogueResult.available_keys.map(
+                                                        (key) => (
+                                                            <SelectItem
+                                                                key={key}
+                                                                value={key}
+                                                                className="font-mono text-[11px]"
+                                                            >
+                                                                {key}
+                                                            </SelectItem>
+                                                        ),
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <span className="pb-2 text-[10px] text-muted-foreground">
+                                            Remappez les champs si les clés du catalogue
+                                            ne correspondent pas aux attentes.
+                                        </span>
+                                    </div>
+                            )}
+
+                            {catalogueResult && (
+                                <div className="space-y-2">
+                                    {catalogueResult.success &&
+                                    catalogueResult.endpoints.length > 0 ? (
+                                        <>
+                                            <div className="flex items-center justify-between">
+                                                <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                                    {displayEndpoints.length}{' '}
+                                                    endpoint(s) trouvé(s) —{' '}
+                                                    {catalogueSelectedCount}{' '}
+                                                    sélectionné(s)
+                                                    {catalogueNewCount > 0 &&
+                                                        ` (${catalogueNewCount} nouveau(x))`}
+                                                </Label>
+                                                <div className="flex gap-1">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={handleSelectAll}
+                                                        className="h-6 px-2 text-[10px] tracking-wider uppercase"
+                                                    >
+                                                        Tout
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={
+                                                            handleDeselectAll
+                                                        }
+                                                        className="h-6 px-2 text-[10px] tracking-wider uppercase"
+                                                    >
+                                                        Aucun
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            <div className="max-h-64 overflow-auto rounded-md border border-border">
+                                                <table className="w-full text-xs">
+                                                    <thead className="sticky top-0 bg-background">
+                                                        <tr className="border-b border-border font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+                                                            <th className="w-8 px-2 py-1.5" />
+                                                            <th className="px-2 py-1.5 text-left">
+                                                                Nom
+                                                            </th>
+                                                            <th className="px-2 py-1.5 text-left">
+                                                                Méthode
+                                                            </th>
+                                                            <th className="px-2 py-1.5 text-left">
+                                                                Endpoint
+                                                            </th>
+                                                            <th className="px-2 py-1.5 text-right">
+                                                                Status
+                                                            </th>
+                                                            <th className="px-2 py-1.5 text-center">
+                                                                État
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="font-mono">
+                                                        {displayEndpoints.map(
+                                                            (ep, i) => (
+                                                                <tr
+                                                                    key={i}
+                                                                    className={`border-b border-border/50 ${
+                                                                        selectedEndpoints.has(
+                                                                            i,
+                                                                        )
+                                                                            ? 'bg-primary/5'
+                                                                            : ''
+                                                                    }`}
+                                                                >
+                                                                    <td className="px-2 py-1.5 text-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedEndpoints.has(
+                                                                                i,
+                                                                            )}
+                                                                            onChange={() =>
+                                                                                handleToggleSelect(
+                                                                                    i,
+                                                                                )
+                                                                            }
+                                                                            className="h-3.5 w-3.5 rounded border-border"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="max-w-[180px] truncate px-2 py-1.5 font-semibold">
+                                                                        {ep.name ||
+                                                                            '—'}
+                                                                    </td>
+                                                                    <td className="px-2 py-1.5">
+                                                                        <span
+                                                                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                                                                ep.method ===
+                                                                                'POST'
+                                                                                    ? 'bg-warning/15 text-warning'
+                                                                                    : 'bg-success/15 text-success'
+                                                                            }`}
+                                                                        >
+                                                                            {
+                                                                                ep.method
+                                                                            }
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="max-w-[260px] truncate px-2 py-1.5 text-muted-foreground">
+                                                                        {ep.endpoint ||
+                                                                            '—'}
+                                                                    </td>
+                                                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                                                        {ep.status ||
+                                                                            '200'}
+                                                                    </td>
+                                                                    <td className="px-2 py-1.5 text-center">
+                                                                        {ep.already_imported ? (
+                                                                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                                                                Importé
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                                                                                Nouveau
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ),
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex items-center gap-2 rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                                            <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+                                            {catalogueResult.error ||
+                                                'Aucun endpoint trouvé à cette URL'}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </TabsContent>
                     </Tabs>
 
-                    {previewWarning && (
+                    {mode !== 'catalogue' && previewWarning && (
                         <div className="flex items-center gap-2 rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
                             <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
                             {previewWarning}
                         </div>
                     )}
 
-                    {preview.length > 0 && (
+                    {mode !== 'catalogue' && preview.length > 0 && (
                         <div className="space-y-1.5">
                             <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
                                 Aperçu — {preview.length}
                                 {content.trim() &&
-                                buildPreview(mode, content).length > 50
-                                    ? ` / ${buildPreview(mode, content).length}`
+                                buildPreview(mode as BulkImportMode, content)
+                                    .length > 50
+                                    ? ` / ${buildPreview(mode as BulkImportMode, content).length}`
                                     : ''}{' '}
                                 ligne(s)
                             </Label>
@@ -440,7 +1037,7 @@ export function BulkImportDialog({
                         </div>
                     )}
 
-                    {result && (
+                    {mode !== 'catalogue' && result && (
                         <div className="space-y-2">
                             <div
                                 className={`flex items-center gap-2 rounded border px-3 py-2 text-xs ${
@@ -476,21 +1073,44 @@ export function BulkImportDialog({
                     <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
-                        disabled={importing}
+                        disabled={importing || importingCatalogue}
                         className="text-[10px] tracking-wider uppercase"
                     >
                         Fermer
                     </Button>
-                    <Button
-                        onClick={handleImport}
-                        disabled={!canImport}
-                        className="px-6 text-[10px] tracking-wider uppercase"
-                    >
-                        {importing ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : null}
-                        {importing ? 'Import…' : 'Importer'}
-                    </Button>
+                    {mode === 'catalogue' ? (
+                        <Button
+                            onClick={handleImportCatalogue}
+                            disabled={
+                                importingCatalogue ||
+                                catalogueSelectedCount === 0 ||
+                                catalogueImportCount === 0
+                            }
+                            className="px-6 text-[10px] tracking-wider uppercase"
+                        >
+                            {importingCatalogue ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            {importingCatalogue
+                                ? 'Import…'
+                                : catalogueImportMode === 'replace'
+                                  ? `Remplacer et importer (${catalogueImportCount})`
+                                  : `Approuver et importer (${catalogueImportCount})`}
+                        </Button>
+                    ) : (
+                        <Button
+                            onClick={handleImport}
+                            disabled={!canImport}
+                            className="px-6 text-[10px] tracking-wider uppercase"
+                        >
+                            {importing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : null}
+                            {importing ? 'Import…' : 'Importer'}
+                        </Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
