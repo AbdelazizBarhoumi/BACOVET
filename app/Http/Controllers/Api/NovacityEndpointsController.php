@@ -25,17 +25,14 @@ class NovacityEndpointsController extends Controller
     /** @var array|null Cached parsed data.json — avoids re-reading 2.2MB file per request. */
     private static ?array $cachedItems = null;
 
-    /** @var array|null Cached schema analysis (invalidated alongside items). */
-    private static ?array $cachedSchema = null;
-
     /**
      * Invalidate the in-memory cache (used by tests and after file changes).
      */
     public static function flushCache(): void
     {
         self::$cachedItems = null;
-        self::$cachedSchema = null;
         RootState::flushCache();
+        Cache::forget(EndpointSchemaAnalyzer::CACHE_KEY);
     }
 
     /**
@@ -1032,7 +1029,10 @@ class NovacityEndpointsController extends Controller
      */
     public function schema(Request $request): JsonResponse
     {
-        $result = $this->schemaData((string) $request->query('column', ''));
+        $result = $this->schemaData(
+            (string) $request->query('column', ''),
+            $request->boolean('light'),
+        );
 
         if ($result === null) {
             return response()->json(['error' => 'data.json not found or invalid'], 404);
@@ -1047,9 +1047,16 @@ class NovacityEndpointsController extends Controller
      * Shared with the V5 builder (via the v5.auth-protected /api/v5/schema
      * route) so cross-table joins work without the main IT/web guard.
      *
+     * The full analysis is cached across requests (it re-reads the whole
+     * registry file and scans every column's distinct values); it is only
+     * recomputed when the registry is invalidated. `light` keeps only the
+     * fields the page builder actually consumes (join names/types/counts and
+     * per-entry key columns), skipping the value samples the IT schema panel
+     * uses — that shaves most of the payload off the builder's hot path.
+     *
      * @return array{entries: array<int, array<string, mixed>>, columns: array<int, array<string, mixed>>, foreign_keys: array<int, array<string, mixed>>, generated_at: string}|null
      */
-    public function schemaData(?string $column = null): ?array
+    public function schemaData(?string $column = null, bool $light = false): ?array
     {
         $items = $this->loadItems();
 
@@ -1057,11 +1064,13 @@ class NovacityEndpointsController extends Controller
             return null;
         }
 
-        if (self::$cachedSchema === null) {
-            self::$cachedSchema = (new EndpointSchemaAnalyzer)->analyze($items);
-        }
+        $schema = Cache::remember(
+            EndpointSchemaAnalyzer::CACHE_KEY,
+            now()->addMinutes(10),
+            fn () => (new EndpointSchemaAnalyzer)->analyze($items),
+        );
 
-        $result = self::$cachedSchema;
+        $result = $schema;
 
         if ($column !== null && $column !== '') {
             $result['columns'] = array_values(array_filter(
@@ -1070,7 +1079,52 @@ class NovacityEndpointsController extends Controller
             ));
         }
 
+        if ($light) {
+            $result = $this->lightenSchema($result);
+        }
+
         return $result;
+    }
+
+    /**
+     * Strip the schema analysis down to what the page builder consumes:
+     * shared join columns (name/type/endpoint_count) and each entry's key
+     * columns. Value samples, source lists and FK candidates are dropped.
+     *
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>
+     */
+    private function lightenSchema(array $schema): array
+    {
+        $schema['columns'] = array_map(
+            static fn (array $c): array => [
+                'name' => $c['name'],
+                'type' => $c['type'],
+                'endpoint_count' => $c['endpoint_count'],
+            ],
+            $schema['columns']
+        );
+
+        $schema['entries'] = array_map(static function (array $e): array {
+            return [
+                'id' => $e['id'] ?? '',
+                'name' => $e['name'] ?? '',
+                'slug' => $e['slug'] ?? '',
+                'columns' => array_map(
+                    static fn (array $c): array => [
+                        'name' => $c['name'],
+                        'unique' => $c['unique'],
+                    ],
+                    $e['columns'] ?? []
+                ),
+                'primary_key' => $e['primary_key'] ?? null,
+                'candidate_keys' => $e['candidate_keys'] ?? [],
+            ];
+        }, $schema['entries']);
+
+        $schema['foreign_keys'] = [];
+
+        return $schema;
     }
 
     /**
@@ -1673,7 +1727,7 @@ class NovacityEndpointsController extends Controller
         }
 
         self::$cachedItems = $normalized;
-        self::$cachedSchema = null;
+        Cache::forget(EndpointSchemaAnalyzer::CACHE_KEY);
 
         return true;
     }

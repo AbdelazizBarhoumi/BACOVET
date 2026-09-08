@@ -8,6 +8,7 @@ export type BuilderPage = {
     owner_user_id: number | null;
     group_id: number | null;
     sort_order: number;
+    published?: boolean;
     created_at: string;
     updated_at: string;
     is_owner?: boolean;
@@ -97,7 +98,7 @@ async function apiCreatePage(
 
 async function apiUpdatePage(
     id: number,
-    data: { name?: string; slug?: string; group_id?: number | null },
+    data: { name?: string; slug?: string; group_id?: number | null; published?: boolean },
 ): Promise<BuilderPage | null> {
     try {
         const res = await fetch(`${API_BASE}/${id}`, {
@@ -288,13 +289,19 @@ export function usePagesRegistry() {
     const updatePage = useCallback(
         async (
             id: number,
-            data: { name?: string; slug?: string; group_id?: number | null },
+            data: { name?: string; slug?: string; group_id?: number | null; published?: boolean },
         ): Promise<BuilderPage | null> => {
             const p = await apiUpdatePage(id, data);
             if (p) await refresh();
             return p;
         },
         [refresh],
+    );
+
+    const togglePublished = useCallback(
+        async (id: number, published: boolean): Promise<BuilderPage | null> =>
+            updatePage(id, { published }),
+        [updatePage],
     );
 
     return {
@@ -306,5 +313,6 @@ export function usePagesRegistry() {
         duplicatePage,
         deletePage,
         updatePage,
+        togglePublished,
     };
 }

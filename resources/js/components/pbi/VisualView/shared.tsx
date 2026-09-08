@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { LabelList } from 'recharts';
 import { CfIcon } from '@/components/pbi/CfIcon';
-import {
-    conditionalColor,
-    conditionalIcon,
-} from '@/lib/pbi/conditionalFormat';
+import { conditionalColor, conditionalIcon } from '@/lib/pbi/conditionalFormat';
 import { iconById } from '@/lib/pbi/icons';
 import { crossFilterRows } from '@/lib/pbi/joins';
 import {
@@ -23,6 +20,9 @@ import {
     normalizeDataLabelStyle,
     visualTable,
     type AxisStyle,
+    type CalloutStyle,
+    type CategoryLabelStyle,
+    type ConditionalFormat,
     type DataLabelPosition,
     type FieldType,
     type AxisDef,
@@ -94,7 +94,12 @@ export function valueFmtFor(
         Boolean(dl.suffix?.trim()) ||
         (dl.decimals !== undefined && dl.decimals !== 1);
     if (explicit)
-        return formatDisplayUnitValue(n, dl.displayUnits, dl.decimals, dl.suffix);
+        return formatDisplayUnitValue(
+            n,
+            dl.displayUnits,
+            dl.decimals,
+            dl.suffix,
+        );
     return visualFmt(n, visual, wf);
 }
 
@@ -267,8 +272,7 @@ export function axisDefAsStyle(axis: AxisDef): AxisStyle {
         displayUnits: axis.displayUnits,
         ...(axis.suffix ? { suffix: axis.suffix } : {}),
         ...(axis.decimals !== undefined ? { decimals: axis.decimals } : {}),
-        ...(!axis.auto &&
-        (axis.min !== undefined || axis.max !== undefined)
+        ...(!axis.auto && (axis.min !== undefined || axis.max !== undefined)
             ? {
                   min: axis.min,
                   max: axis.max,
@@ -289,9 +293,14 @@ export function axisDefProps(
     const props = valueAxisProps(style, visual, vertical);
     props.hide = !axis.showLine && !axis.showLabels;
     props.axisLine = !!axis.showLine;
-    props.orientation = axis.position === 'right' || axis.position === 'top'
-        ? (vertical ? 'right' : 'top')
-        : (vertical ? 'left' : 'bottom');
+    props.orientation =
+        axis.position === 'right' || axis.position === 'top'
+            ? vertical
+                ? 'right'
+                : 'top'
+            : vertical
+              ? 'left'
+              : 'bottom';
     props.stroke = axis.color || 'var(--border)';
     // Title parked just outside this axis's own tick lane: rotated -90° for
     // vertical axes, stacked above/below for horizontal ones. A tiny gap
@@ -302,8 +311,12 @@ export function axisDefProps(
         props.label = {
             value: axis.title,
             position: vertical
-                ? (axis.position === 'right' ? ('insideRight' as const) : ('insideLeft' as const))
-                : (axis.position === 'top' ? ('top' as const) : ('bottom' as const)),
+                ? axis.position === 'right'
+                    ? ('insideRight' as const)
+                    : ('insideLeft' as const)
+                : axis.position === 'top'
+                  ? ('top' as const)
+                  : ('bottom' as const),
             angle: vertical ? -90 : undefined,
             offset: vertical ? -gap : gap,
             fill: f?.color || 'var(--muted-foreground)',
@@ -314,7 +327,8 @@ export function axisDefProps(
     } else {
         delete props.label;
     }
-    const axisColor = axis.color || visual.fontColor || 'var(--muted-foreground)';
+    const axisColor =
+        axis.color || visual.fontColor || 'var(--muted-foreground)';
     props.tick = fontStyleProps(axis.labelsFont, {
         fontSize: visual.fontSize ?? 10,
         color: axisColor,
@@ -411,7 +425,7 @@ export function labelPosition(
  * how the whole line stack lines up against `y` (start/middle/end). */
 export function labelBlockAnchor(
     vb: { x?: number; y?: number; width?: number; height?: number },
-    position: string | { x?: number; y?: number } | undefined,
+    position: string | { x?: string | number; y?: string | number } | undefined,
     offset: number,
 ): {
     x: number;
@@ -502,9 +516,9 @@ export function CustomTooltip({
     visual,
 }: {
     active?: boolean;
-    payload?: {
-        name?: string | number;
-        dataKey?: string | number;
+    payload?: readonly {
+        name?: unknown;
+        dataKey?: unknown;
         value?: unknown;
         payload?: TooltipDatum;
     }[];
@@ -616,8 +630,9 @@ export function CustomTooltip({
 export function chartTooltip(visual: Visual) {
     return (props: {
         active?: boolean;
-        payload?: {
-            name?: string | number;
+        payload?: readonly {
+            name?: unknown;
+            dataKey?: unknown;
             value?: unknown;
             payload?: TooltipDatum;
         }[];
@@ -641,16 +656,24 @@ export function CalloutValue({
     type,
     wf,
     defaultColor,
+    callout,
+    conditionalFormat,
 }: {
     visual: Visual;
     value: string | number | boolean | null;
     type: FieldType;
     wf: WellField;
     defaultColor: string;
+    /** Per-value callout override (fallback: `visual.callout`). */
+    callout?: CalloutStyle;
+    /** Per-value conditional format (fallback: `visual.conditionalFormat`). */
+    conditionalFormat?: boolean | ConditionalFormat;
 }) {
-    const callout = normalizeCalloutStyle(visual.callout);
+    const calloutStyle = normalizeCalloutStyle(callout ?? visual.callout);
     const n = typeof value === 'number' && isFinite(value) ? value : null;
-    const cf = normalizeConditionalFormat(visual.conditionalFormat);
+    const cf = normalizeConditionalFormat(
+        conditionalFormat ?? visual.conditionalFormat,
+    );
     const fxColor =
         cf.style !== 'none'
             ? conditionalColor(cf, value, n !== null ? [n] : [], value)
@@ -664,22 +687,27 @@ export function CalloutValue({
         <div
             className="font-semibold tracking-tight"
             style={{
-                fontFamily: callout.fontFamily || undefined,
-                fontSize: callout.fontSize ?? 24,
-                fontWeight: callout.bold ? 700 : undefined,
-                fontStyle: callout.italic ? 'italic' : undefined,
-                textDecoration: callout.underline ? 'underline' : undefined,
-                color: fxColor ?? callout.color ?? defaultColor,
-                whiteSpace: callout.textWrap ? 'normal' : 'nowrap',
+                fontFamily: calloutStyle.fontFamily || undefined,
+                fontSize: calloutStyle.fontSize ?? 24,
+                fontWeight: calloutStyle.bold ? 700 : undefined,
+                fontStyle: calloutStyle.italic ? 'italic' : undefined,
+                textDecoration: calloutStyle.underline
+                    ? 'underline'
+                    : undefined,
+                color: fxColor ?? calloutStyle.color ?? defaultColor,
+                whiteSpace: calloutStyle.textWrap ? 'normal' : 'nowrap',
                 textAlign: 'center',
             }}
         >
             {icon && (
                 <span className="mr-1 inline-block align-middle">
-                    <CfIcon icon={icon} size={(callout.fontSize ?? 24) * 0.8} />
+                    <CfIcon
+                        icon={icon}
+                        size={(calloutStyle.fontSize ?? 24) * 0.8}
+                    />
                 </span>
             )}
-            {formatCallout(value, callout, wf, type)}
+            {formatCallout(value, calloutStyle, wf, type)}
         </div>
     );
 }
@@ -688,11 +716,16 @@ export function CalloutValue({
 export function CategoryLabel({
     visual,
     label,
+    categoryLabel,
 }: {
     visual: Visual;
     label: string;
+    /** Per-value category label override (fallback: `visual.categoryLabel`). */
+    categoryLabel?: CategoryLabelStyle;
 }) {
-    const category = normalizeCategoryLabelStyle(visual.categoryLabel);
+    const category = normalizeCategoryLabelStyle(
+        categoryLabel ?? visual.categoryLabel,
+    );
     if (!category.show) return null;
     return (
         <div

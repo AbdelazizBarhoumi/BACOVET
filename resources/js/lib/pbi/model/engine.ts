@@ -143,10 +143,7 @@ type Token =
  * doubled quotes (`''` / `""`) DAX-style. Returns the unescaped value and the
  * index just past the closing quote.
  */
-function scanQuoted(
-    src: string,
-    i: number,
-): { value: string; next: number } {
+function scanQuoted(src: string, i: number): { value: string; next: number } {
     const q = src[i]!;
     let j = i + 1;
     let value = '';
@@ -524,9 +521,7 @@ function tryCompile(
             break;
         }
     }
-    const rhs = (
-        split >= 0 ? expression.slice(split + 1) : expression
-    ).trim();
+    const rhs = (split >= 0 ? expression.slice(split + 1) : expression).trim();
     if (!rhs) return { ok: false, error: 'Expression vide.' };
     try {
         const tokens = tokenize(rhs);
@@ -1098,9 +1093,7 @@ function unfilteredRows(
                 ? node.column
                 : findTableForField(node.column, TABLES));
     } else {
-        throw new MeasureSyntaxError(
-            'ALL() attend une table ou une colonne.',
-        );
+        throw new MeasureSyntaxError('ALL() attend une table ou une colonne.');
     }
     return tableRowsFor(table, TABLES).map((row) => ({ table, row }));
 }
@@ -1494,9 +1487,7 @@ function evalFunction(
     if (name === 'TOTALYTD' || name === 'TOTALMTD' || name === 'TOTALQTD') {
         const expression = node.args[0];
         if (!expression) {
-            throw new MeasureSyntaxError(
-                `${name}() attend une expression.`,
-            );
+            throw new MeasureSyntaxError(`${name}() attend une expression.`);
         }
         const frames = timeWindowFrames(name, node.args, ctx);
         const windowRows = frames.map((frame) => frame.row);
@@ -1513,9 +1504,7 @@ function evalFunction(
         const expression = node.args[0];
         const filterArg = node.args[1];
         if (!expression) {
-            throw new MeasureSyntaxError(
-                'CALCULATE() attend une expression.',
-            );
+            throw new MeasureSyntaxError('CALCULATE() attend une expression.');
         }
         const win =
             filterArg && filterArg.kind === 'func'
@@ -1788,7 +1777,9 @@ export function compileListMeasure(expression: string): ListMeasureImpl | null {
                 ...new Set(
                     frames
                         .map((frame) => evalCondition(exprNode, frame, ctx))
-                        .filter((v) => v !== null && v !== undefined && v !== '')
+                        .filter(
+                            (v) => v !== null && v !== undefined && v !== '',
+                        )
                         .map((v) => String(v)),
                 ),
             ].sort();
@@ -2188,6 +2179,39 @@ export function gaugeBoundValue(
     return typeof constant === 'number' && Number.isFinite(constant)
         ? constant
         : undefined;
+}
+
+/** The typed constant bound for one card/gauge value index. The per-value
+ * array (`targetValues`/`minimumValues`/`maximumValues`) wins when present;
+ * otherwise the legacy scalar applies to index 0 only. */
+export function boundConstant(
+    visual: Visual,
+    well: 'minimum' | 'maximum' | 'target',
+    index: number,
+): number | undefined {
+    const arr = visual[`${well}Values`];
+    const v = arr?.[index];
+    if (v !== undefined && v !== null) return v;
+    if (index === 0 && arr === undefined) {
+        const scalar = visual[`${well}Value`];
+        return typeof scalar === 'number' ? scalar : undefined;
+    }
+    return undefined;
+}
+
+/** Resolves one card/gauge bound (min/max/target) for a value index: a
+ * dropped field at that index wins over the typed constant. */
+export function boundValue(
+    rows: Row[],
+    visual: Visual,
+    well: 'minimum' | 'maximum' | 'target',
+    index: number,
+): number | undefined {
+    return gaugeBoundValue(
+        rows,
+        visual[well][index],
+        boundConstant(visual, well, index),
+    );
 }
 
 export function distinctValues(col: string, rows: Row[]) {
@@ -2633,8 +2657,7 @@ export function buildTableCells(
         if (extra) item['_cf'] = aggregate(groupRows, extra, ctx);
         if (extraColor)
             item['_cfx'] = firstNonNull(groupRows, extraColor) as
-                | string
-                | number;
+                string | number;
         return item;
     };
 
@@ -2709,8 +2732,7 @@ export function buildTableCells(
         } else {
             values.forEach((v) => {
                 const label =
-                    isMeasure(v.name) ||
-                    fieldType(v.name, v.table) === 'number'
+                    isMeasure(v.name) || fieldType(v.name, v.table) === 'number'
                         ? measureLabel(v)
                         : singleValueLabel(v, fieldType(v.name, v.table));
                 seriesSet.add(label);

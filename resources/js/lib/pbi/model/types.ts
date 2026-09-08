@@ -279,11 +279,18 @@ export type Visual = {
     tooltips: WellField[];
     smallMultiples: WellField[];
     drillFields: WellField[];
-    /** gauge: min/max/target bound fields (single field each) */
+    /** card/gauge: min/max/target bound fields, index-aligned with `values`
+     * (field `i` applies to `values[i]`). */
     minimum: WellField[];
     maximum: WellField[];
     target: WellField[];
-    /** gauge: typed constant bounds; a dropped field wins while present */
+    /** card/gauge: typed constant bounds, one per `values` entry; a dropped
+     * field at the same index wins while present. */
+    minimumValues?: (number | undefined)[];
+    maximumValues?: (number | undefined)[];
+    targetValues?: (number | undefined)[];
+    /** Legacy single-bound constants (index 0 / fallback when the arrays
+     * above are absent). */
     minimumValue?: number;
     maximumValue?: number;
     targetValue?: number;
@@ -362,6 +369,33 @@ export type Visual = {
     gauge?: GaugeStyle;
     /** clock (live time/date element) styling */
     clock?: ClockStyle;
+    /** Per-value overrides (index-aligned with `values`) for card/gauge
+     * styling. Absent entries fall back to the shared blocks above. */
+    valueStyle?: ValueStyle[];
+    /** How multiple card/gauge values are laid out in the same visual box. */
+    multiLayout?: 'grid' | 'stack';
+};
+
+/** Per-value styling override for card/gauge visuals. Each optional block
+ * replaces the corresponding shared visual style for that single value. */
+export type ValueStyle = {
+    /** Card/gauge big number styling. */
+    callout?: CalloutStyle;
+    /** Card/gauge category label styling. */
+    categoryLabel?: CategoryLabelStyle;
+    /** Card/gauge conditional format (fallback: `Visual.conditionalFormat`). */
+    conditionalFormat?: boolean | ConditionalFormat;
+    /** Gauge-only overrides: arc/target colors, fx, display format and the
+     * big-number (callout) label style. */
+    gauge?: Partial<
+        Pick<
+            GaugeStyle,
+            'fillColor' | 'fillFx' | 'targetColor' | 'targetFx' | 'value'
+        >
+    > & {
+        /** Per-value big-number (callout) label style. */
+        callout?: GaugeLabelStyle;
+    };
 };
 
 export type PageFormat = {

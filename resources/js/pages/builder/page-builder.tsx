@@ -9,6 +9,7 @@ import {
     FileText,
     Loader2,
     Share2,
+    Globe,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -42,6 +43,7 @@ export default function PageBuilder() {
         duplicatePage,
         deletePage,
         updatePage,
+        togglePublished,
     } = usePagesRegistry();
     const { groups, assignPage } = useSidebarStructure();
     const [creating, setCreating] = useState(false);
@@ -78,10 +80,11 @@ export default function PageBuilder() {
         }
     };
 
-    const copyUrl = (slug: string) => {
+    const copyUrl = (slug: string, published: boolean) => {
         const url = `${window.location.origin}/p/${slug}`;
-        navigator.clipboard.writeText(url);
-        toast.success('URL copiée');
+        const share = published ? `${window.location.origin}/pub/${slug}` : url;
+        navigator.clipboard.writeText(share);
+        toast.success(published ? 'URL publique copiée' : 'URL copiée');
     };
 
     if (loading) {
@@ -130,12 +133,20 @@ export default function PageBuilder() {
                         {pages.map((p) => (
                             <div
                                 key={p.id}
-                                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+                                className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-4"
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                        <div className="truncate text-sm font-bold">
-                                            {p.name}
+                                        <div className="flex items-center gap-2">
+                                            <div className="truncate text-sm font-bold">
+                                                {p.name}
+                                            </div>
+                                            {p.published && (
+                                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                                                    <Globe className="h-3 w-3" />{' '}
+                                                    Publié
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-1 truncate font-mono text-[11px] text-muted-foreground">
                                             <LinkIcon className="h-3 w-3" /> /p/
@@ -156,12 +167,14 @@ export default function PageBuilder() {
                                             ?.name ?? p.group_id}
                                     </div>
                                 )}
-                                <div className="mt-auto flex flex-wrap items-center justify-between gap-1.5 border-t border-border pt-3">
-                                    <div className="flex flex-nowrap items-center gap-1.5">
-                                        <Link href={`/p/${p.slug}`}>
+                                <div className="mt-auto flex flex-wrap items-stretch gap-1.5 gap-y-2 border-t border-border pt-3">
+                                        <Link
+                                            href={`/p/${p.slug}`}
+                                            className="min-w-0 flex-1 sm:flex-none"
+                                        >
                                             <Button
                                                 size="sm"
-                                                className="h-7 text-[11px] tracking-wider uppercase"
+                                                className="h-7 w-full text-[11px] tracking-wider uppercase"
                                             >
                                                 <ExternalLink className="mr-1 h-3 w-3" />{' '}
                                                 Ouvrir
@@ -171,7 +184,7 @@ export default function PageBuilder() {
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                className="h-7 text-[11px]"
+                                                className="h-7 flex-1 text-[11px] sm:flex-none"
                                                 onClick={() => {
                                                     originalGroupIdRef.current =
                                                         p.group_id;
@@ -190,7 +203,7 @@ export default function PageBuilder() {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-7 text-[11px]"
+                                            className="h-7 flex-1 text-[11px] sm:flex-none"
                                             onClick={async () => {
                                                 setBusy(true);
                                                 const c = await duplicatePage(
@@ -206,22 +219,53 @@ export default function PageBuilder() {
                                             <Copy className="mr-1 h-3 w-3" />{' '}
                                             Dupliquer
                                         </Button>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-1.5">
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-7 text-[11px]"
-                                            onClick={() => copyUrl(p.slug)}
+                                            className="h-7 flex-1 text-[11px] sm:flex-none"
+                                            onClick={() =>
+                                                copyUrl(p.slug, !!p.published)
+                                            }
                                         >
                                             <LinkIcon className="mr-1 h-3 w-3" />{' '}
                                             URL
                                         </Button>
+                                        {p.can_edit && (
+                                            <Button
+                                                size="sm"
+                                                variant={
+                                                    p.published
+                                                        ? 'outline'
+                                                        : 'default'
+                                                }
+                                                className="h-7 flex-1 text-[11px] sm:flex-none"
+                                                disabled={busy}
+                                                onClick={async () => {
+                                                    setBusy(true);
+                                                    const next =
+                                                        await togglePublished(
+                                                            p.id,
+                                                            !p.published,
+                                                        );
+                                                    setBusy(false);
+                                                    toast.success(
+                                                        next?.published
+                                                            ? `« ${p.name} » publié`
+                                                            : `« ${p.name} » dépublié`,
+                                                    );
+                                                }}
+                                            >
+                                                <Globe className="mr-1 h-3 w-3" />{' '}
+                                                {p.published
+                                                    ? 'Dépublier'
+                                                    : 'Publier'}
+                                            </Button>
+                                        )}
                                         {p.can_manage && (
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                className="h-7 text-[11px]"
+                                                className="h-7 flex-1 text-[11px] sm:flex-none"
                                                 onClick={() =>
                                                     setSharing({
                                                         id: p.id,
@@ -237,7 +281,7 @@ export default function PageBuilder() {
                                             <Button
                                                 size="sm"
                                                 variant="destructive"
-                                                className="h-7 text-[11px]"
+                                                className="h-7 flex-1 text-[11px] sm:flex-none"
                                                 disabled={busy}
                                                 onClick={async () => {
                                                     if (
@@ -263,7 +307,6 @@ export default function PageBuilder() {
                                             </Button>
                                         )}
                                     </div>
-                                </div>
                             </div>
                         ))}
                     </div>

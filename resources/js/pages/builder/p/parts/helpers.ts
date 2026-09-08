@@ -10,6 +10,8 @@ export type PageProps = {
     layoutDraftUpdatedAt?: string | null;
     canEdit?: boolean;
     canManage?: boolean;
+    isPublic?: boolean;
+    published?: boolean;
 };
 
 /** A layout snapshot as persisted: the store state minus the shared measures. */

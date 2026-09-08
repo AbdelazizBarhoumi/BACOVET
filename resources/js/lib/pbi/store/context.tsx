@@ -896,12 +896,7 @@ export function PbiProvider({
                     )
                         return v;
                     const next = [...v[well], normalized];
-                    const single =
-                        well === 'axis' ||
-                        well === 'legend' ||
-                        well === 'minimum' ||
-                        well === 'maximum' ||
-                        well === 'target';
+                    const single = well === 'axis' || well === 'legend';
                     return { ...v, [well]: single ? next.slice(-1) : next };
                 }),
             ),
@@ -961,12 +956,7 @@ export function PbiProvider({
                     );
                     if (v[well].some(matches)) return v;
                     const next = [...v[well], normalized];
-                    const single =
-                        well === 'axis' ||
-                        well === 'legend' ||
-                        well === 'minimum' ||
-                        well === 'maximum' ||
-                        well === 'target';
+                    const single = well === 'axis' || well === 'legend';
                     return { ...v, [well]: single ? next.slice(-1) : next };
                 }),
             ),

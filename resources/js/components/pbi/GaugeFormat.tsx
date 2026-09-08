@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import {
     DISPLAY_UNITS,
     fieldLabel,
     normalizeConditionalFormat,
     normalizeGaugeStyle,
+    valueGaugeStyle,
     type DisplayUnit,
     type GaugeBoundStyle,
     type GaugeLabelStyle,
     type GaugeStyle,
+    type GaugeValueStyle,
+    type ValueStyle,
     type Visual,
 } from '@/lib/pbi/model';
 import { usePbi } from '@/lib/pbi/store';
@@ -161,26 +165,107 @@ function GaugeLabelSection({
     );
 }
 
-/** The format tab for the gauge: gauge axis, colors, data labels, general. */
+/** The format tab for the gauge: gauge axis, colors, data labels, general.
+ * With multiple "Valeur" fields each value gets its own colors / display
+ * format / callout via `Visual.valueStyle`. */
 export function GaugeFormat({ visual }: { visual: Visual }) {
     const { updateVisual } = usePbi();
-    const gauge = normalizeGaugeStyle(visual.gauge);
+    const [scope, setScope] = useState<number | null>(null);
+    const multi = visual.values.length > 1;
+    const idx = scope ?? 0;
+    const gauge =
+        scope === null
+            ? normalizeGaugeStyle(visual.gauge)
+            : valueGaugeStyle(visual, scope);
 
-    const patchGauge = (patch: Partial<GaugeStyle>) =>
-        updateVisual(visual.id, { gauge: { ...gauge, ...patch } });
-    const patchValue = (patch: Partial<GaugeStyle['value']>) =>
-        patchGauge({ value: { ...gauge.value, ...patch } });
+    /** Write a per-value block (`valueStyle[index]`), growing the array as
+     * needed. */
+    const setValueStyle = (
+        index: number,
+        fn: (b: ValueStyle) => ValueStyle,
+    ) => {
+        const arr = [...(visual.valueStyle ?? [])];
+        while (arr.length <= index) arr.push({});
+        arr[index] = fn(arr[index] ?? {});
+        updateVisual(visual.id, { valueStyle: arr });
+    };
+
+    /** Commit a gauge patch to the shared block (scope = all) or into the
+     * per-value overrides (per-value colors / display / callout only). */
+    const writeGaugePatch = (patch: Partial<GaugeStyle>) => {
+        if (scope === null) {
+            updateVisual(visual.id, { gauge: { ...gauge, ...patch } });
+            return;
+        }
+        const merged: ValueStyle['gauge'] = {
+            ...(visual.valueStyle?.[scope]?.gauge ?? {}),
+        };
+        if (patch.value !== undefined) merged.value = patch.value;
+        if (patch.fillColor !== undefined) merged.fillColor = patch.fillColor;
+        if (patch.fillFx !== undefined) merged.fillFx = patch.fillFx;
+        if (patch.targetColor !== undefined)
+            merged.targetColor = patch.targetColor;
+        if (patch.targetFx !== undefined) merged.targetFx = patch.targetFx;
+        if (patch.dataLabels?.callout !== undefined)
+            merged.callout = patch.dataLabels.callout;
+        setValueStyle(scope, (b) => ({ ...b, gauge: merged }));
+    };
+
+    const patchValue = (patch: Partial<GaugeValueStyle>) =>
+        writeGaugePatch({ value: { ...gauge.value, ...patch } });
     const patchBound = (key: GaugeBoundKey, patch: Partial<GaugeBoundStyle>) =>
-        patchGauge({
-            axis: { ...gauge.axis, [key]: { ...gauge.axis[key], ...patch } },
-        });
-    const patchLabel = (key: GaugeLabelKey, patch: Partial<GaugeLabelStyle>) =>
-        patchGauge({
-            dataLabels: {
-                ...gauge.dataLabels,
-                [key]: { ...gauge.dataLabels[key], ...patch },
+        updateVisual(visual.id, {
+            gauge: {
+                ...gauge,
+                axis: {
+                    ...gauge.axis,
+                    [key]: { ...gauge.axis[key], ...patch },
+                },
             },
         });
+    const patchLabel = (
+        key: GaugeLabelKey,
+        patch: Partial<GaugeLabelStyle>,
+    ) => {
+        if (key === 'callout') {
+            writeGaugePatch({
+                dataLabels: {
+                    ...gauge.dataLabels,
+                    callout: { ...gauge.dataLabels.callout, ...patch },
+                },
+            });
+        } else {
+            updateVisual(visual.id, {
+                gauge: {
+                    ...gauge,
+                    dataLabels: {
+                        ...gauge.dataLabels,
+                        [key]: { ...gauge.dataLabels[key], ...patch },
+                    },
+                },
+            });
+        }
+    };
+
+    /** Typed constant for the selected scope (legacy scalar vs per-value
+     * array entry). */
+    const constantFor = (key: 'minimum' | 'maximum' | 'target') =>
+        scope === null
+            ? visual[`${key}Value`]
+            : visual[`${key}Values`]?.[scope];
+    const setConstant = (
+        key: 'minimum' | 'maximum' | 'target',
+        v: number | undefined,
+    ) => {
+        if (scope === null) {
+            updateVisual(visual.id, { [`${key}Value`]: v });
+        } else {
+            const arr = [...(visual[`${key}Values`] ?? [])];
+            while (arr.length <= scope) arr.push(undefined);
+            arr[scope] = v;
+            updateVisual(visual.id, { [`${key}Values`]: arr });
+        }
+    };
 
     return (
         <div className="space-y-3 text-[11px]">
@@ -188,6 +273,25 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                 visual={visual}
                 onPatch={(p) => updateVisual(visual.id, p)}
             />
+
+            {multi && (
+                <Section title="Champ formaté" defaultOpen>
+                    <Select
+                        label="Éditer le format de"
+                        value={scope === null ? '__all__' : String(scope)}
+                        options={[
+                            { value: '__all__', label: 'Toutes les valeurs' },
+                            ...visual.values.map((v, i) => ({
+                                value: String(i),
+                                label: fieldLabel(v),
+                            })),
+                        ]}
+                        onChange={(v) =>
+                            setScope(v === '__all__' ? null : Number(v))
+                        }
+                    />
+                </Section>
+            )}
 
             <Section title="Axe de la jauge" defaultOpen>
                 <div className="text-muted-foreground">
@@ -228,17 +332,13 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                 <div className="grid grid-cols-2 gap-2">
                     <OptionalNumberInput
                         label="Min"
-                        value={visual.minimumValue}
-                        onChange={(v) =>
-                            updateVisual(visual.id, { minimumValue: v })
-                        }
+                        value={constantFor('minimum')}
+                        onChange={(v) => setConstant('minimum', v)}
                     />
                     <OptionalNumberInput
                         label="Max"
-                        value={visual.maximumValue}
-                        onChange={(v) =>
-                            updateVisual(visual.id, { maximumValue: v })
-                        }
+                        value={constantFor('maximum')}
+                        onChange={(v) => setConstant('maximum', v)}
                     />
                 </div>
                 {(
@@ -247,22 +347,22 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                             key: 'min',
                             title: 'Minimum',
                             wellLabel: 'Valeur minimum',
-                            field: visual.minimum[0],
-                            constant: visual.minimumValue,
+                            field: visual.minimum[idx],
+                            constant: constantFor('minimum'),
                         },
                         {
                             key: 'max',
                             title: 'Maximum',
                             wellLabel: 'Valeur maximum',
-                            field: visual.maximum[0],
-                            constant: visual.maximumValue,
+                            field: visual.maximum[idx],
+                            constant: constantFor('maximum'),
                         },
                         {
                             key: 'target',
                             title: 'Cible',
                             wellLabel: 'Valeur cible',
-                            field: visual.target[0],
-                            constant: visual.targetValue,
+                            field: visual.target[idx],
+                            constant: constantFor('target'),
                         },
                     ] as const
                 ).map(
@@ -285,26 +385,26 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                     <ColorInput
                         label="Remplissage"
                         value={gauge.fillColor}
-                        onChange={(v) => patchGauge({ fillColor: v })}
+                        onChange={(v) => writeGaugePatch({ fillColor: v })}
                     />
                     <ColorInput
                         label="Cible"
                         value={gauge.targetColor}
-                        onChange={(v) => patchGauge({ targetColor: v })}
+                        onChange={(v) => writeGaugePatch({ targetColor: v })}
                     />
                 </div>
                 <ConditionalFormatControl
                     visual={visual}
                     label="fx — Remplissage"
                     value={normalizeConditionalFormat(gauge.fillFx)}
-                    onCommit={(cf) => patchGauge({ fillFx: cf })}
+                    onCommit={(cf) => writeGaugePatch({ fillFx: cf })}
                     hideFieldValue
                 />
                 <ConditionalFormatControl
                     visual={visual}
                     label="fx — Cible"
                     value={normalizeConditionalFormat(gauge.targetFx)}
-                    onCommit={(cf) => patchGauge({ targetFx: cf })}
+                    onCommit={(cf) => writeGaugePatch({ targetFx: cf })}
                     hideFieldValue
                 />
             </Section>
@@ -313,7 +413,7 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                 title="Étiquettes de données"
                 checked={gauge.dataLabels.show}
                 onToggle={(v) =>
-                    patchGauge({
+                    writeGaugePatch({
                         dataLabels: { ...gauge.dataLabels, show: v },
                     })
                 }
@@ -337,6 +437,22 @@ export function GaugeFormat({ visual }: { visual: Visual }) {
                     onPatch={(p) => patchLabel('callout', p)}
                 />
             </ToggleGroup>
+
+            <Section title="Disposition">
+                <Select
+                    label="Valeurs multiples"
+                    value={visual.multiLayout ?? 'grid'}
+                    options={[
+                        { value: 'grid', label: 'Côte à côte' },
+                        { value: 'stack', label: 'Empilées' },
+                    ]}
+                    onChange={(v) =>
+                        updateVisual(visual.id, {
+                            multiLayout: v as 'grid' | 'stack',
+                        })
+                    }
+                />
+            </Section>
 
             <GeneralSection
                 visual={visual}

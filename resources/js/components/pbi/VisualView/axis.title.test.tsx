@@ -1,12 +1,22 @@
-// @vitest-environment node
+// @vitest-environment jsdom
 // Regression: axis titles sit just OUTSIDE their own tick lane on the correct
 // side (left title → left of the lane, right → right, bottom → below,
 // top → above), with a small fixed gap — not a huge offset into the margin.
-import { renderToStaticMarkup } from 'react-dom/server';
+// Rendered client-side because recharts 3 does not emit chart content from
+// static markup (SSR); the live SVG is then queried for the title coordinates.
+import { act, type ReactNode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { ComposedChart, Line, XAxis, YAxis } from 'recharts';
 import { describe, expect, it } from 'vitest';
 import type { AxisDef, AxisStyle, Visual } from '@/lib/pbi/model';
-import { AXIS_TITLE_GAP, axisDefProps, axisTitle, estimateCategoryAxisLane } from './shared';
+import {
+    AXIS_TITLE_GAP,
+    axisDefProps,
+    axisTitle,
+    estimateCategoryAxisLane,
+} from './shared';
+
+(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
 const data = [
     { category: 'A', a: 10, b: 40 },
@@ -73,6 +83,17 @@ function labelOf(html: string, text: string): Label {
     return found;
 }
 
+function renderChart(node: ReactNode) {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    act(() => root.render(node));
+    return {
+        html: host.innerHTML,
+        cleanup: () => act(() => root.unmount()),
+    };
+}
+
 describe('axis title placement', () => {
     it('rotated Y titles sit just outside the lane on the correct side', () => {
         const gutter = 80;
@@ -89,7 +110,7 @@ describe('axis title placement', () => {
             true,
             gutter,
         );
-        const html = renderToStaticMarkup(
+        const { html, cleanup } = renderChart(
             <ComposedChart
                 width={800}
                 height={300}
@@ -113,10 +134,23 @@ describe('axis title placement', () => {
         const plotRight = 800 - reserve - gutter;
         const gauche = labelOf(html, 'Gauche');
         const droite = labelOf(html, 'Droite');
-        expect(Number(gauche.x)).toBeCloseTo(plotLeft - gutter - AXIS_TITLE_GAP);
-        expect(Number(droite.x)).toBeCloseTo(plotRight + gutter + AXIS_TITLE_GAP);
-        expect(left.label).toMatchObject({ position: 'insideLeft', angle: -90, offset: -AXIS_TITLE_GAP });
-        expect(right.label).toMatchObject({ position: 'insideRight', angle: -90, offset: -AXIS_TITLE_GAP });
+        expect(Number(gauche.x)).toBeCloseTo(
+            plotLeft - gutter - AXIS_TITLE_GAP,
+        );
+        expect(Number(droite.x)).toBeCloseTo(
+            plotRight + gutter + AXIS_TITLE_GAP,
+        );
+        expect(left.label).toMatchObject({
+            position: 'insideLeft',
+            angle: -90,
+            offset: -AXIS_TITLE_GAP,
+        });
+        expect(right.label).toMatchObject({
+            position: 'insideRight',
+            angle: -90,
+            offset: -AXIS_TITLE_GAP,
+        });
+        cleanup();
     });
 
     it('stacked X titles sit just above/below their lane', () => {
@@ -134,7 +168,7 @@ describe('axis title placement', () => {
             false,
             lane,
         );
-        const html = renderToStaticMarkup(
+        const { html, cleanup } = renderChart(
             <ComposedChart
                 width={800}
                 height={300}
@@ -161,8 +195,15 @@ describe('axis title placement', () => {
         const haut = labelOf(html, 'Haut');
         expect(Number(bas.y)).toBeCloseTo(plotBottom + lane + AXIS_TITLE_GAP);
         expect(Number(haut.y)).toBeCloseTo(plotTop - lane - AXIS_TITLE_GAP);
-        expect(bottom.label).toMatchObject({ position: 'bottom', offset: AXIS_TITLE_GAP });
-        expect(top.label).toMatchObject({ position: 'top', offset: AXIS_TITLE_GAP });
+        expect(bottom.label).toMatchObject({
+            position: 'bottom',
+            offset: AXIS_TITLE_GAP,
+        });
+        expect(top.label).toMatchObject({
+            position: 'top',
+            offset: AXIS_TITLE_GAP,
+        });
+        cleanup();
     });
 
     it('single-axis title uses the same tight offset', () => {
@@ -175,8 +216,15 @@ describe('axis title placement', () => {
         };
         const label = axisTitle(style, true);
         const labelBottom = axisTitle(style, false);
-        expect(label).toMatchObject({ position: 'insideLeft', angle: -90, offset: -AXIS_TITLE_GAP });
-        expect(labelBottom).toMatchObject({ position: 'bottom', offset: AXIS_TITLE_GAP });
+        expect(label).toMatchObject({
+            position: 'insideLeft',
+            angle: -90,
+            offset: -AXIS_TITLE_GAP,
+        });
+        expect(labelBottom).toMatchObject({
+            position: 'bottom',
+            offset: AXIS_TITLE_GAP,
+        });
     });
 
     it('titleOffset pushes the title away from the axis', () => {

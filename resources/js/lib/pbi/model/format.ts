@@ -1518,6 +1518,68 @@ export function normalizeGaugeStyle(input: unknown): GaugeStyle {
     return out;
 }
 
+/* --------------------- Per-value style resolvers --------------------- */
+
+/** The per-value styling block for `index`, or `undefined` when the visual
+ * has no override there. */
+function valueStyleBlock(visual: Visual, index: number) {
+    const block = visual.valueStyle?.[index];
+    return block && typeof block === 'object' ? block : undefined;
+}
+
+/** Per-value callout style for a card/gauge value; falls back to the shared
+ * block when the visual carries no per-value override. */
+export function valueCallout(visual: Visual, index: number): CalloutStyle {
+    const block = valueStyleBlock(visual, index);
+    return normalizeCalloutStyle(block?.callout ?? visual.callout);
+}
+
+/** Per-value category label style for a card/gauge value; falls back to the
+ * shared block when the visual carries no per-value override. */
+export function valueCategoryLabel(
+    visual: Visual,
+    index: number,
+): CategoryLabelStyle {
+    const block = valueStyleBlock(visual, index);
+    return normalizeCategoryLabelStyle(
+        block?.categoryLabel ?? visual.categoryLabel,
+    );
+}
+
+/** Per-value conditional format for a card/gauge value; falls back to the
+ * shared visual format when no per-value override exists. */
+export function valueConditionalFormat(
+    visual: Visual,
+    index: number,
+): boolean | ConditionalFormat {
+    const block = valueStyleBlock(visual, index);
+    return block && block.conditionalFormat !== undefined
+        ? block.conditionalFormat
+        : visual.conditionalFormat;
+}
+
+/** Per-value gauge style: the shared gauge block with any per-value color /
+ * fx / display-format overrides applied on top. */
+export function valueGaugeStyle(visual: Visual, index: number): GaugeStyle {
+    const base = normalizeGaugeStyle(visual.gauge);
+    const block = valueStyleBlock(visual, index);
+    const ov = block?.gauge;
+    if (!ov) return base;
+    const out: GaugeStyle = { ...base };
+    if (ov.fillColor !== undefined) out.fillColor = ov.fillColor;
+    if (ov.fillFx !== undefined) out.fillFx = ov.fillFx;
+    if (ov.targetColor !== undefined) out.targetColor = ov.targetColor;
+    if (ov.targetFx !== undefined) out.targetFx = ov.targetFx;
+    if (ov.value !== undefined)
+        out.value = normalizeGaugeValue(ov.value, base.value);
+    if (ov.callout !== undefined)
+        out.dataLabels = {
+            ...base.dataLabels,
+            callout: normalizeGaugeLabel(ov.callout, base.dataLabels.callout),
+        };
+    return out;
+}
+
 /* ------------------------- Clock normalizers ------------------------- */
 
 export const CLOCK_DATE_FORMATS: ClockDateFormat[] = [

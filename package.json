@@ -104,7 +104,7 @@
         "react-pick-color": "^2.1.0",
         "react-resizable": "^4.0.2",
         "react-resizable-panels": "^4.11.2",
-        "recharts": "^2.15.4",
+        "recharts": "^3.10.1",
         "sonner": "^2.0.7",
         "tailwind-merge": "^3.0.1",
         "tailwindcss": "^4.0.0",

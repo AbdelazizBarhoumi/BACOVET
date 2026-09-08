@@ -13,13 +13,14 @@ class BuilderPage extends Model
 
     protected $table = 'builder_pages';
 
-    protected $fillable = ['slug', 'name', 'layout', 'layout_draft', 'group_id', 'sort_order', 'owner_user_id'];
+    protected $fillable = ['slug', 'name', 'layout', 'layout_draft', 'group_id', 'sort_order', 'owner_user_id', 'published'];
 
     protected $casts = [
         'layout' => 'array',
         'layout_draft' => 'array',
         'layout_draft_updated_at' => 'datetime',
         'owner_user_id' => 'integer',
+        'published' => 'boolean',
     ];
 
     public function group(): BelongsTo

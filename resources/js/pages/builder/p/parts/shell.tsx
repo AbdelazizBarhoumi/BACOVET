@@ -3,6 +3,7 @@ import axios from 'axios';
 import {
     ArrowLeft,
     Eye,
+    Globe,
     Pencil,
     Redo2,
     Save,
@@ -32,6 +33,8 @@ export function Shell({
     layoutDraftUpdatedAt,
     canEdit,
     canManage,
+    isPublic,
+    published,
 }: {
     pageId: number;
     slug: string;
@@ -43,11 +46,15 @@ export function Shell({
     layoutDraftUpdatedAt?: string | null;
     canEdit?: boolean;
     canManage?: boolean;
+    isPublic?: boolean;
+    published?: boolean;
 }) {
     const { state, setState, undo, redo, canUndo, canRedo, fullscreen } =
         usePbi();
     const [mode, setMode] = useState<'view' | 'edit'>('view');
     const canEditPage = canEdit ?? true;
+    const [publishedState, setPublishedState] = useState(() => !!published);
+    const [publishBusy, setPublishBusy] = useState(false);
     const [sharing, setSharing] = useState(false);
     const savingRef = useRef(false);
     const draftSavingRef = useRef(false);
@@ -112,6 +119,25 @@ export function Shell({
             toast.error("Échec de l'enregistrement du layout");
         } finally {
             savingRef.current = false;
+        }
+    };
+
+    const togglePublish = async () => {
+        if (publishBusy) return;
+        setPublishBusy(true);
+        try {
+            const next = !publishedState;
+            await axios.put(`/api/builder-pages/${pageId}`, {
+                published: next,
+            });
+            setPublishedState(next);
+            toast.success(next ? 'Page publiée' : 'Page dépubliée');
+        } catch (err) {
+            if (!handleApiError(statusOfError(err))) {
+                toast.error("Échec de la mise à jour de la publication");
+            }
+        } finally {
+            setPublishBusy(false);
         }
     };
 
@@ -236,25 +262,52 @@ export function Shell({
         <div className="flex min-h-0 flex-1 flex-col">
             <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border bg-panel px-3">
                 <div className="flex min-w-0 items-center gap-3">
-                    <Link href="/">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-[11px] tracking-wider uppercase"
-                        >
-                            <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Pages
-                        </Button>
-                    </Link>
+                    {!isPublic && (
+                        <Link href="/">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-[11px] tracking-wider uppercase"
+                            >
+                                <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Pages
+                            </Button>
+                        </Link>
+                    )}
                     <div className="min-w-0">
                         <div className="truncate text-[13px] font-bold">
                             {pageName}
                         </div>
                         <div className="truncate font-mono text-[10px] text-muted-foreground">
-                            /p/{slug}
+                            {isPublic ? `/pub/${slug}` : `/p/${slug}`}
                         </div>
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                    {canEditPage && !isPublic && (
+                        <>
+                            {publishedState && (
+                                <a
+                                    href={`/pub/${slug}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex h-8 items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/20"
+                                    title={`Lien public : /pub/${slug}`}
+                                >
+                                    <Globe className="h-3.5 w-3.5" /> Publié
+                                </a>
+                            )}
+                            <Button
+                                size="sm"
+                                variant={publishedState ? 'outline' : 'default'}
+                                className="h-8 text-[11px]"
+                                disabled={publishBusy}
+                                onClick={togglePublish}
+                            >
+                                <Globe className="mr-1 h-3.5 w-3.5" />{' '}
+                                {publishedState ? 'Dépublier' : 'Publier'}
+                            </Button>
+                        </>
+                    )}
                     {canManage && (
                         <Button
                             size="sm"

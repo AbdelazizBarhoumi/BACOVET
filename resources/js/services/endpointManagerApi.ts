@@ -302,11 +302,15 @@ async function fetchSchemaColumn(column: string): Promise<SchemaAnalysis> {
     );
 }
 
-// ── Schema (cross-table joins) ──────────────────────────────────────────
-// The builder runs under the main protected routes and uses the dedicated
-// /api/schema endpoint instead of the IT-only /novacity-endpoints/schema
-// route used by the main endpoints manager.
-
+/**
+ * Schema (cross-table joins) for the page builder.
+ *
+ * The builder runs under the main protected routes and uses the dedicated
+ * /api/schema endpoint instead of the IT-only /novacity-endpoints/schema
+ * route used by the main endpoints manager. `?light=1` returns only the
+ * join/key fields the builder consumes, which keeps the payload small on the
+ * report's load path.
+ */
 let builderSchemaCache: SchemaAnalysis | null = null;
 
 export const fetchBuilderSchema = async (
@@ -317,7 +321,7 @@ export const fetchBuilderSchema = async (
     }
     try {
         builderSchemaCache = await fetchWithToken<SchemaAnalysis>(
-            `${BASE_URL}/api/schema`,
+            `${BASE_URL}/api/schema?light=1`,
         );
         return builderSchemaCache;
     } catch (err) {

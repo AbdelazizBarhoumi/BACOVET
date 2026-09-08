@@ -7,19 +7,15 @@ return [
     | Server Side Rendering
     |--------------------------------------------------------------------------
     |
-    | These options configures if and how Inertia uses Server Side Rendering
-    | to pre-render each initial request made to your application's pages
-    | so that server rendered HTML is delivered for the user's browser.
-    |
-    | See: https://inertiajs.com/server-side-rendering
+    | SSR is disabled by default in this project; pages are rendered
+    | client-side by Vite/Inertia.
     |
     */
 
     'ssr' => [
-        'enabled' => true,
-        'url' => 'http://127.0.0.1:13714',
-        // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
-
+        'enabled' => (bool) env('INERTIA_SSR_ENABLED', false),
+        'url' => env('INERTIA_SSR_URL', 'http://127.0.0.1:13714'),
+        'ensure_bundle_exists' => (bool) env('INERTIA_SSR_ENSURE_BUNDLE_EXISTS', false),
     ],
 
     /*
@@ -27,19 +23,44 @@ return [
     | Pages
     |--------------------------------------------------------------------------
     |
-    | These options configure how Inertia discovers page components on the
-    | filesystem. The paths and extensions are used to locate components
-    | when rendering responses and during testing assertions.
+    | The `page_paths` and `page_extensions` options define where Inertia
+    | looks for page components. Pages live under resources/js/pages.
     |
     */
 
-    'pages' => [
+    'ensure_pages_exist' => false,
 
-        'paths' => [
+    'page_paths' => [
+        resource_path('js/pages'),
+    ],
+
+    'page_extensions' => [
+        'js',
+        'jsx',
+        'svelte',
+        'ts',
+        'tsx',
+        'vue',
+    ],
+
+    'use_script_element_for_initial_page' => (bool) env('INERTIA_USE_SCRIPT_ELEMENT_FOR_INITIAL_PAGE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Testing
+    |--------------------------------------------------------------------------
+    |
+    | Values used to locate Inertia components on the filesystem when using
+    | assertions such as assertInertia.
+    |
+    */
+
+    'testing' => [
+        'ensure_pages_exist' => false,
+        'page_paths' => [
             resource_path('js/pages'),
         ],
-
-        'extensions' => [
+        'page_extensions' => [
             'js',
             'jsx',
             'svelte',
@@ -47,24 +68,10 @@ return [
             'tsx',
             'vue',
         ],
-
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Testing
-    |--------------------------------------------------------------------------
-    |
-    | The values described here are used to locate Inertia components on the
-    | filesystem. For instance, when using `assertInertia`, the assertion
-    | attempts to locate the component as a file relative to the paths.
-    |
-    */
-
-    'testing' => [
-
-        'ensure_pages_exist' => true,
-
+    'history' => [
+        'encrypt' => (bool) env('INERTIA_ENCRYPT_HISTORY', false),
     ],
 
 ];

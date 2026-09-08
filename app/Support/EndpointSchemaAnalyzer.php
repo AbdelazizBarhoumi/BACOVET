@@ -14,6 +14,14 @@ namespace App\Support;
  */
 class EndpointSchemaAnalyzer
 {
+    /**
+     * Cross-request cache key for the full analysis result. The analysis is
+     * expensive (re-reads + re-parses the registry and scans every column's
+     * distinct values), so it is computed once and reused until the registry
+     * is invalidated. The builder / endpoints manager both derive from it.
+     */
+    public const CACHE_KEY = 'endpoints:schema:analysis:v1';
+
     private const MAX_ROWS = 1000;
 
     private const MAX_DISTINCT = 2000;

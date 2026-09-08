@@ -5,10 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     defaultAxes,
     normalizeAxisStyle,
+    registerMeasure,
     setTables,
     STACKED_EMPTY_FILL,
+    unregisterMeasure,
 } from '@/lib/pbi/model';
-import type { Row, TableDef, Visual, WellField } from '@/lib/pbi/model';
+import type { Field, Row, TableDef, Visual, WellField } from '@/lib/pbi/model';
 import { ChartBody } from './chart';
 
 vi.mock('recharts', async () => {
@@ -56,13 +58,20 @@ vi.mock('recharts', async () => {
     return out;
 });
 
+/** Mutable stand-in for the store's `measures` array (see ChartBody re-key). */
+let mockMeasures: Field[] = [];
+
+/** Stable graph reference — mirrors the provider's memoized `state.graph`. */
+const mockGraph = { edges: [] };
+
 vi.mock('@/lib/pbi/store', async () => {
     const usePbi = () => ({
         applyCrossFilter: () => {},
         setTooltipHover: () => {},
         tooltipHover: null,
-        graph: { edges: [] },
+        graph: mockGraph,
         filteredTables: undefined,
+        measures: mockMeasures,
     });
     return {
         usePbi,
@@ -236,6 +245,92 @@ describe('chart child keys', () => {
                     `${name} never receives the misspelled datakey`,
                 ).not.toHaveProperty('datakey');
             }
+        }
+    });
+});
+
+describe('measure-bound charts recompute when the measure library loads', () => {
+    const all = globalThis as {
+        __rechartsCalls?: Record<string, Record<string, unknown>[]>;
+    };
+
+    function clearCalls() {
+        const calls = (all.__rechartsCalls ??= {});
+        for (const name of Object.keys(calls)) calls[name] = [];
+    }
+
+    it('rekeys the chart data memo on the measures identity', () => {
+        const name = 'TotalVolume';
+        unregisterMeasure(name);
+
+        setTables([sales]);
+        mockMeasures = [];
+
+        const v = visual({
+            type: 'column',
+            axis: [well('Chaine')],
+            values: [{ table: 'Measures', name, label: name, agg: 'sum' }],
+        });
+
+        const host = document.createElement('div');
+        const root = createRoot(host);
+        const errorSpy = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => {});
+        try {
+            // First paint: the async measure library has not resolved yet, so
+            // MEASURE_IMPL does not know the measure and the chart renders 0.
+            clearCalls();
+            act(() =>
+                root.render(
+                    <ChartBody visual={v} rows={sales.rows} match={null} />,
+                ),
+            );
+            let composed = all.__rechartsCalls?.ComposedChart ?? [];
+            let data = composed[composed.length - 1]?.data as
+                Record<string, string | number>[] | undefined;
+            expect(data, 'first paint data').toBeDefined();
+            for (const row of data!) {
+                expect(Number(row[name]), `${name} before library`).toBe(0);
+            }
+
+            // The library fetch resolves: register the expression into the
+            // engine, then commit the new measures array (new identity) —
+            // exactly the ordering the provider's async load effect uses.
+            registerMeasure(name, 'SUM(Sales[Volume])');
+            mockMeasures = [
+                {
+                    table: 'Measures',
+                    name,
+                    type: 'number',
+                    expression: 'SUM(Sales[Volume])',
+                },
+            ];
+
+            // Same props, same rows, same visual reference: only `measures`
+            // changed. Without the re-key this render keeps the stale memo.
+            clearCalls();
+            act(() =>
+                root.render(
+                    <ChartBody visual={v} rows={sales.rows} match={null} />,
+                ),
+            );
+            composed = all.__rechartsCalls?.ComposedChart ?? [];
+            data = composed[composed.length - 1]?.data as
+                Record<string, string | number>[] | undefined;
+            const byCategory = Object.fromEntries(
+                (data ?? []).map((r) => [
+                    String(r['category']),
+                    Number(r[name]),
+                ]),
+            );
+            expect(byCategory['A'], `${name} for A`).toBe(50);
+            expect(byCategory['B'], `${name} for B`).toBe(30);
+        } finally {
+            act(() => root.unmount());
+            errorSpy.mockRestore();
+            unregisterMeasure(name);
+            mockMeasures = [];
         }
     });
 });
@@ -1098,9 +1193,10 @@ describe('new analytics kinds', () => {
         );
         expect(errors, 'no render errors').toEqual([]);
         const dots = all.__rechartsCalls?.ReferenceDot ?? [];
-        expect(dots.length, 'one dot where Objectif crosses 50').toBeGreaterThan(
-            0,
-        );
+        expect(
+            dots.length,
+            'one dot where Objectif crosses 50',
+        ).toBeGreaterThan(0);
         const dot = dots[0]!;
         expect(dot.x as number).toBeCloseTo(0.5, 5);
         expect(dot.y as number).toBeCloseTo(50, 5);
@@ -1223,9 +1319,7 @@ describe('new analytics kinds', () => {
                 type: 'line',
                 axis: [well('Chaine')],
                 values: [well('Objectif')],
-                analytics: [
-                    { kind: 'average' as const, enabled: true },
-                ],
+                analytics: [{ kind: 'average' as const, enabled: true }],
             }),
         );
         expect(errors, 'no render errors').toEqual([]);
@@ -1454,7 +1548,10 @@ describe('new analytics kinds', () => {
             ).includes('Objectif'),
         );
         expect(constant, 'constant ReferenceLine').toBeDefined();
-        expect(constant!.onMouseEnter, 'no onMouseEnter when static').toBeUndefined();
+        expect(
+            constant!.onMouseEnter,
+            'no onMouseEnter when static',
+        ).toBeUndefined();
     });
 
     it('colors the trend/forecast and band visuals from the line color', () => {
@@ -1696,5 +1793,86 @@ describe('value-axis domains come from a single resolved source', () => {
         expect(errors, 'no render errors').toEqual([]);
         // Objectif spans 10..90; the NaN min falls back to the data extent.
         expect(valueAxis()).toHaveProperty('domain', [10, 50]);
+    });
+});
+
+describe('card and gauge per-value rendering', () => {
+    function renderToHost(partial: Visual): string {
+        setTables([sales]);
+        const errorSpy = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => {});
+        const host = document.createElement('div');
+        const root = createRoot(host);
+        let html = '';
+        try {
+            act(() =>
+                root.render(
+                    <ChartBody
+                        visual={partial}
+                        rows={sales.rows}
+                        match={null}
+                    />,
+                ),
+            );
+            html = host.innerHTML;
+        } finally {
+            act(() => root.unmount());
+            errorSpy.mockRestore();
+        }
+        return html;
+    }
+
+    it('card shows one Objectif line per value with its own target', () => {
+        const html = renderToHost(
+            visual({
+                type: 'card',
+                values: [well('Volume'), well('Objectif')],
+                targetValues: [100, 90],
+            }),
+        );
+        expect(html).toMatch(/Objectif\s*100/);
+        expect(html).toMatch(/Objectif\s*90/);
+        expect(html).not.toMatch(/Objectif\s*100[\s\S]*Objectif\s*100/);
+    });
+
+    it('card stack layout renders a vertical column', () => {
+        const html = renderToHost(
+            visual({
+                type: 'card',
+                multiLayout: 'stack',
+                values: [well('Volume'), well('Objectif')],
+            }),
+        );
+        expect(html).toContain('flex-col');
+        expect(html).not.toContain('flex-wrap');
+    });
+
+    it('gauge renders one svg per value with per-index bounds', () => {
+        const html = renderToHost(
+            visual({
+                type: 'gauge',
+                values: [well('Volume'), well('Objectif')],
+                minimumValues: [0, 0],
+                maximumValues: [100, 200],
+            }),
+        );
+        expect((html.match(/<svg/g) ?? []).length).toBe(2);
+        expect(html).toContain('flex-wrap');
+        expect(html).toContain('100');
+        expect(html).toContain('200');
+    });
+
+    it('gauge stack layout renders a vertical column of gauges', () => {
+        const html = renderToHost(
+            visual({
+                type: 'gauge',
+                multiLayout: 'stack',
+                values: [well('Volume'), well('Objectif')],
+            }),
+        );
+        expect((html.match(/<svg/g) ?? []).length).toBe(2);
+        expect(html).toContain('flex-col');
+        expect(html).not.toContain('flex-wrap');
     });
 });

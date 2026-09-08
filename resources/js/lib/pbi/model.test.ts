@@ -4,9 +4,12 @@ import type { RelationGraph } from './graph';
 import {
     aggregate,
     applyFx,
+    boundConstant,
+    boundValue,
     buildChartData,
     compileListMeasure,
     compileMeasure,
+    defaultConditionalFormat,
     evaluateMeasure,
     fieldLabel,
     formatAxisDefTick,
@@ -44,6 +47,10 @@ import {
     singleValueLabel,
     unregisterMeasure,
     validateMeasureExpression,
+    valueCallout,
+    valueCategoryLabel,
+    valueConditionalFormat,
+    valueGaugeStyle,
     visualTitleStyle,
     buildTableCells,
     type FxOp,
@@ -834,13 +841,12 @@ describe('formatAxisDefTick — multi-axis unit/suffix composition', () => {
 });
 
 describe('table/matrix number formatting (tableNumber block)', () => {
-    const noTableNumber = {} as Pick<
-        Visual,
-        'numberFormat' | 'tableNumber'
-    >;
+    const noTableNumber = {} as Pick<Visual, 'numberFormat' | 'tableNumber'>;
 
     it('normalizes garbage to the auto default', () => {
-        expect(normalizeTableNumber(undefined)).toEqual({ displayUnits: 'auto' });
+        expect(normalizeTableNumber(undefined)).toEqual({
+            displayUnits: 'auto',
+        });
         expect(normalizeTableNumber(null)).toEqual({ displayUnits: 'auto' });
         expect(normalizeTableNumber('nope')).toEqual({ displayUnits: 'auto' });
         expect(normalizeTableNumber({ displayUnits: 'nope' })).toEqual({
@@ -933,10 +939,7 @@ describe('table/matrix number formatting (tableNumber block)', () => {
 });
 
 describe('formatTableTreated — listAgg treated cells through the tableNumber block', () => {
-    const noTableNumber = {} as Pick<
-        Visual,
-        'numberFormat' | 'tableNumber'
-    >;
+    const noTableNumber = {} as Pick<Visual, 'numberFormat' | 'tableNumber'>;
     const autoBlock: Pick<Visual, 'numberFormat' | 'tableNumber'> = {
         numberFormat: 'auto',
         tableNumber: { displayUnits: 'auto', decimals: 2, suffix: 'kW' },
@@ -1435,6 +1438,153 @@ describe('gauge style normalizer', () => {
         expect(
             gaugeBoundValue(table.rows, undefined, Infinity),
         ).toBeUndefined();
+    });
+});
+
+describe('per-value card/gauge bounds and styles', () => {
+    function baseVisual(partial: Record<string, unknown> = {}): Visual {
+        return {
+            id: 'v1',
+            type: 'card',
+            name: 'card',
+            title: 'card',
+            x: 0,
+            y: 0,
+            w: 200,
+            h: 100,
+            z: 0,
+            hidden: false,
+            axis: [],
+            legend: [],
+            values: [],
+            tooltips: [],
+            smallMultiples: [],
+            drillFields: [],
+            minimum: [],
+            maximum: [],
+            target: [],
+            showTitle: true,
+            showLegend: true,
+            showLabels: false,
+            background: 'transparent',
+            border: false,
+            shadow: false,
+            altText: '',
+            colorIndex: 0,
+            analytics: [],
+            conditionalFormat: false,
+            subtotals: false,
+            drillLevel: 0,
+            maxCategories: 200,
+            ...partial,
+        } as unknown as Visual;
+    }
+
+    it('boundConstant prefers the per-value array over the legacy scalar', () => {
+        const v = baseVisual({
+            minimumValue: 0,
+            maximumValue: 100,
+            targetValue: 50,
+            minimumValues: [undefined, 5],
+            maximumValues: [90, 200],
+            targetValues: [40, 60],
+        });
+        expect(boundConstant(v, 'minimum', 0)).toBeUndefined();
+        expect(boundConstant(v, 'minimum', 1)).toBe(5);
+        expect(boundConstant(v, 'maximum', 0)).toBe(90);
+        expect(boundConstant(v, 'maximum', 1)).toBe(200);
+        expect(boundConstant(v, 'target', 0)).toBe(40);
+        expect(boundConstant(v, 'target', 1)).toBe(60);
+        expect(boundConstant(v, 'target', 3)).toBeUndefined();
+    });
+
+    it('boundConstant falls back to the legacy scalar at index 0 only', () => {
+        const v = baseVisual({
+            minimumValue: 3,
+            maximumValue: 9,
+            targetValue: 6,
+        });
+        expect(boundConstant(v, 'minimum', 0)).toBe(3);
+        expect(boundConstant(v, 'minimum', 1)).toBeUndefined();
+        expect(boundConstant(v, 'maximum', 0)).toBe(9);
+        expect(boundConstant(v, 'target', 0)).toBe(6);
+    });
+
+    it('boundValue prefers a dropped field over the per-value constant', () => {
+        setTables([table]);
+        const wf = {
+            table: 'wip_chaine',
+            name: 'WIP_Chaine',
+            agg: 'sum' as const,
+        };
+        const v = baseVisual({
+            target: [undefined, wf],
+            targetValues: [undefined, 500],
+        });
+        expect(boundValue(table.rows, v, 'target', 0)).toBeUndefined();
+        expect(boundValue(table.rows, v, 'target', 1)).toBe(22);
+        const typed = baseVisual({ targetValues: [undefined, 500] });
+        expect(boundValue(table.rows, typed, 'target', 1)).toBe(500);
+    });
+
+    it('valueCallout replaces the shared block with the per-value override', () => {
+        const v = baseVisual({
+            callout: { color: '#111111', fontSize: 30 },
+            valueStyle: [{ callout: { fontSize: 42, suffix: ' A' } }],
+        });
+        const shared = valueCallout(v, 1);
+        expect(shared.color).toBe('#111111');
+        expect(shared.fontSize).toBe(30);
+        const ov = valueCallout(v, 0);
+        expect(ov.fontSize).toBe(42);
+        expect(ov.suffix).toBe('A');
+        expect(ov.color).not.toBe('#111111');
+    });
+
+    it('valueCategoryLabel and valueConditionalFormat honor per-value overrides', () => {
+        const v = baseVisual({
+            categoryLabel: { show: true, color: '#222222' },
+            conditionalFormat: defaultConditionalFormat(),
+            valueStyle: [
+                { categoryLabel: { show: false }, conditionalFormat: false },
+            ],
+        });
+        expect(valueCategoryLabel(v, 0).show).toBe(false);
+        expect(valueCategoryLabel(v, 1).show).toBe(true);
+        expect(valueCategoryLabel(v, 1).color).toBe('#222222');
+        expect(valueConditionalFormat(v, 0)).toBe(false);
+        expect(valueConditionalFormat(v, 1)).toBeTruthy();
+    });
+
+    it('valueGaugeStyle merges colors, value format and callout per index', () => {
+        const v = baseVisual({
+            gauge: {
+                fillColor: '#0000ff',
+                targetColor: '#ff0000',
+                value: { displayUnits: 'none', decimals: 0 },
+                dataLabels: { callout: { show: true, fontSize: 20 } },
+            },
+            valueStyle: [
+                {
+                    gauge: {
+                        fillColor: '#00ff00',
+                        value: { displayUnits: 'currency', decimals: 2 },
+                        callout: { fontSize: 34, bold: true },
+                    },
+                },
+            ],
+        });
+        const s0 = valueGaugeStyle(v, 0);
+        expect(s0.fillColor).toBe('#00ff00');
+        expect(s0.targetColor).toBe('#ff0000');
+        expect(s0.value.displayUnits).toBe('currency');
+        expect(s0.value.decimals).toBe(2);
+        expect(s0.dataLabels.callout.fontSize).toBe(34);
+        expect(s0.dataLabels.callout.bold).toBe(true);
+        const s1 = valueGaugeStyle(v, 1);
+        expect(s1.fillColor).toBe('#0000ff');
+        expect(s1.value.displayUnits).toBe('none');
+        expect(s1.dataLabels.callout.fontSize).toBe(20);
     });
 });
 
@@ -2183,13 +2333,22 @@ describe('buildTableCells — per-row list (W1-12/14)', () => {
 
     it('a numeric measure value keeps the per-group aggregation', () => {
         setTables([structuredClone(employees), structuredClone(orders)]);
-        registerMeasure('Order Count', 'Order Count = COUNTROWS(employee_data)');
+        registerMeasure(
+            'Order Count',
+            'Order Count = COUNTROWS(employee_data)',
+        );
         const value: WellField = {
             table: 'employee_data',
             name: 'Order Count',
             agg: 'count',
         };
-        const { data } = buildTableCells(employees.rows, [axis], [], [value], graph);
+        const { data } = buildTableCells(
+            employees.rows,
+            [axis],
+            [],
+            [value],
+            graph,
+        );
         const byEmp = Object.fromEntries(
             data.map((d) => [String(d['category']), d['Order Count']]),
         );
@@ -2218,7 +2377,12 @@ describe('buildTableCells — per-row list (W1-12/14)', () => {
             name: 'Name',
             agg: 'sum',
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Name']);
         expect(data).toEqual([
             { category: 'E1', Name: 'Ada' },
@@ -2229,7 +2393,10 @@ describe('buildTableCells — per-row list (W1-12/14)', () => {
 
     it('a list measure with no axis yields the global list (W1-13)', () => {
         setTables([structuredClone(employees), structuredClone(orders)]);
-        registerMeasure('My Orders', 'My Orders = VALUES(employee_data[OrderId])');
+        registerMeasure(
+            'My Orders',
+            'My Orders = VALUES(employee_data[OrderId])',
+        );
         const value: WellField = {
             table: 'employee_data',
             name: 'My Orders',
@@ -2243,14 +2410,19 @@ describe('buildTableCells — per-row list (W1-12/14)', () => {
             graph,
         );
         expect(series).toEqual(['My Orders']);
-        expect(data).toEqual([{ category: 'Total', 'My Orders': ['B1', 'B2'] }]);
+        expect(data).toEqual([
+            { category: 'Total', 'My Orders': ['B1', 'B2'] },
+        ]);
         unregisterMeasure('My Orders');
     });
 
     it('a VALUES measure is only treated as a list once registered (guard)', () => {
         setTables([structuredClone(employees), structuredClone(orders)]);
         expect(isListMeasure('My Orders')).toBe(false);
-        registerMeasure('My Orders', 'My Orders = VALUES(employee_data[OrderId])');
+        registerMeasure(
+            'My Orders',
+            'My Orders = VALUES(employee_data[OrderId])',
+        );
         expect(isListMeasure('My Orders')).toBe(true);
         unregisterMeasure('My Orders');
         expect(isListMeasure('My Orders')).toBe(false);
@@ -2275,8 +2447,17 @@ describe('buildTableCells — text value aggregation choices (row-detail vs grou
     const axis: WellField = { table: 'employees', name: 'Id', agg: 'sum' };
 
     it('default (no valueAggregation) keeps the raw row-detail list', () => {
-        const value: WellField = { table: 'employees', name: 'Name', agg: 'count' };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const value: WellField = {
+            table: 'employees',
+            name: 'Name',
+            agg: 'count',
+        };
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Name']);
         expect(data).toEqual([
             { category: 'E1', Name: 'Ada' },
@@ -2292,7 +2473,12 @@ describe('buildTableCells — text value aggregation choices (row-detail vs grou
             agg: 'count',
             valueAggregation: 'first',
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Premier de Name']);
         expect(data).toEqual([
             { category: 'E1', 'Premier de Name': 'Ada' },
@@ -2307,7 +2493,12 @@ describe('buildTableCells — text value aggregation choices (row-detail vs grou
             agg: 'count',
             valueAggregation: 'latest',
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Dernier de Name']);
         expect(data).toEqual([
             { category: 'E1', 'Dernier de Name': 'Ada B' },
@@ -2322,7 +2513,12 @@ describe('buildTableCells — text value aggregation choices (row-detail vs grou
             agg: 'count',
             valueAggregation: 'count',
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Nombre de Name']);
         expect(data).toEqual([
             { category: 'E1', 'Nombre de Name': 2 },
@@ -2338,7 +2534,12 @@ describe('buildTableCells — text value aggregation choices (row-detail vs grou
             valueAggregation: 'nth',
             index: 2,
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Valeur N°2 de Name']);
         expect(data).toEqual([
             { category: 'E1', 'Valeur N°2 de Name': 'Ada B' },
@@ -2365,8 +2566,17 @@ describe('buildTableCells — numeric row-detail vs grouped', () => {
     const axis: WellField = { table: 'employees', name: 'Id', agg: 'sum' };
 
     it('numeric values group by default (aggregate per axis group)', () => {
-        const value: WellField = { table: 'employees', name: 'Qty', agg: 'sum' };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const value: WellField = {
+            table: 'employees',
+            name: 'Qty',
+            agg: 'sum',
+        };
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Somme de Qty']);
         expect(data).toEqual([
             { category: 'E1', 'Somme de Qty': 30 },
@@ -2381,7 +2591,12 @@ describe('buildTableCells — numeric row-detail vs grouped', () => {
             agg: 'sum',
             detail: true,
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Qty']);
         expect(data).toEqual([
             { category: 'E1', Qty: 10 },
@@ -2397,7 +2612,12 @@ describe('buildTableCells — numeric row-detail vs grouped', () => {
             agg: 'nth',
             index: 99,
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Valeur N°99 de Qty']);
         expect(data).toEqual([
             { category: 'E1', 'Valeur N°99 de Qty': null },
@@ -2431,7 +2651,12 @@ describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") 
             valueAggregation: 'latest',
             window: 2,
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Dernier de Name (derniers 2 lignes)']);
         expect(data).toEqual([
             { category: 'E1', 'Dernier de Name (derniers 2 lignes)': 'C' },
@@ -2447,7 +2672,12 @@ describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") 
             window: 2,
             windowDir: 'first',
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Dernier de Name (premiers 2 lignes)']);
         expect(data).toEqual([
             { category: 'E1', 'Dernier de Name (premiers 2 lignes)': 'B' },
@@ -2463,7 +2693,12 @@ describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") 
             index: 2,
             window: 2,
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Valeur N°2 de Name (derniers 2 lignes)']);
         expect(data).toEqual([
             { category: 'E1', 'Valeur N°2 de Name (derniers 2 lignes)': 'C' },
@@ -2480,7 +2715,9 @@ describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") 
             windowDir: 'last',
         };
         const { data } = buildTableCells(people.rows, [axis], [], [value]);
-        expect(data).toEqual([{ category: 'E1', 'Nombre de Name (derniers 1 lignes)': 1 }]);
+        expect(data).toEqual([
+            { category: 'E1', 'Nombre de Name (derniers 1 lignes)': 1 },
+        ]);
     });
 
     it('numeric "Somme de" sums within the last N rows', () => {
@@ -2490,9 +2727,16 @@ describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") 
             agg: 'sum',
             window: 2,
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Somme de Qty (derniers 2 lignes)']);
-        expect(data).toEqual([{ category: 'E1', 'Somme de Qty (derniers 2 lignes)': 50 }]);
+        expect(data).toEqual([
+            { category: 'E1', 'Somme de Qty (derniers 2 lignes)': 50 },
+        ]);
     });
 
     it('numeric "Nième valeur" resolves within the window', () => {
@@ -2503,7 +2747,12 @@ describe('buildTableCells — aggregation window ("Derniers/Premiers N lignes") 
             index: 1,
             window: 2,
         };
-        const { data, series } = buildTableCells(people.rows, [axis], [], [value]);
+        const { data, series } = buildTableCells(
+            people.rows,
+            [axis],
+            [],
+            [value],
+        );
         expect(series).toEqual(['Valeur N°1 de Qty (derniers 2 lignes)']);
         expect(data).toEqual([
             { category: 'E1', 'Valeur N°1 de Qty (derniers 2 lignes)': 20 },
@@ -2575,7 +2824,11 @@ describe('buildTableCells — conditional-format basis (_cf / _cfx)', () => {
     });
 
     it('keeps the row-detail path from dropping the color basis', () => {
-        const text: WellField = { table: 'sales', name: 'Region', agg: 'count' };
+        const text: WellField = {
+            table: 'sales',
+            name: 'Region',
+            agg: 'count',
+        };
         const { data } = buildTableCells(
             sales.rows,
             [axis],
@@ -2793,10 +3046,14 @@ describe('IN / NOT IN predicates (Wave 2)', () => {
         );
         expect(fn).not.toBeNull();
         expect(
-            fn!([], { iter: [{ table: 'employees', row: { Id: 'E1', Team: 'A' } }] }),
+            fn!([], {
+                iter: [{ table: 'employees', row: { Id: 'E1', Team: 'A' } }],
+            }),
         ).toEqual(['O1', 'O2']);
         expect(
-            fn!([], { iter: [{ table: 'employees', row: { Id: 'E2', Team: 'B' } }] }),
+            fn!([], {
+                iter: [{ table: 'employees', row: { Id: 'E2', Team: 'B' } }],
+            }),
         ).toEqual([]);
     });
 });
@@ -2953,7 +3210,10 @@ describe('time windows on month-granularity dates (YYYY-MM)', () => {
     beforeEach(() => setTables([kpi]));
 
     it('DATESYTD covers every month row (anchor = 2026-08-01)', () => {
-        const r = evaluateMeasure('M = COUNTROWS(DATESYTD(kpi_br_print[mois]))', []);
+        const r = evaluateMeasure(
+            'M = COUNTROWS(DATESYTD(kpi_br_print[mois]))',
+            [],
+        );
         expect(r.error).toBeUndefined();
         expect(r.value).toBe(8);
     });
@@ -3032,15 +3292,18 @@ describe('wave 3 — CALCULATE(ALL), % of total, TOPN/RANK, Cumul, CONCATENATEX,
     const regionCtx = (region: string) => ({
         tables: applyTableRows(
             [sales],
-            filterTableRows([sales], [
-                {
-                    column: 'Region',
-                    table: 'sales',
-                    values: [region],
-                    scope: 'report',
-                    type: 'list',
-                } satisfies ReportFilter,
-            ]),
+            filterTableRows(
+                [sales],
+                [
+                    {
+                        column: 'Region',
+                        table: 'sales',
+                        values: [region],
+                        scope: 'report',
+                        type: 'list',
+                    } satisfies ReportFilter,
+                ],
+            ),
         ),
     });
 
@@ -3101,10 +3364,7 @@ describe('wave 3 — CALCULATE(ALL), % of total, TOPN/RANK, Cumul, CONCATENATEX,
         const r1 = evaluateMeasure('M = RANKX(sales, sales[Amount], 10)', []);
         expect(r1.error).toBeUndefined();
         expect(r1.value).toBe(1);
-        const rLast = evaluateMeasure(
-            'M = RANKX(sales, sales[Amount], 3)',
-            [],
-        );
+        const rLast = evaluateMeasure('M = RANKX(sales, sales[Amount], 3)', []);
         expect(rLast.value).toBe(5);
         const asc = evaluateMeasure(
             'M = RANKX(sales, sales[Amount], 3, ASC)',
@@ -3186,15 +3446,16 @@ describe('wave 3 — CALCULATE(ALL), % of total, TOPN/RANK, Cumul, CONCATENATEX,
             'M = CONCATENATEX(sales, sales[Region], "; ")',
         );
         expect(impl).not.toBeNull();
-        expect(impl!([], {})).toEqual([
-            'North; North; South; East; South',
-        ]);
+        expect(impl!([], {})).toEqual(['North; North; South; East; South']);
         // Respects the group ctx like a VALUES list.
         expect(impl!([], regionCtx('North'))).toEqual(['North; North']);
     });
 
     it('W3-5 a CONCATENATEX measure registers as a list measure', () => {
-        registerMeasure('ConcatRegions', 'ConcatRegions = CONCATENATEX(sales, sales[Region], "; ")');
+        registerMeasure(
+            'ConcatRegions',
+            'ConcatRegions = CONCATENATEX(sales, sales[Region], "; ")',
+        );
         expect(isListMeasure('ConcatRegions')).toBe(true);
         expect(listMeasureValue([], 'ConcatRegions')).toEqual([
             'North; North; South; East; South',
@@ -3225,10 +3486,9 @@ describe('wave 3 — CALCULATE(ALL), % of total, TOPN/RANK, Cumul, CONCATENATEX,
             ).ok,
         ).toBe(true);
         expect(
-            validateMeasureExpression(
-                'M = RANKX(sales, sales[Amount], 1)',
-                ['Amount'],
-            ).ok,
+            validateMeasureExpression('M = RANKX(sales, sales[Amount], 1)', [
+                'Amount',
+            ]).ok,
         ).toBe(true);
     });
 });

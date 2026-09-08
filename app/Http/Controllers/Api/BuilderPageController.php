@@ -20,7 +20,7 @@ class BuilderPageController extends Controller
     {
         $user = PageAccess::resolveUser();
 
-        $query = BuilderPage::select('id', 'slug', 'name', 'owner_user_id', 'group_id', 'created_at', 'updated_at')
+        $query = BuilderPage::select('id', 'slug', 'name', 'owner_user_id', 'group_id', 'published', 'created_at', 'updated_at')
             ->with([
                 'owner:id,name',
                 'accessRows' => fn ($q) => $q->where('user_id', $user->id),
@@ -51,6 +51,7 @@ class BuilderPageController extends Controller
                 'owner_user_id' => $page->owner_user_id,
                 'group_id' => $placement?->group_id,
                 'sort_order' => $placement?->sort_order ?? 0,
+                'published' => $page->published,
                 'created_at' => $page->created_at,
                 'updated_at' => $page->updated_at,
                 'is_owner' => $page->owner_user_id === $user->id,
@@ -139,6 +140,7 @@ class BuilderPageController extends Controller
             'slug' => 'nullable|string|max:255',
             'layout' => 'nullable|array',
             'layout_draft' => 'nullable|array',
+            'published' => 'nullable|boolean',
         ]);
 
         if (isset($validated['name'])) {
@@ -194,6 +196,19 @@ class BuilderPageController extends Controller
                     'page_id' => $page->id,
                     'page_slug' => $page->slug,
                     'page_name' => $page->name,
+                ]);
+            }
+        }
+
+        if (array_key_exists('published', $validated)) {
+            $published = (bool) $validated['published'];
+            if ($published !== $page->published) {
+                $page->published = $published;
+                $this->logActivity($published ? 'page.publish' : 'page.depublish', [
+                    'page_id' => $page->id,
+                    'page_slug' => $page->slug,
+                    'page_name' => $page->name,
+                    'detail' => ['published' => $published],
                 ]);
             }
         }
@@ -319,7 +334,11 @@ class BuilderPageController extends Controller
             abort(404);
         }
 
-        if (! PageAccess::canView($page, PageAccess::resolveUser())) {
+        $user = PageAccess::resolveUser();
+
+        // Published pages are public: their images (logos, backgrounds…) must
+        // stay reachable without a session so the public view renders fully.
+        if (! $page->published && ! PageAccess::canView($page, $user)) {
             abort(403);
         }
 

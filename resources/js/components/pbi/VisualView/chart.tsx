@@ -37,6 +37,7 @@ import { iconById, type CFIcon } from '@/lib/pbi/icons';
 import {
     ANALYTICS_DEFAULT_COLOR,
     aggregate,
+    boundValue,
     buildChartData,
     buildParetoData,
     buildScatterData,
@@ -44,14 +45,12 @@ import {
     fieldType,
     formatAxisDefTick,
     formatDisplayUnitValue,
-    gaugeBoundValue,
     isListMeasure,
     listMeasureValue,
     listTreatment,
     normalizeAxes,
     normalizeAxisStyle,
     normalizeBarStyle,
-    normalizeCalloutStyle,
     normalizeConditionalFormat,
     normalizeDataLabelStyle,
     normalizeGridlinesStyle,
@@ -60,6 +59,9 @@ import {
     singleValue,
     singleValueLabel,
     STACKED_EMPTY_FILL,
+    valueCallout,
+    valueCategoryLabel,
+    valueConditionalFormat,
     wellForReference,
     type AnalyticsLine,
     type AxisDef,
@@ -575,6 +577,7 @@ export function ChartBody({
         tooltipHover,
         graph,
         filteredTables,
+        measures,
     } = usePbi();
 
     // Clear a lingering cross-chart hover lens when this visual actually
@@ -621,6 +624,11 @@ export function ChartBody({
             built,
             visual.axes?.find((a) => a.lockRange)?.id ?? 'pct',
         );
+        // Rekey on the measure library itself: the engine evaluates measures
+        // against module-scope registries (MEASURE_IMPL / LIST_MEASURE_IMPL /
+        // TABLES) that the React Compiler cannot see, so a recompute when the
+        // library is (re)loaded must be keyed on the visible `measures` prop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         rows,
         visual.axis,
@@ -633,6 +641,7 @@ export function ChartBody({
         graph,
         visual.type,
         visual.axes,
+        measures,
     ]);
 
     /** Per-series grand totals across all rows, for "percent of total" labels. */
@@ -683,7 +692,8 @@ export function ChartBody({
         }
         if (extra) return conditionalColor(cf, aggregate(rows, extra), [0]);
         return null;
-    }, [cf, rows, extra, extraColor]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cf, rows, extra, extraColor, measures]);
 
     const scatter = useMemo(
         () =>
@@ -693,7 +703,8 @@ export function ChartBody({
                 visual.values[0],
                 visual.values[1],
             ),
-        [rows, visual.axis, visual.values],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [rows, visual.axis, visual.values, measures],
     );
 
     const axisCol = visual.axis[0]?.name;
@@ -708,6 +719,15 @@ export function ChartBody({
             visual.axis[0]?.table,
         );
     };
+
+    /** Recharts v3 hands Bar/Scatter/Pie clicks the geometry item; the data
+     * row (with the category) lives on its `payload`. */
+    const onItemClick = (
+        data:
+            | { payload?: { category?: string | number } | null }
+            | null
+            | undefined,
+    ) => onPointClick(data?.payload ?? undefined);
 
     const matchSet = useMemo(() => {
         if (!match || !axisCol) return null;
@@ -919,22 +939,34 @@ export function ChartBody({
         }
     };
 
+    /** Props recharts v3 passes to a LabelList `content` renderer, loosely
+     * typed: `viewBox` is cartesian or polar geometry and `position` may carry
+     * SVG string|number coordinates. */
+    type ChartLabelProps = {
+        index?: number;
+        value?: unknown;
+        viewBox?: {
+            x?: number;
+            y?: number;
+            width?: number;
+            height?: number;
+            cx?: number;
+            cy?: number;
+            innerRadius?: number;
+            outerRadius?: number;
+            startAngle?: number;
+            endAngle?: number;
+            clockWise?: boolean;
+        };
+        position?: string | { x?: string | number; y?: string | number };
+        offset?: number;
+    };
+
     /** Shared multi-line <text> block for a data-label content renderer. When
      * `icon` is set it is drawn as the first line, pushing the text lines
      * down so the block stays centered/anchored as a whole. */
     const labelLinesNode = (
-        props: {
-            viewBox?: {
-                x?: number;
-                y?: number;
-                width?: number;
-                height?: number;
-                cx?: number;
-                cy?: number;
-            };
-            position?: string | { x?: number; y?: number };
-            offset?: number;
-        },
+        props: ChartLabelProps,
         lines: string[],
         style: {
             fontSize?: number;
@@ -1037,19 +1069,7 @@ export function ChartBody({
      * (normalized stacked-100 rows preserve order). */
     const renderLabelContent =
         (raw: Record<string, string | number>[], s: string) =>
-        (props: {
-            index?: number;
-            viewBox?: {
-                x?: number;
-                y?: number;
-                width?: number;
-                height?: number;
-                cx?: number;
-                cy?: number;
-            };
-            position?: string | { x?: number; y?: number };
-            offset?: number;
-        }) => {
+        (props: ChartLabelProps) => {
             if (props.index == null) return null;
             const row = raw[props.index];
             if (!row) return null;
@@ -1068,19 +1088,7 @@ export function ChartBody({
      * formatting its 0–1 fraction values as percentages. */
     const renderLineLabelContent =
         (raw: Record<string, string | number>[], s: string) =>
-        (props: {
-            index?: number;
-            viewBox?: {
-                x?: number;
-                y?: number;
-                width?: number;
-                height?: number;
-                cx?: number;
-                cy?: number;
-            };
-            position?: string | { x?: number; y?: number };
-            offset?: number;
-        }) => {
+        (props: ChartLabelProps) => {
             if (props.index == null) return null;
             const row = raw[props.index];
             if (!row) return null;
@@ -2119,7 +2127,7 @@ export function ChartBody({
                             fill={color}
                             radius={barRadius}
                             isAnimationActive={animate}
-                            onClick={onPointClick}
+                            onClick={onItemClick}
                             {...(emptyFill(s)
                                 ? { background: { fill: emptyFill(s) } }
                                 : {})}
@@ -2277,30 +2285,8 @@ export function ChartBody({
             />
         );
 
-    /** Props recharts passes to a LabelList `content` renderer (loosely typed:
-     * `viewBox` is a cartesian or polar geometry). */
-    type CfLabelProps = {
-        index?: number;
-        value?: number | string;
-        position?: string | { x?: number; y?: number };
-        offset?: number;
-        viewBox?: {
-            x?: number;
-            y?: number;
-            width?: number;
-            height?: number;
-            cx?: number;
-            cy?: number;
-            innerRadius?: number;
-            outerRadius?: number;
-            startAngle?: number;
-            endAngle?: number;
-            clockWise?: boolean;
-        };
-    };
-
     /** Pie/donut slice label: value with the conditional icon prepended. */
-    const renderPieLabel = () => (props: CfLabelProps) => {
+    const renderPieLabel = () => (props: ChartLabelProps) => {
         const row = props.index != null ? data[props.index] : undefined;
         const icon = cfIconFor(row);
         const vb = props.viewBox;
@@ -2335,7 +2321,7 @@ export function ChartBody({
 
     /** Funnel section label: category with the conditional icon prepended,
      * plus the formatted value beneath it. */
-    const renderFunnelLabel = () => (props: CfLabelProps) => {
+    const renderFunnelLabel = () => (props: ChartLabelProps) => {
         const row = props.index != null ? data[props.index] : undefined;
         const icon = cfIconFor(row);
         const key = series[0] ?? 'value';
@@ -2354,16 +2340,21 @@ export function ChartBody({
 
     switch (visual.type) {
         case 'card': {
-            const callout = normalizeCalloutStyle(visual.callout);
-            const goal = gaugeBoundValue(
-                rows,
-                visual.target[0],
-                visual.targetValue,
-            );
-            const hasGoal = goal !== undefined;
+            const layout = visual.multiLayout ?? 'grid';
+            const itemClass =
+                layout === 'stack'
+                    ? 'flex flex-1 flex-col items-center justify-center'
+                    : 'flex flex-col items-center';
             return wrap(
-                <div className="flex h-full flex-wrap items-center justify-around gap-2">
+                <div
+                    className={
+                        layout === 'stack'
+                            ? 'flex h-full flex-col gap-2 overflow-auto'
+                            : 'flex h-full flex-wrap items-center justify-around gap-2'
+                    }
+                >
                     {visual.values.map((v, i) => {
+                        const categoryLabel = valueCategoryLabel(visual, i);
                         if (isListMeasure(v.name)) {
                             const codes = listMeasureValue(rows, v.name, {
                                 tables: filteredTables,
@@ -2375,16 +2366,14 @@ export function ChartBody({
                             );
                             if (v.listAgg) {
                                 return (
-                                    <div
-                                        key={i}
-                                        className="flex flex-col items-center"
-                                    >
+                                    <div key={i} className={itemClass}>
                                         <span className="text-xl font-semibold tabular-nums">
                                             {treated ?? '—'}
                                         </span>
                                         <CategoryLabel
                                             visual={visual}
                                             label={singleValueLabel(v, 'text')}
+                                            categoryLabel={categoryLabel}
                                         />
                                         {visual.axis[0] && (
                                             <div className="text-[10px] text-muted-foreground">
@@ -2399,10 +2388,7 @@ export function ChartBody({
                                     ? [...codes].reverse()
                                     : codes;
                             return (
-                                <div
-                                    key={i}
-                                    className="flex flex-col items-center"
-                                >
+                                <div key={i} className={itemClass}>
                                     {listed.length ? (
                                         <div className="scrollbar-none max-h-full overflow-auto text-center text-sm">
                                             {listed.map((code) => (
@@ -2422,6 +2408,7 @@ export function ChartBody({
                                     <CategoryLabel
                                         visual={visual}
                                         label={singleValueLabel(v, 'text')}
+                                        categoryLabel={categoryLabel}
                                     />
                                     {visual.axis[0] && (
                                         <div className="text-[10px] text-muted-foreground">
@@ -2436,11 +2423,15 @@ export function ChartBody({
                         const numeric =
                             typeof raw === 'number' && isFinite(raw);
                         const val = numeric ? raw : 0;
+                        const goal = boundValue(rows, visual, 'target', i);
+                        const hasGoal = goal !== undefined;
                         const good = hasGoal && val >= goal;
+                        const callout = valueCallout(visual, i);
+                        const cf = valueConditionalFormat(visual, i);
                         return (
                             <div
                                 key={i}
-                                className="flex flex-col items-center"
+                                className={itemClass}
                                 style={{
                                     gap: callout.sourceSpacing ? 8 : 2,
                                 }}
@@ -2450,6 +2441,8 @@ export function ChartBody({
                                     value={raw}
                                     type={type}
                                     wf={v}
+                                    callout={callout}
+                                    conditionalFormat={cf}
                                     defaultColor={
                                         numeric && hasGoal
                                             ? good
@@ -2461,6 +2454,7 @@ export function ChartBody({
                                 <CategoryLabel
                                     visual={visual}
                                     label={singleValueLabel(v, type)}
+                                    categoryLabel={categoryLabel}
                                 />
                                 {visual.axis[0] && (
                                     <div className="text-[10px] text-muted-foreground">
@@ -2478,8 +2472,37 @@ export function ChartBody({
                 </div>,
             );
         }
-        case 'gauge':
-            return wrap(<GaugeVisual visual={visual} rows={rows} />);
+        case 'gauge': {
+            const layout = visual.multiLayout ?? 'grid';
+            if (visual.values.length <= 1)
+                return wrap(<GaugeVisual visual={visual} rows={rows} />);
+            return wrap(
+                <div
+                    className={
+                        layout === 'stack'
+                            ? 'flex h-full flex-col gap-1'
+                            : 'flex h-full flex-wrap items-center justify-around gap-1'
+                    }
+                >
+                    {visual.values.map((_, i) => (
+                        <div
+                            key={i}
+                            className={
+                                layout === 'stack'
+                                    ? 'h-full flex-1'
+                                    : 'h-full min-w-40 flex-1'
+                            }
+                        >
+                            <GaugeVisual
+                                visual={visual}
+                                rows={rows}
+                                index={i}
+                            />
+                        </div>
+                    ))}
+                </div>,
+            );
+        }
         case 'pie':
         case 'donut': {
             const key = series[0] ?? 'value';
@@ -2494,9 +2517,7 @@ export function ChartBody({
                             outerRadius="85%"
                             paddingAngle={1}
                             isAnimationActive={animate}
-                            onClick={(d: { category?: string }) =>
-                                onPointClick(d)
-                            }
+                            onClick={onItemClick}
                         >
                             {data.map((d, i) => (
                                 <Cell
@@ -2703,7 +2724,7 @@ export function ChartBody({
                 },
                 { running: 0, items: [] },
             ).items;
-            const renderWaterfallIcon = () => (props: CfLabelProps) => {
+            const renderWaterfallIcon = () => (props: ChartLabelProps) => {
                 const row =
                     props.index != null ? wdata[props.index] : undefined;
                 const icon = cfIconFor(row);
@@ -2740,7 +2761,7 @@ export function ChartBody({
                             stackId="w"
                             radius={[2, 2, 0, 0]}
                             isAnimationActive={animate}
-                            onClick={onPointClick}
+                            onClick={onItemClick}
                         >
                             {wdata.map((d, i) => (
                                 <Cell
@@ -2857,7 +2878,7 @@ export function ChartBody({
                             data={scData}
                             fill={seriesColor ?? 'var(--chart-1)'}
                             isAnimationActive={animate}
-                            onClick={onPointClick}
+                            onClick={onItemClick}
                             shape={renderScatterShape}
                         />
                     </ScatterChart>

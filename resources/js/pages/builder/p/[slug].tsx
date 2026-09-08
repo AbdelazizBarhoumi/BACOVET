@@ -43,14 +43,18 @@ export default function PageView() {
         layoutDraftUpdatedAt,
         canEdit,
         canManage,
+        isPublic,
+        published,
     } = props as unknown as PageProps;
 
     const initialState = useMemo(() => parseInitialState(layout), [layout]);
     const [dirty, setDirty] = useState(false);
 
     // Trace who opened this page (and where from) so superadmins can audit
-    // viewership. Fire-and-forget: never blocks the render.
+    // viewership. Fire-and-forget: never blocks the render. Anonymous public
+    // viewers of published pages are not traced (no session).
     useEffect(() => {
+        if (isPublic) return;
         setPageContext({
             page_id: pageId,
             page_slug: slug,
@@ -143,10 +147,19 @@ export default function PageView() {
         let stop = false;
         const load = async () => {
             try {
-                const datasets = await fetchEndpointDatasets(
-                    undefined,
-                    datasetsUrlWithSelection(selectionRef.current),
-                );
+                // The datasets, the cross-table schema and the persisted join
+                // library are independent, so fetch them in parallel — the
+                // "Chargement des données…" screen waits for the slowest single
+                // request instead of the sum of all three. Schema + joins are
+                // best-effort and degrade gracefully on failure.
+                const [datasets, schema, persisted] = await Promise.all([
+                    fetchEndpointDatasets(
+                        undefined,
+                        datasetsUrlWithSelection(selectionRef.current),
+                    ),
+                    fetchBuilderSchema().catch(() => null),
+                    fetchJoins().catch(() => null),
+                ]);
                 if (stop) return;
                 setFailed(false);
                 const signature = datasetsSignature(datasets);
@@ -154,40 +167,28 @@ export default function PageView() {
                 lastDatasetsSignatureRef.current = signature;
                 const built = buildTables(datasets);
                 setTables(built);
-                try {
-                    const schema = await fetchBuilderSchema(true);
-                    if (!stop) {
-                        const registry = buildJoinRegistry(schema, built);
-                        setJoins(registry);
-                        setGraph(buildRelationGraph(built, registry, schema));
-                    }
-                } catch {
-                    // shared join registry + relationship graph are
-                    // best-effort; cross-table cross-filtering simply
-                    // degrades to same-table / direct-from-graph only.
+                if (schema) {
+                    const registry = buildJoinRegistry(schema, built);
+                    setJoins(registry);
+                    setGraph(buildRelationGraph(built, registry, schema));
                 }
-                try {
-                    const persisted = await fetchJoins();
-                    if (!stop) {
-                        setSharedJoins(persisted);
-                        // Merge persisted joins into the effective graph so
-                        // cross-filtering and the measure wizard can cross
-                        // tables even when inference missed the relationship.
-                        setGraph((prev) =>
-                            graphWithManualJoins(
-                                prev,
-                                persisted.map((j) => ({
-                                    tableA: j.table_a,
-                                    columnA: j.column_a,
-                                    tableB: j.table_b,
-                                    columnB: j.column_b,
-                                })),
-                                built,
-                            ),
-                        );
-                    }
-                } catch {
-                    // shared join library is best-effort too.
+                if (persisted) {
+                    setSharedJoins(persisted);
+                    // Merge persisted joins into the effective graph so
+                    // cross-filtering and the measure wizard can cross
+                    // tables even when inference missed the relationship.
+                    setGraph((prev) =>
+                        graphWithManualJoins(
+                            prev,
+                            persisted.map((j) => ({
+                                tableA: j.table_a,
+                                columnA: j.column_a,
+                                tableB: j.table_b,
+                                columnB: j.column_b,
+                            })),
+                            built,
+                        ),
+                    );
                 }
             } catch {
                 if (!stop) setFailed(true);
@@ -266,7 +267,7 @@ export default function PageView() {
             <Head title={`${pageName} — BACOVET`} />
             <PbiProvider
                 initialState={initialState}
-                onChange={onStoreChange}
+                onChange={isPublic ? undefined : onStoreChange}
                 tables={tables}
                 joins={joins}
                 graph={graph}
@@ -283,6 +284,8 @@ export default function PageView() {
                     layoutDraftUpdatedAt={layoutDraftUpdatedAt}
                     canEdit={canEdit}
                     canManage={canManage}
+                    isPublic={isPublic}
+                    published={published}
                 />
             </PbiProvider>
             <Toaster />

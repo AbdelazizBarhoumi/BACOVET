@@ -1,15 +1,15 @@
 import { gaugeFxColor } from '@/lib/pbi/conditionalFormat';
 import {
+    boundValue,
     fieldType,
     formatCallout,
     formatDisplayUnitValue,
     formatNumberPattern,
     formatWellValue,
-    gaugeBoundValue,
     hasExplicitGaugeValueFormat,
-    normalizeCategoryLabelStyle,
+    valueCategoryLabel,
+    valueGaugeStyle,
     normalizeConditionalFormat,
-    normalizeGaugeStyle,
     normalizeValueFormat,
     singleValue,
     singleValueLabel,
@@ -63,7 +63,10 @@ function arcPath(toDeg: number) {
 
 function clampLabel(deg: number, radius: number) {
     const p = anglePoint(deg, radius);
-    return { x: Math.min(192, Math.max(8, p.x)), y: Math.min(136, Math.max(4, p.y)) };
+    return {
+        x: Math.min(192, Math.max(8, p.x)),
+        y: Math.min(136, Math.max(4, p.y)),
+    };
 }
 
 /** Formats a bound (min/max/target) value honoring Auto vs custom string, and
@@ -75,7 +78,8 @@ function formatBound(
     visual: Visual,
     wf?: WellField,
 ): string {
-    if (!bound.auto && bound.format) return formatNumberPattern(n, bound.format);
+    if (!bound.auto && bound.format)
+        return formatNumberPattern(n, bound.format);
     if (hasExplicitGaugeValueFormat(value))
         return formatDisplayUnitValue(
             n,
@@ -105,27 +109,38 @@ function formatLabel(
     return formatCallout(n, style, wf, 'number');
 }
 
-export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
-    const wf = visual.values[0];
+export function GaugeVisual({
+    visual,
+    rows,
+    index = 0,
+}: {
+    visual: Visual;
+    rows: Row[];
+    /** Which `values[i]` this gauge renders (per-value bounds/style). */
+    index?: number;
+}) {
+    const wf = visual.values[index];
     const type = wf ? fieldType(wf.name, wf.table) : 'number';
     const raw = wf ? singleValue(rows, wf) : null;
     const numeric = typeof raw === 'number' && isFinite(raw);
     const val = numeric ? (raw as number) : null;
 
-    const minWf = visual.minimum[0];
-    const maxWf = visual.maximum[0];
-    const targetWf = visual.target[0];
-    const gauge = normalizeGaugeStyle(visual.gauge);
+    const minWf = visual.minimum[index];
+    const maxWf = visual.maximum[index];
+    const targetWf = visual.target[index];
+    const gauge = valueGaugeStyle(visual, index);
     const callout = gauge.dataLabels.callout;
 
-    const min = gaugeBoundValue(rows, minWf, visual.minimumValue) ?? 0;
+    const min = boundValue(rows, visual, 'minimum', index) ?? 0;
     let max =
-        gaugeBoundValue(rows, maxWf, visual.maximumValue) ??
+        boundValue(rows, visual, 'maximum', index) ??
         (numeric ? (val as number) * 1.4 : 1);
     if (!(max > min)) max = min + Math.max(1, Math.abs(min) * 0.1);
-    const target = gaugeBoundValue(rows, targetWf, visual.targetValue);
-    const fxColor = (fx: ConditionalFormat | boolean | undefined, value: number) =>
-        gaugeFxColor(normalizeConditionalFormat(fx), value, min, max);
+    const target = boundValue(rows, visual, 'target', index);
+    const fxColor = (
+        fx: ConditionalFormat | boolean | undefined,
+        value: number,
+    ) => gaugeFxColor(normalizeConditionalFormat(fx), value, min, max);
 
     if (!numeric || !wf) {
         return (
@@ -145,8 +160,8 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         className="text-muted-foreground"
                         style={{
                             fontSize:
-                                normalizeCategoryLabelStyle(visual.categoryLabel)
-                                    .fontSize ?? 11,
+                                valueCategoryLabel(visual, index).fontSize ??
+                                11,
                         }}
                     >
                         {singleValueLabel(wf, type)}
@@ -156,7 +171,10 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         );
     }
 
-    const frac = Math.min(1, Math.max(0, ((val as number) - min) / (max - min)));
+    const frac = Math.min(
+        1,
+        Math.max(0, ((val as number) - min) / (max - min)),
+    );
     const valueDeg = 180 - 180 * frac;
 
     const fill =
@@ -172,10 +190,22 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
     const valuesStyle = dl.values;
     const targetLabelStyle = dl.targetLabel;
 
-    const minText = formatBound(min, gauge.axis.min, gauge.value, visual, minWf);
-    const maxText = formatBound(max, gauge.axis.max, gauge.value, visual, maxWf);
+    const minText = formatBound(
+        min,
+        gauge.axis.min,
+        gauge.value,
+        visual,
+        minWf,
+    );
+    const maxText = formatBound(
+        max,
+        gauge.axis.max,
+        gauge.value,
+        visual,
+        maxWf,
+    );
 
-    const category = normalizeCategoryLabelStyle(visual.categoryLabel);
+    const category = valueCategoryLabel(visual, index);
     const categoryLabel = singleValueLabel(wf, type);
 
     return (
@@ -200,22 +230,29 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                     strokeLinecap="round"
                 />
             )}
-            {target !== undefined && (() => {
-                const targetDeg = 180 - 180 * Math.min(1, Math.max(0, (target - min) / (max - min)));
-                const outer = anglePoint(targetDeg, R + TRACK / 2 + 2);
-                const inner = anglePoint(targetDeg, R - TRACK / 2 - 2);
-                return (
-                    <line
-                        x1={inner.x}
-                        y1={inner.y}
-                        x2={outer.x}
-                        y2={outer.y}
-                        stroke={targetColor}
-                        strokeWidth={3}
-                        strokeLinecap="round"
-                    />
-                );
-            })()}
+            {target !== undefined &&
+                (() => {
+                    const targetDeg =
+                        180 -
+                        180 *
+                            Math.min(
+                                1,
+                                Math.max(0, (target - min) / (max - min)),
+                            );
+                    const outer = anglePoint(targetDeg, R + TRACK / 2 + 2);
+                    const inner = anglePoint(targetDeg, R - TRACK / 2 - 2);
+                    return (
+                        <line
+                            x1={inner.x}
+                            y1={inner.y}
+                            x2={outer.x}
+                            y2={outer.y}
+                            stroke={targetColor}
+                            strokeWidth={3}
+                            strokeLinecap="round"
+                        />
+                    );
+                })()}
             {dl.show && valuesStyle.show && (
                 <>
                     <text
@@ -224,7 +261,11 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         textAnchor="start"
                         fontSize={valuesStyle.fontSize ?? 10}
                         fontFamily={valuesStyle.fontFamily || visual.fontFamily}
-                        fill={fxColor(valuesStyle.fx, min) ?? valuesStyle.color ?? 'var(--muted-foreground)'}
+                        fill={
+                            fxColor(valuesStyle.fx, min) ??
+                            valuesStyle.color ??
+                            'var(--muted-foreground)'
+                        }
                     >
                         {minText}
                     </text>
@@ -234,32 +275,52 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                         textAnchor="end"
                         fontSize={valuesStyle.fontSize ?? 10}
                         fontFamily={valuesStyle.fontFamily || visual.fontFamily}
-                        fill={fxColor(valuesStyle.fx, max) ?? valuesStyle.color ?? 'var(--muted-foreground)'}
+                        fill={
+                            fxColor(valuesStyle.fx, max) ??
+                            valuesStyle.color ??
+                            'var(--muted-foreground)'
+                        }
                     >
                         {maxText}
                     </text>
                 </>
             )}
-            {dl.show && targetLabelStyle.show && target !== undefined && (() => {
-                const targetDeg = 180 - 180 * Math.min(1, Math.max(0, (target - min) / (max - min)));
-                const pos = clampLabel(targetDeg, R + 22);
-                return (
-                    <text
-                        x={pos.x}
-                        y={pos.y}
-                        textAnchor="middle"
-                        fontSize={targetLabelStyle.fontSize ?? 10}
-                        fontFamily={targetLabelStyle.fontFamily || visual.fontFamily}
-                        fill={
-                            fxColor(targetLabelStyle.fx, target) ??
-                            targetLabelStyle.color ??
-                            'var(--muted-foreground)'
-                        }
-                    >
-                        {formatLabel(target, targetLabelStyle, gauge.value, targetWf)}
-                    </text>
-                );
-            })()}
+            {dl.show &&
+                targetLabelStyle.show &&
+                target !== undefined &&
+                (() => {
+                    const targetDeg =
+                        180 -
+                        180 *
+                            Math.min(
+                                1,
+                                Math.max(0, (target - min) / (max - min)),
+                            );
+                    const pos = clampLabel(targetDeg, R + 22);
+                    return (
+                        <text
+                            x={pos.x}
+                            y={pos.y}
+                            textAnchor="middle"
+                            fontSize={targetLabelStyle.fontSize ?? 10}
+                            fontFamily={
+                                targetLabelStyle.fontFamily || visual.fontFamily
+                            }
+                            fill={
+                                fxColor(targetLabelStyle.fx, target) ??
+                                targetLabelStyle.color ??
+                                'var(--muted-foreground)'
+                            }
+                        >
+                            {formatLabel(
+                                target,
+                                targetLabelStyle,
+                                gauge.value,
+                                targetWf,
+                            )}
+                        </text>
+                    );
+                })()}
             {dl.show && callout.show && (
                 <text
                     x={100}
@@ -270,7 +331,11 @@ export function GaugeVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                     fontStyle={callout.italic ? 'italic' : undefined}
                     textDecoration={callout.underline ? 'underline' : undefined}
                     fontFamily={callout.fontFamily || visual.fontFamily}
-                    fill={fxColor(callout.fx, val as number) ?? callout.color ?? 'var(--foreground)'}
+                    fill={
+                        fxColor(callout.fx, val as number) ??
+                        callout.color ??
+                        'var(--foreground)'
+                    }
                 >
                     {formatLabel(val as number, callout, gauge.value, wf)}
                 </text>

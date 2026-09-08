@@ -248,10 +248,12 @@ function BoundValueInput({
     value,
     placeholder,
     onCommit,
+    className,
 }: {
     value?: number;
     placeholder?: string;
     onCommit: (value: number | undefined) => void;
+    className?: string;
 }) {
     const [text, setText] = useState(value === undefined ? '' : String(value));
     const [prevValue, setPrevValue] = useState(value);
@@ -282,7 +284,7 @@ function BoundValueInput({
             onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
-            className="w-full rounded border border-border bg-background px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-brand"
+            className={`w-full rounded border border-border bg-background px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-brand ${className ?? ''}`}
         />
     );
 }
@@ -552,29 +554,33 @@ export function VisualizationsPane({
                 {label}
             </div>
             {(() => {
-                const boundInput =
+                /** Bound wells (gauge min/max/target, card target) accept one
+                 * field *and* one typed constant per "Champs"/"Valeur" value,
+                 * aligned by index. */
+                const boundWellKey =
                     (selected?.type === 'gauge' &&
                         (name === 'minimum' ||
                             name === 'maximum' ||
                             name === 'target')) ||
                     (selected?.type === 'card' && name === 'target')
-                        ? (
-                              {
-                                  minimum: {
-                                      key: 'minimumValue',
-                                      value: selected.minimumValue,
-                                  },
-                                  maximum: {
-                                      key: 'maximumValue',
-                                      value: selected.maximumValue,
-                                  },
-                                  target: {
-                                      key: 'targetValue',
-                                      value: selected.targetValue,
-                                  },
-                              } as const
-                          )[name]
+                        ? name
                         : null;
+                const boundKeys = boundWellKey
+                    ? {
+                          minimum: {
+                              array: 'minimumValues' as const,
+                              scalar: 'minimumValue' as const,
+                          },
+                          maximum: {
+                              array: 'maximumValues' as const,
+                              scalar: 'maximumValue' as const,
+                          },
+                          target: {
+                              array: 'targetValues' as const,
+                              scalar: 'targetValue' as const,
+                          },
+                      }[boundWellKey]
+                    : null;
                 return (
                     <div
                         onDragOver={(e) => {
@@ -630,414 +636,501 @@ export function VisualizationsPane({
                                 'border-brand bg-brand/5 ring-1 ring-brand',
                         )}
                     >
-                        {selected?.[name].length ? (
-                            selected[name].map((f, i) => {
-                                const issue =
-                                    name === 'values' &&
-                                    config?.format !== 'singleValue'
-                                        ? (fieldNumericIssue(f) ??
-                                          fieldIssue(f))
-                                        : fieldIssue(f);
-                                const numericField =
-                                    [
-                                        'values',
-                                        'minimum',
-                                        'maximum',
-                                        'target',
-                                    ].includes(name) &&
-                                    fieldType(f.name, f.table) === 'number' &&
-                                    !isMeasure(f.name);
-                                const tableValueWell =
-                                    name === 'values' &&
-                                    (selected.type === 'table' ||
-                                        selected.type === 'matrix');
-                                // Row-detail mode: raw per-row values. Text
-                                // defaults to it (unless an explicit collapse
-                                // choice is set); numeric opts in via detail.
-                                const detailOn =
-                                    tableValueWell &&
-                                    !isMeasure(f.name) &&
-                                    (f.detail === true ||
-                                        (!numericField &&
-                                            f.valueAggregation === undefined));
-                                const valueRow =
-                                    name === 'values' &&
-                                    CARTESIAN_TYPES.includes(selected.type);
-                                const aggSelect =
-                                    numericField && !detailOn ? (
-                                        <select
-                                            value={f.agg}
-                                            onChange={(e) =>
-                                                setWellAgg(
-                                                    selected.id,
-                                                    name,
-                                                    i,
-                                                    e.target.value as Agg,
-                                                )
-                                            }
-                                            data-testid={`agg-select-${name}-${i}`}
-                                            className="w-16 rounded border border-border bg-background text-[10px]"
-                                        >
-                                            {AGGS.map((a) => (
-                                                <option key={a} value={a}>
-                                                    {AGG_LABELS[a]}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    ) : null;
-                                return (
-                                    <Fragment key={`${f.name}-${i}`}>
-                                        <div
-                                            draggable
-                                            onDragStart={(e) => {
-                                                e.dataTransfer.setData(
-                                                    'text/plain',
-                                                    JSON.stringify({
-                                                        table: f.table,
-                                                        name: f.name,
-                                                        measure: isMeasure(
-                                                            f.name,
-                                                        ),
-                                                        fromWell: name,
-                                                        fromIndex: i,
-                                                    }),
-                                                );
-                                                e.dataTransfer.effectAllowed =
-                                                    'move';
-                                            }}
-                                            className="mb-0.5 cursor-grab rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
-                                        >
-                                            <div className="flex flex-wrap items-center gap-1">
-                                                {issue && (
-                                                    <TriangleAlert
-                                                        className="size-3 shrink-0 text-warning"
-                                                        aria-label={issue}
-                                                    />
-                                                )}
-                                                <span className="flex-1 truncate">
-                                                    {numericField
-                                                        ? measureLabel(f)
-                                                        : fieldLabel(f)}
-                                                </span>
-                                                {!valueRow && aggSelect}
-                                                {SINGLE_VALUE_WELLS.has(name) &&
-                                                    !numericField &&
-                                                    !isMeasure(f.name) &&
-                                                    !detailOn && (
-                                                        <select
-                                                            value={
-                                                                f.valueAggregation ??
-                                                                'first'
-                                                            }
-                                                            onChange={(e) =>
-                                                                setWellValueAgg(
-                                                                    selected.id,
-                                                                    name,
-                                                                    i,
-                                                                    e.target
-                                                                        .value as ValueAggregationMode,
-                                                                )
-                                                            }
-                                                            data-testid={`value-agg-select-${name}-${i}`}
-                                                            className="rounded border border-border bg-background text-[10px]"
-                                                        >
-                                                            {VALUE_AGGREGATION_MODES.map(
-                                                                (m) => (
-                                                                    <option
-                                                                        key={m}
-                                                                        value={
-                                                                            m
-                                                                        }
-                                                                    >
-                                                                        {
-                                                                            VALUE_AGGREGATION_LABELS[
-                                                                                m
-                                                                            ]
-                                                                        }
-                                                                    </option>
-                                                                ),
-                                                            )}
-                                                        </select>
-                                                    )}
-                                                {SINGLE_VALUE_WELLS.has(name) &&
-                                                    isListMeasure(f.name) && (
-                                                        <select
-                                                            title="Traitement de la liste"
-                                                            aria-label="Traitement de la liste"
-                                                            value={
-                                                                f.listAgg ??
-                                                                'list'
-                                                            }
-                                                            onChange={(e) =>
-                                                                handleListAggChange(
-                                                                    selected.id,
-                                                                    name,
-                                                                    i,
-                                                                    f,
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className="rounded border border-border bg-background text-[10px]"
-                                                        >
-                                                            <option value="list">
-                                                                Liste
-                                                            </option>
-                                                            <option value="count">
-                                                                {
-                                                                    AGG_LABELS.count
-                                                                }
-                                                            </option>
-                                                            <option value="distinct">
-                                                                {
-                                                                    AGG_LABELS.distinct
-                                                                }
-                                                            </option>
-                                                            <option value="first">
-                                                                {
-                                                                    AGG_LABELS.first
-                                                                }
-                                                            </option>
-                                                            <option value="latest">
-                                                                {
-                                                                    AGG_LABELS.latest
-                                                                }
-                                                            </option>
-                                                            <option value="raw">
-                                                                {AGG_LABELS.raw}
-                                                            </option>
-                                                            <option value="nth">
-                                                                {AGG_LABELS.nth}
-                                                            </option>
-                                                            <option value="sum">
-                                                                {AGG_LABELS.sum}
-                                                            </option>
-                                                            <option value="avg">
-                                                                {AGG_LABELS.avg}
-                                                            </option>
-                                                            <option value="min">
-                                                                {AGG_LABELS.min}
-                                                            </option>
-                                                            <option value="max">
-                                                                {AGG_LABELS.max}
-                                                            </option>
-                                                        </select>
-                                                    )}
-                                                {issue && (
-                                                    <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
-                                                        {issue}
-                                                    </span>
-                                                )}
-                                                {!valueRow && (
-                                                    <button
-                                                        onClick={() =>
-                                                            removeWellField(
-                                                                selected.id,
-                                                                name,
-                                                                i,
-                                                            )
-                                                        }
-                                                    >
-                                                        <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {valueRow && aggSelect && (
-                                                <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
-                                                    {aggSelect}
-                                                </div>
-                                            )}
-                                            {valueRow && (
-                                                <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
-                                                    <ValueFieldControls
-                                                        visualId={selected.id}
-                                                        field={f}
-                                                        index={i}
-                                                        patchWellField={
-                                                            patchWellField
-                                                        }
-                                                    />
-                                                    <ValueAxisSelect
-                                                        visualId={selected.id}
-                                                        axes={
-                                                            selected.axes ?? []
-                                                        }
-                                                        field={f}
-                                                        index={i}
-                                                        addValueAxis={
-                                                            addValueAxis
-                                                        }
-                                                        patchWellField={
-                                                            patchWellField
-                                                        }
-                                                    />
-                                                    <button
-                                                        onClick={() =>
-                                                            removeWellField(
-                                                                selected.id,
-                                                                name,
-                                                                i,
-                                                            )
-                                                        }
-                                                    >
-                                                        <X className="size-3 text-muted-foreground hover:text-destructive" />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {SINGLE_VALUE_WELLS.has(name) &&
-                                            !isMeasure(f.name) && (
-                                                <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-dashed border-border/60 bg-background/60 px-2 py-1 text-[10px] text-muted-foreground">
-                                                    {tableValueWell && (
-                                                        <label
-                                                            className="flex cursor-pointer items-center gap-1"
-                                                            title="Afficher chaque ligne de données avec sa valeur brute (désactive la synthèse par groupe)"
-                                                        >
-                                                            <input
-                                                                type="checkbox"
-                                                                data-testid={`detail-toggle-${name}-${i}`}
-                                                                checked={
-                                                                    detailOn
-                                                                }
-                                                                onChange={() =>
-                                                                    detailOn
-                                                                        ? patchWellField(
-                                                                              selected.id,
-                                                                              name,
-                                                                              i,
-                                                                              numericField
-                                                                                  ? {
-                                                                                        detail: false,
-                                                                                    }
-                                                                                  : {
-                                                                                        detail: false,
-                                                                                        valueAggregation:
-                                                                                            'first',
-                                                                                        index: undefined,
-                                                                                        window: undefined,
-                                                                                        windowDir:
-                                                                                            undefined,
-                                                                                    },
-                                                                          )
-                                                                        : patchWellField(
+                        {selected?.[name].length
+                            ? selected[name].map((f, i) => {
+                                  const issue =
+                                      name === 'values' &&
+                                      config?.format !== 'singleValue'
+                                          ? (fieldNumericIssue(f) ??
+                                            fieldIssue(f))
+                                          : fieldIssue(f);
+                                  const numericField =
+                                      [
+                                          'values',
+                                          'minimum',
+                                          'maximum',
+                                          'target',
+                                      ].includes(name) &&
+                                      fieldType(f.name, f.table) === 'number' &&
+                                      !isMeasure(f.name);
+                                  const tableValueWell =
+                                      name === 'values' &&
+                                      (selected.type === 'table' ||
+                                          selected.type === 'matrix');
+                                  // Row-detail mode: raw per-row values. Text
+                                  // defaults to it (unless an explicit collapse
+                                  // choice is set); numeric opts in via detail.
+                                  const detailOn =
+                                      tableValueWell &&
+                                      !isMeasure(f.name) &&
+                                      (f.detail === true ||
+                                          (!numericField &&
+                                              f.valueAggregation ===
+                                                  undefined));
+                                  const valueRow =
+                                      name === 'values' &&
+                                      CARTESIAN_TYPES.includes(selected.type);
+                                  const aggSelect =
+                                      numericField && !detailOn ? (
+                                          <select
+                                              value={f.agg}
+                                              onChange={(e) =>
+                                                  setWellAgg(
+                                                      selected.id,
+                                                      name,
+                                                      i,
+                                                      e.target.value as Agg,
+                                                  )
+                                              }
+                                              data-testid={`agg-select-${name}-${i}`}
+                                              className="w-16 rounded border border-border bg-background text-[10px]"
+                                          >
+                                              {AGGS.map((a) => (
+                                                  <option key={a} value={a}>
+                                                      {AGG_LABELS[a]}
+                                                  </option>
+                                              ))}
+                                          </select>
+                                      ) : null;
+                                  return (
+                                      <Fragment key={`${f.name}-${i}`}>
+                                          <div
+                                              draggable
+                                              onDragStart={(e) => {
+                                                  e.dataTransfer.setData(
+                                                      'text/plain',
+                                                      JSON.stringify({
+                                                          table: f.table,
+                                                          name: f.name,
+                                                          measure: isMeasure(
+                                                              f.name,
+                                                          ),
+                                                          fromWell: name,
+                                                          fromIndex: i,
+                                                      }),
+                                                  );
+                                                  e.dataTransfer.effectAllowed =
+                                                      'move';
+                                              }}
+                                              className="mb-0.5 cursor-grab rounded bg-muted px-2 py-1 text-[11px] active:cursor-grabbing"
+                                          >
+                                              <div className="flex flex-wrap items-center gap-1">
+                                                  {issue && (
+                                                      <TriangleAlert
+                                                          className="size-3 shrink-0 text-warning"
+                                                          aria-label={issue}
+                                                      />
+                                                  )}
+                                                  <span className="flex-1 truncate">
+                                                      {numericField
+                                                          ? measureLabel(f)
+                                                          : fieldLabel(f)}
+                                                  </span>
+                                                  {!valueRow && aggSelect}
+                                                  {SINGLE_VALUE_WELLS.has(
+                                                      name,
+                                                  ) &&
+                                                      !numericField &&
+                                                      !isMeasure(f.name) &&
+                                                      !detailOn && (
+                                                          <select
+                                                              value={
+                                                                  f.valueAggregation ??
+                                                                  'first'
+                                                              }
+                                                              onChange={(e) =>
+                                                                  setWellValueAgg(
+                                                                      selected.id,
+                                                                      name,
+                                                                      i,
+                                                                      e.target
+                                                                          .value as ValueAggregationMode,
+                                                                  )
+                                                              }
+                                                              data-testid={`value-agg-select-${name}-${i}`}
+                                                              className="rounded border border-border bg-background text-[10px]"
+                                                          >
+                                                              {VALUE_AGGREGATION_MODES.map(
+                                                                  (m) => (
+                                                                      <option
+                                                                          key={
+                                                                              m
+                                                                          }
+                                                                          value={
+                                                                              m
+                                                                          }
+                                                                      >
+                                                                          {
+                                                                              VALUE_AGGREGATION_LABELS[
+                                                                                  m
+                                                                              ]
+                                                                          }
+                                                                      </option>
+                                                                  ),
+                                                              )}
+                                                          </select>
+                                                      )}
+                                                  {SINGLE_VALUE_WELLS.has(
+                                                      name,
+                                                  ) &&
+                                                      isListMeasure(f.name) && (
+                                                          <select
+                                                              title="Traitement de la liste"
+                                                              aria-label="Traitement de la liste"
+                                                              value={
+                                                                  f.listAgg ??
+                                                                  'list'
+                                                              }
+                                                              onChange={(e) =>
+                                                                  handleListAggChange(
+                                                                      selected.id,
+                                                                      name,
+                                                                      i,
+                                                                      f,
+                                                                      e.target
+                                                                          .value,
+                                                                  )
+                                                              }
+                                                              className="rounded border border-border bg-background text-[10px]"
+                                                          >
+                                                              <option value="list">
+                                                                  Liste
+                                                              </option>
+                                                              <option value="count">
+                                                                  {
+                                                                      AGG_LABELS.count
+                                                                  }
+                                                              </option>
+                                                              <option value="distinct">
+                                                                  {
+                                                                      AGG_LABELS.distinct
+                                                                  }
+                                                              </option>
+                                                              <option value="first">
+                                                                  {
+                                                                      AGG_LABELS.first
+                                                                  }
+                                                              </option>
+                                                              <option value="latest">
+                                                                  {
+                                                                      AGG_LABELS.latest
+                                                                  }
+                                                              </option>
+                                                              <option value="raw">
+                                                                  {
+                                                                      AGG_LABELS.raw
+                                                                  }
+                                                              </option>
+                                                              <option value="nth">
+                                                                  {
+                                                                      AGG_LABELS.nth
+                                                                  }
+                                                              </option>
+                                                              <option value="sum">
+                                                                  {
+                                                                      AGG_LABELS.sum
+                                                                  }
+                                                              </option>
+                                                              <option value="avg">
+                                                                  {
+                                                                      AGG_LABELS.avg
+                                                                  }
+                                                              </option>
+                                                              <option value="min">
+                                                                  {
+                                                                      AGG_LABELS.min
+                                                                  }
+                                                              </option>
+                                                              <option value="max">
+                                                                  {
+                                                                      AGG_LABELS.max
+                                                                  }
+                                                              </option>
+                                                          </select>
+                                                      )}
+                                                  {issue && (
+                                                      <span className="max-w-44 truncate rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
+                                                          {issue}
+                                                      </span>
+                                                  )}
+                                                  {!valueRow && (
+                                                      <button
+                                                          onClick={() =>
+                                                              removeWellField(
+                                                                  selected.id,
+                                                                  name,
+                                                                  i,
+                                                              )
+                                                          }
+                                                      >
+                                                          <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                                      </button>
+                                                  )}
+                                              </div>
+                                              {valueRow && aggSelect && (
+                                                  <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
+                                                      {aggSelect}
+                                                  </div>
+                                              )}
+                                              {valueRow && (
+                                                  <div className="mt-1 flex items-center gap-1 border-t border-border/40 pt-1">
+                                                      <ValueFieldControls
+                                                          visualId={selected.id}
+                                                          field={f}
+                                                          index={i}
+                                                          patchWellField={
+                                                              patchWellField
+                                                          }
+                                                      />
+                                                      <ValueAxisSelect
+                                                          visualId={selected.id}
+                                                          axes={
+                                                              selected.axes ??
+                                                              []
+                                                          }
+                                                          field={f}
+                                                          index={i}
+                                                          addValueAxis={
+                                                              addValueAxis
+                                                          }
+                                                          patchWellField={
+                                                              patchWellField
+                                                          }
+                                                      />
+                                                      <button
+                                                          onClick={() =>
+                                                              removeWellField(
+                                                                  selected.id,
+                                                                  name,
+                                                                  i,
+                                                              )
+                                                          }
+                                                      >
+                                                          <X className="size-3 text-muted-foreground hover:text-destructive" />
+                                                      </button>
+                                                  </div>
+                                              )}
+                                          </div>
+                                          {SINGLE_VALUE_WELLS.has(name) &&
+                                              !isMeasure(f.name) && (
+                                                  <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-dashed border-border/60 bg-background/60 px-2 py-1 text-[10px] text-muted-foreground">
+                                                      {tableValueWell && (
+                                                          <label
+                                                              className="flex cursor-pointer items-center gap-1"
+                                                              title="Afficher chaque ligne de données avec sa valeur brute (désactive la synthèse par groupe)"
+                                                          >
+                                                              <input
+                                                                  type="checkbox"
+                                                                  data-testid={`detail-toggle-${name}-${i}`}
+                                                                  checked={
+                                                                      detailOn
+                                                                  }
+                                                                  onChange={() =>
+                                                                      detailOn
+                                                                          ? patchWellField(
+                                                                                selected.id,
+                                                                                name,
+                                                                                i,
+                                                                                numericField
+                                                                                    ? {
+                                                                                          detail: false,
+                                                                                      }
+                                                                                    : {
+                                                                                          detail: false,
+                                                                                          valueAggregation:
+                                                                                              'first',
+                                                                                          index: undefined,
+                                                                                          window: undefined,
+                                                                                          windowDir:
+                                                                                              undefined,
+                                                                                      },
+                                                                            )
+                                                                          : patchWellField(
+                                                                                selected.id,
+                                                                                name,
+                                                                                i,
+                                                                                {
+                                                                                    detail: true,
+                                                                                    valueAggregation:
+                                                                                        undefined,
+                                                                                    index: undefined,
+                                                                                    window: undefined,
+                                                                                    windowDir:
+                                                                                        undefined,
+                                                                                },
+                                                                            )
+                                                                  }
+                                                              />
+                                                              Détail des lignes
+                                                          </label>
+                                                      )}
+                                                      {!detailOn &&
+                                                          ((numericField &&
+                                                              f.agg ===
+                                                                  'nth') ||
+                                                              (!numericField &&
+                                                                  (f.valueAggregation ??
+                                                                      'first') ===
+                                                                      'nth')) && (
+                                                              <label className="flex items-center gap-1">
+                                                                  Position
+                                                                  <InlineIntInput
+                                                                      value={
+                                                                          f.index
+                                                                      }
+                                                                      min={1}
+                                                                      placeholder="1"
+                                                                      onCommit={(
+                                                                          v,
+                                                                      ) =>
+                                                                          patchWellField(
                                                                               selected.id,
                                                                               name,
                                                                               i,
                                                                               {
-                                                                                  detail: true,
-                                                                                  valueAggregation:
-                                                                                      undefined,
-                                                                                  index: undefined,
-                                                                                  window: undefined,
-                                                                                  windowDir:
-                                                                                      undefined,
+                                                                                  index: v,
                                                                               },
                                                                           )
-                                                                }
-                                                            />
-                                                            Détail des lignes
-                                                        </label>
-                                                    )}
-                                                    {!detailOn &&
-                                                        ((numericField &&
-                                                            f.agg === 'nth') ||
-                                                            (!numericField &&
-                                                                (f.valueAggregation ??
-                                                                    'first') ===
-                                                                    'nth')) && (
-                                                            <label className="flex items-center gap-1">
-                                                                Position
-                                                                <InlineIntInput
-                                                                    value={
-                                                                        f.index
-                                                                    }
-                                                                    min={1}
-                                                                    placeholder="1"
-                                                                    onCommit={(
-                                                                        v,
-                                                                    ) =>
-                                                                        patchWellField(
-                                                                            selected.id,
-                                                                            name,
-                                                                            i,
-                                                                            {
-                                                                                index: v,
-                                                                            },
-                                                                        )
-                                                                    }
-                                                                />
-                                                            </label>
-                                                        )}
-                                                    {!detailOn && (
-                                                        <label className="flex items-center gap-1">
-                                                            <select
-                                                                value={
-                                                                    f.windowDir ??
-                                                                    'last'
-                                                                }
-                                                                onChange={(e) =>
-                                                                    patchWellField(
-                                                                        selected.id,
-                                                                        name,
-                                                                        i,
-                                                                        {
-                                                                            windowDir:
-                                                                                e
-                                                                                    .target
-                                                                                    .value as
-                                                                                    | 'first'
-                                                                                    | 'last',
-                                                                        },
-                                                                    )
-                                                                }
-                                                                className="rounded border border-border bg-background text-[10px]"
-                                                            >
-                                                                <option value="last">
-                                                                    Derniers
-                                                                </option>
-                                                                <option value="first">
-                                                                    Premiers
-                                                                </option>
-                                                            </select>
-                                                            <InlineIntInput
-                                                                value={f.window}
-                                                                min={1}
-                                                                placeholder="toutes"
-                                                                onCommit={(v) =>
-                                                                    patchWellField(
-                                                                        selected.id,
-                                                                        name,
-                                                                        i,
-                                                                        {
-                                                                            window: v,
-                                                                        },
-                                                                    )
-                                                                }
-                                                            />
-                                                            <span>lignes</span>
-                                                        </label>
-                                                    )}
-                                                </div>
-                                            )}
-                                    </Fragment>
-                                );
-                            })
-                        ) : boundInput ? (
-                            <BoundValueInput
-                                value={boundInput.value}
-                                placeholder="Saisir une valeur"
-                                onCommit={(v) => {
-                                    if (selected)
-                                        updateVisualSingle(selected.id, {
-                                            [boundInput.key]: v,
-                                        });
-                                }}
-                            />
-                        ) : (
+                                                                      }
+                                                                  />
+                                                              </label>
+                                                          )}
+                                                      {!detailOn && (
+                                                          <label className="flex items-center gap-1">
+                                                              <select
+                                                                  value={
+                                                                      f.windowDir ??
+                                                                      'last'
+                                                                  }
+                                                                  onChange={(
+                                                                      e,
+                                                                  ) =>
+                                                                      patchWellField(
+                                                                          selected.id,
+                                                                          name,
+                                                                          i,
+                                                                          {
+                                                                              windowDir:
+                                                                                  e
+                                                                                      .target
+                                                                                      .value as
+                                                                                      | 'first'
+                                                                                      | 'last',
+                                                                          },
+                                                                      )
+                                                                  }
+                                                                  className="rounded border border-border bg-background text-[10px]"
+                                                              >
+                                                                  <option value="last">
+                                                                      Derniers
+                                                                  </option>
+                                                                  <option value="first">
+                                                                      Premiers
+                                                                  </option>
+                                                              </select>
+                                                              <InlineIntInput
+                                                                  value={
+                                                                      f.window
+                                                                  }
+                                                                  min={1}
+                                                                  placeholder="toutes"
+                                                                  onCommit={(
+                                                                      v,
+                                                                  ) =>
+                                                                      patchWellField(
+                                                                          selected.id,
+                                                                          name,
+                                                                          i,
+                                                                          {
+                                                                              window: v,
+                                                                          },
+                                                                      )
+                                                                  }
+                                                              />
+                                                              <span>
+                                                                  lignes
+                                                              </span>
+                                                          </label>
+                                                      )}
+                                                  </div>
+                                              )}
+                                      </Fragment>
+                                  );
+                              })
+                            : null}
+                        {boundKeys ? (
+                            selected?.values.length ? (
+                                <div className="mt-1 space-y-1">
+                                    {selected.values.map((vf, i) => {
+                                        const boundField = selected[name][i];
+                                        const current =
+                                            selected[boundKeys.array]?.[i];
+                                        return (
+                                            <div
+                                                key={i}
+                                                className="flex items-center gap-1 rounded border border-border/60 bg-background/60 px-1.5 py-1"
+                                            >
+                                                <span
+                                                    className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground"
+                                                    title={fieldLabel(vf)}
+                                                >
+                                                    {fieldLabel(vf)}
+                                                </span>
+                                                {boundField && (
+                                                    <span className="shrink-0 truncate rounded bg-muted px-1 py-0.5 text-[10px]">
+                                                        {fieldLabel(boundField)}
+                                                    </span>
+                                                )}
+                                                <BoundValueInput
+                                                    value={current}
+                                                    placeholder="Valeur"
+                                                    className="w-24 shrink-0"
+                                                    onCommit={(v) => {
+                                                        if (!selected) return;
+                                                        const next = [
+                                                            ...(selected[
+                                                                boundKeys.array
+                                                            ] ?? []),
+                                                        ];
+                                                        while (next.length <= i)
+                                                            next.push(
+                                                                undefined,
+                                                            );
+                                                        next[i] = v;
+                                                        updateVisualSingle(
+                                                            selected.id,
+                                                            {
+                                                                [boundKeys.array]:
+                                                                    next,
+                                                            },
+                                                        );
+                                                    }}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                    <div className="px-1 text-[10px] text-muted-foreground/70">
+                                        Une valeur (ou champ) par champ de
+                                        données, dans l’ordre.
+                                    </div>
+                                </div>
+                            ) : (
+                                <BoundValueInput
+                                    value={selected?.[boundKeys.scalar]}
+                                    placeholder="Saisir une valeur"
+                                    onCommit={(v) => {
+                                        if (selected)
+                                            updateVisualSingle(selected.id, {
+                                                [boundKeys.scalar]: v,
+                                            });
+                                    }}
+                                />
+                            )
+                        ) : !selected?.[name].length ? (
                             <div className="px-1 py-1 text-[11px] text-muted-foreground">
                                 Ajouter des champs de données ici
                             </div>
-                        )}
+                        ) : null}
                     </div>
                 );
             })()}

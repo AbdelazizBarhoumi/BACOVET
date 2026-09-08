@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Support\DatasetRows;
+use App\Support\EndpointSchemaAnalyzer;
 use App\Support\RootState;
 use Illuminate\Support\Facades\Cache;
 
 class EndpointDatasetRegistry
 {
     private const CACHE_KEY = 'endpoint-datasets:registry:v2';
+
+    private const ROWS_KEY = 'endpoint-datasets:rows:v2';
 
     public function path(): string
     {
@@ -45,6 +48,8 @@ class EndpointDatasetRegistry
     public function forgetCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+        Cache::forget(self::ROWS_KEY);
+        Cache::forget(EndpointSchemaAnalyzer::CACHE_KEY);
     }
 
     /**
@@ -58,37 +63,39 @@ class EndpointDatasetRegistry
      */
     public function rowsBySlug(): array
     {
-        $items = $this->readItems();
+        return Cache::remember(self::ROWS_KEY, now()->addMinutes(5), function () {
+            $items = $this->readItems();
 
-        if ($items === null) {
-            return [];
-        }
-
-        $rowsBySlug = [];
-
-        foreach ($items as $item) {
-            if (! is_array($item)) {
-                continue;
+            if ($items === null) {
+                return [];
             }
 
-            if (RootState::isDisabled($item)) {
-                continue;
+            $rowsBySlug = [];
+
+            foreach ($items as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                if (RootState::isDisabled($item)) {
+                    continue;
+                }
+
+                $slug = $this->slugOf((string) ($item['endpoint'] ?? ''));
+
+                if ($slug === '') {
+                    continue;
+                }
+
+                $rows = DatasetRows::extractRows($item['response'] ?? null);
+
+                if ($rows !== []) {
+                    $rowsBySlug[$slug] = $rows;
+                }
             }
 
-            $slug = $this->slugOf((string) ($item['endpoint'] ?? ''));
-
-            if ($slug === '') {
-                continue;
-            }
-
-            $rows = DatasetRows::extractRows($item['response'] ?? null);
-
-            if ($rows !== []) {
-                $rowsBySlug[$slug] = $rows;
-            }
-        }
-
-        return $rowsBySlug;
+            return $rowsBySlug;
+        });
     }
 
     /**

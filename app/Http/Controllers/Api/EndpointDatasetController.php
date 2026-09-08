@@ -71,10 +71,15 @@ class EndpointDatasetController extends Controller
      * Schema analysis (primary keys, shared join columns, FK candidates) for
      * the page builder so the report editor can
      * build its cross-table join registry without the main IT/web session.
+     *
+     * The builder requests `?light=1` to receive only the join/key fields it
+     * consumes, skipping the value samples used by the IT schema panel.
      */
     public function schema(): JsonResponse
     {
-        $result = (new NovacityEndpointsController)->schemaData();
+        $result = (new NovacityEndpointsController)->schemaData(
+            light: request()->boolean('light'),
+        );
 
         if ($result === null) {
             return response()->json([

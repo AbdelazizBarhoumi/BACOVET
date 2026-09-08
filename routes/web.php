@@ -66,37 +66,82 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/change-password', [AuthController::class, 'changePassword'])
     ->middleware(['auth', 'active.user']);
 
+// ── PUBLIC READ-ONLY VIEW (published dashboards / kiosk, no session) ────
+// Published pages are viewable without login, so nothing can expire their
+// session. The GET endpoints below are read-only and never depend on the
+// auth user; they feed the public view its datasets, schema, joins, measures
+// and uploaded images. Writes (POST/PUT/DELETE) stay behind auth.
+Route::get('/pub/{slug}', function ($slug) {
+    $page = BuilderPage::where('slug', $slug)->first();
+
+    if (! $page || ! $page->published) {
+        abort(404);
+    }
+
+    return Inertia::render('builder/p/[slug]', [
+        'pageId' => $page->id,
+        'slug' => $page->slug,
+        'pageName' => $page->name,
+        'layout' => $page->layout,
+        'layoutDraft' => null,
+        'layoutDraftUpdatedAt' => null,
+        'isOwner' => false,
+        'canEdit' => false,
+        'canManage' => false,
+        'isPublic' => true,
+        'published' => true,
+    ]);
+})->name('builder.page.public');
+
+Route::get('/api/endpoint-datasets', [EndpointDatasetController::class, 'index']);
+Route::get('/api/endpoint-datasets/status', [EndpointDatasetController::class, 'status']);
+Route::get('/api/schema', [EndpointDatasetController::class, 'schema']);
+Route::get('/api/measures', [MeasureController::class, 'index']);
+Route::get('/api/joins', [MeasureJoinController::class, 'index']);
+Route::get('/api/builder-pages/{id}/images/{filename}', [BuilderPageController::class, 'showImage'])->name('builder.page.image');
+
 // ── PAGE BUILDER (auth via the main login; users table) ─
+// /p/{slug} is the builder URL. Published pages are public, so a guest
+// landing here is redirected to the read-only /pub/{slug} view instead of
+// being bounced to the login page; unpublished pages still require login.
+Route::get('/p/{slug}', function ($slug) {
+    $page = BuilderPage::where('slug', $slug)->first();
+    if (! $page) {
+        abort(404);
+    }
+
+    $user = PageAccess::resolveUser();
+
+    if (! $user) {
+        if ($page->published) {
+            return redirect()->route('builder.page.public', ['slug' => $page->slug]);
+        }
+
+        return redirect()->route('login');
+    }
+
+    if (! PageAccess::canView($page, $user)) {
+        abort(403);
+    }
+
+    return Inertia::render('builder/p/[slug]', [
+        'pageId' => $page->id,
+        'slug' => $page->slug,
+        'pageName' => $page->name,
+        'layout' => $page->layout,
+        'layoutDraft' => $page->layout_draft,
+        'layoutDraftUpdatedAt' => $page->layout_draft_updated_at?->toISOString(),
+        'isOwner' => $page->owner_user_id === $user->id,
+        'canEdit' => PageAccess::canEdit($page, $user),
+        'canManage' => PageAccess::canManage($page, $user),
+        'isPublic' => false,
+        'published' => $page->published,
+    ]);
+})->name('builder.page');
+
 Route::middleware('auth')->group(function () {
-    Route::get('/p/{slug}', function ($slug) {
-        $page = BuilderPage::where('slug', $slug)->first();
-        if (! $page) {
-            abort(404);
-        }
-
-        $user = PageAccess::resolveUser();
-        if (! PageAccess::canView($page, $user)) {
-            abort(403);
-        }
-
-        return Inertia::render('builder/p/[slug]', [
-            'pageId' => $page->id,
-            'slug' => $page->slug,
-            'pageName' => $page->name,
-            'layout' => $page->layout,
-            'layoutDraft' => $page->layout_draft,
-            'layoutDraftUpdatedAt' => $page->layout_draft_updated_at?->toISOString(),
-            'isOwner' => $page->owner_user_id === $user->id,
-            'canEdit' => PageAccess::canEdit($page, $user),
-            'canManage' => PageAccess::canManage($page, $user),
-        ]);
-    })->name('builder.page');
-
-    Route::get('/api/endpoint-datasets', [EndpointDatasetController::class, 'index']);
-    Route::get('/api/endpoint-datasets/status', [EndpointDatasetController::class, 'status']);
     Route::post('/api/endpoint-datasets/sync', [EndpointDatasetController::class, 'sync']);
     Route::get('/api/dashboard-parameters', [EndpointDatasetController::class, 'dashboardParameters']);
-    Route::get('/api/schema', [EndpointDatasetController::class, 'schema']);
 
     Route::get('/api/settings/{key}', [SettingsController::class, 'show']);
     Route::post('/api/settings', [SettingsController::class, 'store']);
@@ -109,7 +154,6 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{id}', [BuilderPageController::class, 'destroy']);
         Route::post('/{id}/duplicate', [BuilderPageController::class, 'duplicate']);
         Route::post('/{id}/images', [BuilderPageController::class, 'uploadImage'])->name('builder.page.image.upload');
-        Route::get('/{id}/images/{filename}', [BuilderPageController::class, 'showImage'])->name('builder.page.image');
         Route::get('/{id}/permissions', [BuilderPageController::class, 'getPermissions']);
         Route::put('/{id}/permissions', [BuilderPageController::class, 'savePermissions']);
     });
@@ -129,14 +173,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/activity/users', [BuilderActivityController::class, 'users']);
 
     Route::prefix('api/measures')->group(function () {
-        Route::get('/', [MeasureController::class, 'index']);
         Route::post('/', [MeasureController::class, 'store']);
         Route::put('/{id}', [MeasureController::class, 'update']);
         Route::delete('/{id}', [MeasureController::class, 'destroy']);
     });
 
     Route::prefix('api/joins')->group(function () {
-        Route::get('/', [MeasureJoinController::class, 'index']);
         Route::post('/', [MeasureJoinController::class, 'store']);
         Route::delete('/{id}', [MeasureJoinController::class, 'destroy']);
     });

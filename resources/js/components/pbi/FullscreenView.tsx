@@ -73,9 +73,27 @@ export function FullscreenView() {
         };
     }, []);
 
+    // Hidden pages stay hidden: fullscreen navigation (chevrons, dots,
+    // autoplay, swipe) only cycles through the visible pages.
+    const visiblePages = useMemo(
+        () => pages.filter((p) => !p.format.hidden),
+        [pages],
+    );
+    const navigationPages =
+        visiblePages.length > 0 ? visiblePages : pages;
+
+    // If the current page is hidden, fall back to the first visible one.
+    useEffect(() => {
+        const active = pages.find((p) => p.id === activePageId);
+        if (active?.format.hidden && navigationPages.length) {
+            setActivePage(navigationPages[0].id);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const index = Math.max(
         0,
-        pages.findIndex((p) => p.id === activePageId),
+        navigationPages.findIndex((p) => p.id === activePageId),
     );
     const widthRef = useRef(0);
     useEffect(() => {
@@ -117,12 +135,12 @@ export function FullscreenView() {
             setPhase('slide-out');
             setOffset(dir * w);
             window.setTimeout(() => {
-                const p = pages[target];
+                const p = navigationPages[target];
                 if (p) setActivePage(p.id);
                 slideIn(dir);
             }, SLIDE_MS);
         },
-        [pages, setActivePage, slideIn],
+        [navigationPages, setActivePage, slideIn],
     );
 
     const onPointerDown = (e: React.PointerEvent) => {
@@ -164,7 +182,7 @@ export function FullscreenView() {
             return;
         }
         const canPrev = index > 0;
-        const canNext = index < pages.length - 1;
+        const canNext = index < navigationPages.length - 1;
         if (dx < -w * SLIDE_RATIO && canNext) {
             commitSlide(-1, index + 1);
         } else if (dx > w * SLIDE_RATIO && canPrev) {
@@ -202,7 +220,10 @@ export function FullscreenView() {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 setFullscreen(false);
-            } else if (e.key === 'ArrowRight' && index < pages.length - 1) {
+            } else if (
+                e.key === 'ArrowRight' &&
+                index < navigationPages.length - 1
+            ) {
                 goTo(index + 1);
             } else if (e.key === 'ArrowLeft' && index > 0) {
                 goTo(index - 1);
@@ -210,20 +231,20 @@ export function FullscreenView() {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [index, pages.length, setFullscreen, goTo]);
+    }, [index, navigationPages.length, setFullscreen, goTo]);
 
     // Autoplay: advances to the next page in an infinite loop while idle. The
     // timer is re-armed whenever the index or the phase changes, so manual
     // navigation resets the countdown but keeps playing.
     useEffect(() => {
-        if (!playing || pages.length < 2 || phase !== 'idle') return;
+        if (!playing || navigationPages.length < 2 || phase !== 'idle') return;
         const id = window.setTimeout(() => {
-            goTo((index + 1) % pages.length);
+            goTo((index + 1) % navigationPages.length);
         }, intervalSec * 1000);
         return () => window.clearTimeout(id);
-    }, [playing, intervalSec, index, pages.length, phase, goTo]);
+    }, [playing, intervalSec, index, navigationPages.length, phase, goTo]);
 
-    const page = pages[index];
+    const page = navigationPages[index];
     const animating = phase !== 'idle';
 
     return (
@@ -260,7 +281,7 @@ export function FullscreenView() {
                 )}
             >
                 <div className="rounded bg-black/40 px-2.5 py-1 text-[11px] text-white backdrop-blur">
-                    {page?.name} · {index + 1}/{pages.length}
+                    {page?.name} · {index + 1}/{navigationPages.length}
                 </div>
             </div>
 
@@ -282,7 +303,7 @@ export function FullscreenView() {
                 </button>
                 <button
                     onClick={() => goTo(index + 1)}
-                    disabled={index === pages.length - 1 || animating}
+                    disabled={index === navigationPages.length - 1 || animating}
                     className="grid size-8 place-items-center rounded bg-black/40 text-white backdrop-blur hover:bg-black/60 disabled:opacity-30"
                     aria-label="Page suivante"
                 >
@@ -297,7 +318,7 @@ export function FullscreenView() {
                 </button>
             </div>
 
-            {pages.length > 1 && (
+            {navigationPages.length > 1 && (
                 <div
                     className={cn(
                         'absolute bottom-3 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 transition-opacity duration-200',
@@ -341,7 +362,7 @@ export function FullscreenView() {
                         <span className="text-[10px] text-white/70">s</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        {pages.map((p, i) => (
+                        {navigationPages.map((p, i) => (
                             <button
                                 key={p.id}
                                 onClick={() => goTo(i)}
