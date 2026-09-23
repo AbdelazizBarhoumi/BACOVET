@@ -1,6 +1,7 @@
 import { ListFilter, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { RootCombobox } from '@/components/endpoints/RootCombobox';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -11,13 +12,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
     fetchRootParameters,
@@ -27,9 +21,6 @@ import {
 } from '@/services/endpointManagerApi';
 
 const URL_RE = /^https?:\/\/.+/i;
-
-const CUSTOM_ROOT = '__custom__';
-const DEFAULT_ROOT = '__default__';
 
 function normalize(value: string): string {
     return value.trim().replace(/\/+$/, '');
@@ -73,9 +64,6 @@ export function RootParametersManager({
     const [newRootName, setNewRootName] = useState('');
     const [newRootValues, setNewRootValues] = useState('');
     const [addError, setAddError] = useState('');
-
-    const isCustomRoot =
-        newRootUrl.trim() !== '' && !roots.includes(newRootUrl.trim());
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -270,58 +258,13 @@ export function RootParametersManager({
                             <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
                                 Racine API
                             </Label>
-                            <Select
-                                value={
-                                    isCustomRoot
-                                        ? CUSTOM_ROOT
-                                        : newRootUrl === ''
-                                          ? DEFAULT_ROOT
-                                          : newRootUrl
-                                }
-                                onValueChange={(value) => {
-                                    if (value === CUSTOM_ROOT) return;
-                                    setNewRootUrl(
-                                        value === DEFAULT_ROOT ? '' : value,
-                                    );
-                                }}
-                            >
-                                <SelectTrigger className="h-9 w-full font-mono text-sm">
-                                    <SelectValue placeholder="Choisir une racine" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem
-                                        value={DEFAULT_ROOT}
-                                        className="font-mono text-xs"
-                                    >
-                                        Choisir une racine…
-                                    </SelectItem>
-                                    {roots.map((root) => (
-                                        <SelectItem
-                                            key={root}
-                                            value={root}
-                                            className="font-mono text-xs"
-                                        >
-                                            {root}
-                                        </SelectItem>
-                                    ))}
-                                    <SelectItem
-                                        value={CUSTOM_ROOT}
-                                        className="font-mono text-xs"
-                                    >
-                                        Personnalisée…
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            {isCustomRoot && (
-                                <Input
-                                    value={newRootUrl}
-                                    onChange={(e) =>
-                                        setNewRootUrl(e.target.value)
-                                    }
-                                    placeholder="https://api.exemple.com"
-                                    className="mt-1.5 font-mono text-sm"
-                                />
-                            )}
+                            <RootCombobox
+                                value={newRootUrl}
+                                roots={roots}
+                                onChange={setNewRootUrl}
+                                placeholder="https://api.exemple.com"
+                                hintVariant="compact"
+                            />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                             <div>
