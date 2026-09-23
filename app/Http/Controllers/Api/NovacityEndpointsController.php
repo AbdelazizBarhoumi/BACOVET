@@ -12,6 +12,7 @@ use App\Support\EndpointSchemaAnalyzer;
 use App\Support\RootCredentials;
 use App\Support\RootParameters;
 use App\Support\RootState;
+use App\Support\SyncRunner;
 use App\Support\SyncStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -147,11 +148,15 @@ class NovacityEndpointsController extends Controller
     }
 
     /**
-     * Launch the full registry + dataset sync in a detached background
-     * process and return immediately. The web request never blocks on the
-     * 200-endpoint sweep (which exceeds the 60s browser/client timeout), so
-     * the UI polls /health via the `endpoints:refresh:running` flag. A stale
-     * flag (dead worker PID) is self-healed instead of blocking the button.
+     * Launch the dataset sync. Preferred path: a detached background process
+     * that returns immediately (the 200-endpoint sweep exceeds the 60s
+     * browser/client timeout), with the UI polling /health via the
+     * `endpoints:refresh:running` flag. A stale flag (dead worker PID) is
+     * self-healed instead of blocking the button.
+     *
+     * Fallback path: when this host cannot spawn subprocesses at all, the
+     * datasets phase runs synchronously in-request (same live path as the
+     * per-endpoint refresh buttons) instead of failing.
      */
     public function refresh(): JsonResponse
     {
@@ -166,9 +171,28 @@ class NovacityEndpointsController extends Controller
 
         $log = storage_path('logs/endpoint-sync-manual.log');
 
+        // Same honesty contract as EndpointDatasetController::sync: prove the
+        // runtime works and the log is writable before claiming queued:true.
+        $preflight = DetachedProcess::preflight();
+
+        if (! $preflight['ok']) {
+            return $this->refreshSynchronously($preflight);
+        }
+
         // Clear any stale flag BEFORE spawning: doing it after would race with
         // the worker publishing its own PID and wipe it, wedging isActuallyRunning().
         RunEndpointSync::clearStale();
+
+        if (! DetachedProcess::mark($log, 'trigger endpoint-sync:run (php: '.$preflight['php_binary'].')')) {
+            return response()->json([
+                'success' => false,
+                'queued' => false,
+                'running' => false,
+                'reason' => 'log_unwritable',
+                'error' => 'Impossible d’écrire dans '.$log.' — vérifiez les permissions du dossier storage/logs.',
+                'spawn' => $preflight,
+            ], 500);
+        }
 
         DetachedProcess::spawn($log, ['endpoint-sync:run']);
 
@@ -182,7 +206,52 @@ class NovacityEndpointsController extends Controller
             'success' => true,
             'queued' => true,
             'running' => true,
+            'mode' => 'detached',
+            'spawn' => $preflight,
         ]);
+    }
+
+    /**
+     * Synchronous datasets-phase sync for hosts that cannot spawn a detached
+     * worker. Mirrors the pre-detached refresh() contract (success /
+     * exit_code / output) so callers keep working unchanged.
+     */
+    private function refreshSynchronously(array $preflight): JsonResponse
+    {
+        try {
+            $result = SyncRunner::runDatasetsSynchronously();
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'queued' => false,
+                'running' => false,
+                'mode' => 'sync',
+                'reason' => 'sync_failed',
+                'error' => 'Échec de la synchronisation : '.$e->getMessage(),
+                'spawn' => $preflight,
+            ], 500);
+        }
+
+        $exitCode = $result['exit_code'];
+        $output = $result['output'];
+
+        self::flushCache();
+
+        $retryState = $this->loadRefreshRetry();
+
+        return response()->json([
+            'success' => $exitCode === 0,
+            'queued' => false,
+            'running' => false,
+            'mode' => 'sync',
+            'exit_code' => $exitCode,
+            'output' => mb_substr(trim($output) !== '' ? $output : 'Synchronisation terminée.', 0, 4000),
+            'meta' => $this->loadRefreshMeta(),
+            'retry_pending_count' => count($retryState),
+            'retry_ids' => array_values(array_slice($retryState, 0, 200)),
+            'sync' => SyncStatus::payload(),
+            'spawn' => $preflight,
+        ], $exitCode === 0 ? 200 : 500);
     }
 
     /**
@@ -606,8 +675,6 @@ class NovacityEndpointsController extends Controller
             return response()->json(['success' => false, 'error' => 'Entry not found'], 404);
         }
 
-        $slug = app(EndpointDatasetRegistry::class)->slugOf((string) ($items[$index]['endpoint'] ?? ''));
-
         unset($items[$index]);
 
         if (! $this->persistItems(array_values($items))) {
@@ -616,9 +683,9 @@ class NovacityEndpointsController extends Controller
 
         $this->invalidateDatasetCaches();
 
-        if ($slug !== '') {
-            EndpointDataset::where('slug', $slug)->delete();
-        }
+        // Prune (instead of a raw slug delete) so a path shared with another
+        // enabled root keeps its row, while dataset + variant orphans go.
+        SyncStatus::pruneStale();
 
         return response()->json(['success' => true]);
     }
@@ -688,8 +755,10 @@ class NovacityEndpointsController extends Controller
         }
 
         // Disabling drops the endpoint_datasets row; enabling (re)creates it
-        // from the stored snapshot via syncDatasetEntry → buildEntry.
+        // from the stored snapshot via syncDatasetEntry → buildEntry. The
+        // prune also drops variant rows so no orphans linger for the badge.
         $this->syncDatasetEntry($items[$index]);
+        SyncStatus::pruneStale();
 
         return response()->json([
             'success' => true,
@@ -735,6 +804,9 @@ class NovacityEndpointsController extends Controller
 
         // Sync dataset rows for every endpoint sharing the root: disabling
         // drops them, re-enabling recreates them from the stored snapshots.
+        // The final prune also drops variant rows and any other orphan slugs
+        // so disabled roots can never linger as ghost errors in the sync
+        // status badge (which only counts registry-visible slugs).
         $items = $this->loadItems() ?? [];
         $affected = 0;
 
@@ -746,6 +818,8 @@ class NovacityEndpointsController extends Controller
             $this->syncDatasetEntry($item);
             $affected++;
         }
+
+        SyncStatus::pruneStale();
 
         $this->invalidateDatasetCaches();
 
@@ -911,6 +985,10 @@ class NovacityEndpointsController extends Controller
                 ]);
             }
         }
+
+        // Replace-mode removals already deleted their dataset rows above; the
+        // prune catches leftover variant rows so nothing orphaned survives.
+        SyncStatus::pruneStale();
 
         return response()->json([
             'success' => $errors === [] || $created !== [],

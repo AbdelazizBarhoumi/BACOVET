@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useLiveData } from '@/hooks/use-live-data';
 import { pushAudit } from '@/lib/audit';
@@ -34,6 +35,20 @@ const LiveSyncPill = () => {
 
     const neverSynced = lastSync === 0;
     const ago = Math.max(0, Math.floor(elapsedMs / 1000));
+
+    // Latest polled state, mirrored for the post-trigger start check below.
+    const stateRef = useRef({ running, lastSync });
+    stateRef.current = { running, lastSync };
+    const startCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(
+        () => () => {
+            if (startCheckTimer.current) {
+                clearTimeout(startCheckTimer.current);
+            }
+        },
+        [],
+    );
 
     // Status bands are relative to the configured refresh interval so a 10-min
     // interval is not flagged red like a 1-min one would be.
@@ -83,9 +98,26 @@ const LiveSyncPill = () => {
     return (
         <button
             onClick={() => {
+                const baselineLastSync = lastSync;
                 forceSync()
-                    .then(({ queued }) => {
-                        if (!queued) {
+                    .then((res) => {
+                        // Synchronous mode (hosts without a working shell):
+                        // the server already ran the sweep in-request, so the
+                        // result is final — no start watchdog needed.
+                        if (res.synchronous) {
+                            if (res.success !== false) {
+                                toast.success(
+                                    'Synchronisation terminée — données à jour.',
+                                );
+                            } else {
+                                toast.error(
+                                    res.output ||
+                                        'Échec de la synchronisation — réessayez.',
+                                );
+                            }
+                            return;
+                        }
+                        if (!res.queued) {
                             toast.info(
                                 'Une synchronisation est déjà en cours — mise à jour en arrière-plan.',
                             );
@@ -93,11 +125,34 @@ const LiveSyncPill = () => {
                             toast.success(
                                 'Synchronisation lancée en arrière-plan — chaque endpoint sera mis à jour.',
                             );
+                            // The launch endpoint is fire-and-forget: verify the
+                            // worker actually started. A dead worker shows
+                            // running for ~30s (boot-grace on its flag) then
+                            // clears with zero writes, so only a moved lastSync
+                            // or a still-running flag past that window counts
+                            // as proof. Otherwise tell the user instead of
+                            // leaving a silently stale badge.
+                            if (startCheckTimer.current) {
+                                clearTimeout(startCheckTimer.current);
+                            }
+                            startCheckTimer.current = setTimeout(() => {
+                                const s = stateRef.current;
+                                if (
+                                    s.lastSync === baselineLastSync &&
+                                    !s.running
+                                ) {
+                                    toast.error(
+                                        "Le worker ne semble pas avoir démarré — vérifiez storage/logs/endpoint-sync-manual.log sur le serveur.",
+                                    );
+                                }
+                            }, 50_000);
                         }
                     })
-                    .catch(() =>
+                    .catch((err: unknown) =>
                         toast.error(
-                            'Synchronisation impossible à lancer — réessayez.',
+                            err instanceof Error && err.message
+                                ? err.message
+                                : 'Synchronisation impossible à lancer — réessayez.',
                         ),
                     );
                 pushAudit('SYSTEM', "Synchronisation forcée par l'utilisateur");

@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Tests\TestCase;
 
@@ -160,7 +161,10 @@ class EndpointDatasetsFallbackTest extends TestCase
     {
         $user = $this->userWithRole();
 
-        Process::fake();
+        Process::fake([
+            '* --version' => Process::result("PHP 8.2.99 (cli) (built: test suite)\nCopyright (c) The PHP Group"),
+            '*' => Process::result(''),
+        ]);
 
         $this->actingAs($user)
             ->postJson('/api/endpoint-datasets/sync')
@@ -170,6 +174,34 @@ class EndpointDatasetsFallbackTest extends TestCase
             ->assertJsonPath('running', true);
 
         Process::assertRan(fn (PendingProcess $process) => str_contains((string) $process->command ?? '', 'endpoint-sync:run'));
+    }
+
+    public function test_sync_falls_back_to_synchronous_run_when_no_shell_exists(): void
+    {
+        $user = $this->userWithRole();
+
+        // Every subprocess fails: no PHP CLI is discoverable on this host
+        // (jailed php-fpm). The endpoint must sync in-request instead.
+        Process::fake(['*' => Process::result('', '', 1)]);
+
+        Http::fake([
+            'https://api.primary.test/*' => Http::response(
+                ['success' => true, 'data' => [['ProdGroup' => 'LIVE', 'WIP_Chaine' => 5]]],
+                200,
+            ),
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/api/endpoint-datasets/sync')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('mode', 'sync')
+            ->assertJsonPath('exit_code', 0);
+
+        $this->assertDatabaseHas('endpoint_datasets', [
+            'slug' => 'api/data/q/wip_chaine',
+            'last_status' => 'ok',
+        ]);
     }
 
     public function test_sync_endpoint_acks_when_a_sweep_is_already_running(): void

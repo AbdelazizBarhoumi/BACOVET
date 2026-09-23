@@ -86,6 +86,12 @@ class AdminController extends Controller
 
         if (! empty($validated['password'])) {
             $user->password = \Illuminate\Support\Facades\Hash::make($validated['password']);
+
+            // Admin reset another user's password → force change on next login.
+            // Own account excluded so the admin isn't locked into the change flow.
+            if ($user->id !== $request->user()?->id) {
+                $user->must_change_password = true;
+            }
         }
 
         $user->update(collect($validated)->except(['role', 'password', 'active'])->toArray());

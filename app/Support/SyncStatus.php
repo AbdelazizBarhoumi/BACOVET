@@ -4,6 +4,8 @@ namespace App\Support;
 
 use App\Console\Commands\RunEndpointSync;
 use App\Models\EndpointDataset;
+use App\Models\EndpointDatasetVariant;
+use App\Services\EndpointDatasetRegistry;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -52,12 +54,61 @@ class SyncStatus
     }
 
     /**
+     * Slugs currently visible in the dataset registry (enabled roots only).
+     * Null when the registry is unavailable or empty — callers then fall back
+     * to the legacy unfiltered behaviour so a missing data.json can never
+     * make the badge flash 0 ok / 0 err.
+     *
+     * @return list<string>|null
+     */
+    public static function registrySlugs(): ?array
+    {
+        try {
+            $slugs = collect(app(EndpointDatasetRegistry::class)->endpoints())
+                ->map(static fn (mixed $entry): ?string => isset($entry['slug']) ? (string) $entry['slug'] : null)
+                ->filter(static fn (?string $slug): bool => $slug !== null && $slug !== '')
+                ->unique()
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $slugs === [] ? null : $slugs;
+    }
+
+    /**
+     * Delete endpoint_datasets (+ variants) rows whose slug is no longer in
+     * the registry (disabled root / disabled endpoint / removed item). This
+     * is the repair path for ghost rows: without it the badge keeps counting
+     * errors the UI can no longer display.
+     *
+     * @return array{datasets: int, variants: int, skipped: bool}
+     */
+    public static function pruneStale(): array
+    {
+        $slugs = self::registrySlugs();
+
+        if ($slugs === null) {
+            return ['datasets' => 0, 'variants' => 0, 'skipped' => true];
+        }
+
+        $datasets = EndpointDataset::query()->whereNotIn('slug', $slugs)->delete();
+        $variants = EndpointDatasetVariant::query()->whereNotIn('slug', $slugs)->delete();
+
+        return ['datasets' => (int) $datasets, 'variants' => (int) $variants, 'skipped' => false];
+    }
+
+    /**
      * Most recent moment at which the system actually succeeded somewhere
      * (a datasets row with an ok status, or a registry refresh with >0 ok).
      */
     private static function lastSuccessAt(): ?string
     {
+        $slugs = self::registrySlugs();
+
         $datasetsOk = EndpointDataset::query()
+            ->when($slugs !== null, static fn ($query) => $query->whereIn('slug', $slugs))
             ->where('last_status', 'ok')
             ->orderByDesc('last_synced_at')
             ->value('last_synced_at');
@@ -80,8 +131,13 @@ class SyncStatus
      */
     private static function lastRunAt(): ?string
     {
+        $slugs = self::registrySlugs();
+
         $best = self::latestTimestamp([
-            EndpointDataset::query()->orderByDesc('last_synced_at')->value('last_synced_at'),
+            EndpointDataset::query()
+                ->when($slugs !== null, static fn ($query) => $query->whereIn('slug', $slugs))
+                ->orderByDesc('last_synced_at')
+                ->value('last_synced_at'),
             self::registryMeta('last_run_at'),
         ]);
 
@@ -116,14 +172,24 @@ class SyncStatus
 
     private static function datasetsLastRunAt(): string
     {
-        $value = EndpointDataset::query()->orderByDesc('last_synced_at')->value('last_synced_at');
+        $slugs = self::registrySlugs();
+
+        $value = EndpointDataset::query()
+            ->when($slugs !== null, static fn ($query) => $query->whereIn('slug', $slugs))
+            ->orderByDesc('last_synced_at')
+            ->value('last_synced_at');
 
         return $value ? $value->toIso8601String() : '';
     }
 
     private static function countBy(string $status): int
     {
-        return EndpointDataset::query()->where('last_status', $status)->count();
+        $slugs = self::registrySlugs();
+
+        return EndpointDataset::query()
+            ->when($slugs !== null, static fn ($query) => $query->whereIn('slug', $slugs))
+            ->where('last_status', $status)
+            ->count();
     }
 
     /**

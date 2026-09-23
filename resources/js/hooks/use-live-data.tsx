@@ -22,6 +22,14 @@ const TICK_INTERVAL_MS = 5_000;
 const MIN_INTERVAL_SEC = 60;
 const MAX_INTERVAL_SEC = 600;
 
+export type SyncTriggerResult = {
+    queued: boolean;
+    /** True when the server ran the sync in-request (no shell on that host). */
+    synchronous: boolean;
+    success?: boolean;
+    output?: string;
+};
+
 type Ctx = {
     lastSync: number;
     now: number;
@@ -34,7 +42,7 @@ type Ctx = {
     setRefreshIntervalSec: (n: number) => void;
     running: boolean;
     runningSince: number;
-    forceSync: () => Promise<{ queued: boolean }>;
+    forceSync: () => Promise<SyncTriggerResult>;
 };
 
 const LiveCtx = createContext<Ctx>({
@@ -49,7 +57,7 @@ const LiveCtx = createContext<Ctx>({
     setRefreshIntervalSec: () => {},
     running: false,
     runningSince: 0,
-    forceSync: async () => ({ queued: true }),
+    forceSync: async () => ({ queued: true, synchronous: false }),
 });
 
 async function fetchStatus(): Promise<{
@@ -76,7 +84,7 @@ async function fetchStatus(): Promise<{
     return response.json();
 }
 
-async function triggerWorkerSync(): Promise<{ queued: boolean }> {
+async function triggerWorkerSync(): Promise<SyncTriggerResult> {
     const response = await fetch(SYNC_URL, {
         method: 'POST',
         headers: {
@@ -88,11 +96,35 @@ async function triggerWorkerSync(): Promise<{ queued: boolean }> {
     });
 
     if (!response.ok) {
-        throw new Error(`Sync trigger error: ${response.status}`);
+        let detail = '';
+        try {
+            const body = (await response.json()) as {
+                error?: unknown;
+                message?: unknown;
+                output?: unknown;
+            };
+            const raw = body.error ?? body.message ?? body.output;
+            if (typeof raw === 'string' && raw.trim() !== '') {
+                detail = raw.trim().slice(0, 500);
+            }
+        } catch {
+            // Fall through to the generic message below.
+        }
+        throw new Error(detail || `Sync trigger error: ${response.status}`);
     }
 
-    const data = (await response.json()) as { queued?: boolean };
-    return { queued: data.queued !== false };
+    const data = (await response.json()) as {
+        queued?: boolean;
+        mode?: unknown;
+        success?: unknown;
+        output?: unknown;
+    };
+    return {
+        queued: data.queued !== false,
+        synchronous: data.mode === 'sync' || 'exit_code' in data,
+        success: typeof data.success === 'boolean' ? data.success : undefined,
+        output: typeof data.output === 'string' ? data.output : undefined,
+    };
 }
 
 export function LiveDataProvider({ children }: { children: ReactNode }) {
@@ -230,18 +262,21 @@ export function LiveDataProvider({ children }: { children: ReactNode }) {
         [],
     );
 
-    const forceSync = useCallback(async (): Promise<{ queued: boolean }> => {
-        if (syncInFlight.current) return { queued: true };
+    const forceSync = useCallback(async (): Promise<SyncTriggerResult> => {
+        if (syncInFlight.current)
+            return { queued: true, synchronous: false };
         syncInFlight.current = true;
         try {
-            const { queued } = await triggerWorkerSync();
-            if (!queued) {
+            const result = await triggerWorkerSync();
+            if (!result.queued) {
                 setHasError(false);
             }
-            return { queued };
-        } catch {
+            return result;
+        } catch (err) {
             setHasError(true);
-            throw new Error('Synchronisation impossible à lancer');
+            throw err instanceof Error
+                ? err
+                : new Error('Synchronisation impossible à lancer');
         } finally {
             syncInFlight.current = false;
             await poll();

@@ -86,7 +86,10 @@ class EndpointRefreshRootTest extends TestCase
             $this->item('ep-1', 'a', 'https://api.primary.test/api/data/a'),
         ]);
 
-        Process::fake();
+        Process::fake([
+            '* --version' => Process::result("PHP 8.2.99 (cli) (built: test suite)\nCopyright (c) The PHP Group"),
+            '*' => Process::result(''),
+        ]);
 
         $this->actingAs($this->userWithRole('it'))
             ->postJson('/novacity-endpoints/refresh')
@@ -98,6 +101,36 @@ class EndpointRefreshRootTest extends TestCase
         $this->assertTrue(Cache::has(RunEndpointSync::RUNNING_KEY));
 
         Process::assertRan(fn (PendingProcess $process) => str_contains((string) $process->command ?? '', 'endpoint-sync:run'));
+    }
+
+    public function test_refresh_falls_back_to_synchronous_run_when_no_shell_exists(): void
+    {
+        $this->writeData([
+            $this->item('ep-1', 'a', 'https://api.primary.test/api/data/a'),
+        ]);
+
+        // Every subprocess fails: no PHP CLI is discoverable on this host
+        // (jailed php-fpm). The button must sync in-request instead.
+        Process::fake(['*' => Process::result('', '', 1)]);
+
+        Http::fake([
+            'https://api.primary.test/*' => Http::response(
+                ['success' => true, 'data' => [['a' => 1]]],
+                200,
+            ),
+        ]);
+
+        $this->actingAs($this->userWithRole('it'))
+            ->postJson('/novacity-endpoints/refresh')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('mode', 'sync')
+            ->assertJsonPath('exit_code', 0);
+
+        $this->assertDatabaseHas('endpoint_datasets', [
+            'slug' => 'api/data/a',
+            'last_status' => 'ok',
+        ]);
     }
 
     public function test_refresh_is_idempotent_while_already_running(): void
@@ -128,7 +161,10 @@ class EndpointRefreshRootTest extends TestCase
         Cache::put(RunEndpointSync::RUNNING_KEY, now()->subMinutes(10)->toIso8601String(), now()->addHours(2));
         Cache::put('endpoints:refresh:running_pid', 999999, now()->addHours(2));
 
-        Process::fake();
+        Process::fake([
+            '* --version' => Process::result("PHP 8.2.99 (cli) (built: test suite)\nCopyright (c) The PHP Group"),
+            '*' => Process::result(''),
+        ]);
 
         // Health must republish a dead PID as "not running".
         $this->actingAs($this->userWithRole('it'))

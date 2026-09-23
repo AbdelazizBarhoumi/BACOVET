@@ -10,10 +10,12 @@ use App\Services\EndpointDatasetRegistry;
 use App\Support\DatasetRows;
 use App\Support\DetachedProcess;
 use App\Support\RootParameters;
+use App\Support\SyncRunner;
 use App\Support\SyncStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 
 class EndpointDatasetController extends Controller
@@ -29,11 +31,17 @@ class EndpointDatasetController extends Controller
     }
 
     /**
-     * Trigger the full registry + dataset sync in a detached background
-     * process and return immediately — identical to the Rafraîchir buttons
-     * (endpoint-sync:run). The web request never blocks on the sweep; the
+     * Trigger the dataset sync. Preferred path: a detached background worker
+     * (endpoint-sync:run) so the web request never blocks on the sweep; the
      * UI reflects progress by polling /status. A duplicate click while a
      * sweep is already active is acked (queued=false) instead of stacking.
+     *
+     * Fallback path: when this host cannot spawn subprocesses at all
+     * (jailed php-fpm without a shell/PHP CLI — the preflight below fails),
+     * the datasets phase runs synchronously in-request instead of failing.
+     * This restores the pre-detached behaviour on such hosts: slower, but it
+     * actually syncs. Datasets-only (not the registry phase) keeps the
+     * request bounded to roughly one fetch pool round.
      */
     public function sync(): JsonResponse
     {
@@ -48,8 +56,29 @@ class EndpointDatasetController extends Controller
 
         $log = storage_path('logs/endpoint-sync-manual.log');
 
+        // The spawn below is fire-and-forget: prove the runtime works and the
+        // log is writable BEFORE claiming queued:true, otherwise a dead
+        // worker looks exactly like a running one (empty log, flag expiring
+        // after the 30s boot grace with zero writes).
+        $preflight = DetachedProcess::preflight();
+
+        if (! $preflight['ok']) {
+            return $this->syncSynchronously($preflight);
+        }
+
         // Clear any stale flag BEFORE spawning (see NovacityEndpointsController::refresh).
         RunEndpointSync::clearStale();
+
+        if (! DetachedProcess::mark($log, 'trigger endpoint-sync:run (php: '.$preflight['php_binary'].')')) {
+            return response()->json([
+                'success' => false,
+                'queued' => false,
+                'running' => false,
+                'reason' => 'log_unwritable',
+                'error' => 'Impossible d’écrire dans '.$log.' — vérifiez les permissions du dossier storage/logs.',
+                'spawn' => $preflight,
+            ], 500);
+        }
 
         DetachedProcess::spawn($log, ['endpoint-sync:run']);
 
@@ -63,8 +92,48 @@ class EndpointDatasetController extends Controller
             'success' => true,
             'queued' => true,
             'running' => true,
+            'mode' => 'detached',
             'message' => 'Synchronisation lancée en arrière-plan — chaque endpoint est mis à jour en tâche de fond.',
+            'spawn' => $preflight,
         ]);
+    }
+
+    /**
+     * Synchronous datasets-phase sync for hosts that cannot spawn a detached
+     * worker. Same live fetch + upsert path as the worker's datasets phase,
+     * just executed in-request (like the per-endpoint refresh buttons).
+     */
+    private function syncSynchronously(array $preflight): JsonResponse
+    {
+        try {
+            $result = SyncRunner::runDatasetsSynchronously();
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'queued' => false,
+                'running' => false,
+                'mode' => 'sync',
+                'reason' => 'sync_failed',
+                'error' => 'Échec de la synchronisation : '.$e->getMessage(),
+                'spawn' => $preflight,
+            ], 500);
+        }
+
+        $exitCode = $result['exit_code'];
+        $output = $result['output'];
+
+        app(EndpointDatasetRegistry::class)->forgetCache();
+
+        return response()->json([
+            'success' => $exitCode === 0,
+            'queued' => false,
+            'running' => false,
+            'mode' => 'sync',
+            'exit_code' => $exitCode,
+            'output' => mb_substr(trim($output) !== '' ? $output : 'Synchronisation terminée.', 0, 4000),
+            'sync' => SyncStatus::payload(),
+            'spawn' => $preflight,
+        ], $exitCode === 0 ? 200 : 500);
     }
 
     /**
