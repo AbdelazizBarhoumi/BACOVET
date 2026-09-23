@@ -150,7 +150,7 @@ function Skeleton({ className = '' }: { className?: string }) {
 type User = {
     id: number;
     name: string;
-    matricule: string;
+    matricule: string | null;
     role: {
         slug: Role;
         name: string;
@@ -844,13 +844,18 @@ function UserDialog({ initial, isEditing, onSave, onCancel }: UserDialogProps) {
     const [name, setName] = useState(initial?.name ?? '');
     const [matricule, setMatricule] = useState(initial?.matricule ?? '');
     const [email, setEmail] = useState(initial?.email ?? '');
-    const [role, setRole] = useState<Role>(initial?.role ?? 'resp_production');
+    // DB slug is 'it', frontend display slug is 'admin' — normalize for the Select.
+    const initialRole: Role =
+        (initial?.role as string) === 'it'
+            ? 'admin'
+            : ((initial?.role ?? 'resp_production') as Role);
+    const [role, setRole] = useState<Role>(initialRole);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [active, setActive] = useState<boolean>(initial?.active ?? true);
 
     const handleSave = () => {
-        if (!name || !email || !matricule) {
+        if (!name.trim() || !email.trim()) {
             toast.error('Veuillez remplir les champs obligatoires');
             return;
         }
@@ -859,10 +864,11 @@ function UserDialog({ initial, isEditing, onSave, onCancel }: UserDialogProps) {
             return;
         }
         onSave({
-            name,
-            matricule,
-            email,
-            role,
+            name: name.trim(),
+            matricule: matricule.trim() ? matricule.trim() : null,
+            email: email.trim(),
+            // Backend expects 'it' for the IT admin role.
+            role: role === 'admin' ? 'it' : role,
             active,
             password: password || undefined,
         });
@@ -894,13 +900,13 @@ function UserDialog({ initial, isEditing, onSave, onCancel }: UserDialogProps) {
                     </div>
                     <div>
                         <Label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-                            Matricule / EID
+                            Matricule / EID (optionnel)
                         </Label>
                         <Input
                             value={matricule}
                             onChange={(e) => setMatricule(e.target.value)}
                             className="h-9 font-mono uppercase"
-                            placeholder="EID-000"
+                            placeholder="EID-000 (optionnel)"
                         />
                     </div>
                 </div>

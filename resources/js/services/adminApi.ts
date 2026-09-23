@@ -43,12 +43,23 @@ export const fetchAllUsers = async () => {
 };
 
 /**
+ * Backend uses 'it' as the slug for the IT admin role,
+ * frontend uses 'admin' as display slug — normalize before sending.
+ */
+const normalizeRole = (userData: Record<string, unknown>) => {
+    if (userData.role === 'admin') {
+        return { ...userData, role: 'it' };
+    }
+    return userData;
+};
+
+/**
  * Create a new user
  */
 export const createUser = async (userData: Record<string, unknown>) => {
     return fetchWithToken(`${BASE_URL}/admin/users`, {
         method: 'POST',
-        body: JSON.stringify(userData),
+        body: JSON.stringify(normalizeRole(userData)),
     });
 };
 
@@ -61,7 +72,7 @@ export const updateUser = async (
 ) => {
     return fetchWithToken(`${BASE_URL}/admin/users/${userId}`, {
         method: 'PUT',
-        body: JSON.stringify(userData),
+        body: JSON.stringify(normalizeRole(userData)),
     });
 };
 

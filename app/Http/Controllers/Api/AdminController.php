@@ -25,9 +25,18 @@ class AdminController extends Controller
 
     public function createUser(Request $request): JsonResponse
     {
+        if ($request->has('matricule') && trim((string) $request->input('matricule')) === '') {
+            $request->merge(['matricule' => null]);
+        }
+
+        // Frontend uses 'admin' as display slug, DB uses 'it'.
+        if ($request->input('role') === 'admin') {
+            $request->merge(['role' => 'it']);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'matricule' => 'required|string|max:50|unique:users,matricule',
+            'matricule' => 'nullable|string|max:50|unique:users,matricule',
             'email' => 'required|email|max:255|unique:users,email',
             'role' => 'required|string|exists:roles,slug',
             'password' => 'required|string|min:4',
@@ -38,7 +47,7 @@ class AdminController extends Controller
 
         $user = User::create([
             'name' => $validated['name'],
-            'matricule' => $validated['matricule'],
+            'matricule' => $validated['matricule'] ?? null,
             'email' => $validated['email'],
             'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
             'role_id' => $role->id,
@@ -52,9 +61,18 @@ class AdminController extends Controller
     {
         $user = User::findOrFail($id);
 
+        if ($request->has('matricule') && trim((string) $request->input('matricule')) === '') {
+            $request->merge(['matricule' => null]);
+        }
+
+        // Frontend uses 'admin' as display slug, DB uses 'it'.
+        if ($request->has('role') && $request->input('role') === 'admin') {
+            $request->merge(['role' => 'it']);
+        }
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'matricule' => "sometimes|string|max:50|unique:users,matricule,{$id}",
+            'matricule' => "sometimes|nullable|string|max:50|unique:users,matricule,{$id}",
             'email' => "sometimes|email|max:255|unique:users,email,{$id}",
             'role' => 'sometimes|string|exists:roles,slug',
             'password' => 'nullable|string|min:4',
