@@ -552,8 +552,15 @@ export function CustomTooltip({
         // setTooltipHover is an unstable context helper (recreated every
         // provider render). Depending on it here would re-run this effect on
         // every render and loop forever; it only wraps a stable setState.
+        // `tooltipHover` itself is deliberately excluded too: with N mounted
+        // charts, depending on `tooltipHover?.sourceId` re-runs this effect
+        // in EVERY chart on EVERY hover change, and each run fans back into
+        // the store + recharts tooltip state — the #185 snowball on
+        // hover-heavy pages. The clear below is ownership-guarded, so this
+        // visual never needs to react to another visual's hover: its own
+        // active/label transitions (already deps) cover every case.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [active, hoverCol, label, visual.id, tooltipHover?.sourceId]);
+    }, [active, hoverCol, label, visual.id]);
 
     if (!active || !payload?.length) return null;
     const datum = payload[0]?.payload ?? {};

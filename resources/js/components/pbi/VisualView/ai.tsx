@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     Bar,
     BarChart,
@@ -226,6 +226,9 @@ export function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
         undefined,
         graph,
     );
+    // Stable tooltip renderer (see ChartBody): a fresh `content` identity on
+    // every render churns recharts' internal tooltip state.
+    const tooltipContent = useMemo(() => chartTooltip(visual), [visual]);
     return (
         <div className="flex h-full flex-col gap-1">
             <input
@@ -243,7 +246,7 @@ export function QnaVisual({ visual, rows }: { visual: Visual; rows: Row[] }) {
                             {...axisPropsFor(visual)}
                         />
                         <Tooltip
-                            content={chartTooltip(visual)}
+                            content={tooltipContent}
                             isAnimationActive={false}
                         />
                         <Bar

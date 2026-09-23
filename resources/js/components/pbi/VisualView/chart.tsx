@@ -581,6 +581,17 @@ export function ChartBody({
         measures,
     } = usePbi();
 
+    // Stable recharts Tooltip `content` renderer. `chartTooltip(visual)`
+    // builds a new function every call, and a fresh `content` identity on
+    // each render makes recharts tear down and re-run its internal tooltip
+    // state — which writes back into the store (CustomTooltip effect) and
+    // re-renders every visual (unmemoized provider value). On hover-heavy
+    // pages that feedback loop snowballs into React error #185. `visual`
+    // keeps a stable identity across hover-only updates (setTooltipHover
+    // spreads the state without touching `pages`), so memoizing here breaks
+    // the cycle without changing any rendered output.
+    const tooltipContent = useMemo(() => chartTooltip(visual), [visual]);
+
     // Clear a lingering cross-chart hover lens when this visual actually
     // unmounts. Runs exactly once per mount (empty deps), so the hover
     // update below cannot cascade into the mount/unmount loop the tooltip
@@ -2027,7 +2038,7 @@ export function ChartBody({
                     />
                 )}
                 <Tooltip
-                    content={chartTooltip(visual)}
+                    content={tooltipContent}
                     isAnimationActive={false}
                     cursor={
                         crosshair
@@ -2568,7 +2579,7 @@ export function ChartBody({
                             )}
                         </Pie>
                         <Tooltip
-                            content={chartTooltip(visual)}
+                            content={tooltipContent}
                             isAnimationActive={false}
                         />
                         {visual.showLegend && (
@@ -2681,7 +2692,7 @@ export function ChartBody({
                         }
                     >
                         <Tooltip
-                            content={chartTooltip(visual)}
+                            content={tooltipContent}
                             isAnimationActive={false}
                         />
                     </Treemap>
@@ -2693,7 +2704,7 @@ export function ChartBody({
                 <ResponsiveContainer width="100%" height="100%">
                     <FunnelChart>
                         <Tooltip
-                            content={chartTooltip(visual)}
+                            content={tooltipContent}
                             isAnimationActive={false}
                         />
                         <Funnel
@@ -2779,7 +2790,7 @@ export function ChartBody({
                             {...axisPropsFor(visual)}
                         />
                         <Tooltip
-                            content={chartTooltip(visual)}
+                            content={tooltipContent}
                             isAnimationActive={false}
                         />
                         <Bar dataKey="base" stackId="w" fill="transparent" />
@@ -2899,7 +2910,7 @@ export function ChartBody({
                             <ZAxis dataKey={scZKey} range={[40, 500]} />
                         )}
                         <Tooltip
-                            content={chartTooltip(visual)}
+                            content={tooltipContent}
                             isAnimationActive={false}
                         />
                         <Scatter

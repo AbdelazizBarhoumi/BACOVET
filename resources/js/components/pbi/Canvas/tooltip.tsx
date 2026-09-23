@@ -9,18 +9,38 @@ export function TooltipPagePopup() {
     const { tooltipHover, pages, page, tableRows, rows } = usePbi();
     const [pos, setPos] = useState({ x: 0, y: 0 });
 
-    useEffect(() => {
-        const move = (e: MouseEvent) => setPos({ x: e.clientX, y: e.clientY });
-        window.addEventListener('mousemove', move);
-        return () => window.removeEventListener('mousemove', move);
-    }, []);
-
-    if (!tooltipHover) return null;
-    const source = page.visuals.find((v) => v.id === tooltipHover.sourceId);
+    const source = tooltipHover
+        ? page.visuals.find((v) => v.id === tooltipHover.sourceId)
+        : undefined;
     const tooltipPage = source?.tooltipPageId
         ? pages.find((p) => p.id === source.tooltipPageId)
         : null;
-    if (!tooltipPage) return null;
+    const hasPopup = !!tooltipPage;
+
+    useEffect(() => {
+        // No popup to position (no hover, or a dangling tooltipPageId):
+        // don't subscribe at all. Previously this listener called setPos on
+        // EVERY mousemove across the page even while rendering null, churning
+        // a re-render per pixel into all nested visuals on hover-heavy pages.
+        if (!hasPopup) return;
+        // Coalesce bursts of mousemove events into one position update per
+        // frame so fast mouse sweeps can't queue a render per pixel.
+        let raf = 0;
+        const move = (e: MouseEvent) => {
+            const { clientX, clientY } = e;
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() =>
+                setPos({ x: clientX, y: clientY }),
+            );
+        };
+        window.addEventListener('mousemove', move);
+        return () => {
+            window.removeEventListener('mousemove', move);
+            cancelAnimationFrame(raf);
+        };
+    }, [hasPopup]);
+
+    if (!tooltipHover || !tooltipPage) return null;
 
     const tpVisuals = tooltipPage.visuals.filter((v) => !v.hidden);
     if (!tpVisuals.length) return null;
